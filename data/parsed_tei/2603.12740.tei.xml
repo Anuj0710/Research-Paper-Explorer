@@ -1,0 +1,1414 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">TOOLTREE: EFFICIENT LLM AGENT TOOL PLANNING VIA DUAL-FEEDBACK MONTE CARLO TREE SEARCH AND BIDIRECTIONAL PRUNING</title>
+				<funder ref="#_rfVf7TN">
+					<orgName type="full">Ministry of Trade, Industry and Energy</orgName>
+				</funder>
+				<funder ref="#_m3P2bDe">
+					<orgName type="full">Korea government(MSIT)</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Development of Core Technologies for Manufacturing Foundation Models)</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Korea Planning &amp; Evaluation Institute of Industrial Technology</orgName>
+					<orgName type="abbreviated">KEIT</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-03-13">13 Mar 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Shuo</forename><surname>Yang</surname></persName>
+							<email>shuo.yang.3@unimelb.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and Information Systems</orgName>
+								<orgName type="institution">The University of Melbourne</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Soyeon</forename><forename type="middle">Caren</forename><surname>Han</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and Information Systems</orgName>
+								<orgName type="institution">The University of Melbourne</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yihao</forename><surname>Ding</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">School of Physics, Mathematics and Computing</orgName>
+								<orgName type="institution">The University of Western</orgName>
+								<address>
+									<country key="AU">Australia</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Shuhe</forename><surname>Wang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and Information Systems</orgName>
+								<orgName type="institution">The University of Melbourne</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Eduard</forename><surname>Hovy</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">School of Computing and Information Systems</orgName>
+								<orgName type="institution">The University of Melbourne</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">TOOLTREE: EFFICIENT LLM AGENT TOOL PLANNING VIA DUAL-FEEDBACK MONTE CARLO TREE SEARCH AND BIDIRECTIONAL PRUNING</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-03-13">13 Mar 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">82D51B5CDF470FCA932D527E0386BC10</idno>
+					<idno type="arXiv">arXiv:2603.12740v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large Language Model (LLM) agents are increasingly applied to complex, multistep tasks that require interaction with diverse external tools across various domains. However, current LLM agent tool planning methods typically rely on greedy, reactive tool selection strategies that lack foresight and fail to account for inter-tool dependencies. In this paper, we present ToolTree, a novel Monte Carlo tree search-inspired planning paradigm for tool planning. ToolTree explores possible tool usage trajectories using a dual-stage LLM evaluation and bidirectional pruning mechanism that enables the agent to make informed, adaptive decisions over extended tool-use sequences while pruning less promising branches before and after the tool execution. Empirical evaluations across both open-set and closed-set tool planning tasks on 4 benchmarks demonstrate that ToolTree consistently improves performance while keeping the highest efficiency, achieving an average gain of around 10% compared to the state-of-the-art planning paradigm. 1</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">INTRODUCTION</head><p>Recent advancements in Large Language Models (LLMs) <ref type="bibr" target="#b1">(Brown et al., 2020;</ref><ref type="bibr" target="#b14">Ouyang et al., 2022;</ref><ref type="bibr" target="#b24">Touvron et al., 2023)</ref> have propelled the emergence of language agents capable of tackling complex multi-step tasks across various domains, including software engineering <ref type="bibr" target="#b29">(Yang et al., 2024)</ref>, web browsing <ref type="bibr">(Zhou et al., 2023)</ref>, scientific discovery <ref type="bibr" target="#b0">(Bran et al., 2023)</ref> and multimodal understanding <ref type="bibr" target="#b27">(Wu et al., 2023)</ref>. A critical aspect of enabling these agents to solve sophisticated problems lies in their ability to plan and coordinate external tools <ref type="bibr" target="#b17">(Qu et al., 2025)</ref>. Effective tool planning leverages the prior knowledge of LLMs by decomposing complex tasks, reasoning about which tools are appropriate, and generating structured plans that assign intermediate steps to these tools. In doing so, LLMs can integrate external functionalities into their reasoning process, thereby enhancing their effectiveness in completing complex tasks <ref type="bibr" target="#b18">(Schick et al., 2023;</ref><ref type="bibr" target="#b8">Li et al., 2024;</ref><ref type="bibr" target="#b11">Lu et al., 2025)</ref>.</p><p>To enhance the tool planning capabilities of LLMs, existing research has primarily followed two directions. The first is greedy-based tool planning, where the model independently selects and executes the tool that appears most suitable at each step, without engaging in long-term rewards. <ref type="bibr" target="#b26">(Wei et al., 2022;</ref><ref type="bibr" target="#b19">Shen et al., 2023;</ref><ref type="bibr">Yao et al., 2023b;</ref><ref type="bibr" target="#b11">Lu et al., 2025;</ref><ref type="bibr" target="#b10">Liu et al., 2025)</ref>. As a result, these approaches often suffer from brittle performance, particularly when early suboptimal choices propagate errors that compound irreversibly and compromise later steps. Besides, these methods also tend to waste computation by following only a single trajectory with no exploration of alternatives. On the other hand, search-based methods attempt to address this limitation by expanding multiple candidate branches, but they introduce new challenges when tools are involved <ref type="bibr">(Yao et al., 2023a;</ref><ref type="bibr">Zhuang et al., 2024;</ref><ref type="bibr" target="#b33">Zhou et al., 2024)</ref>. The branching factor grows exponentially with tool types, arguments, and evolving states, leading to high costs and unpredictable latency. Moreover, many variants evaluate hypothetical thoughts rather than executed actions, so ranking is decoupled from actual tool use utility, and improvements realized several steps later are rarely credited back to earlier decisions. Together, these drawbacks highlight the need for a planning approach that is both forward-looking and outcome-grounded, while remaining compute-efficient under fixed budgets.</p><p>Our ToolTree tackles the above two issues at the same time. ToolTree frames tool planning as a search problem guided jointly by a fast pre-execution prior and a grounded post-execution utility, enabling agents to allocate computation adaptively and recover from early missteps without taskspecific retraining as illustrated in Figure <ref type="figure" target="#fig_0">1</ref>. Our design integrates pre-execution scoring into the selection policy to predict the utility of a tool before it is invoked, while a post-execution score assesses its actual contribution based on observed outcomes as rollout rewards, and applies complementary pre-and post-pruning to eliminate unpromising branches. This feedback loop enables the agent to refine its strategy iteratively, incorporating foresight and hindsight into tool selection. To evaluate the effectiveness of ToolTree in enhancing LLM agent tool planning abilities, we compare ToolTree with greedy and search-based planning methods on four tool use benchmarks spanning both closed-set and open-set tool scenarios, with around 10 percent improvement over baseline, achieving SoTA performance with a 66.95 F1 score on GTA and a 69.04 pass rate on ToolBench. Overall, our contributions can be summarized as follows:</p><p>• We present ToolTree, a novel Monte Carlo tree search-inspired planning paradigm that frames LLM agent tool use as search guided by pre-execution priors and post-execution rewards, enabling robust multi-step reasoning without retraining. • ToolTree effectively integrates a dual-evaluation guided tree traversal method with bidirectional pruning, which integrates pre-and post-scoring into search and eliminates weak branches, improving accuracy per unit compute under fixed budgets. • We evaluate ToolTree on four benchmarks of both closed-set and open-set tool planning, demonstrating its superior effectiveness and efficiency. The improvements scale consistently with the number of tool sets, model size and computing resources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">PRELIMINARIES</head><p>In this section, we introduce the preliminaries of the tool planning task for language agents, including (1) the formal problem definition for tool planning;</p><p>(2) tree-search enhanced tool planning; and</p><p>(3) the fundamentals of Monte Carlo Tree Search (MCTS).</p><p>Problem Definition: Tool Planning. Tool planning is the task that decides not only which tools a language model should use, but also when and in what order to use them, in order to accomplish a task both efficiently and accurately. Unlike simple tool selection, which focuses on identifying the most appropriate tool at a single step, tool planning requires reasoning over entire sequences of tools, with the objective of discovering an optimal sequence that maximizes task success.</p><p>Formally, let (1) T lib = {t 1 , t 2 , . . . , t m } denote a set of available tools. Each tool t ∈ T lib is represented by a structured tool card C t with explanatory metadata using JSON format to provide standardized information for further utilization, which can be found in Appendix B.5; (2) S be the state space, where each state s ∈ S encodes the current dialogue context and any accumulated intermediate results;</p><p>(3) A denote the action space, where each action corresponds to invoking a tool t i ∈ T lib with an input; and (4) R : S → R be a reward function that measures how correct, informative or efficient the current tool sequence is. Then, the tool planning task is to learn or search for a policy π : S → A that generates a sequence of actions s * = {a 1 , a 2 , . . . , a n }, where a i ∈ A to maximize the expected reward:</p><formula xml:id="formula_0">π = arg max E[R(s * )|π, T lib ]</formula><p>Tree Search-enhanced planning. Tree-search enhanced tool planning reframes the above tool planning task as a search problem: The agent explicitly constructs and evaluates candidate sequences of tool invocations (sequences) and uses a specific search policy to choose actions that are promising in expectation. Specifically, a search tree is constructed with nodes corresponding to states s ∈ S and edges corresponding to actions a ∈ A. Each root-to-node path corresponds to a partial plan s = {a 1 , . . . , a k }, where k denotes the number of searched child nodes. The tree search procedure estimates terminal rewards R(s * ) for candidate plans and returns the highest-value plan.</p><p>Monte Carlo Tree Search (MCTS). Monte Carlo Tree Search (MCTS) is a heuristic search algorithm for decision-making in large and complex search spaces, most notably applied in game playing (e.g., Go <ref type="bibr" target="#b21">(Silver et al., 2016)</ref> and Chess <ref type="bibr" target="#b5">(Helfenstein et al., 2024)</ref>) and planning problems <ref type="bibr" target="#b2">(Feng et al., 2023)</ref>. Basically, the MCTS process can be decomposed into four iterative steps: (1) selection, starting from the root, the algorithm recursively selects child nodes according to a tree policy, such as UCT <ref type="bibr" target="#b6">(Kocsis &amp; Szepesvári, 2006)</ref> and PUCT <ref type="bibr" target="#b22">(Silver et al., 2017)</ref> that balances exploration and exploitation;</p><p>(2) expansion, if the selected node is not terminal, one or more child nodes are added to the tree, representing possible future actions; (3) simulation, from the expanded node, a policy-guided simulation is performed to approximate the outcome of completing the plan from that state; (4) back propagation, the result of the simulation is propagated back up the tree to update the computed rewards of the traversed nodes. By repeating this procedure many times, MCTS refines its estimates of action values and converges toward high-quality plans.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">PROPOSED METHOD: TOOLTREE</head><p>In this section, we demonstrate how ToolTree performs tool planning by casting multi-tool use as a Monte Carlo Tree Search (MCTS) inspired planning paradigm over executable trajectories in Figure <ref type="figure" target="#fig_1">2</ref>. We first outline the overall process in Section 3.1. We then demonstrate the unique design of dual evaluation and pruning in Section 3.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">OVERVIEW</head><p>We view tool planning as a sequential decision process where each state encodes the evolving dialog context and intermediate results, and each action corresponds to invoking a candidate tool from the library T lib = {t 1 , . . . , t m }. The objective is to discover a trajectory that maximizes task utility within a fixed rollout budget R max .</p><p>Unlike prior approaches that rely on a separate planner, ToolTree integrates tool selection, execution, evaluation and pruning directly into the MCTS loop. At every step, the search is guided by two complementary signals: a lightweight pre-evaluation that anticipates the usefulness of an action before execution, and a post-evaluation that scores the grounded output afterward. This dual feedback supports both exploration and pruning, enabling deliberate, training-free planning that generalizes across diverse tool libraries. The search terminates when the budget is met or improvements plateau, and the highest-valued trajectory is returned to generate the final answer. This look-ahead/look-back loop allows the agent to recover from early errors, avoid dead-end tool combinations, and allocate its limited call budget to the most promising trajectories. The overall process is depicted in Figure <ref type="figure" target="#fig_1">2</ref> with Selection, Pre-evaluation, Expansion, Execution, Post-Evaluation, and Backward Propagation.</p><p>Selection. Given the current search state s, the search descends the tree by repeatedly selecting the child action that maximizes a prior-augmented UCT score:</p><formula xml:id="formula_1">UCT(s, a) = Q(s, a) + λ r pre (s, a) ln N (s) N (s, a) . (<label>1</label></formula><formula xml:id="formula_2">)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Image</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Question</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Predictor</head><p>Are the lungs affected?</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Input</head><p>Answer No</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Selection</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Pre-Evaluation</head><p>Expansion Execution where Q(s, a) drives exploitation as it accumulates the post evaluation rewards obtained so far. N (s) and N (s, a) are visit counts and r pre (s, a) ∈ [0, 1] is a fast, predictive signal available before executing action a. Only admissible actions a ∈ A(s) where tools with input schema compatible with the current context are considered; ties are broken by larger N (s) followed by a small random jitter to preserve exploration diversity. The use of r pre (s, a) biases early rollouts toward promising branches while retaining the exploitation pressure from Q(s, a).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Post-Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Backpropagation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>LLM</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Repeated X times</head><p>Expansion. Upon reaching a leaf state s t = ⟨C t , A 1:t ⟩, we enumerate the remaining admissible actions A rem (s t ) = A(s t ) \ {a 1 , . . . , a t }. For each candidate a ∈ A rem (s t ), we obtain its predictive score r pre (s t , a) and instantiate a new child node (s t , a) only if r pre (s t , a) ≥ τ pre (pre-pruning, consistent with the prior term in Eq. 1), and the tool's I/O schemas are type-compatible with C t . When tools accept structured arguments, we generate a minimal, schema-valid argument draft and cache it with the node to avoid regenerating at selection time.</p><p>Execution. For a selected child (s t , a), we invoke the corresponding tool/API with its arguments, yielding an output o t+1 . The context is updated to C t+1 by appending (a, o t+1 ) in a structured form. To reduce waste, we employ deterministic caching keyed by (a, args): if an identical call has already been made within the current rollout, its o t+1 is reused. Persistent failures attach an error token to o t+1 so downstream compatibility checks and scoring can handle the outcome explicitly.</p><p>Backward Propagation. After execution, the resulting post-execution score r post (s t , a) ∈ [0, 1] is propagated from the new child back to the root. For every edge (s, a) on this path, we update the counts and value estimate N (s, a)</p><formula xml:id="formula_3">← N (s, a) + 1, Q(s, a) ← Q(s, a) + rpost(st,a)-Q(s,a) N (s,a)</formula><p>. This running average refines the exploitation term in Eq. 1, allowing subsequent selections to reflect observed utility. We also maintain N (s) ← a ′ N (s, a ′ ) for use in the exploration bonus.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">DUAL EVALUATION AND PRUNING</head><p>Classical MCTS balances exploration and exploitation but is agnostic to (i) the plausibility of a tool call before execution and (ii) the grounded utility of its realized output afterwards. ToolTree injects two lightweight, training-free signals into the loop: a pre-evaluation r pre (s, a) ∈ [0, 1] that forecasts usefulness prior to execution, and a post-evaluation r post (s, a) ∈ [0, 1] that scores the produced output. These signals serve complementary roles-foresight and hindsight-and enable bidirectional pruning that keeps the tree compact without sacrificing solution quality.</p><p>Pre-Evaluation. For a newly encountered pair (s, a), we query a LLM judge to score r pre (s, a) based on the current context C, the tool card (I/O schema, domain tags, examples), and a schemavalid argument draft. This score enters selection via the prior-augmented exploration bonus in Eq. 1 and also gates expansion:</p><formula xml:id="formula_4">A + (s t ) = { a ∈ A(s t ) : r pre (s t , a) ≥ τ pre }, A keep (s t ) = top-K A + (s t ) ; r pre .</formula><p>Only actions in A keep (s t ) are expanded. Intuitively, r pre removes obviously incompatible or lowyield branches before any tool call, reducing the branching factor while still allowing exploration through the UCT term. Depth-aware annealing of λ (or of τ pre ) can gradually temper the influence of the prior as empirical evidence accumulates.</p><p>Post-Evaluation After executing (s t , a) and obtaining o t+1 , we score grounded utility with the same LLM judge:</p><formula xml:id="formula_5">r post (s t , a) = J C t , a, o t+1 ∈ [0, 1],</formula><p>where J evaluates task-consistency (e.g., correctness proxies, relevance, constraint satisfaction) and robustness cues. This score drives exploitation by updating the running mean Q(s, a) in backward propagation and directly supports post-pruning: edges with r post (s t , a) &lt; τ post are marked nonexpandable to prevent further budget on unproductive continuations. Because r post is computed on executed actions, it yields faithful credit assignment compared to ranking hypothetical thoughts.</p><p>Bidirectional Pruning. Combining both signals yields a two-sided budget control: Pre-pruning to discard (s, a) if r pre (s, a) &lt; τ pre (or if it falls outside the top-K),thereby curbing expansion of lowpromise children. Post-pruning while after execution, mark (s t , a) non-expandable if r post (s t , a) &lt; τ post , trimming branches disproven by evidence. We also cache (a, args) → o to avoid duplicate calls within a rollout; failures attach a typed error token so pruning decisions remain explicit rather than implicit timeouts. Together, these rules concentrate rollouts on branches that are both likely (per r pre ) and useful (per r post ), improving accuracy-per-second under fixed R max .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">EXPERIMENT SETUP</head><p>We evaluate ToolTree across two complementary regimes that stress different facets of LLM agent tool use: closed-set tool planning with GTA <ref type="bibr" target="#b25">(Wang et al., 2024)</ref> and m&amp;m <ref type="bibr" target="#b12">(Ma et al., 2024)</ref>, where a small, fixed tool set with typed I/O must be composed into short multi-hop chains, and open-set tool planning with ToolBench <ref type="bibr" target="#b16">(Qin et al., 2023)</ref> and RestBench <ref type="bibr" target="#b23">(Song et al., 2023)</ref>, where the action space spans dozens of APIs/endpoints and API retrieval is part of the problem. These two tasks demonstrate the effectiveness and efficiency of ToolTree.</p><p>Datasets. We use four datasets covering two tasks to test our method. For (i) closed-set tool planning we adopt GTA <ref type="bibr" target="#b25">(Wang et al., 2024)</ref> and m&amp;m <ref type="bibr" target="#b12">(Ma et al., 2024)</ref>, each of them provides a fixed tool set of size 14/33 with typed I/O and short multi-hop chains. We follow the original setup by evaluating this task in both step-by-step mode and end-to-end modes. For (ii) open-set tool planning we use ToolBench <ref type="bibr" target="#b16">(Qin et al., 2023)</ref> and RestBench <ref type="bibr" target="#b12">(Ma et al., 2024)</ref>, which pair 16,464 and 143 real APIs, respectively, with multi-tool retrieval-then-planning scenarios under a judge-based protocol.</p><p>We follow the initial setup using pass rate and win rate as the evaluation metrics. More details can be found in Appendix B.1 and B.2.</p><p>Baselines. For (i) closed-set tool planning on GTA and m&amp;m we compare our method against: 1) Zero-shot, 2) ReAct <ref type="bibr">(Yao et al., 2023b)</ref>, 3) Chain-of-Thought <ref type="bibr" target="#b26">(Wei et al., 2022)</ref>, 4) Best-First search <ref type="bibr" target="#b7">(Koh et al., 2024)</ref>, 5) Tree-of-Thought <ref type="bibr">(Yao et al., 2023a)</ref>, 6) A* Search developed in the ToolChain* paper <ref type="bibr">(Zhuang et al., 2024)</ref>, and 7) Monte Carlo tree search <ref type="bibr" target="#b33">(Zhou et al., 2024)</ref>. These baselines span the spectrum from no planning through greedy, reactive planning to search-based planning, providing a comprehensive contrast on small, typed tool suites. For (ii) open-set tool planning on ToolBench and RestBench, we use: 1) Zero-shot, 2) Chain-of-Thought, 3) ReAct, 4) <ref type="bibr">DFSDT Qin et al. (2023)</ref>, and 5) Monte Carlo tree search, emphasizing planning-centric controllers standard for large API spaces, while retaining simple baselines to isolate planning gains. To ensure a fair comparison, all planners share the same tool schemas and descriptions, the same type pre-gating pipeline and the same caching policy for tool outputs and LLM calls. We also enforce identical compute and rollout budgets. These shared engineering settings are applied uniformly across methods to isolate the effect of the planning strategy itself. More details in Appendix B.3.  <ref type="table">1</ref>: Comparison of ToolTree with other baselines across GTA and m&amp;m. The experiment is carried out under both step-by-step and end-to-end mode. "Tool" stands for tool selection F1 score; "Arg" stands for argument prediction F1 score; "Plan" and "Exec" stand for planning and execution F1 score. Ours achieves the best performance overall. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">CLOSED-SET TOOL PLANNING ON GTA AND M&amp;M</head><p>We compare ToolTree with the selected baselines on GTA and m&amp;m on both step-by-step and endto-end mode under GPT-4o and GPT-4o-mini. For step-by-step mode, we measure Tool F1 and Arg F1 to evaluate the tool selection and argument prediction ability. For end-to-end mode, we report F1 score for both planning and execution. GTA and m&amp;m offer typed tool APIs and gold protocols across two modes, allowing us to cleanly measure both planning and execution quality.</p><p>Results. As demonstrated in Table <ref type="table">1</ref>, ToolTree attains the best overall average score on both datasets and model backends. On GTA with GPT-4o, it achieves 66.95 average score, outperforming the vanilla MCTS baseline by more than 2.2 points. On m&amp;m with GPT-4o, ToolTree reaches 88.61 average score of both modes, outperforming the zero-shot baseline by more than 8 points. The same pattern holds for GPT-4o-mini with smaller but consistent margins. Meanwhile, greedy controllers like Zero-shot, ReAct and CoT lag behind search-based methods, confirming the value of lookahead even with small typed tool suites. Among the rest baselines, while ToT, A* and LATS improve progressively, ToolTree remains on top as its dual pre-/post-evaluation with pruning filters implausible actions before expansion and cuts unproductive branches after execution using real feedback, concentrating budget on promising chains and yielding higher next-action and executed-plan scores.</p><p>Progressive Efficiency Analysis. We sweep the step limit and record the dataset performance, wall-clock time and efficiency, defined as the marginal gain per second, at each budget in Figure <ref type="figure" target="#fig_2">3</ref>. On Figure (a) Performance vs step limit, all methods improve with more steps, but ToolTree dominates at every budget, with the largest margin in the low-mid regime of 16-64 steps before all curves begin to saturate, demonstrating the effectiveness of lookahead converting early expansions into higher-quality actions. On Figure (b) Running time vs step limit, runtime grows near-linearly for all methods. While ToolTree is slower than ReAct and Best-first, it is comparable to ToT and typically below LATS. On Figure (c) Efficiency vs step limit, despite the extra time, ToolTree yields the highest accuracy-per-second, especially from 16-32 and 32-64 steps, indicating better budget allocation. The pattern aligns with our design: pre-evaluation pruning removes implausible children before expansion and post-evaluation pruning trims unproductive branches after probes, together producing the best performance-time trade-off and a practical sweet spot around 32-64 steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">OPEN-SET TOOL PLANNING ON TOOLBENCH AND RESTBENCH</head><p>We compare ToolTree with Zero-shot, Chain-of-Thought, ReAct, DFSDT, and LATS on ToolBench and RestBench using GPT-4o-mini and GPT-4o. Following each benchmark's protocol, we report Pass Rate and Win Rate under identical instructions, a fixed retrieval setup, and budget parity. These benchmarks expose large, diverse API catalogs and require both API selection and argument composition over executable REST endpoints, providing a clean stress test of planner scalability in many-API, real-world settings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Results</head><p>As demonstrated in Table <ref type="table" target="#tab_1">2</ref>, ToolTree attains the best score across both datasets and models. On ToolBench with GPT-4o, it reaches 69.04 AVG, about +2.5 over the strongest baseline; on RestBench-TMDB, it achieves 74.50 AVG, about +3.1 over the next best. The advantage is largest where branching is high and plans span multiple calls. As our method explores pre-evaluation to filter schema-or slot-incompatible calls before expansion, and applies post-evaluation to prune branches quickly using execution feedback, the resulting value backups favor API sequences that are compatible over longer horizons. In contrast, DFSDT and LATS either allocate depth without breadth-aware priors or distribute rollouts less selectively, leading to inaccurate planning and execution. More results can be found in Appendix A. Potential concerns related to metric coupling are discussed in Appendix A.9.   Retrieval Sensitivity. To isolate the impact of the shortlist, we replace the retriever with Contriever, RoBERTa, and BM25 and evaluate ReAct, ToT, and our planner on ToolBench, reporting the three official instruction groups (G1/G2/G3) as in Table <ref type="table" target="#tab_4">4</ref>. While stronger retrieval lifts all methods, ours remains best across G1-G3 under every retriever. Besides, we also found degradation under weaker retrieval is smallest for our planner, demonstrating the effectiveness of both pre-evaluation and post evaluation on retrieved tool lists. We further attach the result for increasing tool library from 14 to 10014 in the Appendix A.10 to demonstrate its scalability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">ANALYSIS</head><p>Effect of dual evaluation and pruning. We ablate the effectiveness of dual evaluation and pruning under the same step limits and prompts on GTA with GPT-4o. Table <ref type="table" target="#tab_3">3</ref> shows that ToolTree attains the highest accuracy at the lowest token cost. Removing post-evaluation causes the largest accuracy drop by more than 7 points, indicating that shallow execution feedback is critical for steering search. Concurrently as demonstrated in Figure <ref type="figure" target="#fig_3">4</ref>, removing pre-pruning substantially reduces the median number of nodes expanded to approximately 70 from 95 by directly curtailing unpromising branch explorations for a narrower search tree. Conversely, removing post-evaluation pruning more substantially reduces median rollouts to approximately 33 from 47, as its accurate rewards provide clearer solution quality signals for potentially earlier confident convergence. We provide further analysis on the robustness of using LLM judge for dual evaluation and pruning as illustrated in Appendix A.6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Effect of Model Size on Planning.</head><p>We study how backbone capacity interacts with our method by sweeping two open-source model families, LLaMA and Qwen, over increasing sizes on GTA and ToolBench. It can be seen in Figure <ref type="figure" target="#fig_4">5</ref> that performance scales monotonically with size for both families on both datasets, with the steepest gains from small to mid models and di-Figure <ref type="figure">6</ref>: A Sample Case of ToolTree on GTA.</p><p>minishing returns thereafter. Besides, we found that ToolBench is more size-sensitive than GTA as larger models help more when the planner must select among many APIs and ground longer argument strings.</p><p>Case Study. Figure <ref type="figure">6</ref> showcases how ToolTree progressively corrects itself on a GTA task. With the number of rollouts grows, ToolTree finds better tool trajectories guided by both the pre-evaluation score as the prior and the post-evaluation score as the dominant reward. The query asks, "According to the sign, how many miles is it from London to Paris?"; the photo shows "343 km." In its first rollout, the agent invokes a lightweight OCR tool, passes the raw text to the LLM, and naively returns "343 km," earning a low post-evaluation score (0.2). By the fifth rollout, the search has inserted the patch-zoom tool to crop the numeric region and rerun OCR, but it still reports kilometers and receives only a medium reward (0.5). Guided by these signals, the tenth rollout adds a unit-conversion API after OCR; the calculator multiplies 343 × 0.621 371, and the LLM outputs the correct "213.75 miles," which the judge scores 0.9. More case studies are in Appendix A.8.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">RELATED WORK</head><p>Tool Planning for LLM Agents. Dynamic tool planning is crucial for complex tasks that require the use of sequential tools <ref type="bibr" target="#b17">(Qu et al., 2025)</ref>. In order to mitigate such a problem, prompt-based methods leverage LLMs with their strong world knowledge priors <ref type="bibr" target="#b4">(Hao et al., 2023;</ref><ref type="bibr" target="#b3">Gu et al., 2024)</ref> as a planner to select tools using in-content learning techniques, such as chain-of-thought <ref type="bibr" target="#b26">(Wei et al., 2022)</ref> or ReAct <ref type="bibr">(Yao et al., 2023b)</ref> schema <ref type="bibr" target="#b19">(Shen et al., 2023;</ref><ref type="bibr" target="#b15">Paranjape et al., 2023;</ref><ref type="bibr" target="#b11">Lu et al., 2025)</ref>. Even though flexible, these approaches often make greedy, single-step choices without adequate looking-ahead or backtracking, potentially leading to hallucinated or incorrect actions <ref type="bibr" target="#b16">(Qin et al., 2023;</ref><ref type="bibr" target="#b9">Liu et al., 2024)</ref>. Alternatively, training-based methods fine-tune models or add specific heads for tool invocation <ref type="bibr" target="#b18">(Schick et al., 2023;</ref><ref type="bibr" target="#b30">Yang et al., 2023)</ref>, incurring significant computational and data annotation costs. ToolTree departs fundamentally from linear pipelines by integrating the Pre-Evaluation score (r pre ) directly into the UCT formula to dynamically steer exploration, while the Post-Evaluation score (r post ) governs Backpropagation, together forming a non-linear, self-correcting decision policy.</p><p>Augmenting LLM Agent with Tree Search. To address the limitations of reactive LLM agents in complex tasks requiring lookahead <ref type="bibr" target="#b3">(Gu et al., 2024)</ref>, augmenting them with tree search provides a deliberate planning layer. Various search algorithms, such as greedy search <ref type="bibr">(Yao et al., 2023b)</ref>, A* Search <ref type="bibr">(Zhuang et al., 2024)</ref>, Beam Search <ref type="bibr" target="#b28">(Xie et al., 2023)</ref>, MCTS <ref type="bibr" target="#b33">(Zhou et al., 2024;</ref><ref type="bibr" target="#b4">Hao et al., 2023)</ref>, BFS/DFS <ref type="bibr">(Yao et al., 2023a)</ref>, Best-first search <ref type="bibr" target="#b7">(Koh et al., 2024)</ref> have been integrated at inference time. However, these methods often lack sufficient tool invocation diversity for broad domain generalization. Our approach addresses this with explicit tree search for tool selection, contrasting with LLM-internal reasoning prevalent in prior methods, and further incorporates dual environmen-tal feedback for robust verification and plan refinement. One notable related work with ToolTree is Toolchain* <ref type="bibr">(Zhuang et al., 2024)</ref>, we attach more comparisons with Toolchain* in Appendix B.3. .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">CONCLUSION</head><p>This paper presents ToolTree, a training-free agent framework that integrates a plug-and-play MCTS-based tool planning module to enable robust multi-tool orchestration across diverse tasks. ToolTree explores a dual feedback mechanism from the environment to provide nuanced guidance for MCTS, enabling both efficient search via strategic pruning and effective discovery of optimal tool trajectory. Experiments over 4 datasets across diverse domains of both closed-set and open-set tool planning demonstrate ToolTree consistently outperforms state-of-the-art planning paradigm by 10 percent on average success rate. We hope this method will serve as a valuable foundation for future explorations into sophisticated tool orchestration and reasoning in more advanced AI agents.</p><p>Ethics Statement. We affirm adherence to the ICLR Code of Ethics. Our study uses only public benchmarks (GTA, m&amp;m, ToolBench, RestBench) without human subjects or personally identifiable data. API interactions are restricted to benchmark-provided virtual endpoints or public test servers; no private user data or production systems are accessed. Potential risks include automation bias, unintended amplification of model biases, and misuse of automated tool-calling; to mitigate this, we (i) pin evaluator versions and judge prompts, (ii) report multiple seeds and confidence intervals to avoid cherry-picking, (iii) release prompts/tool specs for external auditing, and (iv) follow dataset and API licenses/ToS. We report compute budgets and runtime to encourage awareness of environmental cost. There are no conflicts of interest or external sponsorship that would bias work.</p><p>Reproducibility Statement. We provide a complete specification of the problem setup and notation in §Preliminaries and the full algorithm (scoring, selection, widening, pruning, backups) with pseudocode and hyperparameters in §Method. Experimental protocols (datasets, metrics, budgets, baselines), prompts/tool cards, retrieval settings, and evaluator configurations are detailed in §Experiments and the Appendix. We will release an anonymized repository containing code, prompts, tool specifications, evaluation scripts (including judge prompts/versions), seed control, and config files.  <ref type="bibr" target="#b10">(Liu et al., 2025)</ref>  <ref type="bibr">(Yao et al., 2023b</ref>) <ref type="bibr" target="#b20">(Shinn et al., 2023)</ref>  <ref type="bibr" target="#b33">(Zhou et al., 2024)</ref> Tool Calling </p><formula xml:id="formula_6">✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ Planning ✓ ✓ ✓ ✗ ✓ ✓ ✓ ✓ ✓ Deliberate Tool Selection ✓ ✗ ✗ ✗ ✓ ✓ ✗ ✗ ✓ Tool Verification ✓ ✗ ✓ ✗ ✓ ✓ ✗ ✓ ✓ Tool Refinement ✓ ✗ ✓ ✗ ✓ ✓ ✗ ✓ ✗ Tool Pruning ✓ ✗ ✗ ✗ ✗ ✗ ✗ ✗ ✓</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A ADDITIONAL EXPERIMENT RESULTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 RESULTS ON AGENT FRAMEWORKS</head><p>We evaluate ToolTree against three distinct multi-tool orchestration baselines: Few-Shot prompting, HuggingGPT, and OctoTools with two backbone models, GPT-4o-mini and GPT-4o. As covered in Table <ref type="table">6</ref>, our evaluation spans 15 datasets in five diverse domains, including general visual, medical, external knowledge, math, and text/document. Table <ref type="table">6</ref>: Comparison across 15 datasets in five domains. ToolTree consistently outperforms standard few-shot prompting, HuggingGPT, and OctoTools on both GPT-4o-mini and GPT-4o, achieving highest overall score.</p><p>Our framework consistently achieves superior performance across five domains. Under GPT-4omini, it attains an average of 68.65%, outperforming Few-Shot and HuggingGPT by over 11.7 points and OctoTools by 5.71 points on average. A similar trend is observed with the more capable GPT-4o backbone, where ToolTree outperforms Few-Shot and HuggingGPT by more than 11.1 points and OctoTools by 4.9 points on average. Notably, ToolTree demonstrates substantial gains on traditionally challenging, domain-specific datasets such as PathVQA and Game-of-24, with 22.22% and 16.83% performance gain compared with few-shot baselines under GPT-4o-mini. These significant improvements underscore the superiority of our framework that integrates a domain specialized tool library and MCTS-based tool selector. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 PLUG-AND-PLAY MODULE COMPARISON</head><p>We evaluated our plug-and-play module ToolTree-Module on one representative dataset from each of the five domains under two off-the-shelf LLM-agent frameworks, LangChain and MetaGPT. For each framework, we start from the vanilla agent with no extra tool use module and then insert exactly one of four modules-Chain-of-Thought Self-Consistency (COT-SC), ReAct, Tree-of-Thought (ToT), or our proposed ToolTree-Module-while holding all other settings like prompt format, tool APIs, number of iterations/trajectories, and random seeds identical.</p><p>As Table <ref type="table" target="#tab_8">7</ref> shows, our ToolTree-Module consistently achieves the highest overall average accuracy and outperforms all baselines on four out of five benchmarks across both frameworks, outperforming COT-SC, ReAct, and ToT by 3-8 points on each dataset and 7 points on average against the unaugmented agent. The only exception is HotpotQA, where tree-of-thought's structured reasoning over LLM's hidden state excels at systematically decomposing the multi-hop problem and exploring diverse evidence-linking pathways crucial for this dataset. Nevertheless, this internal state search nature also makes it far worse than our module in domain-specialized tasks that require external tools such as vision, medical and knowledge, where our module's versatile integration and adaptive orchestration of these tools yields significantly better performance.</p><p>A.3 PERFORMANCE COMPARISON FOR EACH DOMAIN  forming Few-Shot by 19.3%, HuggingGPT by 22.2%, and OctoTools by 11.2%. Similarly notable gains are observed under GPT-4o.</p><p>In the Medical domain, ToolTree surpasses HuggingGPT by 12.0% and OctoTools by 5.0% using GPT-4o-mini, demonstrating its strength in tasks requiring specialized external knowledge and precise tool interactions. In the General Visual and Text/Document domains, ToolTree continues to show consistent improvements of roughly 5 -7% over baselines for both backbone models. These results underscore the robustness of ToolTree's MCTS-based tool selection and dual evaluation across diverse reasoning challenges.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 PERFORMANCE COMPARISON WITH BASELINE</head><p>We measured ToolTree's per-dataset improvement over a GPT-4o few-shot baseline by subtracting the baseline accuracy from ToolTree's accuracy on each of the fifteen tasks and plotting the results in Figure <ref type="figure">8</ref>. The chart shows gains on every benchmark: PathVQA sits at the top with an uplift exceeding twenty points, followed by the Game of 24 and HotpotQA climbing into the mid-teens, and VQA-Rad and A-OKVQA rising by around 15% and 10% respectively. Even general visual tasks like VQAv2 and TextVQA register solid improvements of roughly six to eight points. This pattern reflects ToolTree's strength in orchestrating multi-step, domain-specialized tool chains that is essential for medical and mathematical puzzles, while its verification and pruning mechanisms consistently enhance performance on more conventional downstream tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.5 RESULTS ON APIBENCH</head><p>We further carried out additional results on APIbench to demonstrate its applicability in tool the invocation task as illustrated in Table <ref type="table">8</ref>. This confirms that our dual evaluation mechanism is not merely a pipeline heuristic but a generalized hallucination filter. It successfully identifies and prunes invalid tool candidates in zero-shot settings on completely unseen libraries, without the need for domain-specific fine-tuning Table <ref type="table">8</ref>: APIBench results (BM25 retriever) for GPT-4o and GPT-4o-mini with different planning strategies. We report AST-based overall accuracy (%) on HuggingFace, TensorHub, and TorchHub, as well as the macro-average accuracy and hallucination rate across the three subsets. A potential vulnerability of ToolTree is its reliance on LLM-based judgment for pre-and postevaluation. To quantify this risk, we conduct a restoration analysis on ToolBench, where we start from actual ToolTree trajectories and counterfactually correct erroneous judge decisions on a random subset of instances. We consider three variants: (i) selectively fixing false positives (rejecting tool calls that the judge incorrectly approved), (ii) selectively fixing false negatives (accepting tool calls that the judge incorrectly rejected), and (iii) an oracle setting where all judge decisions are corrected. Table <ref type="table" target="#tab_11">9</ref> reports the judge error rate and task success rate for GPT-4o and GPT-4o-mini under these configurations.  The restoration results yield two main observations. First, ToolTree exhibits empirical tolerance to judge noise: despite non-trivial error rates (25.8% for GPT-4o and 39.4% for GPT-4o-mini), the performance gap to an oracle judge is modest (at most +2.8 and +4.1 points, respectively). Moreover, correcting only false positives yields limited gains, while correcting false negatives accounts for most of the improvement, indicating that overly conservative judgments are more harmful than permissive ones. Second, the search does not collapse under noisy judgments because the LLM signals enter the planner as soft guidance rather than ground truth: r pre and r post are bounded priors inside the MCTS update, and their influence is aggregated over many rollouts. ToolTree repeatedly revisits and reevaluates actions, so isolated misjudgments are statistically smoothed out instead of being irrevocably baked into a single greedy trajectory. Table <ref type="table">11</ref>: Stress test on tool library size. We start from a 14-tool baseline and progressively add distractor tools. "Avg. F1" denotes average task performance, and "Rel. drop" is the relative performance decrease compared to the 14-tool baseline.</p><p>our small closed-set benchmarks (e.g., GTA) and large open-set scenarios (e.g., ToolBench), and supports ToolTree's viability for massive, real-world tool libraries.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B EXPERIMENT DETAILS B.1 BENCHMARK DATASET</head><p>We provide comprehensive descriptions of the datasets and baseline methods used in the main experiments. This appendix serves as a reference to understand the task setups, evaluation modes, and implementation details for reproducibility and further analysis.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 CLOSED-SET TOOL PLANNING BENCHMARKS</head><p>GTA (General Tool Agent) <ref type="bibr" target="#b25">(Wang et al., 2024)</ref>. GTA is a benchmark designed to evaluate generalpurpose tool use in LLM agents. It defines a fixed set of 14 APIs with well-typed input/output schemas and multi-hop compositional tasks. Each task requires the agent to invoke a series of tools in a logical order to complete the goal. GTA is evaluated under two modes:</p><p>• Step-by-step mode: Agents plan tool usage iteratively, predicting both the tool and its arguments at each step.</p><p>• End-to-end mode: Agents must generate the full tool call sequence in a single pass.</p><p>m&amp;m (Multi-modal and Multi-step Tool Use) <ref type="bibr" target="#b12">(Ma et al., 2024)</ref>. The m&amp;m dataset features 33 APIs spanning vision, text, and arithmetic tasks. Each task involves integrating multiple modalities (e.g., images, structured text) and planning tool usage over longer horizons. The benchmark emphasizes input schema matching and argument consistency in tool sequences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 OPEN-SET TOOL PLANNING BENCHMARKS</head><p>ToolBench <ref type="bibr" target="#b16">(Qin et al., 2023)</ref>. ToolBench is a large-scale benchmark that focuses on open-set tool planning with real-world APIs. It consists of 16,464 APIs extracted from online documentation. Each task includes a natural language query, and the agent must 1) retrieve relevant APIs from the entire pool (tool retrieval); 2) generate valid input arguments; and 3) compose executable tool sequences to solve the task. Evaluation follows a judge-based protocol with Pass Rate (correct solution) and Win Rate (head-to-head comparison against baselines).</p><p>RestBench <ref type="bibr" target="#b23">(Song et al., 2023)</ref>. RestBench evaluates agent performance over RESTful APIs in two domains: TMDB (movie database) and Spotify. Unlike ToolBench, the API pool is smaller (143 endpoints), but tasks still require multi-step planning, slot filling, and reasoning over endpoint chains. Evaluation is similar to ToolBench.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 BASELINE METHODS</head><p>Zero-Shot. A vanilla LLM is prompted directly with the task instruction and available tools, without additional planning or prompting heuristics. This serves as a lower-bound baseline.</p><p>ReAct <ref type="bibr">(Yao et al., 2023b)</ref>. This method combines reasoning (chain-of-thought) and acting (tool invocation) in an interleaved fashion. At each step, the model generates intermediate reasoning followed by tool calls. It is greedy and reactive, without explicit planning.</p><p>Chain-of-Thought (CoT) <ref type="bibr" target="#b26">(Wei et al., 2022)</ref>. CoT decomposes the task via intermediate reasoning steps, but without tool calls. In the context of tool planning, it is extended to select tools after each reasoning span. <ref type="bibr">-First Search (Koh et al., 2024)</ref>. A tree-based search method that prioritizes the expansion of most promising partial plans using heuristics. It expands the most likely paths but does not account for long-term reward or rollout diversity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Best</head><p>Tree-of-Thought (ToT) <ref type="bibr">(Yao et al., 2023a)</ref>. A general planning paradigm where LLM-generated thoughts are expanded into a search tree, with scoring used to backtrack and explore multiple options. ToT treats internal LLM reasoning as planning units, not actual tool execution.</p><p>A* Search <ref type="bibr">(Zhuang et al., 2024)</ref>. Adapts A* to the tool planning problem by defining a heuristic function over action sequences. It explores the search space by balancing cost so far and expected utility, assuming an accurate reward heuristic. ToolTree is conceptually related to ToolChain*, which applies A* search over tool sequences guided by a single heuristic score computed before execution. However, A* search commits to a best-first expansion based on this heuristic and cannot easily revise early decisions if the heuristic is misaligned with actual tool behavior. In contrast, ToolTree uses MCTS to repeatedly sample and update action values, which allows recovery from early mistakes. Moreover, ToolTree explicitly separates a prior score r pre (used for pre-pruning and exploration) from a grounded post-execution reward r post (used for backpropagation and post-pruning), enabling the planner to discard branches that appear promising in theory but fail in practice. Finally, instead of relying only on queue ordering, ToolTree performs explicit bidirectional pruning before and after tool calls to reduce error propagation and tool cost.</p><p>LATS (Language Agent Tree Search) <ref type="bibr" target="#b33">(Zhou et al., 2024)</ref>. LATS is a framework that combines tree search with tool execution, using LLM-guided rollouts and post-hoc scoring to prune weak branches. Unlike ToolTree, it lacks pre-evaluation before tool execution.</p><p>DFSDT <ref type="bibr" target="#b16">(Qin et al., 2023)</ref>. This is a strong open-set baseline designed for ToolBench, where the agent uses a depth-first symbolic planner over retrieved APIs, guided by LLM scoring. It focuses on execution consistency rather than search efficiency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.4 MODEL AND EVALUATION PROTOCOL</head><p>All baselines are implemented under the same backbone model settings (GPT-4o and GPT-4o-mini).</p><p>For closed-set tasks, the tool APIs are pre-defined and shared with all models. For open-set tasks, we use fixed Top-K API retrieval (K=20) and identical prompt formats. We report:</p><p>• Closed-set: Tool F1, Argument F1, Plan F1, and Execution F1.</p><p>• Open-set: Pass Rate and Win Rate, averaged over three instruction templates.</p><p>Hyperparameter Setting. Evoked by <ref type="bibr" target="#b33">Zhou et al. (2024)</ref>, during MCTS we set the exploration constant to λ = 1.4, allow at most R max = 60 roll-outs, and prune branches whenever r pre &lt; 0.3 or r post &lt; 0.4; search stops early if the best Q value increases by &lt; 10 -3 over 10 consecutive roll-outs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.5 TOOL LIBRARY</head><p>Table ?? summarizes the external tools and models integrated within the ToolTree library, categorized by their domain specialization. The library offers broad coverage across general visual understanding, knowledge-based VQA, medical QA, mathematical reasoning, and text/document tasks.</p><p>For each domain, a diverse set of functions, ranging from object detection and image segmentation to knowledge graph querying, medical report generation, and OCR, is supported by state-of-theart models and APIs. This comprehensive and modular toolset enables ToolTree to handle a wide spectrum of complex, multi-modal tasks with domain-adaptive precision.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Comparison of ToolTree with greedy search and search-based tool planning. Our ToolTree chooses the optimal tool trajectory and answers correctly with 20.</figDesc><graphic coords="2,108.00,81.86,395.99,138.10" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Architecture overview of ToolTree. An input query is processed sequentially via iterative dual evaluation-guided Monte Carlo Tree Search, including selection, pre-evaluation, expansion, execution, post-evaluation and backward-propagation. The Answer Predictor then incorporates the tool trajectories with the highest reward found by the MCTS to produce the final prediction.</figDesc><graphic coords="4,198.83,138.41,50.37,71.18" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Progressive efficiency analysis across step limits. (a) Performance vs. step limit; (b) Runtime vs. step limit; (c) Efficiency vs. step limit. ToolTree achieves the highest efficiency compared with baselines. mprovements are largest for step limits between 12 and 64.</figDesc><graphic coords="6,108.00,395.05,395.99,123.14" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Efficiency comparison of ToolTree and its pruning variants on nodes and rollouts.</figDesc><graphic coords="8,108.00,81.86,197.99,122.19" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Analysis of Performance with respect to model size on Qwen and LLaMA family.</figDesc><graphic coords="8,286.20,554.21,217.77,114.05" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Breakdown comparison for each of the domains.</figDesc><graphic coords="14,108.00,486.02,396.00,167.35" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 7 Figure 8 :</head><label>78</label><figDesc>Figure7presents a detailed breakdown comparison of ToolTree's average performance across five specialized domains under two backbone models. ToolTree consistently achieves the highest performance across all domains, particularly excelling in the Math and External Knowledge domains. For example, in the Math domain under GPT-4o-mini, ToolTree reaches 63.4%, significantly outper-</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="9,117.90,81.86,376.20,182.96" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="15,108.00,81.86,396.00,351.84" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="17,108.00,81.86,396.01,262.82" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="18,127.80,81.86,356.39,187.25" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="18,127.80,286.05,356.38,180.21" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Zero-shot 70.16 38.52 77.14 45.28 57.78 78.52 80.17 85.17 78.47 80.58 ReAct 71.42 40.58 75.52 46.33 58.46 83.58 81.24 84.42 76.58 81.46 CoT 66.52 42.17 73.22 42.86 56.69 85.58 77.84 78.16 71.43 78.75 Best-First 72.13 44.26 77.64 47.83 60.46 84.47 82.17 85.84 78.11 82.65 ToT 72.53 43.68 78.84 46.53 60.40 86.28 83.74 85.26 80.35 83.91 A* 74.29 47.58 79.96 46.26 62.52 87.17 83.44 86.87 81.49 84.74 LATS 77.84 49.90 82.57 48.80 64.78 88.89 84.77 88.38 83.77 86.45 ToolTree (ours) 79.26 50.84 85.53 52.17 66.95 91.92 86.16 90.47 85.88 88.61</figDesc><table><row><cell></cell><cell></cell><cell>GTA</cell><cell></cell><cell>m&amp;m</cell><cell></cell></row><row><cell>Model</cell><cell>Planner</cell><cell>Step-by-step End-to-End AVG</cell><cell>Step-by-step</cell><cell>Multi-step</cell><cell>AVG</cell></row><row><cell></cell><cell></cell><cell>Tool Arg Plan Exec</cell><cell cols="2">Tool Arg Plan Exec</cell><cell></cell></row><row><cell></cell><cell>Zero-Shot</cell><cell cols="4">58.73 28.44 60.18 33.85 45.30 72.48 67.44 77.48 67.59 71.25</cell></row><row><cell></cell><cell>ReAct</cell><cell cols="4">60.13 29.43 68.26 34.80 48.16 73.55 65.10 82.16 69.42 72.56</cell></row><row><cell></cell><cell>CoT</cell><cell cols="4">56.10 25.58 66.47 35.63 45.95 70.13 65.27 76.12 66.96 69.62</cell></row><row><cell>GPT-4o-mini</cell><cell>Best-First ToT</cell><cell cols="4">58.42 30.13 69.96 34.46 47.99 74.42 66.83 83.58 68.37 73.80 62.41 33.12 72.94 37.42 51.47 75.58 70.84 82.58 71.37 75.59</cell></row><row><cell></cell><cell>A*</cell><cell cols="4">64.47 35.26 73.86 38.16 52.94 75.16 71.85 84.74 72.59 76.59</cell></row><row><cell></cell><cell>LATS</cell><cell cols="4">65.88 37.26 74.28 38.24 53.91 76.84 70.16 83.38 72.94 75.83</cell></row><row><cell></cell><cell cols="5">ToolTree (ours) 67.83 39.64 76.44 39.65 55.89 77.25 71.26 85.52 73.58 76.90</cell></row><row><cell>GPT-4o</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Table</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Open-set tool-planning results on RestBench and ToolBench using GPT-4o-mini and GPT-4o as back-end LLMs. Higher values indicate better performance; the best score for each dataset-model pair is highlighted in bold. "Pass" and "Win" refer to pass rate and win rate.</figDesc><table><row><cell>Model</cell><cell>Method</cell><cell cols="3">RestBench-TMDB</cell><cell cols="3">RestBench-Spotify</cell><cell></cell><cell>ToolBench</cell></row><row><cell></cell><cell></cell><cell>Pass</cell><cell>Win</cell><cell>AVG</cell><cell>Pass</cell><cell>Win</cell><cell>AVG</cell><cell>Pass</cell><cell>Win</cell><cell>AVG</cell></row><row><cell></cell><cell cols="9">Zero-shot 33.28 50.00 41.64 26.44 50.00 38.22 28.85 50.00 39.42</cell></row><row><cell></cell><cell>CoT</cell><cell cols="8">34.42 54.70 44.56 29.82 53.10 41.46 26.29 55.47 40.88</cell></row><row><cell>GPT-4o-mini</cell><cell>ReAct DFSDT</cell><cell cols="8">38.82 61.06 49.94 32.64 59.95 46.30 34.30 58.94 46.62 46.20 64.26 55.23 35.10 65.47 50.28 38.84 68.29 53.57</cell></row><row><cell></cell><cell>LATS</cell><cell cols="8">51.33 66.67 59.00 39.81 72.85 56.33 40.08 65.77 52.92</cell></row><row><cell></cell><cell>Ours</cell><cell cols="8">55.17 70.40 62.79 42.08 72.18 57.74 42.24 67.90 55.07</cell></row><row><cell></cell><cell cols="9">Zero-shot 56.28 50.00 53.14 49.54 50.00 49.77 47.58 50.00 48.79</cell></row><row><cell></cell><cell>CoT</cell><cell cols="8">58.52 52.32 55.42 47.92 44.55 46.23 46.88 47.57 47.23</cell></row><row><cell>GPT-4o</cell><cell>ReAct DFSDT</cell><cell cols="8">62.42 66.17 64.30 53.27 60.72 57.00 52.38 63.39 57.89 66.57 69.08 67.82 55.48 71.63 63.55 54.86 68.59 61.73</cell></row><row><cell></cell><cell>LATS</cell><cell cols="8">68.26 74.44 71.35 61.25 75.80 68.53 59.25 73.85 66.55</cell></row><row><cell></cell><cell>Ours</cell><cell cols="8">72.40 75.59 74.50 60.87 78.84 71.36 61.27 76.81 69.04</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Ablation of dual evaluation and bidirectional pruning on accuracy and token cost.</figDesc><table><row><cell>Retriever</cell><cell>Method</cell><cell>G1</cell><cell>G2</cell><cell>G3</cell></row><row><cell></cell><cell>ReAct</cell><cell>61.0</cell><cell>78.0</cell><cell>72.5</cell></row><row><cell>Contriever</cell><cell>ToT</cell><cell>62.8</cell><cell>79.6</cell><cell>75.2</cell></row><row><cell></cell><cell>Ours</cell><cell>64.5</cell><cell>81.8</cell><cell>78.3</cell></row><row><cell></cell><cell>ReAct</cell><cell>60.5</cell><cell>76.5</cell><cell>73.0</cell></row><row><cell>RoBERTa</cell><cell>ToT</cell><cell>63.0</cell><cell>80.0</cell><cell>76.2</cell></row><row><cell></cell><cell>Ours</cell><cell>66.0</cell><cell>83.0</cell><cell>82.8</cell></row><row><cell></cell><cell>ReAct</cell><cell>58.2</cell><cell>74.1</cell><cell>69.4</cell></row><row><cell>BM25</cell><cell>ToT</cell><cell>60.1</cell><cell>76.0</cell><cell>71.8</cell></row><row><cell></cell><cell>Ours</cell><cell>62.4</cell><cell>79.0</cell><cell>74.2</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Retriever ablation on ToolBench.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>A comparison of ToolTree with notable LLM agent frameworks, tool-augmented LLM systems and LLM agent tree search. Our method shows significant advantages in tool integration. Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. Webarena: A realistic web environment for building autonomous agents. arXiv preprint arXiv:2307.13854, 2023. Yuchen Zhuang, Xiang Chen, Tong Yu, Saayan Mitra, Victor Bursztyn, Ryan A. Rossi, Somdeb Sarkhel, and Chao Zhang. Toolchain*: Efficient action space navigation in large language models with a* search. In The Twelfth International Conference on Learning Representations, 2024. URL https://openreview.net/forum?id=B6pQxqUcT8.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc>Comparison of ToolTree as a plug-and-play module with ReAct, COT-SC and ToT modules. ToolTree achieves highest score on average.</figDesc><table><row><cell cols="7">Configuration VQA-Rad OK-VQA MathVista SQA HotpotQA AVG</cell></row><row><cell>LangChain</cell><cell>62.18</cell><cell>49.18</cell><cell>54.24</cell><cell>76.59</cell><cell>39.82</cell><cell>56.40</cell></row><row><cell>w/o COT-SC</cell><cell>65.14</cell><cell>54.37</cell><cell>56.88</cell><cell>82.17</cell><cell>44.90</cell><cell>60.69</cell></row><row><cell>w/o ReAct</cell><cell>66.28</cell><cell>52.33</cell><cell>59.25</cell><cell>80.95</cell><cell>45.18</cell><cell>60.80</cell></row><row><cell>w/o ToT</cell><cell>63.04</cell><cell>48.12</cell><cell>65.33</cell><cell>78.33</cell><cell>52.28</cell><cell>61.42</cell></row><row><cell>w/o ToolTree</cell><cell>67.72</cell><cell>54.27</cell><cell>65.74</cell><cell>81.33</cell><cell>51.94</cell><cell>64.20</cell></row><row><cell>MetaGPT</cell><cell>64.13</cell><cell>53.84</cell><cell>54.88</cell><cell>78.16</cell><cell>37.72</cell><cell>57.75</cell></row><row><cell>w/o COT-SC</cell><cell>68.74</cell><cell>54.88</cell><cell>60.30</cell><cell>79.44</cell><cell>46.90</cell><cell>62.05</cell></row><row><cell>w/o ReAct</cell><cell>66.32</cell><cell>55.11</cell><cell>58.94</cell><cell>80.54</cell><cell>49.56</cell><cell>62.09</cell></row><row><cell>w/o ToT</cell><cell>65.42</cell><cell>50.52</cell><cell>60.14</cell><cell>80.47</cell><cell>56.21</cell><cell>62.55</cell></row><row><cell>w/o ToolTree</cell><cell>69.24</cell><cell>55.83</cell><cell>62.28</cell><cell>82.57</cell><cell>54.77</cell><cell>64.94</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 9 :</head><label>9</label><figDesc>Restoration analysis of LLM-judge errors on ToolBench. "Judge error rate" is the fraction of incorrect pre-/post-evaluation decisions. "Task success" is the overall pass rate; ∆ denotes the absolute difference (in percentage points) relative to the actual ToolTree baseline for each backbone.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Code: https://github.com/SYang2000/ICLR_2026_ToolTree/tree/main</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><p>Acknowledgements This research was supported by the <rs type="funder">Korea Planning &amp; Evaluation Institute of Industrial Technology (KEIT)</rs> funded by the <rs type="funder">Ministry of Trade, Industry and Energy</rs> (No.<rs type="grantNumber">RS-2025-25458052</rs>, <rs type="funder">Development of Core Technologies for Manufacturing Foundation Models)</rs> and the <rs type="institution">Institute of Information &amp; communications Technology Planning &amp; Evaluation (IITP)</rs> grant funded by the <rs type="funder">Korea government(MSIT)</rs> (No.<rs type="grantNumber">RS-2025-02217259</rs>, Development of self-evolving AI bias detection-correctionexplain platform based on international multidisciplinary governance)</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_rfVf7TN">
+					<idno type="grant-number">RS-2025-25458052</idno>
+				</org>
+				<org type="funding" xml:id="_m3P2bDe">
+					<idno type="grant-number">RS-2025-02217259</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Internal judge</head><p>Benchmark evaluator ToolBench RestBench GPT-4o GPT-4o 69.04 72.48 Gemini-2.5-Flash GPT-4o 72.71 73.12 LLaMA-3.3-70B GPT-4o 46.48 50.17  Table <ref type="table">10</ref>: Cross-vendor / cross-judge robustness of ToolTree on ToolBench and RestBench (pass rate %). We vary the internal judge used during planning and the external benchmark evaluator.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.7 EFFECT OF DUAL FEEDBACK ON ACCURACY</head><p>We measured how the choice of post-evaluation model affects overall and domain-specific accuracy by running the MCTS pipeline under four settings: no post-evaluation, GPT-4o-mini as judge, GPT-4o as judge, and Gemini 2.0 as judge, as shown in Figure <ref type="figure">9</ref>. Across all tasks, accuracy steadily increases with more powerful judges, rising from 54.2% to 60.8% (Gemini 2.0). The largest improvements appear in vision and text/document tasks, where nuanced output verification matters most. These results show that richer post-execution feedback enables the agent to better discriminate useful tool calls, leading to more accurate final answers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.8 ADDITIONAL CASE STUDY</head><p>We show more cases of ToolTree on the evaluation benchmark as shown in Figure <ref type="figure">10</ref> A.9 CROSS-VENDOR CHECK ON POTENTIAL METRIC COUPLING A potential concern is that ToolTree might overfit to the particular LLM judge used during planning, especially when the same model family is also used as the benchmark evaluator. To test this, we conduct a cross-vendor ablation where we vary the internal judge used by ToolTree (GPT-4o, Gemini-2.5-Flash, LLaMA-3.3-70B) and the external evaluator (GPT-4o vs LLaMA-3.3-70B) on ToolBench and RestBench. As shown in Table <ref type="table">10</ref>, decoupling the judge from the evaluator can  improve performance. In contrast, tightly coupling LLaMA-3.3-70B as both judge and evaluator degrades pass rate. These patterns suggest that ToolTree primarily benefits from higher-quality reasoning signals rather than exploiting a specific evaluator.</p><p>A.10 EFFECT OF TOOL LIBRARY SIZE.</p><p>While our ToolBench experiments (over 16k tools) already demonstrate large-scale capability, we also conduct a controlled stress test to directly examine ToolTree's robustness to growing tool libraries and noisy tools. Starting from a small closed-set configuration with 14 task-relevant tools, we progressively inject distractor tools drawn from unrelated domains, increasing the total library size up to 10,014 tools. For each setting, we report the average F1 score and the relative performance drop compared to the 14-tool baseline. As shown in Table <ref type="table">11</ref>, even when the library size increases by three orders of magnitude, the performance degradation remains below 2%, indicating that ToolTree's pre-evaluation module effectively filters out irrelevant tools from a large pool. As the pre-evaluator scores tools based on semantic relevance rather than raw frequency, we can fix the pruning thresholds as it continue to function reliably across all scales. This bridges the gap between Published as a conference paper at ICLR 2026</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.6 TOOL CARD METADATA EXAMPLE</head><p>We hereby attach the metadata for the medical object detection tool as an illustrative example in Table <ref type="table">12</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>System message</head><p>Role. You are a strict tool-planning judge for a language-agent that solves user tasks by calling tools in sequence.</p><p>Inputs. You are given:</p><p>• the original user query and current conversation context;</p><p>• a tool card (name, description, I/O schema, examples);</p><p>• a concrete argument draft that is syntactically valid for the tool.</p><p>Output format. You must output a single JSON object with:</p><p>• "score": a real number between 0.0 and 1.0 (inclusive) measuring how promising this tool call is before running it;</p><p>• "explanation": a brief natural-language justification (2-4 sentences).</p><p>Scoring guideline. Use a coarse scale in [0, 1]. There is no need to finely distinguish every small difference; choose a value that roughly reflects your judgment of usefulness.</p><p>What to penalize. Give low scores to candidate tool calls that:</p><p>• mismatch the required modality or domain;</p><p>• ignore key constraints or required fields in the schema;</p><p>• duplicate a previous call with effectively identical arguments and no clear new benefit;</p><p>• are speculative when a more direct or specific tool is available.</p><p>Important. Do not simulate the tool output; you are judging only the promised usefulness of this tool call as the next action.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>User message template</head><p>Construct the user message to the judge with the following structure.</p><p>Context.</p><p>• User query: USER QUERY • Current dialog / planning context: CURRENT CONTEXT Candidate tool card. • Arguments to pass into the tool: ARGUMENT DRAFT JSON Then ask the judge:</p><p>Task: Decide how promising it is to execute this tool call next for solving the user's query, given the current state of the conversation and prior tool calls. Please respond only with a JSON object of the form {"score": &lt;float between 0.0 and 1.0&gt;, "explanation": "&lt;2--4 sentence explanation&gt;"}.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.8 POST-PRUNING JUDGE PROMPT FOR r POST</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>System message</head><p>Role. You are a strict tool-planning judge for a language-agent that solves user tasks by calling tools in sequence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Inputs. You are given:</head><p>• the original user query and conversation context before the call;</p><p>• the tool card;</p><p>• the concrete arguments that were used;</p><p>• the actual tool output.</p><p>Output format. You must output a single JSON object with:</p><p>• "score": a real number between 0.0 and 1.0 (inclusive) measuring the grounded utility of this executed tool call;</p><p>• "explanation": a brief natural-language justification (2-4 sentences).</p><p>Scoring guideline. Use a coarse scale in [0, 1]. Choose a value that roughly reflects how helpful this call was; you do not need to finely distinguish very small differences.</p><p>When assigning the score, consider:</p><p>• Task-consistency: does the output address the user's query or current sub-goal?</p><p>• Correctness / plausibility: are there obvious errors or contradictions?</p><p>• Relevance: is the output focused on what is needed now, rather than generic or noisy?</p><p>• Constraint satisfaction: does it respect safety, formatting, and domain constraints?</p><p>Important. You are judging only this tool call's incremental contribution from the previous context to the new context. Do not re-evaluate the entire plan.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>User message template</head><p>Construct the user message to the judge with the following structure.</p><p>Context.</p><p>• User query: USER QUERY</p><p>• Dialog / planning context before this call: CONTEXT BEFORE CALL Executed tool card. Task: Evaluate how much this executed tool call actually helped with solving the user's query, considering correctness, relevance, and progress toward a final answer. Please respond only with a JSON object of the form {"score": &lt;float between 0.0 and 1.0&gt;, "explanation": "&lt;2--4 sentence explanation&gt;"}.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Andres M Bran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oliver</forename><surname>Cox</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlo</forename><surname>Schilter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">D</forename><surname>Baldassari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Schwaller</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Chemcrow</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2304.05376</idno>
+		<title level="m">Augmenting large-language models with chemistry tools</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xidong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyu</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muning</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><forename type="middle">Marcus</forename><surname>Mcaleer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weinan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.17179</idno>
+		<title level="m">Alphazero-like tree-search can guide large language model decoding and training</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuting</forename><surname>Ning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyuan</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyu</forename><surname>Gou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianci</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjari</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanan</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Qi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2411.06559</idno>
+		<title level="m">Is your llm secretly a world model of the internet? modelbased planning for web agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Reasoning with language model is planning with world model</title>
+		<author>
+			<persName><forename type="first">Shibo</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haodi</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daisy</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiting</forename><surname>Hu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.507</idno>
+		<ptr target="https://aclanthology.org/2023.emnlp-main.507/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<editor>
+			<persName><forename type="first">Houda</forename><surname>Bouamor</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Juan</forename><surname>Pino</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Kalika</forename><surname>Bali</surname></persName>
+		</editor>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-12">December 2023</date>
+			<biblScope unit="page" from="8154" to="8173" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Checkmating one, by using many: Combining mixture of experts with mcts to improve in chess</title>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Helfenstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jannis</forename><surname>Blüml</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Czech</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristian</forename><surname>Kersting</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2401.16852</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Bandit based monte-carlo planning</title>
+		<author>
+			<persName><forename type="first">Levente</forename><surname>Kocsis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Csaba</forename><surname>Szepesvári</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2006">2006</date>
+			<biblScope unit="page" from="282" to="293" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Yu Koh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Mcaleer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.01476</idno>
+		<title level="m">Tree search for language model agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Learning to use medical tools with multi-modal agent</title>
+		<author>
+			<persName><forename type="first">Binxu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiankai</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanting</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyang</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayuan</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhe</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shilong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mmedagent</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.findings-emnlp.510</idno>
+		<ptr target="https://aclanthology.org/2024.findings-emnlp.510/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2024</title>
+		<editor>
+			<persName><forename type="first">Yaser</forename><surname>Al-Onaizan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Yun-Nung</forename><surname>Chen</surname></persName>
+		</editor>
+		<meeting><address><addrLine>Miami, Florida, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024-11">November 2024</date>
+			<biblScope unit="page" from="8745" to="8760" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xukun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyuan</forename><surname>Yi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lirong</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongkuan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Toolnet</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.00839</idno>
+		<title level="m">Connecting large language models with massive tools via tool graph</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Tool-planner: Task planning with clusters across multiple tools</title>
+		<author>
+			<persName><forename type="first">Yanming</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyue</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiannan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shi</forename><surname>Bo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuhong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwei</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Du</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=dRz3cizftU" />
+	</analytic>
+	<monogr>
+		<title level="m">The Thirteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Octotools: An agentic framework with extensible tools for complex reasoning</title>
+		<author>
+			<persName><forename type="first">Pan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahul</forename><surname>Thapa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Boen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Zou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.11271</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Tanmay Gupta, and Ranjay Krishna. m &amp; m&apos;s: A benchmark to evaluate tool-use for m ulti-step m ulti-modal tasks</title>
+		<author>
+			<persName><forename type="first">Zixian</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weikai</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jieyu</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Conference on Computer Vision</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="18" to="34" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title/>
+		<ptr target="https://platform.openai.com/docs/guides/function-calling" />
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI. Function Calling</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>Online documentation</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="27730" to="27744" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Automatic multi-step reasoning and tool-use for large language models</title>
+		<author>
+			<persName><forename type="first">Bhargavi</forename><surname>Paranjape</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Lundberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameer</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Tulio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ribeiro</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.09014</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<pubPlace>Art</pubPlace>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shihao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kunlun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaxi</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangru</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Qian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.16789</idno>
+		<title level="m">Facilitating large language models to master 16000+ real-world apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Tool learning with large language models: A survey</title>
+		<author>
+			<persName><forename type="first">Changle</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunhao</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaochi</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hengyi</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuaiqiang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Wen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers of Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<date type="published" when="2025">198343. 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Hugginggpt: Solving ai tasks with chatgpt and its friends in hugging face</title>
+		<author>
+			<persName><forename type="first">Yongliang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaitao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiming</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yueting</forename><surname>Zhuang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="38154" to="38180" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Reflexion: Language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="8634" to="8652" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Mastering the game of go with deep neural networks and tree search</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aja</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><forename type="middle">J</forename><surname>Maddison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Guez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Sifre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Driessche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioannis</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veda</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Panneershelvam</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lanctot</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">nature</title>
+		<imprint>
+			<biblScope unit="volume">529</biblScope>
+			<biblScope unit="issue">7587</biblScope>
+			<biblScope unit="page" from="484" to="489" />
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Mastering the game of go without human knowledge</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioannis</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aja</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Guez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Hubert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrian</forename><surname>Bolton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">nature</title>
+		<imprint>
+			<biblScope unit="volume">550</biblScope>
+			<biblScope unit="issue">7676</biblScope>
+			<biblScope unit="page" from="354" to="359" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weimin</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingbo</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hailiang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rong</forename><surname>Yao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2306.06624</idno>
+		<title level="m">Connecting large language models with real-world restful apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Llama 2: Open foundation and fine-tuned chat models</title>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Louis</forename><surname>Martin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Stone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Albert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amjad</forename><surname>Almahairi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasmine</forename><surname>Babaei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolay</forename><surname>Bashlykov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soumya</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prajjwal</forename><surname>Bhargava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Bhosale</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.09288</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Gta: a benchmark for general tool agents</title>
+		<author>
+			<persName><forename type="first">Jize</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ma</forename><surname>Zerun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songyang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cailian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyi</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="75749" to="75790" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="24824" to="24837" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Visual chatgpt: Talking, drawing and editing with visual foundation models</title>
+		<author>
+			<persName><forename type="first">Chenfei</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengming</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhen</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaodong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zecheng</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.04671</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Selfevaluation guided beam search for reasoning</title>
+		<author>
+			<persName><forename type="first">Yuxi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenji</forename><surname>Kawaguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min-Yen</forename><surname>Kan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qizhe</forename><surname>Xie</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=Bw82hwg5Q3" />
+	</analytic>
+	<monogr>
+		<title level="m">Thirty-seventh Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Swe-agent: Agent-computer interfaces enable automated software engineering</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="50528" to="50652" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Gpt4tools: Teaching large language model to use tools via self-instruction</title>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sijie</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixiao</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Shan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="71995" to="72007" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Tree of thoughts: Deliberate problem solving with large language models. Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="11809" to="11822" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note>b</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Language agent tree search unifies reasoning, acting, and planning in language models</title>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michal</forename><surname>Shlapentokh-Rothman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haohan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Xiong</forename><surname>Wang</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+		<ptr target="https://proceedings.mlr.press/v235/zhou24r.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning</title>
+		<editor>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Zico</forename><surname>Kolter</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Katherine</forename><surname>Heller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Adrian</forename><surname>Weller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nuria</forename><surname>Oliver</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jonathan</forename><surname>Scarlett</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Felix</forename><surname>Berkenkamp</surname></persName>
+		</editor>
+		<meeting>the 41st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2024-07">Jul 2024</date>
+			<biblScope unit="volume">235</biblScope>
+			<biblScope unit="page" from="21" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

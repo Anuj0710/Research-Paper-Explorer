@@ -1,0 +1,2599 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Plancraft: an evaluation dataset for planning with LLM agents</title>
+				<funder ref="#_nGW64bp">
+					<orgName type="full">UKRI</orgName>
+				</funder>
+				<funder ref="#_wEcRnNW">
+					<orgName type="full">UKRI-funded TAS Governance Node</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2025-07-15">15 Jul 2025</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Gautier</forename><surname>Dagan</surname></persName>
+							<email>gautier.dagan@ed.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Frank</forename><surname>Keller</surname></persName>
+							<email>keller@ed.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Alex</forename><surname>Lascarides</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Edinburgh</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Plancraft: an evaluation dataset for planning with LLM agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2025-07-15">15 Jul 2025</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">DD1C86552E9F6DF1B0E4241A57114B63</idno>
+					<idno type="arXiv">arXiv:2412.21033v2[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>We present Plancraft, a multi-modal evaluation dataset for LLM agents. Plancraft has both a text-only and a multi-modal interface, based on the Minecraft crafting GUI. We include the Minecraft Wiki to evaluate tool use and Retrieval Augmented Generation (RAG), as well as a handcrafted planner and Oracle Retriever, to ablate the different components of a modern agent architecture. To evaluate decision-making, Plancraft also includes a subset of examples that are intentionally unsolvable, providing a realistic challenge that requires the agent not only to complete tasks but also to decide whether they are solvable at all. We benchmark both open-source and closed-source LLMs and compare their performance and efficiency to a handcrafted planner. Overall, we find that LLMs and VLMs struggle with the planning problems that Plancraft introduces, and offer suggestions on how to improve their capabilities.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>With the increased performance and affordability of Large Language Models (LLMs) <ref type="bibr">(OpenAI, 2024;</ref><ref type="bibr" target="#b4">Dubey et al., 2024)</ref>, LLM-based agents have exploded in popularity <ref type="bibr" target="#b38">(Xi et al., 2023)</ref>. We define LLM agents as systems that incorporate at least one call to an LLM which influences its autonomous decisions about actions in an environment. LLMs are promising for agent-based systems because they can leverage general knowledge acquired during pretraining to tackle tasks expressed in natural language. They can also query and interpret knowledge bases, ask questions, and incorporate new information via text or images, all through a flexible dialogue interface. This potential for human interaction during planning and execution is challenging for other planning paradigms such as Reinforcement Learning (RL) or symbolic planners <ref type="bibr" target="#b38">(Xi et al., 2023)</ref>. Various methods and strategies <ref type="bibr">(Yao et al., 2023a;</ref><ref type="bibr" target="#b12">b;</ref><ref type="bibr" target="#b28">Shinn et al., 2023)</ref> aim to maximise the performance of LLM-based autonomous agents <ref type="bibr" target="#b39">(Xi et al., 2024)</ref>. But LLMs still exhibit problematic issues that limit their reliability and usefulness for planning-hallucinations and brittleness to inputs, limited context windows, and lack of grounding when placed in new environments.</p><p>Most existing benchmarks for evaluating LLM agents in interactive environments focus on success rates <ref type="bibr" target="#b30">(Shridhar et al., 2021;</ref><ref type="bibr" target="#b43">Yao et al., 2022;</ref><ref type="bibr" target="#b17">Liu et al., 2023;</ref><ref type="bibr" target="#b39">Xi et al., 2024)</ref>: that is, the proportion of trials in which the agent achieves a goal state. Success rates measure whether the agent constructed a valid plan, but do not measure efficiency or the plan's quality. Some environments allow an arbitrary number of incorrect steps, while others immediately terminate an episode if a wrong action is executed. Reporting or measuring only success rates also introduces a dataset bias, as it implies that the solution to a given problem is easily verifiable, yet difficult to obtain. As a result, we argue that success rate alone is insufficient to capture the complexity of real-world scenarios. Each additional step of inference incurs non-negligible costs, so metrics should include more fine-grained assessments, such as how close the LLM's plan is to a handcrafted solution. Furthermore, effective agent-based systems should recognise when a task is unsolvable, as many real-world tasks may lie beyond the agent's capabilities and indeed many real-world tasks might be difficult to verify as doable, or not. Without the capacity to predict if there's no valid plan, an agent will incur significant costs in continually monitoring and replanning.</p><p>To this end, we introduce Plancraft, a new multi-modal planning evaluation dataset based on Minecraft, that constrains the environment to the crafting GUI (see Figure <ref type="figure" target="#fig_0">1</ref>). Plancraft consists of planning problems of diverse complexity and length and includes a portion of the dataset that is intentionally unsolvable. Plancraft, unlike previous environments, allows us to benchmark agents against a planner,</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset</head><p>Type Visual Inputs Knowledge Base Planner Impossible Set Mind2Web <ref type="bibr" target="#b3">(Deng et al., 2023)</ref> Web ✗ ✗ ✗ ✗ WebShop <ref type="bibr" target="#b43">(Yao et al., 2022)</ref> Web ✓ ✗ ✗ ✗ MiniWoB++ <ref type="bibr" target="#b16">(Liu et al., 2018)</ref> Web ✓ ✗ ✗ ✗ WebArena <ref type="bibr" target="#b38">(Zhou et al., 2023)</ref> Web ✗ ✓ ✗ ✓ GAIA <ref type="bibr" target="#b19">(Mialon et al., 2023)</ref> Web ✓ ✓ † ✗ ✗ TravelPlanner <ref type="bibr" target="#b40">(Xie et al., 2024)</ref> Web ✗ ✗ ✓ ✗ VirtualHome <ref type="bibr" target="#b26">(Puig et al., 2018)</ref> Home ✓ ✗ ✗ ✗ ALFWorld <ref type="bibr" target="#b30">(Shridhar et al., 2021)</ref> Home ✗ ✗ ✗ ✗ ALFRED <ref type="bibr" target="#b29">(Shridhar et al., 2020)</ref> Home ✓ ✗ ✓ ✗ MineDojo <ref type="bibr" target="#b5">(Fan et al., 2022)</ref> Game ✓ ✓ ✗ ✗ ScienceWorld <ref type="bibr">(Wang et al., 2022a)</ref> Game ✗ ✗ ✗ ✗ BabyAI <ref type="bibr" target="#b2">(Chevalier-Boisvert et al., 2019)</ref> Game ✗ ✗ ✓ ✗ TextCraft <ref type="bibr" target="#b25">(Prasad et al., 2023)</ref> Game</p><formula xml:id="formula_0">✗ ✗ ✗ ✗ Plancraft (ours) Game ✓ ✓ ✓ ✓</formula><p>Table <ref type="table">1</ref>: A comparison of different interactive datasets commonly used in evaluating LLM agents. Each dataset expresses goals or tasks in natural language and requires multi-step planning. We design Plancraft to provide a testing ground for which there exists both a natural language knowledge base and a handcrafted planner.</p><p>Plancraft also includes data that is intentionally unsatisfiable (the Impossible Set), since the capacity to predict that there's no valid plan is important. † GAIA allows tool use, including web search, however a knowledge base on how to solve the task is not provided.</p><p>but in a setting that was designed by humans for humans. Since the crafting component of Minecraft is inherently designed for human players, Plancraft also offers a way to test how LLM agents can leverage human knowledge (in the form of the Minecraft Wiki) to solve planning tasks. We compare Plancraft with popular interactive datasets in Table <ref type="table">1</ref>.</p><p>We evaluate different LLM-based agents on our dataset, thereby providing LLM-agent baselines. We test both open-source and closed-source models and evaluate them against different sets of possible actions. For open-source models, we evaluate the impact of fine-tuning agents on a set of expert plans, and compare multi-modal vs. text-only agents. We also fine-tune a bounding-box detection model on our environment to provide an interface through which text-only LLMs can interact with the multi-modal environment. Finally, we release all baseline models and code along with the dataset and environment as a stand-alone Python package.<ref type="foot" target="#foot_0">foot_0</ref> </p><p>2 Related Work</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">LLM Agents</head><p>Various strategies have been proposed to leverage LLMs as agents with interactive feedback <ref type="bibr" target="#b10">(Huang et al., 2022;</ref><ref type="bibr" target="#b28">Shinn et al., 2023;</ref><ref type="bibr">Yao et al., 2023a;</ref><ref type="bibr" target="#b12">b;</ref><ref type="bibr">Wang et al., 2022b)</ref>. The basic idea is to harvest LLMs for information, which, if novel to the agent, may result in better behaviours than they would perform otherwise. The simplest strategy, ReAct <ref type="bibr">(Yao et al., 2023b)</ref>, consists of interleaving actions with 'thinking' steps where the LLM is allowed unconstrained generation. Other broader strategies, such as Reflexion <ref type="bibr" target="#b28">(Shinn et al., 2023)</ref> or Inner Monologue <ref type="bibr" target="#b10">(Huang et al., 2022)</ref> try to promote self-corrective behaviour through external modules or steps. Self-Consistency <ref type="bibr">(Wang et al., 2022b)</ref> and Tree-of-Thought <ref type="bibr">(Yao et al., 2023a)</ref> sample the space of possible paths and select a solution through a majority vote or through another LLM evaluation step. Although all of these techniques are simple to implement, they often add significant overhead in inference compute.</p><p>One limitation of LLMs is the size of their context window. This is often addressed with Retrieval-Augmented Generation (RAG) <ref type="bibr" target="#b14">(Lewis et al., 2020)</ref>, which restricts the context to only relevant examples (by some quantitative metric) from the larger dataset, given the current observations and task. For example, contexts in Voyager <ref type="bibr">(Wang et al., 2023a)</ref> consist of the most likely applicable skills for a given problem; those in JARVIS-1 <ref type="bibr">(Wang et al., 2023b)</ref> are successful trajectories that are sufficiently similar to current observations. Since crafting is a core part of Minecraft, its Wiki contains a page with details of recipes for crafting all items. The Minecraft Wiki is therefore well suited to a RAG pipeline where an agent can query the Wiki as a knowledge source. Enabling LLMs to use external tools, such as web search, calculators, and database queries, can also significantly expand their capabilities. This has inspired numerous research efforts <ref type="bibr" target="#b20">(Nakano et al., 2022;</ref><ref type="bibr" target="#b27">Schick et al., 2023;</ref><ref type="bibr" target="#b22">Parisi et al., 2022;</ref><ref type="bibr" target="#b42">Yang et al., 2023;</ref><ref type="bibr" target="#b23">Patil et al., 2023)</ref> to integrate and evaluate tool use (or external actions) into LLM agents. Some datasets, such as GAIA <ref type="bibr" target="#b19">(Mialon et al., 2023)</ref>, even evaluate agents without any restriction on the tools allowed.</p><p>Beyond RAG and tool use, some work has examined the limitations of LLMs in planning tasks. <ref type="bibr" target="#b12">Kambhampati et al. (2024)</ref> argue that while LLMs struggle with long-term planning, they can still complement traditional methods in an LLM-modulo framework. Several datasets like PlanBench <ref type="bibr" target="#b32">(Valmeekam et al., 2023)</ref>, TRAC <ref type="bibr" target="#b7">(He et al., 2023)</ref>, and ACPBench <ref type="bibr" target="#b13">(Kokel et al., 2025)</ref> were proposed to evaluate planning-related reasoning. ACPBench and TRAC primarily test planning capabilities through multiple-choice or boolean questions, while PlanBench uses LLMs to generate full plans directly given different testing conditions. However, since these datasets do not involve interactive execution, we do not include them in Table <ref type="table">1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Interactive LLM Evaluation Datasets</head><p>Research on LLM agents requires datasets and benchmarks for evaluation. These datasets vary significantly in the types of environments in which actions are executed, ranging from simplified text-only worlds to multi-modal environments. ALFWorld <ref type="bibr" target="#b30">(Shridhar et al., 2021)</ref> and ALFRED <ref type="bibr" target="#b29">(Shridhar et al., 2020)</ref> provide virtual home environments in which the agent must manipulate objects to fulfil the instruction, expressed in natural language. Mind2Web <ref type="bibr" target="#b3">(Deng et al., 2023)</ref>, WebShop <ref type="bibr" target="#b43">(Yao et al., 2022), and</ref><ref type="bibr">WebArena (Zhou et al., 2023)</ref> evaluate agents in web-based environments, with tasks requiring interaction with browser interfaces or e-commerce platforms. BabyAI <ref type="bibr" target="#b2">(Chevalier-Boisvert et al., 2019</ref>) is a 2D maze-solving game with natural language instructions. Minecraft is also a popular benchmark for agent evaluation, with various datasets such as MineRL <ref type="bibr" target="#b6">(Guss et al., 2019)</ref>, MineDojo <ref type="bibr" target="#b5">(Fan et al., 2022)</ref>, and TextCraft <ref type="bibr" target="#b25">(Prasad et al., 2023)</ref>. In Table <ref type="table">1</ref>, we compare Plancraft against these LLM evaluation datasets. While these vary in domain and implementation, they all require agents to do multi-step planning in interactive environments to achieve tasks expressed in natural language.</p><p>Knowledge Base. Minecraft has the advantage that it is a game humans play, rather than constructed only for agent evaluation. So LLM agents can take advantage of existing online content that assists human players. <ref type="bibr">Baker et al. (2022)</ref> collected a large dataset of Minecraft videos and trained a model, Video Pretraining (VPT), to solve tasks directly from pixels in <ref type="bibr">MineRL (Guss et al., 2019)</ref>. <ref type="bibr" target="#b5">Fan et al. (2022)</ref> introduced MineDojo along with a knowledge base of scraped resources such as Minecraft videos and pages taken from the Minecraft Wiki and Reddit forum; however, they do not evaluate whether these improve performance. In Plancraft, we collect the pages of recipes on the Minecraft Wiki and use them to build a knowledge base to evaluate RAG capabilities. We also implement an Oracle Retriever for recipes to provide an upper estimate of a well-performing RAG system.</p><p>Planner. All of the datasets listed in Table <ref type="table">1</ref> can evaluate whether an agent achieves the goal. But evaluating a plan's quality requires a designated optimal policy for comparison. Of the datasets that we compare to, only BabyAI <ref type="bibr" target="#b2">(Chevalier-Boisvert et al., 2019)</ref> and ALFRED <ref type="bibr" target="#b29">(Shridhar et al., 2020)</ref> release handcrafted policies or solvers. BabyAI implements a Bot Agent with handcrafted policies that can act as a teacher agent for learners in the environment. ALFRED releases expert demonstrations found using a PDDL solver and reports Path Weighted Metrics that take the length of the expert into account. Similarly, we implement a planner for Plancraft to provide a benchmark against which to compare agents (Section 3.4). While PDDL-based classical planning approaches <ref type="bibr" target="#b18">(McDermott et al., 1998)</ref> could theoretically be applied to Plancraft, the domain presents unique challenges due to large search space (see Appendix D.1).</p><p>Impossible Set. Most interactive datasets assume that every task has a solution. So they cannot evaluate mechanisms that assess feasibility or handle inherently unsolvable tasks. This can be particularly costly for strategies like Tree-of-Thought, which expand the search space by extensively sampling the LLM for potential solutions. Plancraft addresses this gap by including a set of intentionally impossible tasks -tasks with no valid plan. This is similar to the task of identifying non-reachable atoms, as proposed in ACPBench <ref type="bibr" target="#b13">(Kokel et al., 2025)</ref>, or the unachievable tasks in WebArena <ref type="bibr" target="#b38">(Zhou et al., 2023)</ref>. By incorporating impossible tasks, Plancraft evaluates an agent's capacity to assess task feasibility. This promotes more realistic and cost-effective decision making, encouraging agents to balance problem solving with estimates of feasibility.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Plancraft</head><p>To create Plancraft, we implement the logic and visual representation of the Minecraft crafting GUI. Like <ref type="bibr" target="#b25">Prasad et al. (2023)</ref>, we reconstruct the crafting process entirely in Python using game files and images from the Wiki: we use image manipulation to overlay items on top of the inventory background. This improves performance compared with using the Java game engine. Our environment has a one-to-one pixel mapping with the real Minecraft interface and supports multiple resolutions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Assumptions</head><p>Plancraft makes a number of simplifying assumptions. First, there is a single agent in the environment, and all changes to the environment are a result of this agent's actions. Second, the effects of executable actions are deterministic. Third, the crafting interface and inventory are fully observable, either through the text description or through the multi-modal image input. And finally, aligned with classical planning, actions are sequential: they are discrete and executed one at a time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Action and Observation Space</head><p>The abstraction level chosen for the action and observation space impacts the tractability of the planning problem. Other Minecraft environments such as MineDojo <ref type="bibr" target="#b5">(Fan et al., 2022)</ref> and Textcraft <ref type="bibr" target="#b25">(Prasad et al., 2023)</ref> provide a high-level 'craft' command that doesn't require the agent to manipulate the underlying ingredients. In contrast, Plancraft requires the correct placement of ingredients in the inventory and, as such, provides a lower-level symbolic action space. The two possible environment actions are smelt and move, and both actions require a slot from, a slot to and a quantity. This abstracts control dynamics and focuses on planning and spatial reasoning.</p><p>In the Minecraft crafting GUI, there are 46 possible item slots or positions. The crafting slot can be populated with an item only if the correct items have been deposited within the 3 × 3 crafting grid-items can be moved in and out of this grid from the remaining 36 slots, in which items are stored. Items can only be withdrawn from the crafting slot, and doing this confirms the crafting operation and removes the items present in the crafting grid. Crafting recipes in Minecraft are either Shapeless or Shaped. Shapeless recipes only check whether the items required are present in the crafting grid, whereas Shaped recipes require the items to also be placed in the correct positions.</p><p>When the items on the crafting grid match one of the 634 recipes, then the resulting item is added to the crafting slot. We denote the crafting slot as [0], the 3 × 3 crafting grid as slots</p><formula xml:id="formula_1">[A1] to [C3]</formula><p>where the letter denotes each row and the number denotes the column, and the remaining 36 inventory slots as slots [I1] to [I36]. See Figure <ref type="figure" target="#fig_2">2</ref> for an example of a text description of the inventory that uses our annotation scheme.  Plancraft provides two types of observations: text-only and multi-modal. In text-only, agents receive a text description of the current inventory and crafting goal and the inventory is perfectly represented using our annotation scheme. Whereas in multi-modal, agents receive an image (dimensions 664 × 704) that perfectly contains the crafting GUI, while the goal is provided as text.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Task Setup</head><p>The tasks within Plancraft all involve crafting specific items using a predefined set of available resources. The goal of each task is expressed in natural language, such as 'Craft an item of type: green bed'. The complexity of these tasks varies, ranging from single-step crafts (e.g., crafting wooden planks ) to multi-step plans that require chaining multiple crafting recipes and actions (e.g., crafting a bed first requires planks and wool ).</p><p>To generate crafting tasks, we represent the dependencies among items as trees. The root of a tree is the target item while its leaves and intermediate nodes are the materials required to craft that item. For each crafting task, we sample the required recipes for the target item and then recursively explore the necessary materials to craft it. This builds a step-by-step plan from raw materials to the final product, simulating the crafting processes with varying levels of complexity. In addition to the necessary crafting materials, we also sample a number (4, 8, 16) of distractor items to make identifying the correct crafting path more challenging. Finally, we validate that all generated tasks can be solved in the text-only and multi-modal environments using a planner (see Section 3.4). We exclude invalid examples and ones where the handcrafted planner's trajectory exceeds 30 steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.1">Dataset Statistics</head><p>We define a complexity metric as directly proportional to the number of items used and the number of recipes needed to craft the item. We sample trajectories from least to most complex (easy, medium, hard), where hard examples can always be completed in less than 30 steps (see Appendix A.2 for details). Our complexity correlates with the planner's search space exploration, with more complex tasks requiring more steps. We stop episodes after a maximum number of steps n = 30 is reached.</p><p>Impossible Tasks. Since we also wish to evaluate whether agents can predict when a task is unsolvable, we include an additional portion (17%) of the dataset that requires the agent to craft an item, which is impossible given the inventory. To generate this dataset, during sampling, key materials from the path are deliberately removed from the inventory. This is designed to test an agent's ability to recognise when a task cannot be completed given the available resources. As mentioned, all previous interactive environments (see Table <ref type="table">1</ref>) rely on the assumption that the task given to an agent is solvable. However, real-world scenarios are unlikely to meet this assumption and tasks may often be unsolvable due to missing resources or constraints.</p><p>In </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.2">Environment Feedback</head><p>Since all models in Plancraft can handle text, we propagate formatting errors as text observations. This feedback informs agents about specific issues, allowing agents to adjust accordingly. For example, when an agent tries to move an item between identical source and destination slots, the environment returns a message specifying that different slots must be used. Or, if an agent generates a quantity that exceeds defined limits, the system provides an error message that the quantity must fall within acceptable parameters. This feedback mechanism allows agents to correct their actions and ensures smoother interactions with the environment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.3">Evaluating Impossible Tasks</head><p>To evaluate the agent's predictions on when a task is impossible, we introduce the impossible action: when emitted by an agent, this stops the episode. An impossible task is considered successful if and only if the agent emits impossible. We report the F1 score of emitting impossible, since it is now possible for the agent to interrupt a solvable task (see Section 4.1).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Expert Planner</head><p>To evaluate the quality of generated plans (and not just their validity, as measured by success rate), we handcraft a planner to find an efficient sequence of actions required to complete each task. This planner serves as a standard against which the performance of various agent models can be benchmarked.</p><p>We implement the solver as a memoized Depth-First search over all possible crafting recipes given an inventory. If found, we return the shortest path between the initial inventory and the target object that needs to be crafted as a series of smelt and move actions. If the solver does not find a shortest path after 30 seconds, we timeout the search. The planner represents the crafting dependency graph as a directed graph where nodes are items and edges represent the crafting relationship between items. This structure allows for efficient planning by focusing only on recipes that are ancestors of the target item in the dependency graph.</p><p>Note that, for efficiency, our planner searches over recipes rather than actions. As a result, shorter paths may still exist if an agent can group actions into one. We provide a more detailed discussion of the planner, including pseudocode and its limitations, in Appendix D.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Integrating External Knowledge</head><p>Similarly to <ref type="bibr" target="#b5">Fan et al. (2022)</ref>, Plancraft includes the Minecraft Wiki as a natural language knowledge base, allowing agents to perform RAG to assist in crafting decisions. This addition enables the agents to use external knowledge, testing their ability to retrieve relevant and multi-modal information and apply it to the planning problem. We scrape the pages from the Minecraft Wiki that contain recipes and post-process the data to convert them to Markdown format.</p><p>We implement a search action that allows an LLM to search for a given item in the knowledge base. Since we wish to evaluate the limits of RAG, we design the search operator to return a gold-label instantiation of a recipe required to craft the particular item. The search mechanism uses an exact match to identify the correct recipe for each item, ensuring that the returned information is always accurate. This approach helps estimate the performance of our system under a perfect retriever and parser. Additional details about our RAG implementation are provided in Appendix E.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Method</head><p>On text-only observations, we evaluate the open models Llama 3.1 8B and 3.3 70B <ref type="bibr" target="#b4">(Dubey et al., 2024)</ref>, Gemma 3 12B and 24B <ref type="bibr" target="#b31">(Team et al., 2025)</ref>, Qwen3 30B A3B <ref type="bibr" target="#b41">(Yang et al., 2025)</ref>, and gpt-4o-mini<ref type="foot" target="#foot_1">foot_1</ref> (OpenAI, 2024). All tested models are chat models, and we format the environment observations and feedback as messages from a user role. We show the interactions between the agent and the Plancraft environment in Figure <ref type="figure" target="#fig_3">3</ref>. We evaluate each model in the text-only and multi-modal environments, test making available different sets of actions or tools, and measure the impact of zero-shot versus few-shot versus fine-tuning. We implement the ReAct <ref type="bibr">(Yao et al., 2023b</ref>) 'thought' strategy as a tool, where the agent can emit think as an action within the environment. Any generated text after think is ignored. Notably, Qwen3 30B A3B is the only reasoning model in our evaluation. When using Qwen3, we increase the maximum number of generated tokens per step from 256 to 2048 to account for longer reasoning steps and remove ⟨think⟩ traces after the generation.</p><p>Tool use. We evaluate multiple sets of different tools outside of the core environment actions (move and smelt), we test whether including think, a recipe Oracle Retriever search (RAG) and impossible has an impact on the planning capabilities of agents. If a tool is active, we incorporate a description of it within the system prompt and provide an example of its use in the few-shot examples (see Appendix A.3).</p><p>Fine-Tuning. We fine-tune a Llama 3.1 8B model on 1145 planning trajectories from the training set using LoRA <ref type="bibr" target="#b9">(Hu et al., 2021</ref>) (r = 64, α = 32). These trajectories only consist of Observation, Action pairs directly obtained from our handcrafted planner and only include the smelt and move actions. As a result, we also test whether the LoRA fine-tuned LLM can take advantage of new actions that it has not been explicitly trained on.</p><p>Image Observations. We also evaluate models on both text and image inputs. Since Llama models are text-only, we train a Faster R-CNN <ref type="bibr" target="#b15">(Li et al., 2021)</ref> to extract item types, quantities, and positions from images (Appendix F). This model is trained separately on randomly sampled inventories. It classifies object types and quantities using bounding box features, achieving 99% slot accuracy and 86% accuracy for correct type and quantity. We then map the extracted symbolic representations to the same format as our text-only observations. The bounding box model benchmarks how much planning ability is lost if an observation is generated from a trained but imperfect visual processing system. For gpt-4o-mini, we evaluate using the predictions from the bounding-box model but also test passing image inputs directly (since gpt-4o-mini supports images). We also evaluate multimodal observations on Qwen 2.5 VL 72B <ref type="bibr" target="#b0">(Bai et al., 2025)</ref> and the aforementioned Gemma 3 models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Metrics</head><p>For all methods, we report: (a) the task success rate-whether or not the goal item has been crafted; (b) the plan length-the number of environment actions the agent has taken (i.e. smelt and move); and (c) the total number of tokens used (both input and output combined). Task success evaluates the percentage of tasks completed successfully by the agent and excludes the impossible set.</p><p>Using the expert planner, we can compare an agent's trajectories compared to those of the expert. We calculate the average Action Efficiency (AE) as the average difference between the number of actions in an agent's plan P compared to the length of the path of the expert planner P e . Note we only consider successful plans in the calculation of this metric:</p><formula xml:id="formula_2">Action Efficiency = ∑ N successful i=1 P i -P e i N successful<label>(1)</label></formula><p>We measure whether knowledge, internal and external, is used through the number of think and search calls. When we evaluate the performance of models when the impossible is allowed, we also report the F1 score of emitting the action. Since predicting impossible immediately stops the episode, the impossible setup introduces a new form of failure mode where a model can emit an impossible when faced with a solvable problem.</p><p>Lastly, we track the overall compute efficiency using the total number of tokens used as a proxy. <ref type="foot" target="#foot_2">3</ref>Token usage is impacted by tool use since calling external tools and actions both requires the model to generate additional tokens (to call the tool) but also introduces new information as a result of the external call. We note that in Plancraft the observation tends to dominate token usage, therefore tool-use decreases the overall token usage since it leads the model to see fewer observations on average. However, we also note that tools could hide additional compute costs not factored into simple token usage analysis.</p><p>Unless specified, all models are evaluated under the same conditions, with a fixed number of trials per task and the same prompts. We use a temperature of t = 0.6 and run five generations per model to report an average on each metric.  Table <ref type="table">3</ref>: Results for different models with the basic sets of actions (M S) and image observations. We use our R-CNN to extract the symbolic representation from images. Since gpt-4o-mini and Gemma 3 also supports image inputs, we evaluate these models as a unified VLM where observations are passed directly as images (IMG). We additionally test the Qwen 2.5 VL 72B model on image only observations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>We report results with text-only observations in Table <ref type="table" target="#tab_1">2</ref> and multi-modal observations in Table <ref type="table">3</ref>.</p><p>Act and ReAct baselines. We first restrict the action space to only the environment actions, move (M) and smelt (S), and evaluate the planning capabilities of LLMs in a few-shot setting. We find that Llama 70B outperforms gpt-4o-mini, with overall task success rates of 0.18 and 0.07 respectively. Llama 8B performs noticeably worse with a success rate of only 0.04. Gemma models perform similarly to gpt-4o-mini with success rates of 0.07 (12B) and 0.12 (27B), while the Qwen3 30B A3B reasoning model achieves 0.27. However comparing Qwen3 is the best model when think is not available is not a fair comparaison as Qwen3 is allowed to generate a reasoning trace before answering. In terms of AE, we find that gpt-4o-mini is closer to the expert planner (0.48) than the Llama models (4.38 and 2.38), which indicates that when the model succeeds, it does so efficiently.</p><p>We then extend the pool of possible actions to include think, similar to a ReAct strategy <ref type="bibr">(Yao et al., 2023b)</ref>. Note that we also update the few-shot prompt appropriately to include a description of the action and an example of its use (see Appendix A.3). Using think improves overall task success in all few-shot models: Llama 8B 0.06 (+0.02), Llama 70B 0.26 (+0.08), gpt-4o-mini 0.10 (+0.03). The Gemma models also show modest improvements, while Qwen3 30B A3B slightly decreases to 0.20 despite its reasoning capabilities. Explicitly including a think action in addition to its reasoning trace decreases Qwen3's overall success rate.</p><p>External Knowledge. When we allow search, we enable the models to incorporate the external knowledge contained in the Minecraft Wiki through the RAG Oracle Retriever. We find that this has substantial benefits for all three few-shot models, boosting Llama 8B to 0.22 (+0.16), Llama 70B to 0.67 (+0.41) and gpt-4o-mini to 0.23 (+0.13) in overall success rate. Gemma 27B achieves 0.52 with search, demonstrating significant improvement, while Qwen3 30B A3B reaches 0.30. Instead of speculating on how to craft a particular recipe, search allows models to directly retrieve precise information and where items must be placed to complete a recipe. This reduces the need for additional reasoning steps, resulting in more efficient token usage.</p><p>Predicting Impossible Tasks. Including impossible into the action inventory introduces a way for the agent to interrupt an episode. This negatively affects the overall success rate of all models. Having large impact on smaller Llama 8B model (-0.10) and the Qwen3 30B A3B model (-0.30), while having a smaller impact on the larger Llama 70B (-0.02) and gpt-4o-mini (-0.03).</p><p>We also record the F1 rate of emitting impossible. The Llama 70B model outperforms all other models on predicting impossible tasks (F1 score 0.71). Adding impossible also decreases token use, since models can now interrupt an episode when stuck. This reduces the average tokens used significantly for some models; for example, Llama 8B's average token use reduces from 63.0k to 15.0k and gpt-4o-mini's from 55.4k to 32.6k. We note that predicting impossible is not trivial without external knowledge, Llama 70B only gets 0.45 F1 when search is not available.</p><p>Effects of Fine-tuning. As mentioned in Section 4, we also fine-tune an LLM on expert plans (Llama 8B FT). As in <ref type="bibr">Wang et al. (2022a)</ref>, we find that smaller models can increase their task success with only about 1k training examples. Llama 8B FT obtains an overall success rate of around 0.40, which is remains steady with each additional action we introduce. We find that fine-tuning severely decreases the model's ability to use new actions: Llama 8B FT almost never uses think and search actions, and never emits impossible.</p><p>Image Observations. In Table <ref type="table">3</ref>, we use images instead of text inputs. We use the pre-trained bounding-box Faster R-CNN model to map images into text descriptions, and confirm a drop in accuracy for all models: Llama 8B (-0.04), Llama 70B (-0.05), and gpt-4o-mini (-0.03). Because gpt-4o-mini supports image inputs, we also evaluate passing images, and no text descriptions, directly to the model. This is gpt-4o-mini IMG: the system instructions remain the same, but the few-shot prompt replaces the observations with images. This model cannot solve our task (0.02) and yet uses significantly more tokens, because every image is converted into a long sequence of tokens (≈ 200 per 512 × 512 image patch). Note that token usage in gpt-4o-mini IMG is an overestimation due to vision tokens being priced at the gpt-4o rate (10×). However, the average token usage remains a direct representation of the average cost per episode.</p><p>We also run same image only observations for the Gemma 3 12B/27B and Qwen 2.5 VL 72B class of models, and find similarly that accuracy remains 0 for both Gemma 3 sizes, and Qwen 2.5 VL 72B only manages 1% overall success. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We introduced Plancraft, a multi-modal dataset to evaluate the planning capabilities of LLM-based agents. Using Minecraft crafting, Plancraft enables assessment of both task accuracy and an agent's ability to judge task feasibility. Our results show that larger models, such as Llama 70B, outperform smaller models like Llama 8B in both task success and efficiency in Plancraft. This advantage is amplified by specialised actions such as think and search. The introduction of impossible highlights a trade-off: while enabling models to recognise unsolvable tasks reduces token usage and increases efficiency, it disproportionately impacts smaller models like Llama 8B. Fine-tuning smaller models, as shown with Llama 8B FT, can boost task success but also reveals a key limitation: the inability to effectively use new actions later on like think and search, indicating fine-tuning may overly constrain agentic behaviour.</p><p>Our results highlight challenges in few-shot multi-modal interactive settings. While text-only tasks exhibit strong performance trends, raw image inputs (e.g., gpt-4o-mini IMG) underscore the limitations of out-of-the-box VLMs for effective interactive planning. All models are also sensitive to observations, and even with our pre-trained bounding box model, we observe significant performance degradation as the observations become noisier. Overall, our results underscore the complexity of bridging multi-modal inputs and decision-making in planning. We hope Plancraft aids future work in enhancing tool adaptability and developing RAG systems to handle noisy real-world knowledge. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Advances in Neural Information</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Additional Dataset Details</head><p>In this section, we provide additional details about the Plancraft dataset, including the motivation for using Minecraft, the dataset splits, and the complexity metric used to categorize tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Why Minecraft?</head><p>Since its introduction to AI research through platforms like Malmo <ref type="bibr" target="#b11">(Johnson et al., 2016)</ref>, Minecraft has evolved into a widely adopted benchmark for evaluating both reinforcement learning algorithms <ref type="bibr" target="#b6">(Guss et al., 2019;</ref><ref type="bibr" target="#b24">Perez-Liebana et al., 2019)</ref> and, more recently, language-based agents <ref type="bibr" target="#b5">(Fan et al., 2022;</ref><ref type="bibr">Wang et al., 2023a;</ref><ref type="bibr" target="#b25">Prasad et al., 2023;</ref><ref type="bibr">Wang et al., 2023c)</ref>. Whereas most previous work deals with the navigation and exploration aspects of Minecraft, abstracting away the crafting steps to simple callable functions, our work focuses entirely on the crafting aspect of Minecraft, which requires a different set of planning and spatial reasoning skills.</p><p>Unlike synthetic environments designed specifically for AI research (e.g., ALFWorld <ref type="bibr" target="#b30">(Shridhar et al., 2021)</ref> or ALFRED <ref type="bibr" target="#b29">(Shridhar et al., 2020)</ref>), Minecraft is a commercially successful game developed for human players. This means that provides an environment with inherent complexity appropriate for human problem-solving capabilities. Additionally, its popularity means that Minecraft comes with extensive human-authored documentation, tutorials, and community knowledge bases that LLMs may have encountered during pretraining <ref type="bibr" target="#b5">(Fan et al., 2022)</ref>. Minecraft allows us to evaluate how effectively LLMs can leverage existing human knowledge sources (e.g. the Minecraft Wiki) to solve planning tasks, paralleling real-world scenarios where agents must use reference documentation to accomplish goals.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Dataset Splits</head><p>We split the dataset into training, validation, and test sets, with a total of 1145, 570, and 580 examples respectively. We also provide a smaller validation and test set with 110 and 117 examples respectively, which we use in our evaluation.</p><p>Our complexity metric is proportional to the number of items used and the number of recipes required to solve an example (see Figure <ref type="figure" target="#fig_4">4</ref>). The complexity score therefore correlates with how many steps are required to solve a task, with more complex tasks requiring more steps. We group examples into five quantiles or complexity bins: very easy, easy, medium, hard, very hard. We also include a set of impossible tasks, which are intentionally unsolvable.</p><p>Note that when reporting results, we group together very easy and easy examples together, and the hard and very hard examples together for simplicity. Table <ref type="table" target="#tab_4">4</ref> shows the distribution of examples across complexity score for each dataset split.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Prompts</head><p>We provide the system prompt used for all Plancraft experiments in Figure <ref type="figure" target="#fig_5">5</ref>. The prompt includes a detailed description of the crafting grid, inventory slots, and available actions. Examples of the format for each action type are included in the system prompt. Figure <ref type="figure">6</ref> shows the few-shot (two-shot) interaction examples used throughout the evaluation.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Environment Feedback</head><p>Figure <ref type="figure">7</ref> shows the error messages returned by the environment for each action type.</p><p>On the other hand, when the agent performs a valid action, the environment responds with a message containing the goal and observation. This means that a valid action that has no effect on the environment will still return a message with the goal and observation, but no additional feedback. Since a no-op action is not penalized, the agent should recognise when it its actions are not having the desired effect and adjust its strategy accordingly. Note, we also do not provide any rewards to the agent. However, it would be possible in the future to include a reward signal based on the number of remaining steps needed to complete the task, or whether the agent is successful.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Qualitative Examples</head><p>In Figures 8 to 12, we provide qualitative examples of the Llama 8B model interacting with the Plancraft environment. These examples illustrate the model's reasoning process and the impact of different actions on task completion. Figures 8 to 11 are all taken from the same Plancraft task, where the model is asked to craft light gray glazed terracotta. By our complexity categories this is a very easy task as it only requires smelting light gray terracotta into a free inventory slot.</p><p>In Figure <ref type="figure">8</ref>, the model has access to think, and it successfully completes the task by correctly identifying the required smelting action in its first think step, though we note that it also hallucinates other non-needed actions. Whereas, Figure <ref type="figure">9</ref>, the model, with the same input, hallucinates non-existent crafting dependencies and attempts to solve for them, eventually reaching the maximum number of steps. In Figure <ref type="figure" target="#fig_0">10</ref>, the model uses the search action to find the recipe for light gray glazed terracotta, and then uses think to identify the correct smelting action. However when we introduce impossible in Figure <ref type="figure" target="#fig_0">11</ref>, the model uses impossible to end the task early,</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>System Prompt</head><p>You are crafting in Minecraft. You need to decide on the next action.</p><p>Crafting Grid: The crafting table is organized into a 3x3 grid. Each slot in the grid has a unique identifier:</p><formula xml:id="formula_3">-Top row: [A1] [A2] [A3] -Middle row: [B1] [B2] [B3] -Bottom row: [C1] [C2] [C3]</formula><p>The output of the crafting process is placed in a designated output slot labeled [0]. You cannot move or smelt items directly into slot [0].</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Inventory Slots:</head><p>The remaining inventory slots (outside of the crafting grid) are used for storing items. These slots are labeled as [I1] to [I36].</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Actions:</head><p>• move: Transfer a specific quantity of an item from one slot to another • smelt: Smelt an item in a furnace and moves the output to a specific slot • think: Generate thoughts to help you decide on the next action • search: Search for recipes to craft a specific item</p><formula xml:id="formula_4">• impossible: Stop task if it is certain that it is impossible</formula><p>with given inventory Format:</p><p>• 'move: from [Source] to <ref type="bibr">[Target]</ref> with quantity N'</p><p>• 'smelt: from [Source] to <ref type="bibr">[Target]</ref> with quantity N'</p><p>• 'think: &lt;thought message&gt;'</p><p>• 'search: &lt;recipe name&gt;'</p><p>• 'impossible: &lt;reason&gt;'</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Example:</head><p>• 'move: from [I2] to [A1] with quantity 3'</p><p>• 'smelt: from [I5] to [I6] with quantity 1'</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Constraints:</head><p>• You cannot move or smelt items into [0]</p><p>• If an item is not in slot [0] then the recipe is incorrect</p><p>• You need to move items from [0] to a free inventory slot to complete the crafting process even though it still correctly identified the recipe for light gray glazed terracotta and has the same inventory as in the previous examples. We find models eager to emit impossible when it is available, even when the task is solvable, therefore decreasing their overall accuracy.</p><p>Finally, in Figure <ref type="figure" target="#fig_2">12</ref>, the model is asked to craft diorite wall, which is an impossible task given the inventory. In this case, the model correctly uses a combination of both search and think to identify the missing ingredient (diorite) and before outputting impossible. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Additional Results</head><p>In Table <ref type="table" target="#tab_5">5</ref>, we aggregate success over the different types of recipe categories. We find that Smelting is the easiest type of recipe to craft or solve for since it only requires using the smelt action. The hardest type of task is Mixed, when different recipe types are required to craft the target object. We can also observe that Shaped recipes are particularly hard when the search action is not available since it requires reasoning over the spatial positioning of items without an relevant example. However with search, we find that larger LLMs such as Llama 70B obtain high accuracies since they can more accurately pattern match from the recipe search to the desired crafting positions.</p><p>In Table <ref type="table" target="#tab_6">6</ref>, we show the average number of invalid actions that trigger error feedback from the environment. Overall we observe that the non-fine-tuned models do not respond well to the baseline regime where only move and smelt are allowed, likely since most have been instruction fine-tuned with some level of chain of thought reasoning. Simply introducing the think action greatly helps the each model's ability to follow the formatting of the response.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Zero-shot</head><p>We compare the zero-shot capability for Llama 70 B on our full tool set (M S T SE I) in Table <ref type="table" target="#tab_8">7</ref>.</p><p>Overall, we find a significant drop in overall accuracy (-0.12) when moving to a zero-shot setting.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Planner</head><p>In this section, we provide additional details about the Plancraft planner, including the limitations of classical PDDL planners for the Plancraft domain and the implementation details of our custom planner.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1 Plancraft and Classical PDDL Planners</head><p>While Plancraft satistifies the requirements of a classical planning domain having deterministic actions and fully observable states, it is not easily representable in PDDL <ref type="bibr" target="#b18">(McDermott et al., 1998)</ref>.</p><p>For one, Minecraft's crafting system contains actions in which a parametrised number of items are moved or smelted. While variable amounts are handled in PDDL 2.1+ through the use of numeric fluents, the complexity of representing these actions in PDDL is non-trivial and unsupported by many classical planners such as Fast Downward <ref type="bibr" target="#b8">(Helmert, 2006)</ref>.</p><p>Additionally, the search space of Plancraft is large when compared to traditional planning domains (e.g. Blocksworld), due to the number of possible crafting recipes (859), the number of items (976), possible positions (46), and possible quantities (64). This results in a prohibitively large state space that makes classical planning approaches computationally expensive for all but the simplest Plancraft tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Planner Implementation Details</head><p>Our planner uses a memoized Depth-First Search (DFS) algorithm to find the shortest path from the initial inventory to the target item. The planner operates in two main phases:</p><p>1. Builds a directed graph representing the recipe dependency relationships between items.</p><p>2. For a given target item and initial inventory, it performs a search to find the optimal crafting sequence.</p><p>The core of the planner recursively explores possible crafting steps while memoizing intermediate results to avoid redundant computation. The pseudocode for this algorithm is presented below:</p><p>After finding the shortest sequence of recipes, the planner decomposes each recipe into concrete move and smelt actions. This decomposition accounts for various recipe types:</p><p>• Smelting Recipes: Require moving an item to a smelting slot and receiving the output in another slot. • Shapeless Recipes: Require ingredients to be placed in the crafting grid in any arrangement.</p><p>• Shaped Recipes: Require ingredients to be placed in specific positions within the crafting grid.</p><p>The planner handles inventory management by tracking item quantities and ensuring that crafting operations maintain consistency. This includes removing used ingredients and adding crafted items to the inventory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3 Limitations of the Planner</head><p>While our planner can efficiently solve Plancraft tasks, it does not provide optimal guarantees since it decomposes the search into a series of valid recipes before optimising the action sequence for each recipe. It is possible for shorter plans to exist if the planner were to consider all possible crafting steps simultaneously rather than decomposing the search into individual recipes. For instance, if two recipes share a common ingredient that can be placed in the same slot, the planner may not consider combining the move action for that ingredient across both recipes. The planner also does not smelt multiple items in a single action and does not move items directly into the crafting grid from the crafting slot [0] or from a smelt action These limitations mean that it is possible for an agent in Plancraft to outperform the planner by considering multiple recipes (subgoals) simultaneously. This is why we refer to our planner as a handcrafted planner rather than an optimal planner.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E RAG Implementation Details E.1 Oracle Retriever</head><p>The Oracle Retriever is a simple exact match retriever that returns the recipe for a given item query.</p><p>Since we have access to the underlying game files which includes all crafting recipes, we can guarantee that the Oracle Retriever always returns a correct recipe for a valid item query. If the item does not exist in the recipe database, the Oracle Retriever returns an error message stating that it could not find a recipe for the item. If there are more than one recipe for a given item, the Oracle Retriever returns possible instantiations of each recipe. For example Figure <ref type="figure">6</ref>, contains an example where the Oracle Retriever returns three possible recipes for crafting an iron ingot. All recipes are returned in plain text.</p><p>The retriever is not conditioned on the current inventory of the agent, as a result it returns all possible recipes for a given item, regardless of whether the agent has the necessary ingredients in its inventory. We can observe this in Figure <ref type="figure">6</ref> where recipes 1 and 3 are not feasible given the agent's inventory. This is analogous to querying a knowledge base, where all matching results are returned, regardless of whether they are feasible.</p><p>For many recipes, it is possible for multiple valid instantiations to exist. For example, the recipe for crafting planks can be done by placing logs in any slots of the crafting grid. As such, placing a log in any slot of the crafting grid is a valid instantiation of the recipe. In such cases, the Oracle Retriever returns a single random instantiation of the recipe.</p><p>Ultimately, the Oracle Retriever can be used to simulate a perfect retriever, which allows us to isolate and evaluate how effectively agents can use external knowledge when it's provided without retrieval errors and grounded within the game environment. In real-world applications, RAG systems would need to handle partial matches, ambiguous queries, and potentially irrelevant information. Our implementation provides a best-case scenario baseline against which more realistic RAG approaches can be compared.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2 Minecraft Wiki</head><p>While not used in our experiments, we also include a scraped version of the Minecraft Wiki for future work. To collect the Minecraft Wiki, we crawl and process pages containing crafting recipes which are valid in Plancraft. We convert the html and images to a structured Markdown format, removing irrelevant information and formatting the recipes in a consistent manner. We include the Minecraft Wiki in our release to encourage future work on RAG systems that can leverage multi-modal knowledge sources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Custom R-CNN Model</head><p>Figure <ref type="figure" target="#fig_3">13</ref> shows the custom Faster R-CNN model used to predict bounding boxes along with both class and quantity labels from observations of the inventory. The model is trained from randomly sampling Minecraft inventories in Plancraft. Each training image is automatically annotated with bounding boxes around items, along with class and quantity labels. We extend the Pytorch Faster R-CNN resnet50 V2 <ref type="bibr" target="#b15">(Li et al., 2021)</ref>  We evaluate our bounding box model on the initial inventory of the train split of Plancraft in Table <ref type="table" target="#tab_10">8</ref> to select a confidence threshold. The confidence threshold is used to filter out low-confidence boundingbox predictions from the model. If two bounding boxes map to the same inventory slot, we keep the one with the highest confidence. We report the following metrics: accuracy for slot, type and quantity (exact match); slot precision, slot recall, and slot F1 score; and the Intersection over Union (IoU) for slot, type, and quantity predictions. We select a threshold of 0.25 for all evaluations as it provides the highest F1 score for slot predictions, while maintaining high accuracy in its predictions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Few-Shot Examples</head><p>User: Craft an item of type: andesite inventory:</p><p>- </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Environment Feedback</head><p>Error Messages for Invalid Actions: 'search: &lt;recipe name&gt;'</p><p>Figure <ref type="figure">7</ref>: Error messages returned by the environment when an agent performs an invalid action. These messages try to guide the agent to correct its outputs to format its actions correctly.</p><p>Llama 8B with impossible action (Successful ✓)  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: A Plancraft example where the task is to craft a green bed . The agent has to use the observations (text or image) to generate the next action. In this case, the shortest path is: crafting the green dye by smelting the cactus ; then moving the items (white bed and green dye ) into the correct crafting slots; then moving the resulting green bed into the inventory.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Example of a Plancraft observation of the scene in either an image or text format. For the text, we encode the scene using a specific slot notation where [0] denotes the crafting slot, [A1] to [C3] denotes each row and column of the 3 × 3 crafting grid, and [I1] to [I36] denotes the inventory slots.</figDesc><graphic coords="5,108.41,83.21,117.72,112.98" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Example flow of Plancraft. The agent can use the varying set of tools. The dialogue history is passed as a sequence of messages. Environment messages include the task goal and current observation (text or image). If the agent takes an action that does not impact the environment such as think or search, then the environment does not return an observation but a response based on this action.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Scatterplot showing the number of items used in a task versus the number of recipes required to craft the target item. The hue of the scatterplot represents the complexity bins.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: System prompt used for all Plancraft experiments. The coloured actions (think, search, impossible) are included or excluded based on the experimental configuration.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>] and[Target]  must be different-[Source] must be [0] or [A1] to [C3] or [I1] to [I36] -You cannot move items into [0] -[Target] must be [A1] to [C3] or [I1] to [I36]quantity must be between 1 and 64 -Format Error: &lt;error message&gt;. Correct format: 'move: from[Source] to [Target] with quantity N' • Smelt -[Source] and [Target] must be different -[Source] must be [0] or [A1] to [C3] or [I1] to [I36] -You cannot smelt items into [0] -[Target] must be [A1] to [C3] or [I1] to [I36] quantity mustbe between 1 and 64 -Format Error: &lt;error message&gt;. Correct format: 'smelt: from [Source] to [Target] with quantity N' • Think -Format Error: &lt;error message&gt;. Correct format: 'think: &lt;thought message&gt;' • Impossible -Format Error: &lt;error message&gt;. Correct format: 'impossible: &lt;reason&gt;' • Search -Could not find a recipe by that name. -Format Error: &lt;error message&gt;. Correct format:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 12 :Figure 13 :</head><label>1213</label><figDesc>Figure 12: Example of successful planning with the impossible action. The assistant correctly identifies an impossible task after confirming the required ingredient (diorite) is missing from the inventory.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table><row><cell></cell><cell>Overall</cell><cell>Avg.</cell><cell></cell><cell>Avg.</cell></row><row><cell>Model (M S)</cell><cell>Success Rate</cell><cell>Plan Length</cell><cell>AE (↓)</cell><cell>Tokens Used</cell></row><row><cell></cell><cell>(↑)</cell><cell>(↓)</cell><cell></cell><cell>(↓)</cell></row><row><cell>Llama 8B R-CNN</cell><cell>0.00</cell><cell>30.00</cell><cell>-</cell><cell>84.5k</cell></row><row><cell>Llama 70B R-CNN</cell><cell>0.13</cell><cell>27.03</cell><cell>2.97</cell><cell>79.5k</cell></row><row><cell>gpt-4o-mini R-CNN</cell><cell>0.04</cell><cell>28.93</cell><cell>3.31</cell><cell>82.3k</cell></row><row><cell>Gemma 3 12B IMG</cell><cell>0.00</cell><cell>29.96</cell><cell>0.00</cell><cell>137.7k</cell></row><row><cell>Gemma 3 27B IMG</cell><cell>0.00</cell><cell>29.94</cell><cell>1.00</cell><cell>117.6k</cell></row><row><cell>Qwen 2.5 VL 72B IMG</cell><cell>0.01</cell><cell>29.89</cell><cell>0.50</cell><cell>181.1k</cell></row><row><cell>gpt-4o-mini IMG</cell><cell>0.02</cell><cell>29.45</cell><cell>2.50</cell><cell>11.6M</cell></row></table><note><p>Average Success Rates (SR) for different models and sets of actions available: move (M), smelt (S), think (T), search (SE), impossible (I). We also report the average count of special actions used, the average plan length, the Action Efficiency (AE) and the average total number of tokens used.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>To solve Plancraft, a VLM needs to discern where and what objects are in an image, how these change over time, and how to map between these and the text locations/types. VLMs like Gemma 3 26B might approximate positions (e.g., "bottom left") but fail to map items to exact grid locations. As Plancraft can contain dialogue sequences of up to 30 observations, VLMs need to be able to handle 30 different image inputs. We hypothesize that this is in part due to the pre-training and fine tuning regime of VLMs which are rarely trained on long image sequences nor to ground arbitrary game UIs. Overall, our results also demonstrate that prompting VLMs using few-shot prompting in the same way as with text does not work in Plancraft. Modern VLMs are unable to leverage the few-shot image examples to calibrate their predictions and generalise more broadly to new tasks.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Processing Systems, volume 36, pp. 11809-11822. Curran Associates, Inc., 2023a. URL https://proceedings.neurips.cc/paper files/paper/2023/file/ 271db9922b8d1f4dd7aaef84ed5ac703-Paper-Conference.pdf.Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao.   </figDesc><table><row><cell>ReAct: Synergizing reasoning and acting in language models. In International Conference on</cell></row><row><cell>Learning Representations (ICLR), 2023b.</cell></row><row><cell>Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng,</cell></row><row><cell>Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. Webarena: A realistic web environment for building</cell></row><row><cell>autonomous agents. arXiv preprint arXiv:2307.13854, 2023.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 4 :</head><label>4</label><figDesc>Dataset statistics per complexity score for each split.</figDesc><table><row><cell>Complexity</cell><cell cols="7">Train Val Test Val (small) Test (small) Val (easy) Test (easy)</cell></row><row><cell>very easy</cell><cell cols="3">200 100 100</cell><cell>20</cell><cell>20</cell><cell>100</cell><cell>100</cell></row><row><cell>easy</cell><cell cols="3">200 100 100</cell><cell>20</cell><cell>20</cell><cell>-</cell><cell>-</cell></row><row><cell>medium</cell><cell cols="3">198 100 100</cell><cell>20</cell><cell>20</cell><cell>-</cell><cell>-</cell></row><row><cell>hard</cell><cell cols="3">200 100 100</cell><cell>20</cell><cell>20</cell><cell>-</cell><cell>-</cell></row><row><cell>very hard</cell><cell>147</cell><cell>70</cell><cell>80</cell><cell>10</cell><cell>17</cell><cell>-</cell><cell>-</cell></row><row><cell>impossible set</cell><cell cols="3">200 100 100</cell><cell>20</cell><cell>20</cell><cell>-</cell><cell>-</cell></row><row><cell>Total</cell><cell cols="3">1145 570 580</cell><cell>110</cell><cell>117</cell><cell>100</cell><cell>100</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5 :</head><label>5</label><figDesc>Average success for all models and tools when aggregated over the type of recipes needed to craft the target item. The Mixed category requires combining multiple different types of recipes.</figDesc><table><row><cell>Tools</cell><cell>Model</cell><cell cols="5">Smelting Shapeless Shaped Mixed</cell></row><row><cell>M S</cell><cell cols="2">Llama 70B</cell><cell>0.91</cell><cell>0.51</cell><cell>0.12</cell><cell>0.07</cell></row><row><cell>M S T</cell><cell cols="2">Llama 70B</cell><cell>0.69</cell><cell>0.57</cell><cell>0.25</cell><cell>0.12</cell></row><row><cell>M S T SE</cell><cell cols="2">Llama 70B</cell><cell>1.00</cell><cell>0.80</cell><cell>0.80</cell><cell>0.42</cell></row><row><cell cols="3">M S T SE I Llama 70B</cell><cell>1.00</cell><cell>0.78</cell><cell>0.79</cell><cell>0.39</cell></row><row><cell>M S</cell><cell cols="2">Llama 8B</cell><cell>0.09</cell><cell>0.20</cell><cell>0.01</cell><cell>0.02</cell></row><row><cell>M S T</cell><cell cols="2">Llama 8B</cell><cell>0.18</cell><cell>0.23</cell><cell>0.02</cell><cell>0.03</cell></row><row><cell>M S T SE</cell><cell cols="2">Llama 8B</cell><cell>0.98</cell><cell>0.37</cell><cell>0.22</cell><cell>0.10</cell></row><row><cell cols="3">M S T SE I Llama 8B</cell><cell>0.66</cell><cell>0.24</cell><cell>0.10</cell><cell>0.06</cell></row><row><cell>M S</cell><cell cols="2">Llama 8B FT</cell><cell>0.88</cell><cell>0.77</cell><cell>0.41</cell><cell>0.22</cell></row><row><cell>M S T</cell><cell cols="2">Llama 8B FT</cell><cell>0.65</cell><cell>0.81</cell><cell>0.42</cell><cell>0.19</cell></row><row><cell>M S T SE</cell><cell cols="2">Llama 8B FT</cell><cell>0.86</cell><cell>0.77</cell><cell>0.43</cell><cell>0.21</cell></row><row><cell cols="3">M S T SE I Llama 8B FT</cell><cell>0.86</cell><cell>0.78</cell><cell>0.44</cell><cell>0.20</cell></row><row><cell>M S</cell><cell cols="2">gpt-4o-mini</cell><cell>0.58</cell><cell>0.26</cell><cell>0.00</cell><cell>0.04</cell></row><row><cell>M S T</cell><cell cols="2">gpt-4o-mini</cell><cell>0.51</cell><cell>0.34</cell><cell>0.04</cell><cell>0.05</cell></row><row><cell>M S T SE</cell><cell cols="2">gpt-4o-mini</cell><cell>0.71</cell><cell>0.32</cell><cell>0.26</cell><cell>0.09</cell></row><row><cell cols="3">M S T SE I gpt-4o-mini</cell><cell>0.76</cell><cell>0.26</cell><cell>0.24</cell><cell>0.07</cell></row><row><cell>Tools</cell><cell></cell><cell>Model</cell><cell></cell><cell cols="2">Avg. # of Invalid Actions</cell></row><row><cell>M S</cell><cell></cell><cell cols="2">Llama 70B</cell><cell>2.88</cell><cell></cell></row><row><cell cols="2">M S T</cell><cell cols="2">Llama 70B</cell><cell>0.03</cell><cell></cell></row><row><cell cols="2">M S T SE</cell><cell cols="2">Llama 70B</cell><cell>0.02</cell><cell></cell></row><row><cell cols="4">M S T SE I Llama 70B</cell><cell>0.01</cell><cell></cell></row><row><cell>M S</cell><cell></cell><cell>Llama 8B</cell><cell></cell><cell>6.85</cell><cell></cell></row><row><cell cols="2">M S T</cell><cell>Llama 8B</cell><cell></cell><cell>0.20</cell><cell></cell></row><row><cell cols="2">M S T SE</cell><cell>Llama 8B</cell><cell></cell><cell>0.44</cell><cell></cell></row><row><cell cols="3">M S T SE I Llama 8B</cell><cell></cell><cell>0.04</cell><cell></cell></row><row><cell>M S</cell><cell></cell><cell cols="2">Llama 8B FT</cell><cell>0.02</cell><cell></cell></row><row><cell cols="2">M S T</cell><cell cols="2">Llama 8B FT</cell><cell>0.00</cell><cell></cell></row><row><cell cols="2">M S T SE</cell><cell cols="2">Llama 8B FT</cell><cell>0.01</cell><cell></cell></row><row><cell cols="4">M S T SE I Llama 8B FT</cell><cell>0.01</cell><cell></cell></row><row><cell>M S</cell><cell></cell><cell cols="2">gpt-4o-mini</cell><cell>1.53</cell><cell></cell></row><row><cell cols="2">M S T</cell><cell cols="2">gpt-4o-mini</cell><cell>0.02</cell><cell></cell></row><row><cell cols="2">M S T SE</cell><cell cols="2">gpt-4o-mini</cell><cell>0.04</cell><cell></cell></row><row><cell cols="4">M S T SE I gpt-4o-mini</cell><cell>0.00</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 6 :</head><label>6</label><figDesc>Average Number of Invalid Actions that trigger corrective environment feedback per trajectory for each tool/model configuration.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc>Comparing zero-shot versus few-shot prompting on the Llama 70B with the full set of actions available: move (M), smelt (S), think (T), search (SE), and impossible (I)</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 8 :</head><label>8</label><figDesc>model to add an additional classification head for quantity. Our model therefore predicts both class and quantity labels for each bounding box using the same model and underlying representation. Evaluation results of the custom Faster R-CNN model on initial inventories of the Plancraft dataset.</figDesc><table><row><cell>Accuracy</cell><cell></cell><cell></cell><cell>Slot</cell><cell></cell><cell>IoU</cell></row><row><cell cols="4">Threshold Slot Type Quantity Precision Recall</cell><cell>F1</cell><cell cols="2">Slot Type Quantity</cell></row><row><cell>0.25 0.99 0.92</cell><cell>0.90</cell><cell>1</cell><cell>0.99</cell><cell cols="2">0.99 0.99 0.86</cell><cell>0.86</cell></row><row><cell>0.40 0.97 0.91</cell><cell>0.90</cell><cell>1</cell><cell>0.97</cell><cell cols="2">0.98 0.97 0.87</cell><cell>0.87</cell></row><row><cell>0.50 0.95 0.90</cell><cell>0.89</cell><cell>1</cell><cell>0.95</cell><cell cols="2">0.97 0.95 0.87</cell><cell>0.86</cell></row><row><cell>0.75 0.86 0.85</cell><cell>0.83</cell><cell>1</cell><cell>0.86</cell><cell cols="2">0.92 0.86 0.84</cell><cell>0.82</cell></row><row><cell>0.90 0.77 0.76</cell><cell>0.75</cell><cell>1</cell><cell>0.77</cell><cell cols="2">0.86 0.77 0.76</cell><cell>0.74</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head></head><label></label><figDesc>Assistant: think: Now I need to move the cobblestone into position [B2] to be right of the diorite. Assistant: think: Now I can craft the andesite by moving it from the craft slot [0] to a free inventory slot.Figure 6: Few-shot (two-shot) examples provided to models during evaluation. Core actions (move, smelt) are shown in regular text, while optional actions are color-coded (think, search) based on which tools are enabled.</figDesc><table><row><cell>diorite [I18] quantity 1</cell></row><row><cell>-cobblestone [I30] quantity 1</cell></row><row><cell>Assistant: search: andesite</cell></row><row><cell>User: Recipes to craft andesite:</cell></row><row><cell>recipe 1:</cell></row><row><cell>diorite at [B1]</cell></row><row><cell>cobblestone at [B2]</cell></row><row><cell>Assistant: think: To solve this task I need to craft andesite</cell></row><row><cell>using 1 diorite and 1 cobblestone side by side.</cell></row><row><cell>User: Ok</cell></row><row><cell>Assistant: move: from [I18] to [B1] with quantity 1</cell></row><row><cell>User: Craft an item of type: andesite</cell></row><row><cell>inventory:</cell></row><row><cell>-diorite [B1] quantity 1</cell></row><row><cell>-cobblestone [I30] quantity 1</cell></row><row><cell>User: Ok</cell></row><row><cell>Assistant: move: from [I30] to [B2] with quantity 1</cell></row><row><cell>User: Craft an item of type: andesite</cell></row><row><cell>inventory:</cell></row><row><cell>-andesite [0] quantity 1</cell></row><row><cell>-diorite [B1] quantity 1</cell></row><row><cell>-cobblestone [B2] quantity 1</cell></row><row><cell>User: Ok</cell></row><row><cell>Assistant: move: from [0] to [I6] with quantity 1</cell></row><row><cell>User: Craft an item of type: iron ingot</cell></row><row><cell>inventory:</cell></row><row><cell>-iron ore [I36] quantity 1</cell></row><row><cell>-cobblestone [I30] quantity 1</cell></row><row><cell>Assistant: search: iron ingot</cell></row><row><cell>User: Recipes to craft iron ingot:</cell></row><row><cell>recipe 1:</cell></row><row><cell>iron block at [C2]</cell></row><row><cell>recipe 2:</cell></row><row><cell>smelt {iron ore}</cell></row><row><cell>recipe 3:</cell></row><row><cell>iron nugget at [A1]</cell></row><row><cell>iron nugget at [A2]</cell></row><row><cell>iron nugget at [A3]</cell></row><row><cell>iron nugget at [B1]</cell></row><row><cell>iron nugget at [B2]</cell></row><row><cell>iron nugget at [B3]</cell></row><row><cell>iron nugget at [C1]</cell></row><row><cell>iron nugget at [C2]</cell></row><row><cell>iron nugget at [C3]</cell></row><row><cell>Assistant: think: To craft an iron ingot, I need to smelt</cell></row><row><cell>iron ore into an empty slot.</cell></row><row><cell>User: Ok</cell></row><row><cell>Assistant: smelt: from [I36] to [I35] with quantity 1</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head></head><label></label><figDesc>Assistant: think: To craft a diorite wall, I need 6 diorites in the crafting grid. However, I don't have any diorites in my inventory. I had crafted an andesite earlier, but I don't see it in my current inventory.</figDesc><table><row><cell>User: Craft an item of type: diorite wall</cell></row><row><cell>inventory:</cell></row><row><cell>-oak sign [I2] quantity 11</cell></row><row><cell>-stripped birch wood [I3] quantity 11</cell></row><row><cell>-...</cell></row><row><cell>-grass [I35] quantity 42</cell></row><row><cell>Assistant: search: diorite wall</cell></row><row><cell>User: Recipes to craft diorite wall:</cell></row><row><cell>recipe 1:</cell></row><row><cell>diorite at [B1]</cell></row><row><cell>diorite at [B2]</cell></row><row><cell>diorite at [B3]</cell></row><row><cell>diorite at [C1]</cell></row><row><cell>diorite at [C2]</cell></row><row><cell>diorite at [C3]</cell></row></table><note><p>User: Ok Assistant: impossible: I don't have the required diorite blocks to craft a diorite wall</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://github.com/gautierdag/plancraft</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>gpt-4o-mini-2024-07-18   </p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>We consider input and output tokens as equivalent.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>This work was supported in part by the <rs type="institution">UKRI Centre for Doctoral Training in Natural Language Processing</rs>, funded by the <rs type="funder">UKRI</rs> (grant <rs type="grantNumber">EP/S022481/1</rs>) at the <rs type="institution">University of Edinburgh, School of Informatics and School of Philosophy, Psychology &amp; Language Sciences</rs> and by the <rs type="funder">UKRI-funded TAS Governance Node</rs> (grant number <rs type="grantNumber">EP/V026607/1</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_nGW64bp">
+					<idno type="grant-number">EP/S022481/1</idno>
+				</org>
+				<org type="funding" xml:id="_wEcRnNW">
+					<idno type="grant-number">EP/V026607/1</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Assistant: think: To craft light gray glazed terracotta, I need 1 light gray terracotta and 1 colored glazed terracotta, but I have none of these items. However, I have colored glazed terracotta in the form of other colored terracotta, I could smelt it and then apply a dye. User: Ok Assistant: think: I can smelt the light gray terracotta to get light gray clay which I can then color with a dye to get the light gray glazed terracotta. User: Ok Assistant: think: I need to find a dye color that is not present in the inventory to craft light gray glaze. User: Ok Assistant: think: Since I have a variety of items in the inventory, I can check if there is a dye color that can be crafted from any of the items present. The assistant reasons through the crafting process, identifies in the first think step that the light gray terracotta needs to be smelted. However its reasons are incorrect, as light gray terracotta is directly smelted into light gray glazed terracotta. In this case, the model also moves an unnecessary item to the crafting grid, but eventually generates the correct action. Note the shortest path here would have been a single smelt action.  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keqin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuejing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbin</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sibo</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shijie</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Humen</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhi</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingkun</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaohai</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianqiang</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheren</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiabo</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianbao</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zesen</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhibo</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiyang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyang</forename><surname>Lin</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2502.13923" />
+		<title level="m">Qwen2.5-vl technical report</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Video pretraining (vpt): Learning to act by watching unlabeled online videos</title>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilge</forename><surname>Akkaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Zhokov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joost</forename><surname>Huizinga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrien</forename><surname>Ecoffet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brandon</forename><surname>Houghton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raul</forename><surname>Sampedro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Clune</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Koyejo</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Agarwal</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">D</forename><surname>Belgrave</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Oh</surname></persName>
+		</editor>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="24639" to="24654" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">BabyAI: First steps towards grounded language learning with a human in the loop</title>
+		<author>
+			<persName><forename type="first">Maxime</forename><surname>Chevalier-Boisvert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salem</forename><surname>Lahlou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Willems</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chitwan</forename><surname>Saharia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thien</forename><surname>Huu Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=rJeXCo0cYX" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyuan</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shijie</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Stevens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boshi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Towards a generalist agent for the web</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Abhimanyu</forename><surname>Dubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Jauhri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Pandey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Kadian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmad</forename><surname>Al-Dahle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aiesha</forename><surname>Letman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akhil</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Schelten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.21783</idno>
+		<title level="m">The llama 3 herd of models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Building open-ended embodied agents with internet-scale knowledge</title>
+		<author>
+			<persName><forename type="first">Linxi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuncong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyi</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>De-An</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Anandkumar</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Minedojo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="18343" to="18362" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Brandon</forename><surname>William H Guss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholay</forename><surname>Houghton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Topin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cayden</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuela</forename><surname>Codel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Veloso</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Salakhutdinov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1907.13440</idno>
+		<title level="m">Minerl: A large-scale dataset of minecraft demonstrations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Exploring the capacity of pretrained language models for reasoning about actions and change</title>
+		<author>
+			<persName><forename type="first">Weinan</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canming</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhanhao</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongmei</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.acl-long.255</idno>
+		<ptr target="https://aclanthology.org/2023.acl-long.255/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<editor>
+			<persName><forename type="first">Anna</forename><surname>Rogers</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jordan</forename><surname>Boyd-Graber</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Naoaki</forename><surname>Okazaki</surname></persName>
+		</editor>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics<address><addrLine>Toronto, Canada</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023-07">July 2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="4629" to="4643" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">The fast downward planning system</title>
+		<author>
+			<persName><forename type="first">Malte</forename><surname>Helmert</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Intelligence Research</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<biblScope unit="page" from="191" to="246" />
+			<date type="published" when="2006">2006</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Lora: Low-rank adaptation of large language models</title>
+		<author>
+			<persName><forename type="first">Edward</forename><forename type="middle">J</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Wallis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyuan</forename><surname>Allen-Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shean</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2106.09685" />
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Wenlong</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harris</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacky</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pete</forename><surname>Florence</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Tompson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Mordatch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yevgen</forename><surname>Chebotar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Sermanet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Jackson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linda</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karol</forename><surname>Hausman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2207.05608</idno>
+		<idno type="arXiv">arXiv:2207.05608</idno>
+		<idno>arXiv:2207.05608</idno>
+		<ptr target="http://arxiv.org/abs/2207.05608" />
+		<title level="m">Inner monologue: Embodied reasoning through planning with language models</title>
+		<imprint>
+			<date type="published" when="2022-07">July 2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">The malmo platform for artificial intelligence experimentation</title>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Johnson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katja</forename><surname>Hofmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Hutton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Bignell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Ijcai</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="page" from="4246" to="4247" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Position: LLMs can&apos;t plan, but can help planning in LLM-modulo frameworks</title>
+		<author>
+			<persName><forename type="first">Subbarao</forename><surname>Kambhampati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Valmeekam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mudit</forename><surname>Verma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaya</forename><surname>Stechly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhant</forename><surname>Bhambri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Paul Saldyt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anil</forename><forename type="middle">B</forename><surname>Murthy</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+		<ptr target="https://proceedings.mlr.press/v235/kambhampati24a.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning</title>
+		<editor>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Zico</forename><surname>Kolter</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Katherine</forename><surname>Heller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Adrian</forename><surname>Weller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nuria</forename><surname>Oliver</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jonathan</forename><surname>Scarlett</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Felix</forename><surname>Berkenkamp</surname></persName>
+		</editor>
+		<meeting>the 41st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2024-07">Jul 2024</date>
+			<biblScope unit="volume">235</biblScope>
+			<biblScope unit="page" from="21" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">ACPBench hard: Unrestrained reasoning about action, change, and planning</title>
+		<author>
+			<persName><forename type="first">Harsha</forename><surname>Kokel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Katz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kavitha</forename><surname>Srinivas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shirin</forename><surname>Sohrabi</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=cfsVixNuJw" />
+	</analytic>
+	<monogr>
+		<title level="m">AAAI 2025 Workshop LM4Plan</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Retrieval-augmented generation for knowledge-intensive nlp tasks</title>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heinrich</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">H</forename><surname>Larochelle</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Ranzato</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Hadsell</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">M</forename><forename type="middle">F</forename><surname>Balcan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">H</forename><surname>Lin</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="9459" to="9474" />
+		</imprint>
+	</monogr>
+	<note>paper files/paper/2020/file/6b493230205f780e1bc26945df7481e5-Paper.pdf</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Benchmarking detection transfer learning with vision transformers</title>
+		<author>
+			<persName><forename type="first">Yanghao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saining</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinlei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Dollar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiming</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ross</forename><surname>Girshick</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2111.11429</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Reinforcement learning on web interfaces using workflow-guided exploration</title>
+		<author>
+			<persName><forename type="first">Evan Zheran</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Guu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Panupong</forename><surname>Pasupat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianlin</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1802.08802</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanchen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanyu</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanyu</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangliang</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiwen</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kejuan</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.03688</idno>
+		<title level="m">Evaluating llms as agents</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Pddl-the planning domain definition language</title>
+		<author>
+			<persName><forename type="first">Drew</forename><surname>Mcdermott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malik</forename><surname>Ghallab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adele</forename><forename type="middle">E</forename><surname>Howe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><forename type="middle">A</forename><surname>Knoblock</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Ram</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manuela</forename><forename type="middle">M</forename><surname>Veloso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">S</forename><surname>Weld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">E</forename><surname>Wilkins</surname></persName>
+		</author>
+		<ptr target="https://api.semanticscholar.org/CorpusID" />
+		<imprint>
+			<date type="published" when="1998">1998</date>
+			<biblScope unit="page">59656859</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Gaia: a benchmark for general ai assistants</title>
+		<author>
+			<persName><forename type="first">Grégoire</forename><surname>Mialon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clémentine</forename><surname>Fourrier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Swift</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.12983</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Reiichiro</forename><surname>Nakano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suchir</forename><surname>Balaji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shantanu</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Saunders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tyna</forename><surname>Eloundou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Button</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Knight</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Webgpt</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2112.09332</idno>
+		<idno type="arXiv">arXiv:2112.09332</idno>
+		<idno>arXiv:2112.09332</idno>
+		<ptr target="http://arxiv.org/abs/2112.09332" />
+		<title level="m">Browser-assisted question-answering with human feedback</title>
+		<imprint>
+			<date type="published" when="2022-06">June 2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<idno type="arXiv">arXiv:2303.08774</idno>
+		<idno>arXiv:2303.08774</idno>
+		<ptr target="http://arxiv.org/abs/2303.08774" />
+		<title level="m">OpenAI. Gpt-4 technical report</title>
+		<imprint>
+			<date type="published" when="2024-03">March 2024</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Parisi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Fiedel</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2205.12255</idno>
+		<idno type="arXiv">arXiv:2205.12255</idno>
+		<idno>arXiv:2205.12255</idno>
+		<ptr target="http://arxiv.org/abs/2205.12255" />
+		<title level="m">Talm: Tool augmented language models</title>
+		<imprint>
+			<date type="published" when="2022-05">May 2022</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.15334</idno>
+		<idno>arXiv:2305.15334</idno>
+		<ptr target="http://arxiv.org/abs/2305.15334" />
+		<title level="m">Gorilla: Large language model connected with massive apis</title>
+		<imprint>
+			<date type="published" when="2023-05">May 2023</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">The multi-agent reinforcement learning in malmö (marlö) competition</title>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Perez-Liebana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katja</forename><surname>Hofmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharada</forename><surname>Prasanna Mohanty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noburu</forename><surname>Kuno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andre</forename><surname>Kramer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raluca</forename><forename type="middle">D</forename><surname>Gaina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ionita</surname></persName>
+		</author>
+		<ptr target="http://arxiv.org/abs/1901.08129" />
+	</analytic>
+	<monogr>
+		<title level="m">Challenges in Machine Learning (NIPS Workshop)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Adapt: As-needed decomposition and planning with language models</title>
+		<author>
+			<persName><forename type="first">Archiki</forename><surname>Prasad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Koller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mareike</forename><surname>Hartmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.05772</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Virtualhome: Simulating household activities via programs</title>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Puig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Ra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marko</forename><surname>Boben</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaman</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tingwu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanja</forename><surname>Fidler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Torralba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="8494" to="8502" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=Yacmpz84TH" />
+		<imprint>
+			<date type="published" when="2023-11">November 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Reflexion: language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Karthik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yao</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=vAElhFcKW6" />
+		<imprint>
+			<date type="published" when="2023-11">November 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">ALFRED: A Benchmark for Interpreting Grounded Instructions for Everyday Tasks</title>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Shridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Thomason</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Winson</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roozbeh</forename><surname>Mottaghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dieter</forename><surname>Fox</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/1912.01734" />
+	</analytic>
+	<monogr>
+		<title level="m">The IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">ALFWorld: Aligning Text and Embodied Environments for Interactive Learning</title>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Shridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc-Alexandre</forename><surname>Côté</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Hausknecht</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2010.03768" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations (ICLR)</title>
+		<meeting>the International Conference on Learning Representations (ICLR)</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Gemma</forename><surname>Team</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aishwarya</forename><surname>Kamath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johan</forename><surname>Ferret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shreya</forename><surname>Pathak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nino</forename><surname>Vieillard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramona</forename><surname>Merhej</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Perrin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatiana</forename><surname>Matejovicova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Ramé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgane</forename><surname>Rivière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Louis</forename><surname>Rouillard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Mesnard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Cideron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sabela</forename><surname>Jean Bastien Grill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Ramos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michelle</forename><surname>Yvinec</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Etienne</forename><surname>Casbon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivo</forename><surname>Pot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaël</forename><surname>Penchev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Visin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Kenealy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaohai</forename><surname>Beyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anton</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Tsitsulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Busa-Fekete</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noveen</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Sachdeva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Coleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Basil</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iain</forename><surname>Mustafa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emilio</forename><surname>Barr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Parisotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matan</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Eyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan-Thorsten</forename><surname>Cherry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danila</forename><surname>Peter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Surya</forename><surname>Sinopalnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishabh</forename><surname>Bhupatiraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehran</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Kazemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ravin</forename><surname>Malkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Idan</forename><surname>Vilar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Brusilovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abe</forename><surname>Steiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhanshu</forename><surname>Friesen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abheesht</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adi</forename><forename type="middle">Mayrav</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrian</forename><surname>Gilady</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alaa</forename><surname>Goedeckemeyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Saade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexei</forename><surname>Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alvin</forename><surname>Bendebury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amit</forename><surname>Abdagic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">András</forename><surname>Vadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">André</forename><surname>György</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anil</forename><surname>Susano Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bapna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Miech</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonia</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Paterson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ayan</forename><surname>Shenoy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bilal</forename><surname>Chakrabarti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Piot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bobak</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryce</forename><surname>Shahriari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Petrini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charline</forename><forename type="middle">Le</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">A</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Choquette-Choo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cormac</forename><surname>Carey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Brick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danielle</forename><surname>Deutsch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dee</forename><surname>Eisenbud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Cattle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitris</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Divyashree</forename><surname>Paparas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doug</forename><surname>Shivakumar Sreepathihalli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dustin</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dustin</forename><surname>Tran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Zelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erwin</forename><surname>Noland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eugene</forename><surname>Huizenga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frederick</forename><surname>Kharitonov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagik</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Glenn</forename><surname>Amirkhanyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hadi</forename><surname>Cameron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanna</forename><surname>Hashemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harman</forename><surname>Klimczak-Plucińska</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harshal</forename><surname>Mehta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hussein</forename><surname>Tushar Lehri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Hazimeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Idan</forename><surname>Ballantyne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Szpektor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Nardini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jetha</forename><surname>Pouget-Abadie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Stanton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Wieting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordi</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Orbay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josh</forename><surname>Fernandez</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Newlan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jyotinder</forename><surname>Ju Yeong Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kat</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathy</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kiran</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Klaus</forename><surname>Vodrahalli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linhai</forename><surname>Greff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcella</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marina</forename><surname>Valentine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marvin</forename><surname>Coelho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Ritter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Hoffman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mayank</forename><surname>Watson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Chaturvedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Moynihan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nabila</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Natasha</forename><surname>Babar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Noy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Byrd</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nilay</forename><surname>Momchev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noveen</forename><surname>Chauhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oskar</forename><surname>Sachdeva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><surname>Bunyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Woohyun</forename><surname>Vlad Kolesnikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Woosuk</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinlam</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuvein</forename><surname>Chow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zichuan</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zoltan</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Egyed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh</forename><surname>Cotruta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phoebe</forename><surname>Giang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anand</forename><surname>Kirk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kat</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nabila</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jessica</forename><surname>Babar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erica</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Moreira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gustavo</forename><surname>Luiz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Martins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Sanseviero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zach</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tris</forename><surname>Gleicher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vahab</forename><surname>Warkentin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evan</forename><surname>Mirrokni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eli</forename><surname>Senter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joelle</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zoubin</forename><surname>Barral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raia</forename><surname>Ghahramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yossi</forename><surname>Hadsell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Matias</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slav</forename><surname>Sculley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Fiedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Demis</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koray</forename><surname>Hassabis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clement</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elena</forename><surname>Farabet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean-Baptiste</forename><surname>Buchatskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rohan</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Anil</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Dmitry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Lepikhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bachem</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2503.19786" />
+		<editor>Pankil Botarda, Paul Caron, Paul Kishan Rubenstein, Phil Culliton, Philipp Schmid, Pier Giuseppe Sessa, Pingmei Xu, Piotr Stanczyk, Pouya Tafti, Rakesh Shivanna, Renjie Wu, Renke Pan, Reza Rokni, Rob Willoughby, Rohith Vallu, Ryan Mullins, Sammy Jerome, Sara Smoot, Sertan Girgin, Shariq Iqbal, Shashir Reddy, Shruti Sheth, Siim Põder, Sijal Bhatnagar, Sindhu Raghuram Panyam, Sivan Eiger, Susan Zhang, Tianqi Liu, Trevor Yacovone, Tyler Liechty, Uday Kalra, Utku Evci, Vedant Misra, Vincent Roseberry, Vlad Feinberg,</editor>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>Armand Joulin, Alek Andreev, Cassidy Hardin, Robert Dadashi, and Léonard Hussenot. Gemma 3 technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Planbench: An extensible benchmark for evaluating large language models on planning and reasoning about change</title>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Valmeekam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Marquez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Olmo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarath</forename><surname>Sreedharan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subbarao</forename><surname>Kambhampati</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/paperfiles/paper/2023/file/7" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Oh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">T</forename><surname>Naumann</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Globerson</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">K</forename><surname>Saenko</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Hardt</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Levine</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="38975" to="38987" />
+		</imprint>
+	</monogr>
+	<note>a92bcdede88c7afd108072faf5485c8-Paper-Datasets and Benchmarks.pdf</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Voyager: An open-ended embodied agent with large language models</title>
+		<author>
+			<persName><forename type="first">Guanzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linxi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<idno>arXiv: Arxiv-2305.16291</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ruoyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc-Alexandre</forename><surname>Côté</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prithviraj</forename><surname>Ammanabrolu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Scienceworld</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.07540</idno>
+		<title level="m">Is your agent smarter than a 5th grader? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Self-consistency improves chain of thought reasoning in language models</title>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aakanksha</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=1PL1NIMMrw" />
+		<imprint>
+			<date type="published" when="2022-09">September 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Jarvis-1: Open-world multi-task agents with memory-augmented multimodal language models</title>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaofei</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anji</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonggang</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinbing</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaofeng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zilong</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaodong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaojian</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitao</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.05997</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Describe, explain, plan and select: Interactive planning with large language models enables open-world multi-task agents</title>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaofei</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anji</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaojian</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitao</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.01560</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhiheng</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyang</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junzhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Senjie</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.07864</idno>
+		<title level="m">The rise and potential of large language model based agents: A survey</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhiheng</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyang</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglin</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junzhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dingwen</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyang</forename><surname>Liao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Songyang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yicheng</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Gui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zuxuan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Gang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Agentgym</surname></persName>
+		</author>
+		<title level="m">Evolving large language model-based agents across diverse environments</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">TravelPlanner: A benchmark for real-world planning with language agents</title>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangjie</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tinghui</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renze</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuandong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanghua</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+		<ptr target="https://proceedings.mlr.press/v235/xie24j.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning</title>
+		<editor>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Zico</forename><surname>Kolter</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Katherine</forename><surname>Heller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Adrian</forename><surname>Weller</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nuria</forename><surname>Oliver</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jonathan</forename><surname>Scarlett</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Felix</forename><surname>Berkenkamp</surname></persName>
+		</editor>
+		<meeting>the 41st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2024-07">Jul 2024</date>
+			<biblScope unit="volume">235</biblScope>
+			<biblScope unit="page" from="21" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anfeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenxu</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chujie</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialong</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianhong</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianxin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingren</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keqin</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianghao</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingfeng</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingze</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruize</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shixuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbiao</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingzhang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuancheng</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinger</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqiong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenru</forename><surname>Zhang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2505.09388" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>Zhipeng Zhou, and Zihan Qiu. Qwen3 technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Gpt4tools: Teaching large language model to use tools via self-instruction</title>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sijie</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixiao</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Shan</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2305.18752</idno>
+		<idno type="arXiv">arXiv:2305.18752</idno>
+		<idno>arXiv:2305.18752</idno>
+		<ptr target="http://arxiv.org/abs/2305.18752" />
+		<imprint>
+			<date type="published" when="2023-05">May 2023</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Webshop: Towards scalable real-world web interaction with grounded language agents</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Howard</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/paperfiles/paper/2022/file/82" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Koyejo</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Agarwal</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">D</forename><surname>Belgrave</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">K</forename><surname>Cho</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Oh</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="20744" to="20757" />
+		</imprint>
+	</monogr>
+	<note>ad13ec01f9fe44c01cb91814fd7b8c-Paper-Conference.pdf</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title level="m" type="main">Tree of thoughts: Deliberate problem solving with large language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Towards Enforcing Company Policy Adherence in Agentic Workflows</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Naama</forename><surname>Zwerdling</surname></persName>
+							<email>naamaz@il.ibm.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">IBM Research</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">David</forename><surname>Boaz</surname></persName>
+							<email>davidbo@il.ibm.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">IBM Research</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ella</forename><surname>Rabinovich</surname></persName>
+							<email>ella.rabinovich1@ibm.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">IBM Research</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Guy</forename><surname>Uziel</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">IBM Research</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">David</forename><surname>Amid</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">IBM Research</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ateret</forename><surname>Anaby-Tavor</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">IBM Research</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Towards Enforcing Company Policy Adherence in Agentic Workflows</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">5040397726E811823FB7E303210B42D4</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large Language Model (LLM) agents hold promise for a flexible and scalable alternative to traditional business process automation, but struggle to reliably follow complex company policies. In this study we introduce a deterministic, transparent, and modular framework for enforcing business policy adherence in agentic workflows. Our method operates in two phases:</p><p>(1) an offline buildtime stage that compiles policy documents into verifiable guard code associated with tool use, and (2) a runtime integration where these guards ensure compliance before each agent action. We demonstrate our approach on the challenging τ -bench Airlines domain, showing encouraging preliminary results in policy enforcement, and further outline key challenges for real-world deployments.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large Language Models are reshaping artificial intelligence, shifting from static language processors to dynamic, task-oriented agents capable of planning, executing, and refining their actions. These agents hold the potential for transformative applications across various domains, including healthcare <ref type="bibr" target="#b0">(Abbasian et al., 2023;</ref><ref type="bibr" target="#b18">Mehandru et al., 2024)</ref>, finance <ref type="bibr" target="#b15">(Li et al., 2024;</ref><ref type="bibr" target="#b30">Xiao et al., 2024;</ref><ref type="bibr" target="#b8">Ding et al., 2024)</ref>, education <ref type="bibr" target="#b32">(Yang et al., 2024;</ref><ref type="bibr" target="#b31">Xu et al., 2024)</ref>, and customer support <ref type="bibr" target="#b13">(Huang et al., 2024;</ref><ref type="bibr" target="#b26">Rome et al., 2024)</ref>. LLM agents have been revolutionarily positioned as routing systems that act and perform tasks with minimal human intervention.</p><p>Agentic AI for business process automation refers to the increasing use of LLM-based agents to plan, make decisions, and carry out tasks within business workflows-often spanning multiple steps and following business constraints-without the need for constant human oversight. For example, modifying a flight reservation (such as changing a seat) may involve a sequence of actions: checking customer eligibility, retrieving available seats, and updating the reservation details if all conditions are met. Canceling a reservation with a refund might depend on the presence of insurance, while offering compensation for a company-initiated cancellation should occur only per an explicit customer request. These constraints are typically specified in a company's policy documents and have traditionally been enforced by human service agents or hard-coded by domain experts into customer support systems such as IBM Watson Assistant, Microsoft Power Automate, or Google Dialogflow.</p><p>Agentic systems carry the promise to replace deterministic, carefuly-designed and hard-coded business processes, with efficient, more flexible and easily maintainable solutions. Recent studies have shown steady progress in the ability of agentic systems to complete complex, multi-step, and multi-turn tasks using a predefined set of tools <ref type="bibr" target="#b22">(Patil et al., 2024;</ref><ref type="bibr" target="#b36">Zhou et al., 2023;</ref><ref type="bibr" target="#b13">Huang et al., 2024)</ref>. However, agents perform poorly when required to follow policies involving sophisticated navigation or branching logic according to company guidelines <ref type="bibr" target="#b33">(Yao et al., 2024;</ref><ref type="bibr" target="#b16">Li et al., 2025)</ref>.</p><p>Despite the clear practical significance, current approaches to agentic policy adherence rely on the "best-effort" strategy: appending policy documents to the agent's prompt and instructing it to navigate business flow while complying with the guidelines -an inherently non-deterministic methodology, that is susceptible to attacks and does not scale effectively <ref type="bibr" target="#b33">(Yao et al., 2024;</ref><ref type="bibr" target="#b16">Li et al., 2025)</ref>. We argue that the ability to reliably follow policies constitutes the ultimate test, a "make-or-break" factor in the adoption of agentic AI at the enterprise scale. We propose an automatic end-to-end solution for enforcement of company policy guidelines in agentic workflows; 1 solution that is deterministic, predictable, transparent and requires only limited do-main expert intervention during its buildtime phase.</p><p>Our approach enforces policy adherence through a two-phase process illustrated in Figure <ref type="figure">1:</ref> (1) an offline buildtime step automatically maps policy fragments to the relevant tools and generates policy validation code; (2) during runtime these validators-called ToolGuards-are executed before agent's tool invocation. If a planned action violates a policy, the agent is prompted to selfreflect and revise its plan before proceeding. Ultimately, the deployed ToolGuards will prevent the agent from taking an action violating a policy. This design ensures predictable and transparent policy enforcement with limited manual effort.</p><p>We evaluate the proposed approach on the τbench Airlines domain <ref type="bibr" target="#b33">(Yao et al., 2024)</ref> with a large set of (naturalistic, real-world) policies, 14 tools, and diverse customer-service scenarios. <ref type="foot" target="#foot_1">2</ref>We show that this ambitious and challenging task pushes the limits of contemporary LLMs, present encouraging preliminary results, and outline directions for future research and practical steps needed for this approach to mature toward enterprise adoption. Our code and data are available at <ref type="url" target="https://github.com/IBM/tool_guard">https://github.com/IBM/tool_guard</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Prior art in the area of constraint and policy adherence in agentic workflows is very sparse, with two major studies, to the best of our knowledge, explicitly addressing the integration of company policies within agentic flows (contrary to post-hoc remedy). <ref type="bibr" target="#b33">Yao et al. (2024)</ref> were among the pioneers in this field, introducing a framework for evaluation of company policies adherence in multi-turn simulated flows in two domains: Airlines and Retail. Policies are represented by short documents, where domain-specific rules and constraints are detailed in natural language. Although the study reports failure rates stemming from a range of issues, the authors estimate that 25% of failures occur since the agent "fails to understand the domain-specific knowledge or rules". A recent work by <ref type="bibr" target="#b16">Li et al. (2025)</ref> offers a framework for evaluation of policy adherence in multi-step single-turn tasks in five diverse domains, focusing on various composition types of policies ("single", "and", "or", "chain").</p><p>Here, concise and manually-crafted policies, as well as their compositions, are specified in con-figuration files. The authors report relatively low pass-rate across agents, varying from 31% to 69%. Both studies introduce policies to the agent in its prompt, instructing the LLM to follow the guidelines while satisfying user requirements.</p><p>Contrary to the pro-active policy enforcement above, another line of studies take the post-hoc reflection approach, by designing guardrails that check if any action taken by an agent violates a predefined policy <ref type="bibr" target="#b13">(Huang et al., 2024;</ref><ref type="bibr" target="#b27">Rothkopf et al., 2024;</ref><ref type="bibr">Hua et al., 2024;</ref><ref type="bibr" target="#b10">Hoover et al., 2025)</ref>. While this strategy is often easier for implementation (e.g., detecting that an unauthorized refund was issued or is simpler than preventing it), it may fall short of the strict demands of enterprise-grade business flow automation, particularly in missioncritical contexts, where a post-hoc response to a prohibited action turns often as "too late".</p><p>Additional studies deal with related, yet not strictly relevant fields of agent safety, security and robustness to adversarial attacks <ref type="bibr" target="#b14">(Levy et al., 2024;</ref><ref type="bibr" target="#b20">Nakash et al., 2024</ref><ref type="bibr" target="#b19">Nakash et al., , 2025;;</ref><ref type="bibr" target="#b4">Chennabasappa et al., 2025)</ref>. These works evaluate LLM agents' resilience to malicious requests (such as exposing admin credentials) and propose mitigation strategies. Another thread of work explores the benefits of model alignment for meeting domain-specific regulations by tuning a model against request-response pairs that comply with company guidelines <ref type="bibr" target="#b1">(Achintalwar et al., 2024)</ref>. However, this approach better suits the scenario of QA agents, contrary to business process automation, where actions ultimately mutate the system state (e.g., book a flight), and agent is required to perform complex reasoning, based on the state and conversation history.</p><p>Our work is the first, to the best of our knowledge, to propose an automatic pipeline for proactive policy enforcement in agentic flows, involving only minimal human intervention.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methodology</head><p>We present an end-to-end pipeline for pro-active enforcement of policy adherence in a realistic setting, assuming that policies are provided as free-form natural language documents, and that function specifications (the agent's toolkit) and the system data schema are available. The offline buildtime process consists of two main components, as illustrated in Figure <ref type="figure">1</ref>, which we describe in detail below.</p><p>Figure <ref type="figure">1</ref>: During the offline buildtime step (left), policy documents, along with system schema and tools specification are compiled into compact, easily interpretable mapping of concrete policies onto tools (editable json in this case); which in turn is used to generate ToolGuards -code that verifies that policies hold given a system snapshot. ToolGuards are integrated into agentic runtime at the tool invocation point (right). We mark two possible points of domain-expert intervention: reviewing textual Tool-Policy mapper outcome, and the generated ToolGuards code.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Tool-Policy Mapper</head><p>The primary goal of the mapper is to transform an (often) lengthy and noisy natural language policy document into a compact, structured representation by linking clearly formulated policy statements to relevant tools from the provided toolkit. Business process guidelines are typically authored by domain or legal experts, and mapping them to tools requires advanced reading comprehension skills. As a concrete example, consider the following policy from the τ -bench Airlines domain (verbatim from <ref type="bibr" target="#b33">Yao et al. (2024)</ref>, enumerated for clarity):</p><p>(1) Flight reservations can be canceled within 24 hours of booking, or if the airline canceled the flight. Otherwise, (2) basic economy or economy flights can be canceled only if travel insurance is bought [...], and (3) explicit customer confirmation should be obtained prior to canceling a flight.</p><p>All three atomic policies above should be mapped to the cancel_reservation() function. The tool's invocation is then conditioned on cancellation eligibility, as verified by the corresponding guard. In addition to recording each policy's name and description, the mapper also extracts supporting textual spans (references) from the source document. It then generates multiple example requests for policy compliance and violation, a step shown to be effective for both human evaluation of the mapper's output and for facilitating efficient guard generation (see Section 3.2 for details). The mapper is also guided to split policies associated with a given tool into smaller, logically distinct units -similarly to how a human would break down a lengthy policy description into clear, fine-grained guidelines. For instance, policies concerning flight cancellations can be divided into: (a) rules about cancellation time windows for full or partial refunds, (b) policies specific to canceling individual segments within connecting flights, etc. Table <ref type="table" target="#tab_0">1</ref> shows an example of (partial) mapper outcome for a policy item, related to the cancel_reservation() tool.</p><p>Mapping Policies onto Tools Using a freeformat policy document (e.g., markdown, pdf), natural language descriptions of the tools, and their OpenAPI specification,<ref type="foot" target="#foot_2">foot_2</ref> we adopt a multi-step reasoning paradigm <ref type="bibr" target="#b29">(Wei et al., 2022)</ref>, where several stages of thinking, reflection, and refinement are carried out sequentially. This process is implemented on top of the LangGraph platform, where each step is guided by detailed prompts and fewshot examples (see Appendix 7.1 for details).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Evaluation</head><p>Evaluating the output of the Tool-Policy mapper presents several challenges, primarily due to the lack of labeled data and the inherently subjective nature of defining a "ground truth" (GT). While impractical at scale, the limited number of tools in the τ -bench Airlines domain made it feasible to manually construct expected mappings for its 14 tools. One of the authors created the initial GT annotations, which were then independently reviewed and refined by two others. We assess the performance of a given Tool-Policy mapper model M (LLM) by comparing its output against the GT, with a focus on (a) reference span detection and (b) the granularity of policy items segmentation. policy Flexible Cancellation Policy references R1: All reservations can be canceled within 24 hours of booking, or if the airline canceled the flight. Otherwise, basic economy or economy flights can be canceled only if travel insurance is bought and the condition is met, and business flights can always be canceled unconditionally. ... compliance A user requests the cancellation of an economy class reservation booked 18 hours ago. compliance A user attempts to cancel an insured basic economy flight and conditions for insurance usage are satisfied. violation A regular customer tries to cancel an economy class reservation 36 hours after booking w/o insurance.</p><p>violation</p><p>The agent proceeds with canceling reservation for a customer without explicitly obtaining the customer confirmation prior to taking the action. Reference Detection Evaluation For a given tool, we denote the set of its k policy references in the ground truth as R gt ={r gt 1 , .., r gt k }, and the set of n references in a mapper's M outcome as R m ={r m 1 , .., r m n }; then the standard notion of precision (P) and recall (R) can be used for evaluation of R m against its true counterpart R gt , where F1 is the harmonic mean of the two.</p><p>Policy Items' Grouping Evaluation Individual policy items extracted from the guideline documents can be organized into logical clusters, where related rules are grouped into broader, semantically coherent categories. For example, policy items concerning extra baggage charges or permitted payment methods would naturally be clustered together. Grouping policy items facilitates domain expert review and for the subsequent step of guard code generation (Section 3.2), where related rules are enforced by a shared guard function.</p><p>Evaluating a grouping of related items against ground truth is an established practice in the domain of clustering. Here we make use of the commonly-used RandIndex metric <ref type="bibr" target="#b24">(Rand, 1971)</ref> specifically adapted to the usecase of fuzzy clustering (DeWolfe and Andrews, 2023), i.e., the scenario where each reference r∈R m ={r m 1 , .., r m n } can be assigned to multiple policy groups. <ref type="foot" target="#foot_3">4</ref> Formally, given two clustering partitions-by the mapper model: C m ={c m 1 , .., c m x } and by an expert: C gt ={c gt 1 , .., c gt y }-we compute their fuzzy RandIndex (FRI) over the set of references common to both partitions R m ∩ R gt .<ref type="foot" target="#foot_4">foot_4</ref> Similarly to RandIndex, its fuzzy version spans the [0,1] range.</p><p>Table <ref type="table">2</ref> reports Tool-Policy mapper evaluation results, with several close and open SOTA LLMs. The highest F1 of 0.80 and FRI of 0.83 is achieved by <ref type="bibr">GPT-4o (OpenAI, 2024)</ref>, with the bestperforming open model Llama3.3-70B-instruct <ref type="bibr">(Dubey et al., 2024)</ref> showing only slightly inferior results. While all models show high precision, their recall varies, reflecting the difficulty to comprehensively cover the entire set of policy references related to a tool in a potentially large document. We emphasize the significance of recall in this task: it would be easier for a domain expert to refine the set of automatically detected references (improving precision), than identify references not captured by the automatic mapper (improving recall).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Sensitivity to Policies Felicity and Length</head><p>We next evaluate the robustness of the Tool-Policy mapper when provided with longer, noisier policy documents, reflecting realistic enterprise scenarios. Specifically, we test the best-performing GPT-4o model under two conditions: (1) appending outof-domain (OOD) SalesForce retail policies from <ref type="bibr" target="#b13">Huang et al. (2024)</ref>, and (2) appending manually crafted irrelevant in-domain (IID) policies. Table <ref type="table" target="#tab_2">3</ref> presents the results. Moderate performance degradation is evident in all cases, though placing the relevant content at the end of the document ("rev" for "reversed") obtains better results, consistent with the findings on "recency bias" in GPT models <ref type="bibr" target="#b23">(Peysakhovich and Lerer, 2023;</ref><ref type="bibr" target="#b5">Deldjoo, 2024)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Generation of ToolGuards</head><p>The output from the Tool-Policy mapper serves as input to ToolGuard generator. We generate ToolGuards through two steps: Using Ope-nAPI tools spec, the first step generates policyindependent "skeleton" code consisting of class definitions for data types, tools signatures and empty guards' stubs, to be implemented dynamically, driven by policies interpretation by the Tool-Policy mapper. We make use of pydantic code gen-  The relative order around "+" denotes the order of policy types in the document ("rev" for reversed: relevant at the end). The letter ("rev") has positive effect on performance.</p><p>erator, and python's built-in abstract syntax trees (ast) packages for this purpose. In the τ -bench Airlines domain, this step results in over 800 lines of code. This outcome, along with the nearly 5Ktoken Tool-Policy structured mapping is further used in the guard code-generation phase.</p><p>Test-Driven Generation of ToolGuards The second phase builds on the output of the previous step, using LLMs to generate guard code by filling in placeholders with fully functional policy validators' implementation. Here we follow the test-driven development (TDD) paradigm, where tests are written before the actual code: this iterative "red-green-refactor" process involves writing a test, writing the minimum code to pass it, and then refactoring them both. To the best of our knowledge, this is the first fully automated LLM-based application of TDD. Compliance and violation examples from the Tool-Policy mapper are translated into individual tests that guide guard generation. The ToolGuard generation process is self-repairing, incorporating both syntactic (via the Microsoft pyright type checker) and semantic feedback (test pass or failure). We repeat guard generation attempt ("refactor") till all tests pass ("green"), or till the predefined number of iterations is exhausted. Appendix 7.2 provides more details on the guards generation process.</p><p>Common code generation benchmarks often focus on completing algorithmic or competitive programming tasks, bug detection and repair, or generating unit tests for given functions (see <ref type="bibr" target="#b11">Hu et al. (2025)</ref> for a comprehensive survey). Unlike these benchmarks, here LLMs are challenged with realistically-sized codebase coupled with complex, detailed policy adherence requirements. We show that this combination creates an ambitious setting that challenges models' ability to navigate large code with nested object types and complex depen-dencies, while grounding their actions in structured natural language policy descriptions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">Evaluation</head><p>Evaluating code generated by LLMs involves a range of approaches, broadly categorized into functional, syntactic, and semantic methods. Functional evaluation tests whether the generated code behaves as expected, typically using unit tests or input-output-based benchmarks <ref type="bibr" target="#b3">(Chen et al., 2021)</ref>. Syntactic evaluation assesses whether the code is well-formed and compiles without errors. Semantic evaluation goes further by measuring whether the code aligns with the intent of the prompt or problem description, often requiring human annotations or advanced metrics such as CodeBLEU <ref type="bibr" target="#b25">(Ren et al., 2020)</ref> or execution-guided metrics. Recent work also explores human-in-the-loop assessment and task-level evaluation, especially in complex or multi-step coding scenarios <ref type="bibr" target="#b28">(Wang et al., 2022)</ref>.</p><p>Aiming at functional evaluation of generated guards, we adhere to the metric of test pass rate (TPR), measuring the ratio of tests that a generated code passes successfully, from within a complete test suit <ref type="bibr" target="#b17">(Liu et al., 2023;</ref><ref type="bibr" target="#b35">Yeo et al., 2024)</ref>. A test suit comprising 61 tests, covering the subset of τbench mutating functions,<ref type="foot" target="#foot_5">foot_5</ref> was manually written by one of the authors of this study, and reviewed by another one; these tests are further used for assessing the functional quality of ToolGuards generated by various LLMs -code generators. Table <ref type="table">4</ref> reports the results. GPT-4.1 code-generator outperforms other LLMs with the mean TPR of 0.82, where Claude models <ref type="bibr" target="#b2">(Anthropic, 2024)</ref> show only slightly inferior results. Notably, guards generated from the best automatically-generated Tool-Policy mapping (see Section 3.1) achieve the TPR of 0.75.</p><p>We also report test errors break-down into compliance and violation test failures, as well as syn-Tool-Policy mapper total TPR failures break-down code-generator GT / (Gen)erated min max mean GPT-4.1 GT 0.54 1.00 0.82 GPT-4o GT 0.00 0.61 0.31 Claude-Sonnet-3.5 GT 0.50 1.00 0.80 Claude-Haiku-3.5 GT 0.00 1.00 0.72 GPT-4.1</p><p>Gen (with GPT-4o) 0.54 1.00 0.75</p><p>Table <ref type="table">4</ref>: Evaluation of ToolGuard generators. The guards are evaluated through manually-written unit tests for each tool. We evaluate the total of 61 tests, split into 25 compliance and 36 violation cases. We report the mean test pass ratio (TPR) across all tools per guard-generator, as well as its min and max value; we also report test failures break-down: the relative ratio of (C)ompliance and (V)iolation tests failures, as well as other issues. The best performing generator (GPT-4.1) achieves the TPR of 0.82 when provided with manual Tool-Policy mapper ground-truth (GT), and the TPR of 0.75 when provided with the best automatic Tool-Policy mapper outcome.</p><p>tactic issues. Per manual inspection, we attribute the higher rate of compliance tests errors to guard code hallucinations that prevent guards from full completion (and thereby passing a test), regardless of the specific test case.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Agentic Flow with Policy Adherence</head><p>At the runtime phase, ToolGuards are integrated into the agent's ReAct workflow <ref type="bibr" target="#b34">(Yao et al., 2023)</ref>, ensuring that each validator (e.g., book_reservation_guard()) is called seamlessly just before the agent invokes the corresponding tool ("act", see Figure <ref type="figure">1</ref>, right). With access to all relevant information-tool arguments, conversation history and data access APIs-the guard performs validation and produces one of two outcomes: (1) the intended tool call complies with policies (e.g., canceling a flight within 24 hours of booking), or (2) it violates a policy (e.g., attempting to book a reservation without securing payment methods). If valid, the agent proceeds with the tool call; if not, it is prompted to revise its decision, accompanied by a detailed explanation of the violated policy, ultimately preventing the agent from taking action, not compliant with the policy. We evaluated several ToolGuard generation strategies on the 22 (out of 50) τ -bench Airlines tasks in which user request violates a predefined policy <ref type="bibr" target="#b19">(Nakash et al., 2025)</ref>. Our baseline is the original, "best-effort" τ -bench performance on these tasks; that is, without any guard explicitly enforcing policy compliance. Following τ -bench methodology, we assess each strategy by comparing the final database state at the end of a simulated conversation with the annotated goal state. Inline with the benchmark, we report the passˆk metric: the probability that at least k task attempts (out of 10) complete successfully, averaged over tasks. Evaluation Results Figure <ref type="figure" target="#fig_0">2</ref> presents the results. The original τ -bench approach achieves a passˆ1 rate of 0.450 and a passˆ10 rate of 0.227. We evaluated two additional policy adherence "reflection" strategies: (1) appending the policy document before each agent action, prompting for reconsideration, and (2) inserting the compact GT Tool-Policy mapper outcome for the same purpose. Both strategies led to only very modest improvements, reaching a passˆ10 of 0.273, with strategy (2) performing slightly better on average. The fully automated ToolGuards generation and deployment pipeline shows substantial steady gains, improving passˆ1 and passˆ10 to 0.685 and 0.500, respectivelyover 20 percentage points above the baseline. We reiterate that task failures can stem from various factors; <ref type="bibr" target="#b33">Yao et al. (2024)</ref> attribute only 25% of failures in the 50 benchmark tasks to policy violations. We, therefore, do not expect perfect accuracy even within the subset of the 22 selected tasks. We attribute the performance improvement solely to the policy enforcement module, as no other changes were made to the system deployment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion</head><p>Life-cycle Management The proposed solution, by involving a human-in-the-loop phase, carries certain inherent implications. As such, a life-cycle management protocol for the entire pipeline should be established to enable efficient "backward propagation" of human modifications to the generated code, ensuring these adjustments are incorporated into future generation cycles.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Integration into Existing Agentic Frameworks</head><p>Several agentic frameworks have recently been introduced to support the effective modeling and execution of agentic solutions at scale. Examples include open-source frameworks such as LangSmith, Langflow, and Llama Stack. Integrating the proposed pipeline into these frameworks requires a separate (offline) build-time phase and a slight modification of the execution flow to introduce an intervention point immediately after the "reason", and just before the "act" step, as shown in Figure <ref type="figure">1</ref>. Our ongoing work focuses, among others, on this type of integration and its implications.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>As LLM agents move closer to real-world deployment, robust policy adherence becomes a critical requirement for enterprise-scale adoption. Our proposed framework offers a deterministic and interpretable mechanism for enforcing business policies within agentic workflows, bridging the gap between flexible AI behavior and organizational constraints. Through our evaluation on the τ -bench Airlines domain, we highlight both the promise and the current limitations of LLM agents in handling policy-governed tasks, and gaps need to be bridged. We believe that this work sets the stage for future efforts toward building reliable, policy-aware AI systems that enterprises can use with trust.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethical Considerations</head><p>We use the publicly available τ -bench dataset and benchmark for our experiments throughout this study. We did not make use of AI-assisted technologies while writing the paper. We also did not hire human annotators at any stage of the research.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Our study, while offering valuable insights into enforcing policy adherence in agentic workflows, has several limitations. First, the proposed approach operates at the pre-tool activation level, meaning it does not capture violation cases where a tool (e.g., flight cancellation) should be invoked according to policy, but the agent chooses not to, thereby breaching the guidelines. Although this scenario falls outside the scope of the current study, our ongoing work explores strategies to address such cases. Second, the pipeline has been evaluated on a single benchmark with a limited set of tools, and concise policy documents. We plan to extend the study to larger policy documents and toolsets to ensure the approach scales effectively. The tool mapping phase consists of two main stages.</p><p>In the first stage, we assign relevant policies to each tool. In the second, we generate compliance and violation examples for each policy. Both stages leverage reflection using LangGraph. Figure <ref type="figure" target="#fig_2">3</ref> illustrates the LangGraph nodes used in this process, as described in the sections below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Create Policies</head><p>The process begins by prompting the language model to extract an initial list of applicable policies for each tool (see prompt in Appendix 7.1.1 below). For each policy, we generate a name, write a detailed description, and include references from the original policy document to ground the policy and minimize hallucinations.</p><p>Add Policies Using reflective prompts, we then ask the model to identify additional policies that may have been missed in the first round, gradually expanding our coverage of the policy document.</p><p>Split and Merge Next, we decompose complex policies into their smallest atomic units, especially where conditions are connected by logical OR. This step is essential for simplifying rule implementation. We then remove duplicated policies by merging identical or overlapping ones.</p><p>Review At the review phase where each policy is evaluated to determine whether it can be enforced before tool invocation with the necessary information available in the tool's parameters, chat history, or through access to previous tool calls. Policies that cannot be validated with the available context are archived, along with an explanation that can be useful during a domain expert review.</p><p>Reference Correction For the policies that pass the review phase, we verify and correct their references as once again, if needed.  <ref type="figure" target="#fig_3">4</ref>. This interface allows the reviewer to highlight relevant sentences from the policy document for each tool and visually inspect which parts of the document remain uncovered, ensuring better policy-to-tool mapping.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Create Examples</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.1.1">Tool-Policy Mapper Example Prompt</head><p>Very detailed, expressive and carefully-designed prompts were used at this step. Since quality of the prompt has direct impact on the Tool-Policy mapper outcome, the promts were through multiple cycles of review and refinement. Figure <ref type="figure" target="#fig_4">5</ref> shows the beginning of an example prompt for generating compliance and violation examples. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2">Buildtime: Detailed Description of ToolGuard Generator</head><p>The ToolGuard generator is responsible for constructing a validation (guard) function for each tool, based on the output of the Tool-Policy Mapper, optionally edited by a human. These functions, referred to as guard_tool, ensure that all pre-invocation policies associated with a tool are properly enforced before the tool is executed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2.1">Input to the Guard Function</head><p>Each guard_tool function is designed to validate tool usage by analyzing three types of input:</p><p>• Tool-call Arguments: For example, the number of passengers in a book_reservation call can be checked against a policy such as "the number of passengers must not exceed 5."</p><p>• Chat History: A list of the previous messages in this conversation. The history can serve to validate whether the user consented to certain actions (e.g., confirming a cancellation), or whether a tool was called in a previous step.</p><p>• APIs to Other Tools: Enables the guard to consult other (read only, data access) tools to check online that some condition hold. For example, before booking a flight, the agent must ensure that the flight is "available" and that there are enough seats in the given cabin.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2.2">Modularity and Execution</head><p>Each policy defined in the Tool-Policy Mapper is implemented as a separate, atomic function. The main guard_tool function calls all relevant policy functions for the tool in question. Agent proceeds to a tool call only if all invoked policy functions return success. This design supports a clear separation of concerns, allowing each policy to be developed, tested, and reasoned about independently.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2.3">Test-Driven Development Workflow</head><p>The construction of guard_tool validators follows a test-driven methodology. For each policy mapped to a tool, we first generate a diverse set of test cases that represent both compliant and violating scenarios. These examples are derived from the policy mapper and are grounded in actual policy text to ensure clarity and avoid ambiguity. When generating a test for a compliance or violation example, we ask the LLM to mocking responses of other tools.</p><p>For example, if we want to test a case of "booking a flight in economy class for three passengers, but only two seats remain available", the LLM mocks the response of get_flight_instance() to return {"available_seats": {"economy": 2}}. Each policy-specific function is developed iteratively and validated against its corresponding test sets, following a Test-Driven Development (TDD) approach. This iterative refinement process ensures that each policy function reliably and accurately handles a broad range of input scenarios. Figure <ref type="figure" target="#fig_5">6</ref> show an example prompt used to guide a guardgenerator within the TDD process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.2.4">Isolated Policy Validation</head><p>A core design principle of the system is that each test case targets a single policy in isolation, rather than testing multiple policies simultaneously. This isolation simplifies the generation and evaluation of policy functions, even for weaker language models, by narrowing the focus to a single policy contexteither to detect a violation or confirm compliance.</p><p>By eliminating the need to reason over an entire policy set at once, the validation task becomes more manageable, consistent, and interpretable.   </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: τ -bench Airlines benchmark evaluation. Deploying ToolGuards results in steady improvement of over 20 percent points compared to the original run.</figDesc><graphic coords="6,306.14,295.79,218.26,125.27" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: LangGraph nodes in the Tool-Policy Mapper.</figDesc><graphic coords="10,125.43,70.86,109.13,256.36" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Interface view illustrating how policy document sections are assigned to specific tools.</figDesc><graphic coords="11,70.87,101.13,453.53,192.56" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Example of a prompt used to generate compliance and violation examples for a target tool.</figDesc><graphic coords="11,74.25,387.49,453.55,329.78" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Example of a prompt used to generate compliance and violation examples for a target tool.</figDesc><graphic coords="12,74.25,255.66,453.55,310.47" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="3,70.87,70.87,453.53,118.62" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Partial Tool-Policy Mapper output: policy name, supporting references from the document (verbatim spans), generated compliance and violation examples, mirroring the extracted references.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>The effect of policy documents length and relevance on the tool-policy mapper performance. "OOD" denotes Out-Of-Domain policy guidelines, and "IID" -Irrelevant In-Domain;</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>For each policy, we generate detailed and diverse examples that demonstrate both policy compliance and violation. These examples serve to ground the policies, clarify ambiguities, and ensure they are well-understood. Highquality examples reduce confusion and improve consistency during later validation.</figDesc><table><row><cell>Add Examples Here, we reflect on the exam-</cell></row><row><cell>ple set and iteratively add more test cases where</cell></row><row><cell>coverage gaps are identified.</cell></row><row><cell>(Optional) Human Review At the final stage,</cell></row><row><cell>a human expert reviews the set of extracted poli-</cell></row><row><cell>cies and their corresponding examples for each</cell></row><row><cell>tool. The expert can modify existing policies or</cell></row><row><cell>examples, add new ones, or remove those that are</cell></row><row><cell>irrelevant. To support the identification of miss-</cell></row><row><cell>ing policies, we provide a dedicated user interface,</cell></row><row><cell>depicted in Figure</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>Policies addressed in this study are those directly protecting tool invocation; see Limitations section for details.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>The other τ -bench domain of Retail is smaller and less diverse; hence we limit the scope of this work to Airlines.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>Generated from the tool descriptions provided in τ -bench, following a widely adopted and commonly used standard.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>E.g, "The agent must first obtain the reservation id".</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>Admittedly, a very small intersection size between the two reference sets can potentially boost the FRI metric, but that will be reflected in very low recall results.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>Functions that alter a system state; 6 out of the 14 tools.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We are thankful to <rs type="person">Koren Lazar</rs> for his comments on an early version of this paper. We are also grateful to our three anonymous reviewers for their useful comments and constructive feedback.</p></div>
+			</div>			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Iman</forename><surname>Mahyar Abbasian</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Azimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Amir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramesh</forename><surname>Rahmani</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jain</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.02374</idno>
+		<title level="m">Conversational health agents: A personalized LLM-powered agent framework</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Alignment Studio: Aligning Large Language Models to Particular Contextual Regulations</title>
+		<author>
+			<persName><forename type="first">Swapnaja</forename><surname>Achintalwar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioana</forename><surname>Baldini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Djallel</forename><surname>Bouneffouf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joan</forename><surname>Byamugisha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Dognin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eitan</forename><surname>Farchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ndivhuwo</forename><surname>Makondo</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<publisher>IEEE Internet Computing</publisher>
+		</imprint>
+	</monogr>
+	<note>Aleksandra Mojsilović, Manish Nagireddy, and others</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<title level="m">Claude 3 model family</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiming</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrique</forename><surname>Ponde De Oliveira Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harri</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Brockman</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Others</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2107.03374</idno>
+		<title level="m">Evaluating Large Language Models Trained on Code</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Abraham Montilla, and others</title>
+		<author>
+			<persName><forename type="first">Sahana</forename><surname>Chennabasappa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cyrus</forename><surname>Nikolaidis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Molnar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephanie</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengye</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Spencer</forename><surname>Whitman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lauren</forename><surname>Deason</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Doucette</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.03574</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Llamafirewall: An open source guardrail system for building secure ai agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Understanding biases in</title>
+		<author>
+			<persName><forename type="first">Yashar</forename><surname>Deldjoo</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3690655</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">ChatGPT-based recommender systems: Provider fairness, temporal stability, and recency</title>
+		<idno type="DOI">10.1145/3690655</idno>
+		<imprint>
+			<publisher>ACM Transactions on Recommender Systems</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Dewolfe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffery</forename><forename type="middle">L</forename><surname>Andrews</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.10270</idno>
+		<title level="m">Random Models for Fuzzy Clustering Similarity Measures</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junhao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.06361</idno>
+		<title level="m">Large language model agent in financial trading: A survey</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Abhimanyu</forename><surname>Dubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Grattafiori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Jauhri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Pandey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Kadian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmad</forename><surname>Al-Dahle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aiesha</forename><surname>Letman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akhil</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Schelten</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.21783</idno>
+		<title level="m">Alex Vaughan, and others. 2024. The llama 3 herd of models</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Monte</forename><surname>Hoover</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vatsal</forename><surname>Baherwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neel</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khalid</forename><surname>Saifullah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chirag</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melissa</forename><surname>Kazemi Rad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Bayan Bruss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwinee</forename><surname>Panda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Goldstein</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2509.02563</idno>
+		<title level="m">Dynaguard: A dynamic guardrail model with user-defined policies</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feifei</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junkai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Lo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.08903</idno>
+		<title level="m">Assessing and Advancing Benchmarks for Evaluating Large Language Models in Software Engineering Tasks</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">Wenyue</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianjun</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingyu</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zelong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Cheng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.01586</idno>
+		<title level="m">Ruixiang Tang, and Yongfeng Zhang. 2024. TrustAgent: Towards Safe and Trustworthy LLM-based Agents</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kung-Hsiang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akshara</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sidharth</forename><surname>Dhawan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silvio</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Laban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chien-Sheng</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2411.02305</idno>
+		<title level="m">CRMArena: Understanding the Capacity of LLM Agents to Perform Professional CRM Tasks in Realistic Environments</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Wiesel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sami</forename><surname>Marreed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Oved</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avi</forename><surname>Yaeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Segev</forename><surname>Shlomov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.06703</idno>
+		<title level="m">ST-WebAgentBench: A Benchmark for Evaluating Safety and Trustworthiness in Web Agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">CryptoTrade: A reflective LLM-based agent to guide zero-shot cryptocurrency trading</title>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingqiao</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qian</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nuo</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingsheng</forename><surname>He</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.emnlp-main.63</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2024 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Miami, Florida, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="1094" to="1106" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shinda</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangtian</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonis</forename><surname>Antoniades</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyue</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaijie</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xifeng</forename><surname>Yan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.08669</idno>
+		<title level="m">Agentorca: A dual-system framework to evaluate language agents on operational routine and constraint adherence</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Is Your Code Generated by Chat-GPT Really Correct? Rigorous Evaluation of Large Language Models for Code Generation</title>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chunqiu</forename><surname>Steven Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingming</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="21558" to="21572" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Evaluating large language models as agents in the clinic</title>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Mehandru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brenda</forename><forename type="middle">Y</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduardo</forename><surname>Rodriguez Almaraz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Madhumita</forename><surname>Sushil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Atul</forename><forename type="middle">J</forename><surname>Butte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Alaa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NPJ digital medicine</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">84</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Itay</forename><surname>Nakash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Kour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koren</forename><surname>Lazar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matan</forename><surname>Vetzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Uziel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ateret</forename><surname>Anaby-Tavor</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.09600</idno>
+		<title level="m">Effective Red-Teaming of Policy-Adherent Agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Itay</forename><surname>Nakash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Kour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Uziel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ateret</forename><surname>Anaby-Tavor</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.16950</idno>
+		<title level="m">Breaking ReAct Agents: Footin-the-Door Attack Will Get You In</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<title level="m">Gpt-4o technical report</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Gorilla: Large language model connected with massive apis</title>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Shishir G Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="126544" to="126565" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Peysakhovich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Lerer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.01427</idno>
+		<title level="m">Attention Sorting Combats Recency Bias In Long Context Language Models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Objective Criteria for the Evaluation of Clustering Methods</title>
+		<author>
+			<persName><forename type="first">Rand</forename><surname>William</surname></persName>
+		</author>
+		<idno type="DOI">10.1080/01621459.1971.10482356</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Statistical association</title>
+		<imprint>
+			<biblScope unit="volume">66</biblScope>
+			<biblScope unit="issue">336</biblScope>
+			<biblScope unit="page" from="846" to="850" />
+			<date type="published" when="1971">1971</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Shuo Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shujie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neel</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Sundaresan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ambrosio</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Blanco</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ma</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2009.10297</idno>
+		<title level="m">CodeBLEU: a Method for Automatic Evaluation of Code Synthesis</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Ask Me Anything&quot;: How Comcast Uses LLMs to Assist Agents in Real Time</title>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Rome</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianwen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raphael</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luwei</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ferhan</forename><surname>Ture</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3626772.3661345</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 47th International ACM SI-GIR Conference on Research and Development in Information Retrieval</title>
+		<meeting>the 47th International ACM SI-GIR Conference on Research and Development in Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="2827" to="2831" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Raven</forename><surname>Rothkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannah</forename><forename type="middle">Tongxin</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Santolucito</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.16905</idno>
+		<title level="m">Procedural Adherence and Interpretability Through Neuro-Symbolic Generative Agents</title>
+		<meeting>edural Adherence and Interpretability Through Neuro-Symbolic Generative Agents</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Execution-Based Evaluation for Open-Domain Code Generation</title>
+		<author>
+			<persName><forename type="first">Zhiruo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuyan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.10481</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Chain-of-Thought Prompting Elicits Reasoning in Large Language Models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Others</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="24824" to="24837" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yijia</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.20138</idno>
+		<title level="m">TradingAgents: Multi-Agents LLM Financial Trading Framework</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Songlin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianhui</forename><surname>Qin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2404.07963</idno>
+		<title level="m">Eduagent: Generative student agents in learning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Content knowledge identification with multi-agent large language models (LLMs)</title>
+		<author>
+			<persName><forename type="first">Kaiqi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yucheng</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taylor</forename><surname>Darwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahreum</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongzhi</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasemin</forename><surname>Copur-Gencturk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-031-64299-9_23</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Artificial Intelligence in Education</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="284" to="292" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pedram</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12045</idno>
+		<title level="m">tau-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing Reasoning and Acting in Language Models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Framework for evaluating code generation ability of large language models</title>
+		<author>
+			<persName><forename type="first">Sangyeop</forename><surname>Yeo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Seung</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sang</forename><forename type="middle">Cheol</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyungkook</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taeho</forename><surname>Kim</surname></persName>
+		</author>
+		<idno type="DOI">10.4218/etrij.2023-0357</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Etri Journal</title>
+		<imprint>
+			<biblScope unit="volume">46</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="106" to="117" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Yonatan Bisk, Daniel Fried, and others</title>
+		<author>
+			<persName><forename type="first">Shuyan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><forename type="middle">F</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuhui</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abishek</forename><surname>Sridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianyi</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyue</forename><surname>Ou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.13854</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Webarena: A realistic web environment for building autonomous agents</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

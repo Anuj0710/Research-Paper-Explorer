@@ -1,0 +1,1302 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">HyperAgent: Planning and Acting over Tool-Schema Hypergraphs for Tool-Use LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-07-31">31 Jul 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Zian</forename><surname>Zhai</surname></persName>
+							<email>zian.zhai@unsw.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of New South Wales</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xingyu</forename><surname>Tan</surname></persName>
+							<email>xingyu.tan@unsw.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of New South Wales</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gaowang</forename><surname>Zou</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of New South Wales</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xiaoyang</forename><surname>Wang</surname></persName>
+							<email>xiaoyang.wang1@unsw.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of New South Wales</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Wenjie</forename><surname>Zhang</surname></persName>
+							<email>wenjie.zhang@unsw.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of New South Wales</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">HyperAgent: Planning and Acting over Tool-Schema Hypergraphs for Tool-Use LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-07-31">31 Jul 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">5799F42D4154D61025CE38E8AF7FC56A</idno>
+					<idno type="arXiv">arXiv:2608.02650v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:07+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language model (LLM) agents increasingly rely on external tools to complete complex real-world tasks. However, reliable tool-use planning remains challenging due to the limitations of implicit reasoning and the evolving nature of realworld execution environments. Existing tool-use agents typically rely on LLMs to infer tool compositions from textual descriptions, which can lead to inefficient exploration and unreliable execution in complex tasks. To address these challenges, we model tool relations at the schema level and construct a directed Tool-Schema Hypergraph, in which tools are represented as hyperedges from their required input-schema nodes to their output-schema nodes. Furthermore, we propose HyperAgent, a Tool-Schema Hypergraph-guided framework for dynamic planning and execution. Given a task, Hyper-Agent first extracts a task-relevant tool context graph and uses it to guide the construction of a schema-aware Task DAG. During execution, HyperAgent dynamically realizes each subtask by constructing a state-conditioned tool support graph through deficit-oriented expansion, which identifies unresolved requirements and retrieves supporting producer tools according to the current agent state. Experiments on App-World demonstrate that HyperAgent improves task completion performance while reducing redundant API calls, LLM interactions, and token consumption compared with existing agent baselines.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Introduction</head><p>With continued improvements in the reasoning capabilities of large language models (LLMs) (OpenAI 2023; <ref type="bibr" target="#b7">Yang et al. 2024)</ref>, LLM-based autonomous agents are increasingly deployed to perform complex real-world tasks <ref type="bibr" target="#b29">(Yao et al. 2022;</ref><ref type="bibr" target="#b10">Kim et al. 2025)</ref>. Equipped with tool-use capabilities, these agents can invoke external APIs, manipulate operating systems, and interact with software services to satisfy user requests. Such capabilities extend LLMs beyond language generation, allowing agents to take concrete actions and affect their environments <ref type="bibr" target="#b28">(Yang et al. 2023;</ref><ref type="bibr" target="#b19">Qin et al. 2023;</ref><ref type="bibr" target="#b17">Patil et al. 2023)</ref>. In many practical scenarios, however, fulfilling a user request requires the agent to interpret the task and determine several actions toward the intended goal <ref type="bibr" target="#b32">(Zhang et al. 2025;</ref><ref type="bibr" target="#b30">Yu, Ding, and Sato 2025)</ref>. For tool-using agents, this further entails selecting tools that are aligned with the current objective and executable under the available information, resources, and environment state <ref type="bibr">(Liu et al. 2024a;</ref><ref type="bibr" target="#b14">Lumer et al. 2025)</ref>.</p><p>To enhance the task-solving capabilities of LLM agents, numerous approaches have been proposed. Existing studies have primarily advanced tool-using agents along two complementary directions. The first focuses on online acting, where the agent repeatedly selects tools, observes its execution result, and determines the next action from the updated state <ref type="bibr" target="#b29">(Yao et al. 2022;</ref><ref type="bibr" target="#b10">Kim et al. 2025)</ref>. This interaction loop enables the agent to incorporate runtime observations and adapt subsequent actions to execution outcomes. The second focuses on task planning, where the LLM agent decomposes a user request into intermediate goals or generates a sequence of intended actions before execution <ref type="bibr" target="#b23">(Sun et al. 2023;</ref><ref type="bibr" target="#b8">Erdogan et al. 2025)</ref>. Such plans provide useful global guidance and help alleviate the myopic behavior of agents that select actions step by step.</p><p>Despite this progress, existing approaches have two main limitations. First, relying on LLMs to infer executable tool chains implicitly from textual tool descriptions is unreliable. Specifically, for a target operation, the model must identify not only a semantically relevant tool but also the upstream tools required to produce its input parameters. This dependency reasoning becomes particularly fragile when the agent must process a large volume of tool documentation. Second, although recent tool-retrieval methods preserve tools directly related to the user request, they may exclude semantically distant yet operationally indispensable prerequisites for the target tools. Once omitted, these tools can only be recognized during online execution when the chosen tool is found to be non-executable.</p><p>These limitations have motivated a growing research interest in graph-based approaches. For example, at the tool level, ToolNet constrains each tool selection through transitions in a directed tool graph <ref type="bibr">(Liu et al. 2024a</ref>), while Graph RAG-Tool Fusion expands semantically retrieved tools along dependency edges to recover prerequisite tools <ref type="bibr" target="#b14">(Lumer et al. 2025)</ref>. At the task level, GNN4TaskPlan employs graph neural networks to select structurally coherent subtasks <ref type="bibr" target="#b25">(Wu et al. 2024)</ref>, and GTool encodes requestspecific tool dependencies to guide the generation of complete tool trajectories <ref type="bibr">(Chen et al. 2025b)</ref>. These methods explicitly model tool relations that need to be inferred implicitly by LLMs, and allow the planner to recover prerequisite tools beyond semantic retrieval.</p><p>Nevertheless, existing graph-based approaches remain limited in two critical aspects. First, current graphs capture only coarse tool dependencies and do not specify which upstream outputs satisfy the inputs of a downstream tool <ref type="bibr" target="#b11">(Lee, Kim, and Jo 2025)</ref>. When multiple tools can produce the same required parameter, this ambiguity makes it difficult to identify the necessary producers and avoid redundant calls. Second, executable tool composition is statedependent rather than fixed. Some required inputs may already be available from the user request or previous executions, thereby changing which upstream tools are still needed. A statically planned tool path may therefore become redundant or incomplete during execution.</p><p>To this end, we first construct a directed Tool-Schema Hypergraph (TSH) to model fine-grained parameter-level relations among tools. Each tool is represented as a directed hyperedge from its input schema nodes to its output schema and effect nodes. We further annotate port links between output and input schema nodes to capture schema-level data flow across tools. Based on the constructed TSH, we propose HyperAgent, a planning and execution framework operating over the TSH. Before execution, HyperAgent retrieves a tool context graph that contains potentially useful tools selected according to semantic relevance and hypergraph structure, and uses it to guide the decomposition of the task into a Task DAG whose nodes are connected by identified schemalevel dependencies. During execution, HyperAgent realizes each ready subtask with a Tool Support Subgraph selected according to the current agent state. The resulting observations update the agent state and are used to refine the remaining Task DAG, so that subsequent tool compositions adapt to the evolving execution context.</p><p>In summary, our main contributions are summarized as follows:</p><p>• We construct a directed Tool-Schema Hypergraph using a real-world API dataset, which models tool relations as fine-grained schema dependencies. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Related Work</head><p>Tool-Use Planning. Tool-use planning enables language agents to select and compose tools into multi-step action sequences. Early methods rely on language-model reasoning to guide tool use. ReAct <ref type="bibr" target="#b29">(Yao et al. 2022</ref>) interleaves reasoning with actions, whereas ART <ref type="bibr" target="#b15">(Paranjape et al. 2023</ref>) constructs reasoning programs from retrieved demonstrations. However, direct trajectory generation provides limited exploration of alternative tool sequences. Search-based meth-ods instead evaluate multiple candidates through depth-first search in ToolLLM <ref type="bibr" target="#b19">(Qin et al. 2023</ref>) and A*-style search in ToolChain <ref type="bibr" target="#b33">(Zhuang et al. 2024</ref>). Yet trajectory search still relies on textual descriptions to infer tool dependencies, which may lead to invalid tool selections or infeasible plans.</p><p>Graph-Augmented Agents. Graph-based methods make tool dependencies explicit by organizing tool relations and invocation paths into structured graphs <ref type="bibr" target="#b3">(Bei et al. 2025)</ref>. ControlLLM <ref type="bibr">(Liu et al. 2024b</ref>) searches tool graphs encoding parameter dependencies, while ToolNet <ref type="bibr">(Liu et al. 2024a</ref>) organizes large tool collections through directed transitions. However, tool graphs may be incomplete, irrelevant to a request, or insensitive to the evolving execution trajectory <ref type="bibr" target="#b6">(Chen et al. 2026;</ref><ref type="bibr" target="#b16">Patel et al. 2026)</ref>. GTool <ref type="bibr" target="#b6">(Chen et al. 2026</ref>) reduces irrelevant relations through requestspecific construction and addresses incompleteness through missing-edge prediction, while Dynamic Tool Dependency Retrieval <ref type="bibr" target="#b16">(Patel et al. 2026)</ref> updates retrieval using both the query and current trajectory. Ordinary graphs represent dependencies through pairwise edges, whereas hypergraphs naturally capture higher-order relations involving multiple entities <ref type="bibr" target="#b1">(Antelmi et al. 2023</ref>). However, their use for executable tool-schema planning under different agent states remains underexplored.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preliminaries</head><p>Tool-Schema Hypergraph (TSH). Let H = (V, E, D) denote a Tool-Schema Hypergraph, where V represents schema and effect nodes, E contains tool hyperedges, and D contains port-level schema-dependency links between tool hyperedges. The node set contains input-schema nodes, output-schema nodes, and tool-effect nodes, i.e., V = V I ∪ V O ∪ V F . For simplicity, we use V O to denote both output schemas and effect nodes. Each tool hyperedge e ∈ E is directed from a set of input nodes to a set of output and effect nodes, i.e., E e (V I ) = {V O }. The TSH contains port-level schema-dependency links D ⊆ V O × V I , where each dependency D(v o , v i ) = w indicates that the output schema v o may support the input schema v i with weight w. A subhypergraph H S = (V S , E S , D S ) is induced by a subset of tool hyperedges E S ⊆ E, where V S = e∈E S V (e), and</p><formula xml:id="formula_0">D S = {D(v o , v i ) = w ∈ D | v o , v i ∈ V S }.</formula><p>Definition 1 (Neighbor Tools). Given two tool hyperedges e i , e j ∈ E, e i is an upstream neighbor of e j if at least one of the output schemas of e i can support at least one of the input schemas of e j through dependency edges, i.e.,</p><formula xml:id="formula_1">e i ∈ Nbr -(e j ) ⇐⇒ ∃v o ∈ O(e i ), ∃v i ∈ I(e j ), ∃w &gt; 0 s.t. (v o , v i ) ∈ D.</formula><p>Symmetrically, e j is a downstream neighbor of e i , and e j ∈ Nbr + (e i ) ⇐⇒ e i ∈ Nbr -(e j ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method HyperGraph Construction</head><p>Graph Conversion. We construct the TSH based on In-N-Out <ref type="bibr" target="#b11">(Lee, Kim, and Jo 2025)</ref>, an expert-annotated parameter-level API graph. In the original graph, API tools and their input and output parameters are represented as nodes. Directed intra-API links connect input parameters to the corresponding API and the API to its output parameters. In addition, directed inter-API schema-dependency links connect an output parameter of one API to an input parameter of another when the returned value can serve as a valid argument for the downstream API. These links are constructed through LLM-based filtering and expert annotation. Although their tool-schema graph captures schemalevel data dependencies across tools, it does not explicitly represent the joint constraints of real-world tool invocation. Specifically, an API is executable only when all of its required inputs are jointly available and its outputs are jointly produced by the same invocation. To encode these constraints, we convert the original graph into a directed Tool-Schema Hypergraph. For each API tool, we represent it as a hyperedge and preserve the original schema nodes V and inter-tool schema-dependency links D. Graph Refinement. Some tools do not return reusable parameters but primarily change the environment state, such as sending a message and creating a transaction. Conversely, the execution of a tool may depend on an environment precondition, which is often described in its documentation but is not explicitly presented by input parameters. For example, a login tool may establish an authenticated session that is required before invoking a protected API. To represent such precondition and effect dependencies, we extract additional effect and condition nodes from API documentation. First, we use GPT-4o to extract candidate state changes and execution preconditions from each tool description and align them with the existing input and output schemas. Expert annotators then validate the proposed alignments. State predicates that are not represented by the original schema nodes are introduced into the node set as additional effect or condition nodes. We preserve the original port-level schema dependency links in In-N-Out. For the newly introduced effect and condition nodes, we enumerate candidate effectprecondition pairs and remove pairs with incompatible domains or entities. Then, we use GPT-4o to score the semantic relevance of the remaining pairs and further filter the irrelevant pairs. Subsequently, human annotators verify the filtered candidates and label valid links as strong or weak state dependencies, while other pairs are discarded. The retained effect-condition links are incorporated into the portlevel dependency link set. Due to space limitations, we provide implementation details for the refinement procedure and graph statistics in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Task-Level Planning</head><p>Given a user request, HyperAgent first extracts a taskrelevant Tool Context Graph from the full TSH. The context graph restricts the planning space to potentially useful tools while retaining the schema-level connections among them.</p><p>Conditioned on this context graph, the agent is prompted to decompose the request into a schema-level Task DAG, where each node represents a subtask and each edge specifies data, effect, or ordering dependencies between subtasks. Task Interpretation. User requests are often expressed at a high level, leaving the intended operations, relevant entities, constraints, and desired environment changes only implicit. To help the agent locate the relevant region of the TSH, we prompt it to produce a structured task interpretation. Formally, given a user request t, the agent is asked to output a structured representation</p><formula xml:id="formula_2">d t = d op t , d sch t</formula><p>, where d op t captures the intended operations, and d sch t identifies candidate schemas, values, constraints, and desired outcomes expressed or implied by the request. We use the components of d t as retrieval signals to anchor relevant tool hyperedges and schema nodes in the TSH. Seed Hyperedge Anchoring. To identify initial taskrelevant tools, we retrieve tool hyperedges based on the operation-level interpretation d op t . Specifically, for each hyperedge e ∈ E, we use its functional description and compute the semantic similarity with d op t , which is denoted as sim(e,</p><formula xml:id="formula_3">d op t ) = cos (z(e), z(d op t )) ,<label>(1)</label></formula><p>where z(•) denotes the embedding function. We select the Top-K hyperedges whose similarity scores exceed a threshold θ e to form the seed hyperedge set E seed . Seed Node Anchoring. We distinguish input and precondition nodes V I from output and effect nodes V O . The schemalevel interpretation d sch t may contain entities, constraints, required values, and desired outcomes that correspond directly to these schema nodes. We therefore use d sch t to anchor relevant nodes in the TSH. For each node v ∈ V, we compute the semantic similarity between its description and d sch t using the same embedding-based similarity function in Equation <ref type="formula" target="#formula_3">1</ref>. We select the top-K v input-side and output-side nodes whose similarity scores exceed θ v , yielding V I seed ⊆ V I and V O seed ⊆ V O , respectively. The final seed node set is the union of both sides, i.e., V seed = V I seed ∪ V O seed . Context Graph Extraction. Starting from the seed hyperedges and nodes, we perform bounded backward search over the TSH to construct a compact, task-relevant context graph. The expansion reduces the global tool space while retaining the schema-level dependencies connecting the retrieved tools. We first augment the seed hyperedge set with tools directly associated with the anchored schema nodes. For each output-side seed node, tools satisfying v o ∈ O(e) are considered as its direct producer candidates. Similarly, for each input-side seed node, tools satisfying v i ∈ I(e) are considered direct consumer candidates. Among the producer and consumer hyperedge candidates, we compute the operation-level similarity defined in Equation 1 and add the top-K candidates for each seed node to the seed hyperedge set E seed . We then initialize the backward frontier as</p><formula xml:id="formula_4">B 0 = V I seed ∪{v i | v i ∈ I(e), e ∈ E seed }.</formula><p>At each hop h, the backward expansion follows dependency links D in reverse towards the output and effect nodes. Formally, if</p><formula xml:id="formula_5">v i ∈ B h , D(v o , v i ) = w &gt; 0, and v o ∈ O(e p )</formula><p>, then e p is considered as a producer candidate for v i . We rank producer candidates by jointly considering the strength of the schema-level dependency and their semantic relevance to the operationlevel task interpretation:</p><formula xml:id="formula_6">s back (e, d op t ) = w(v o , v i ) • cos z(e), z(d op t ) .<label>(2)</label></formula><p>For each frontier node, we retain the top-K producer candidates and add them to the retrieved hyperedge set. The input nodes of the newly added producers form the next backward </p><formula xml:id="formula_7">D s = {(v o , v i ) ∈ D | v o ∈ V s , v i ∈ V s }.</formula><p>The graph H s provides the LLM planner with a compact context that preserves both task relevance and the schema-level dependency topology among the retrieved tools. Task Decomposition. After constructing the tool context graph H s , we serialize it into a compact textual description, where each hyperedge is represented by its API name and description, and each schema node is described by its associated API tool, name, and concise description. Moreover, the dependency links are serialized as directed links from the output schemas of producer hyperedges to the input schemas of consumer hyperedges. We provide the prompt illustration in Appendix B. Based on this serialized context, the LLM planner is prompted to construct a Task DAG <ref type="bibr" target="#b27">(Yang et al. 2025;</ref><ref type="bibr" target="#b7">Dong et al. 2024)</ref>, where each node represents a subtask and each edge encodes the identified dependencies among subtasks, including schema-level data and effect dependencies from the Tool Context Graph. For each subtask, the planner specifies its local goal, target output schemas or effects, and a set of candidate terminal tools. For each dependency between subtasks, the planner identifies relevant schema-dependency links from the Tool Context Graph that connect the output schemas or effects of the upstream subtask to the input schemas required by the downstream subtask.</p><p>Definition 3 (Task DAG). Given the Tool Context Graph H s , a Task DAG is an LLM-generated directed acyclic graph G = (Q, L). Each node q i ∈ Q represents a subtask and is defined as</p><formula xml:id="formula_8">q i = (g i , τ i , E i , ϕ i )</formula><p>, where g i is the local goal, τ i ⊆ V O denotes the target output schemas or effects, E i ⊆ E s is a small set of candidate terminal tools, and ϕ i records the execution status of the subtask. Each edge ℓ ij ∈ L represents a data or effect dependency from q i to q j . Such a dependency is grounded in schema-level links from H s that connect outputs associated with q i to inputs required by q j .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Task Execution</head><p>Topological Execution. Once the initial Task DAG is constructed, the agent executes subtasks following the dependency topology. At execution step ℓ, the agent identifies the frontier subtasks whose predecessors have been completed and selects one for execution. Here, we formally define the agent state. Definition 4 (Agent State). Given the current Task DAG G ℓ = (Q ℓ , L ℓ ) before the ℓ-th execution iteration, the runtime agent state is defined as S ℓ = (C ℓ , R ℓ , I ℓ ), where C ℓ records the execution history, R ℓ records the execution status of subtasks, and I ℓ stores the runtime schema-value bindings and achieved effects accumulated during execution.</p><p>For the selected subtask, the agent retrieves a tool support subgraph from the TSH for its concrete tool-level realization, which is introduced in the following subsection. After executing the selected subtask, the newly grounded schemavalue bindings ∆I ℓ and achieved effects update the agent state: S ℓ+1 = StateUpdate(S ℓ , ∆I ℓ ). The updated state is then used either to execute the next subtask or to refine the remaining Task DAG, yielding G ℓ+1 . Subtask Verification. A successful tool call alone is insufficient to verify subtask completion. After executing the selected tool support graph, HyperAgent determines whether the execution results satisfy the expected outputs, effects, and constraints of the current subtask. Specifically, it aligns the execution trace with the selected support graph and examines the successful API calls, schema-value bindings, intermediate computation results, and achieved effects. A subtask is marked as completed only when its required outputs are materialized with valid schema-level evidence or its target effects are supported by the execution trace. The verified terminal outputs are then incorporated into I ℓ+1 , allowing HyperAgent to determine the initial state of subsequent subtasks. Otherwise, HyperAgent retains the observed outputs and effects and refines the current Task DAG. Due to space limitations, the prompt templates and detailed procedure are provided in the Appendix B, C, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Tool-Level Planning</head><p>The Task DAG specifies the subtasks and candidate terminal tools for each subtask. However, HyperAgent does not determine an executable tool composition in advance, as the agent state evolves with newly obtained values and effects during execution, which may change the required tools. Instead, HyperAgent dynamically constructs a Tool Support Subgraph for each subtask by identifying unresolved input requirements of candidate terminal tools and expanding producer tools according to the current state. Tool-Schema Support. Before presenting the detailed expansion algorithm, we define Tool-Schema Support to quantify the support strength between tools and input schemas.</p><p>Definition 5 (Tool-Schema Support). Given a Tool-Schema Hypergraph H = (V, E, D), let e ∈ E be a tool hyperedge and r ∈ V I be an input-schema node. The Tool-Schema Support from e to r measures the strongest support of the outputs of e to the input schema r, and is defined as</p><formula xml:id="formula_9">ρ(e, r) = max o∈O(e) W (o, r),<label>(3)</label></formula><p>where</p><formula xml:id="formula_10">W (o, r) = w, (o, r) ∈ D, 0, otherwise.</formula><p>If ρ(e, r) &gt; 0, then e can serve as a producer tool for schema r. For efficient lookup during online execution, we precompute the support between each input-schema node and each tool hyperedge and store the scores in a sparse producer matrix A prod ∈ R |V I |×|E| . Each row corresponds to an input schema r and contains the support scores of its candidate producer tools, i.e., A prod (r, e) = ρ(e, r). Deficit-Oriented Expansion. For each candidate terminal tool e t ∈ E i , Deficit-Oriented Expansion (DOE) performs beam search over the TSH to construct a Tool Support Subgraph conditioned on the current agent state S ℓ . Starting from each proposed terminal tool, DOE maintains a deficit set that records input-schema requirements not satisfied by the current agent state or the selected producer tools. It iteratively expands candidate subgraphs by adding producer hyperedges to satisfy the deficit set and terminates when a complete support subgraph is found. For readability, we omit the subtask superscript q i in this subsection.</p><p>Definition 6 (Deficit Set). Given an agent state S ℓ = (C ℓ , R ℓ , I ℓ ) and a candidate support subgraph G h = (V h , E h , D h ), the deficit set M G h contains input-schema nodes required by the selected tools that are neither available in the current agent state nor supported by the outputschema nodes of G h through the retained dependency links.</p><p>For the candidate terminal tool e t , DOE initializes the candidate subgraph G 0 = (V 0 , E 0 , D 0 ) with the current agent state S ℓ , where V 0 = I(e t ), E 0 = {e t }, and D 0 = ∅. The initial deficit set M G0 is determined by the input schemas of e t that are not grounded in the current agent state. We encode the deficit set as a sparse binary vector m G h ∈ {0, 1} |V I |×1 , where each dimension indicates whether the corresponding input-schema node belongs to the current deficit set:</p><formula xml:id="formula_11">m G h (r) = 1, r ∈ M G h , 0, r / ∈ M G h , r ∈ V I . (<label>4</label></formula><formula xml:id="formula_12">)</formula><p>At each expansion step, DOE selects producer hyperedges that can resolve the current deficits. Since the output head O(e) of a producer hyperedge may jointly support multiple unresolved input-schema nodes, DOE prioritizes hyperedges whose outputs have greater overlap with the current deficit set M G h . This overlap is defined as</p><formula xml:id="formula_13">Ω(e, M G h ) = r∈M G h ρ(e, r),<label>(5)</label></formula><p>where ρ(e, r) denotes the Tool-Schema Support defined above. The top-K producer hyperedges with positive support are selected as expansion directions. For each selected producer e p , DOE adds the hyperedge together with its input and output schema nodes and retains the dependency links through which its outputs support the nodes in the current deficit set. The deficit set is then updated after expansion by deleting the resolved deficits and introducing input schemas required by e p that are not already grounded in the current state or supported by the expanded subgraph. At each expansion depth, the subgraph candidates are ranked according to the number of unresolved schema nodes in the deficit set, i.e., |M G (ep )</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>h+1</head><p>|, and the top-B candidates with the smallest deficit sets are retained for the next expansion. Candidates with empty deficit sets are considered complete support subgraphs and are no longer expanded. Support Graph Selection. Given a subtask q i , let S qi ℓ denote the set of complete support subgraphs returned by DOE for the proposed candidate terminal tools in E i . HyperAgent selects a support subgraph G qi ∈ S qi ℓ as the schemacomplete tool composition for realizing q i . If no feasible support subgraph is available or the execution fails, the outcome is incorporated into the agent state and the remaining Task DAG is refined accordingly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Experiments Dataset</head><p>We evaluate HyperAgent on the AppWorld dataset <ref type="bibr" target="#b24">(Trivedi et al. 2024)</ref>, a benchmark that evaluates an LLM agent's ability to complete user-directed tasks by interacting with APIs from simulated consumer applications, including email, payment, music, shopping, phone, and filemanagement services. The agent operates through a stateful Python interpreter and performs tasks of varying difficulty. Task correctness is determined by unit tests that verify whether the requested changes were successfully applied, whether any unintended modifications were introduced, and whether the final answer matches the reference answer when applicable. The benchmark contains 250 task scenarios, each instantiated with three variants, resulting in 750 tasks in total. These tasks are divided into a training set of 35 scenarios (105 tasks), a development set of 20 scenarios (60 tasks), a normal test set (TEST-N) of 56 scenarios (168 tasks), and a challenge test set (TEST-C) of 139 scenarios (417 tasks). Compared with TEST-N, TEST-C requires longer and more complex interaction sequences and may involve applications that are unseen during training. Performance is measured using Task Goal Completion (TGC), which reports the proportion of successfully completed tasks, and Scenario Goal Completion (SGC), which counts a scenario as solved only when all of its task variants are completed successfully.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Baselines</head><p>Supervised Fine-Tuning (SFT). We include three supervised baselines that learn from successful agent trajectories. SFT-GT transforms gold AppWorld traces into ReAct-style interaction trajectories for supervised training. RFT <ref type="bibr" target="#b31">(Yuan et al. 2023</ref>) samples trajectories from the base agent and fine-tunes the model only on successful rollouts. EI (Anthony, Tian, and Barber 2017) performs RFT iteratively, using the improved policy from each round to collect training trajectories for the next round. Direct Preference Optimization (DPO). We also compare HyperAgent with preference-based methods. DPO-MCTS <ref type="bibr" target="#b18">(Putta et al. 2024)</ref> uses Monte Carlo tree search to discover alternative action trajectories and constructs preference pairs from their estimated returns. DMPO <ref type="bibr" target="#b22">(Shi et al. 2024)</ref> extends preference optimization to multi-turn interaction by jointly modeling the decisions within preferred and rejected trajectories. Reinforcement Learning (RL). We include policy-gradient methods that optimize agents directly from environment rewards. PPO <ref type="bibr" target="#b20">(Schulman et al. 2017</ref>) trains policies using a learned value model for advantage estimation. RLOO (Ahmadian et al. 2024) estimates trajectory-level advantages by comparing multiple rollouts sampled for the same task. GRPO <ref type="bibr" target="#b21">(Shao et al. 2024</ref>) performs clipped group-relative updates using normalized rewards among rollouts of the same task, while LOOP reuses old sampled trajectories through clipped policy updates and assigns credit at trajectory (bandit), turn, or token-level <ref type="bibr">(Chen et al. 2025a</ref>). Non-Fine-Tuning Methods (NFT). For NFT methods, we perform four agent scaffolds. ReAct <ref type="bibr" target="#b29">(Yao et al. 2022</ref>) solves tasks through iterative reasoning, execution, and observation. Plan and Execution (PlanExec) <ref type="bibr" target="#b8">(Erdogan et al. 2025)</ref> generates a plan which consists subtasks before ReAct execution, whereas Reflexion (FullCodeRefl) <ref type="bibr" target="#b10">(Kim et al. 2025)</ref> explicitly writes and revises execution feedback after each execution. Traj (SetBSR+Snippet) <ref type="bibr" target="#b9">(Gupta et al. 2025)</ref>   <ref type="figure" target="#fig_4">4</ref>. Increasing the hop count from 1 to 2 and the top-K value from 1 to 3 improves both TGC and SGC by recovering more valid prerequisite paths. However, further expansion provides negligible gains while substantially increasing token consumption due to additional irrelevant tools and dependencies.</p><p>More Experiments RQ4: Does HyperAgent construct a compact tool context that preserves the gold tools. To evaluate the effectiveness of the proposed Tool Context Graphs, we extract task-level gold tool sets from the official AppWorld solutions and compare HyperAgent with semantic top-K tool retrieval and In-N-Out graph retrieval under the same context budget of 20 tools. Based on the results in Figure <ref type="figure" target="#fig_5">5</ref>, HyperAgent significantly outperforms In-N-Out and semantic retrieval. This result indicates that, with schema-node anchoring and dependency-guided expansion, the extracted tool context recovers implicit prerequisite tools that are not directly aligned with the task semantics, thereby providing a    reliable planning and execution space for task completion.</p><p>RQ5: Can HyperAgent Propose Better Tool-Use Sequences under Dynamical States. We evaluate the constructed tool support graphs by examining whether they improve subgoal completion while reducing LLM calls. We compare HyperAgent with ReAct using semantic Top-K retrieval under the same tool budget. For a fair comparison, both methods operate on the same frozen set of subgoals. Before executing either method, we manually annotate completion contracts for a predefined subset of subgoals, specifying their expected effects and outputs. A subgoal is considered completed only when its contract is supported by runtime observations or verified changes to the environment. Based on the results in Figure <ref type="figure" target="#fig_6">6</ref>, HyperAgent achieves a higher subgoal completion rate while reducing the average number of LLM calls per subgoal. This result suggests that the state-conditioned support graphs expose prerequisite tools and intermediate schemas before execution, thereby reducing trial-and-error tool selection and repeated exploration relative to the baseline.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Conclusion</head><p>In this paper, we present HyperAgent, a Tool-Schema Hypergraph-guided framework for dynamic tool-use planning with LLM agents. We extract schema-level dependencies among tools and represent the available tool space as a directed Tool-Schema Hypergraph. Given a task, HyperAgent retrieves a task-relevant Tool Context Graph that preserves schema-level dependencies and guides the decomposition of the task into a fine-grained Task DAG. During execution, we further introduce deficit-based support graph expansion to construct a state-conditioned and structurally grounded tool composition for each subtask. Experiments on AppWorld demonstrate that HyperAgent improves task completion while reducing redundant API calls, LLM interactions, and token consumption compared with the selected baselines. These findings suggest that explicitly modeling tool dependencies can complement the semantic reasoning capabilities of LLMs, enabling more reliable and efficient tool-use planning under dynamically changing agent states.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>■Figure 1 :</head><label>1</label><figDesc>Figure 1: The framework of HyperAgent.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Ablation study with two variants.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Key hyperparameter analysis in HyperAgent.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Quality evaluation of HyperAgent.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Subgoal completion rate under dynamic states.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>aug-Performance comparison with different paradigms on AppWorld. Send a Venmo reminder for payment requests to my roommates that have been pending for at least 30 days. we remove the retrieved graph context, including tool-schema dependencies, and retain only simplified tool descriptions during DAG planning and refinement. In Variant 2, we remove the Tool Support Subgraphs for each subtask and use the top-K tools with the highest semantic similarity to the subgoal. As shown in Figure3, HyperAgent achieves higher task performance while using fewer tokens and API calls. Removing either component consistently degrades end-to-end task performance on both Test-N and Test-C. This trend suggests that graph context and tool support graphs reduce redundant tool exploration by exposing schema-level relations across tools. Moreover, HyperAgent can construct more complete execution paths and avoid semantically related but operationally unsuitable tools, leading to fewer API invocations and less exploration. Second, we study the impact of the hop count in the Tool Context Graph and the top-K support parameter used in support-graph expansion, as shown in Figure</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">AppWorld</cell></row><row><cell>Model</cell><cell></cell><cell>Prompting</cell><cell cols="2">Test-N</cell><cell>Test-C</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="3">TGC SGC TGC SGC</cell></row><row><cell></cell><cell></cell><cell>ReAct</cell><cell cols="3">48.8 32.1 30.2 13.0</cell></row><row><cell cols="2">GPT-4o</cell><cell cols="4">PlanExec FullCodeRefl 33.9 26.8 19.2 12.2 44.6 23.2 19.7 7.9</cell></row><row><cell></cell><cell></cell><cell>HyperAgent</cell><cell cols="3">63.1 52.6 35.7 18.9</cell></row><row><cell></cell><cell></cell><cell>ReAct</cell><cell cols="3">26.8 12.5 17.5</cell><cell>5.8</cell></row><row><cell cols="2">GPT-4turbo</cell><cell cols="4">PlanExec FullCodeRefl 25.6 19.3 12.5 32.7 16.1 11.0</cell><cell>3.6 7.2</cell></row><row><cell></cell><cell></cell><cell>HyperAgent</cell><cell cols="3">45.3 28.6 23.1 10.1</cell></row><row><cell></cell><cell></cell><cell>ReAct</cell><cell>20.8</cell><cell>8.9</cell><cell>3.4</cell><cell>0</cell></row><row><cell cols="2">Llama-3-70B-Instruct</cell><cell cols="3">PlanExec FullCodeRefl 24.4 17.9 8.9 1.8</cell><cell>2.4 7.0</cell><cell>0.7 4.3</cell></row><row><cell></cell><cell></cell><cell>HyperAgent</cell><cell cols="2">30.1 19.7</cell><cell>8.9</cell><cell>6.4</cell></row><row><cell cols="6">Table 2: Performance comparison on AppWorld under dif-</cell></row><row><cell cols="4">ferent agent optimization methods.</cell><cell></cell></row><row><cell></cell><cell>Approach</cell><cell></cell><cell cols="2">Test-N</cell><cell>Test-C</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="3">TGC SGC TGC SGC</cell></row><row><cell></cell><cell>SFT-GT</cell><cell></cell><cell>6.2</cell><cell>1.8</cell><cell>0.8</cell><cell>0.1</cell></row><row><cell>SFT</cell><cell>RFT</cell><cell></cell><cell cols="3">47.9 26.4 26.4 11.4</cell></row><row><cell></cell><cell>EI</cell><cell></cell><cell cols="3">58.3 36.8 32.8 17.6</cell></row><row><cell>DPO</cell><cell>DPO-MCTS DMPO</cell><cell></cell><cell cols="3">57.0 31.8 31.8 13.7 59.0 36.6 36.3 13.7</cell></row><row><cell></cell><cell cols="2">PPO (critic, token)</cell><cell cols="3">50.8 28.9 26.4 10.5</cell></row><row><cell></cell><cell>RLOO (traj)</cell><cell></cell><cell cols="3">57.2 35.7 36.7 17.4</cell></row><row><cell>RL</cell><cell cols="2">GRPO (token) LOOP (bandit)</cell><cell cols="3">58.0 36.8 39.5 22.4 53.3 33.6 27.7 13.0</cell></row><row><cell></cell><cell>LOOP (turn)</cell><cell></cell><cell cols="3">64.1 43.5 40.8 26.5</cell></row><row><cell></cell><cell>LOOP (token)</cell><cell></cell><cell cols="3">71.3 53.6 45.7 26.6</cell></row><row><cell></cell><cell>ReAct</cell><cell></cell><cell cols="3">48.8 32.1 30.2 13.0</cell></row><row><cell>NFT</cell><cell>PlanExec</cell><cell></cell><cell cols="3">63.1 52.6 35.7 18.9</cell></row><row><cell></cell><cell cols="5">Traj(SsetBSR+Snippet) 65.8 53.6 38.7 24.8</cell></row><row><cell></cell><cell>HyperAgent</cell><cell></cell><cell cols="3">67.1 55.9 40.2 26.1</cell></row><row><cell cols="6">ments the agent with few-shot trajectory demonstrations be-</cell></row><row><cell cols="6">fore the test task and inserts a state-matched snippet into the</cell></row><row><cell cols="4">context before each action decision.</cell><cell></cell></row><row><cell cols="3">Agent Implementation</cell><cell></cell><cell></cell></row><row><cell cols="6">We use GPT-4o as the backbone for all LLM-based com-</cell></row><row><cell cols="6">ponents in the main experiments, including hypergraph con-</cell></row><row><cell cols="6">struction, task interpretation, semantic DAG planning and</cell></row><row><cell cols="6">refinement, support-graph selection, and ReAct-Code exe-</cell></row><row><cell cols="6">cution. Tool context extraction, Deficit-Oriented Expansion,</cell></row><row><cell cols="6">and runtime binding validation are implemented as deter-</cell></row><row><cell cols="6">ministic modules and do not invoke the LLM unless seman-</cell></row><row><cell cols="6">tic ambiguity remains. Each task is executed in a freshly ini-</cell></row><row><cell cols="6">tialized AppWorld environment with a persistent restricted</cell></row><row><cell cols="6">Python REPL, allowing intermediate variables and tool out-</cell></row><row><cell cols="6">puts to be reused across subgoals. The prompt templates for</cell></row><row><cell cols="6">the Planner, Refiner, and Executor, together with their de-</cell></row><row><cell cols="6">coding configurations, are provided in Appendix A. We also</cell></row><row><cell cols="6">vary the LLM backbone, using GPT-4-Turbo and Llama-</cell></row></table><note><p><p>Task:</p>RQ3: Are the main components of HyperAgent essential and effective. First, we compare HyperAgent with two variants. In Variant 1,</p></note></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ahmadian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cremer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gallé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Fadaee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kreutzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Pietquin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Üstün</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hooker</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.14740</idno>
+		<title level="m">Back to Basics: Revisiting REINFORCE Style Optimization for Learning from Human Feedback in LLMs</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">A</forename><surname>Antelmi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Cordasco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Polato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Scarano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Spagnuolo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">A Survey on Hypergraph Representation Learning. ACM Comput. Surv</title>
+		<imprint>
+			<biblScope unit="volume">56</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Thinking Fast and Slow with Deep Learning and Tree Search</title>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">W</forename><surname>Anthony</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Barber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>King</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Karray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">S</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.18019</idno>
+		<title level="m">Graphs Meet AI Agents: Taxonomy, Progress, and Future Opportunities</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">2025a. Reinforcement Learning for Long-Horizon Interactive LLM Agents</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cusumano-Towner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Huval</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Petrenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hamburger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Koltun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Krahenbuhl</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2502.01600</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bi</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2508.12725</idno>
+		<title level="m">Graph Enhanced Tool Planning with Large Language Model</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">GTool: Graph Enhanced Tool Planning with Large Language Model</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Fourteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">VillagerAgent: A Graph-Based Multi-Agent Framework for Coordinating Complex Task Dependencies in Minecraft</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Annual Meeting of the Association for Computational Linguistics</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Planand-Act: Improving Planning of Agents for Long-Horizon Tasks</title>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">E</forename><surname>Erdogan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Furuta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Moon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Anumanchipalli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Keutzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gholami</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-second International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Leveraging In-Context Learning for Language Model Agents</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Bogin</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2506.13109</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">ReflAct: World-Grounded Decision Making in LLM Agents via Goal-State Reflection</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Rhee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Jung</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Empirical Methods in Natural Language Processing</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">In-N-Out: A Parameter-Level API Graph Dataset for Tool Agents</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jo</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2509.01560</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.00839</idno>
+		<title level="m">Connecting Large Language Models with Massive Tools via Tool Graph</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<title level="m">Con-trolLLM: Augment Language Models with Tools by Searching on Graphs</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="89" to="105" />
+		</imprint>
+	</monogr>
+	<note>Computer Vision -ECCV 2024</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Graph RAG-Tool Fusion</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Lumer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">H</forename><surname>Basavaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mason</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Burke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><forename type="middle">K</forename><surname>Subbiah</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2502.07223. OpenAI. 2023. GPT-4</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">ART: Automatic multi-step reasoning and tool-use for large language models</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Paranjape</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lundberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">T</forename><surname>Ribeiro</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.09014</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Dynamic Tool Dependency Retrieval for Lightweight Function Calling</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Belli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jalalirad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Arnold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ermolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Major</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2026</title>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Liakata</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">V</forename><forename type="middle">P</forename><surname>Moreira</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">D</forename><surname>Jurgens</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="33649" to="33672" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2305.15334</idno>
+		<title level="m">Gorilla: Large Language Model Connected with Massive APIs</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Agent Q: Advanced Reasoning and Learning for Autonomous AI Agents</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Putta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Mills</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">R</forename><surname>Motwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Finn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Rafailov</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2408.07199</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-T</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">H</forename><surname>Gerstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sun</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2307.16789</idno>
+		<title level="m">ToolLLM: Facilitating Large Language Models to Master 16000+ Real-world APIs</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Proximal Policy Optimization Algorithms</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Klimov</surname></persName>
+		</author>
+		<idno>ArXiv, abs/1707.06347</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-M</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">K</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Guo</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2402.03300</idno>
+		<title level="m">DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Direct Multi-Turn Preference Optimization for Language Agents</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Feng</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2406.14868</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">PEARL: Prompting Large Language Models to Plan and Execute Actions Over Long Documents</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Iyyer</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2305.14564</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">H</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hartmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">R</forename><surname>Manku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2407.18901</idno>
+		<title level="m">AppWorld: A Controllable World of Apps and People for Benchmarking Interactive Coding Agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Can Graph Learning Improve Planning in LLM-based Agents?</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Shan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>Advances in Neural Information Processing Systems 37</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Q</forename><forename type="middle">A</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Quan</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2412.15115</idno>
+		<imprint/>
+	</monogr>
+	<note>and Wang, Z. 2024. Qwen2.5 Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">AgentNet: Decentralized Evolutionary Coordination for LLM-based Multi-Agent Systems</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Rui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2504.00587</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">MM-REACT: Prompting ChatGPT for Multimodal Reasoning and Action</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Azarnasab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2303.11381</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">ReAct: Synergizing Reasoning and Acting in Language Models</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2210.03629</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">DynTaskMAS: A Dynamic Task Graph-driven Framework for Asynchronous and Parallel LLM-based Multi-Agent Systems</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Sato</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2503.07675</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Scaling Relationship on Learning Mathematical Reasoning with Large Language Models</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2308.01825</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2502.14563</idno>
+		<title level="m">Plan-over-Graph: Towards Parallelable LLM Agent Schedule</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">ToolChain*: Efficient Action Space Navigation in Large Language Models with A* Search</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mitra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Bursztyn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sarkhel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

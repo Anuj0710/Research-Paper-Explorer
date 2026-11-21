@@ -1,0 +1,275 @@
+{
+  "arxiv_id": "2509.17325",
+  "title": "Generalizable End-to-End Tool-Use RL with Synthetic CodeGym",
+  "abstract": "Tool-augmented large language models (LLMs), hereafter LLM agents, leverage external tools to solve diverse tasks and interface with the real world. However, current training practices largely rely on supervised fine-tuning (SFT) over static trajectories or reinforcement learning (RL) on narrow tasks, which generalize poorly beyond development settings and lead to brittleness with new tools and unseen workflows. Because code execution reflects many structural patterns of real-world workflows, we use coding problems as a structured substrate to build tool-use agent training environments with diverse task configurations. To this end, we introduce CodeGym, a scalable framework that synthesizes diverse, verifiable, and controllable multi-turn tool-use environments for agent RL, enabling LLM agents to explore and master various workflows actively. CodeGym converts static coding problems into interactive environments by extracting atomic functions or logic into callable tools, yielding verifiable tasks that span various tool-execution workflows. Models of varying sizes and chain-of-thought configurations trained in CodeGym exhibit consistent out-ofdistribution generalizability; for example, Qwen2.5-32B-Instruct achieves an absolute accuracy gain of 8.7 points on the OOD benchmark τ -Bench. These results highlight CodeGym as a step toward scalable general-purpose RL environments for training tool-use behaviors that align with real-world agent workflows. Our code is publicly available at https://github.com/StigLidu/CodeGym.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Large language models (LLMs) have exhibited remarkable capabilities in complex logical reasoning, code generation, and instruction following [10,24,31,46,47,60], but their capabilities are limited by static parametric memory [16,17,43]. A new paradigm, tool-augmented LLM agents, overcomes these limits by granting LLM access to external resources, such as databases [32,38,39], search engines [33,37], and code executors [27,57], enabling them to act with expanded problem-solving abilities [12,35] and interaction capacities [40,63].\n\nStandard pretraining corpora lack sufficient high-quality agent interaction data, such as tool-use and workflow traces, leaving LLM agents brittle [15]. To mitigate this, previous work has constructed agent tasks and generated agent trajectories for supervised fine-tuning (SFT) [53,66]. Although such construction can improve performance on designed benchmarks, the resulting trajectories often follow hand-crafted patterns and explore",
+      "n_words": 124
+    },
+    {
+      "heading": "Related Work",
+      "section_type": "related_word",
+      "text": "LLMs as Tool-Use Agents Equipped with external tools, LLMs extend their capabilities beyond intrinsic language modeling, not only improving factual reasoning through knowledge search or retrieval [40] and program-aided computation [16], but also enabling direct interaction with the world in domains such as coding [54], customized services [63], robotic control [1], and scientific discovery [34].\n\nSynthetic Environments for LLM Agent Training For agent applications, LLMs often lack domain-specific training data, leaving them insufficiently grounded and prone to erroneous actions [41]. Synthetic environments have thus emerged as a promising means of providing controlled, domain-aligned supervision. Early efforts, such as TextWorld, ALFWorld, and ScienceWorld [11,49,52], offered interactive text-based environments for language models to enhance instruction following and multistep reasoning, although their domain gap limits real-world transfer. More realistic benchmarks now include WebShop [61] for online shopping, SWE-Gym [36] for code debugging, and BrowseComp-Plus [6] for deep web search, etc. In parallel, resources such as ToolBench and T-Eval [4,40] provide large-scale datasets and fine-grained evaluations of tool use capacity, but lack the evolving states and long-horizon interactions of true environments. Despite these advances, broadly applicable general-purpose tool-use environments remain scarce.\n\nReinforcement Learning with Verifiable Reward (RLVR) Reinforcement learning has proven effective for training LLMs when rewards are verifiable, such as mathematical reasoning and code generation [21,24,48]. Based on PPO [44], variants such as GRPO and DAPO [48,64] improve stability and efficiency during training. Tool-augmented RL further enables models to practice about when and how to invoke external tools, such as for retrieval [28] or numeric reasoning [13,50]. Nevertheless, scaling tool-supported RL and managing large training environments remain open challenges [25].",
+      "n_words": 267
+    },
+    {
+      "heading": "CodeGym",
+      "section_type": "other",
+      "text": "We introduce CodeGym, a large-scale synthetic multi-turn tool-use environment dataset constructed from extensive coding problems available online (Section 3.2). As shown in Figure 1, we synthesize various agent tasks and interactive environments to support reinforcement learning for LLM agents, exploring ways to improve agent capabilities and generalization. CodeGym encompasses thousands of tools, various patterns of tool-use logic, a low-latency execution environment, and verifiable reward mechanisms. Furthermore, CodeGym is designed for scalability: Our generation pipeline (Section 3.3) can systematically convert a wide range of coding tasks into interactive environments with a rigorous verification process, ensuring both the stability and correctness of environments. Finally, a series of filters, such as difficulty and trajectory complexity, is applied to select high-quality environments for LLM agent reinforcement training (Section 3.4).",
+      "n_words": 125
+    },
+    {
+      "heading": "Insights",
+      "section_type": "related_word",
+      "text": "The construction of CodeGym is motivated by a key insight: code inherently embodies rigorous execution logic, which is similar to real-world workflows. For example, a loop that continues until a condition is satisfied mirrors iterative approval rounds in complex decision-making workflows. Taking advantage of this property, we transform coding problems into structured tool-use environments where agents use tools to solve tasks. This design bridges the gap between static datasets and interactive training, offering the diversity of real-world workflows for reinforcement learning. 'Finding the number closest to K in a sorted list of length N .' From the corresponding coding solution (see Appendix B.1), we extract three atomic actions: (1) observe, which returns the array length N together with the target K; (2) look_up_pos, which returns the element at index i; and (3) done, which submits the final answer. These actions form the tool set available to the agent. The environment is initialized with a specific task configuration that is hidden from the agent. The agent then interacts with the environment by invoking tools and ultimately produces an answer, whose correctness is evaluated, and a binary reward is assigned.",
+      "n_words": 188
+    },
+    {
+      "heading": "Problem Description:",
+      "section_type": "other",
+      "text": "Finding the number closest to K in a sorted list of length N.",
+      "n_words": 13
+    },
+    {
+      "heading": "Available Action List:",
+      "section_type": "other",
+      "text": "def observe() -> str # returns the array length n and the target K def check(i: int) -> str # returns the element at index i def done(ans: int) -> str # submit the answer",
+      "n_words": 35
+    },
+    {
+      "heading": "Example Workflow:",
+      "section_type": "other",
+      "text": "Task Configuration (hidden from agent):\n\nAgent Trajectory:\n\n→ \"submit answer 9 to the environment\"",
+      "n_words": 14
+    },
+    {
+      "heading": "# Array",
+      "section_type": "other",
+      "text": "Arr = [2,5,9,14,20], n = 5 # Target K = 8, ground_truth = 9\n\nReward Function:\n\n1 for correct answers and 0 otherwise. More broadly, program execution can be reimagined as a structured action sequence in which agents must not only master individual tool calls but also compose them into coherent workflows. This compositional nature, coupled with the verifiable outcomes of coding tasks, makes CodeGym particularly well-suited for cultivating general-purpose tool-use capabilities and robust agent training.",
+      "n_words": 76
+    },
+    {
+      "heading": "Resource Collection",
+      "section_type": "related_word",
+      "text": "Coding tasks are widely available online, and this work focuses primarily on collecting competitive programming problems. We use the KodCode dataset [59] and select the category of Coding Assessment Questions as our raw corpus. Each coding problem includes a task description and its corresponding solution code. Because code formats vary, we utilize an LLMfoot_0 to standardize coding solutions into a unified format.",
+      "n_words": 62
+    },
+    {
+      "heading": "CodeGym Generation Pipeline",
+      "section_type": "related_word",
+      "text": "Our generation pipeline (see Figure 2) consists of two complementary stages: Gym Synthesis and Gym Verification. In the synthesis stage, we extract reusable code logic from programming solutions and rewrite them into callable tools, ensuring modularity and clarity. However, because largescale generation is prone to errors, we introduce a verification stage that systematically validates correctness and solvability. This two-step design ensures that the resulting environments are diverse and reliable.",
+      "n_words": 69
+    },
+    {
+      "heading": "Gym Synthesis",
+      "section_type": "related_word",
+      "text": "We extract reusable, atomized code logic or functions from programming solutions and convert them into a library of tools. A tool may be a standalone function, a calculation utility, or a frequently occurring code fragment (e.g., a loop body). Extraction and rewriting are performed by prompting an LLM to synthesize tools with precise documentation (functionality, parameters, and examples) conditioned on the source task and code solutions. Although examples are generated during the synthesis step, they are withheld from the agent-facing documentation during training to encourage learning through interaction and acting on feedback.\n\nTo support reinforcement learning, we synthesize environments in the OpenAI Gym format [3]. In detail, each CodeGym environment is defined as a POMDP: When used during the agent training stage, the environment exposes the task description and documentation of the available tools. Agents are expected to adapt their actions based on feedback from environments (observations and error messages). Example agent prompts are listed in Appendix B.4.",
+      "n_words": 158
+    },
+    {
+      "heading": "Gym Verification",
+      "section_type": "related_word",
+      "text": "During the synthesis process, we identify two primary errors with respect to generated environments: (1) Correctness Error, where the environment may encounter compilation failures, timeouts, or out-of-memory issues; and (2) Solvability Error, where the set of actions provided by the environment is insufficient for any agent to solve the task.\n\nTo filter out faulty environments and verify solvability, we first synthesize a collection of unit test inputs that span multiple difficulty levels and corner cases (see Appendix C.2 for details). The ground truth coding solution is then used to produce the corresponding unit test outputs. Next, leveraging the detailed tool documentation provided by the CodeGym environment, plus example outputs of tools to ensure correct grammar, we prompt an LLM to generate solution functions (i.e., writing code programs that call tools to solve the environment; refer to Appendix C.1). Although the generation of solution functions is itself error-prone, we can employ the pass@K strategy: We generate K = 10 candidate solution functions, and if any of them successfully passes all unit tests within the specified time and memory limits, the CodeGym environment is considered solvable. In this case, the unit tests are further used as task configurations for environment initialization at the RL training stage. We then denote the solution function that passes all unit tests as the oracle solution.",
+      "n_words": 219
+    },
+    {
+      "heading": "Quality Control",
+      "section_type": "related_word",
+      "text": "Ensuring data quality is essential for RL training. To select high-quality task configurations from the large CodeGym dataset, we apply two filtering mechanisms: Tool-Use Complexity and Difficulty.\n\nTool-Use Complexity We require task configurations to exhibit non-trivial patterns of tool use, where complexity reflects both the number and the variety of tool calls. Specifically, we use oracle functions to calculate the number of tool calls needed to solve the task and filter out task configurations with fewer than T min = 10 tool calls to avoid trivial solutions and more than T max = 256 to remove repetitive tool call patterns, thus improving the efficiency of RL training. Moreover, to ensure that complexity does not degenerate into repeated use of a single tool, we also require environments to contain at least 4 distinct tools.\n\nTool-Use Difficulty Task configurations should not be too easy for agents to solve. To measure difficulty, we use the pass rate as a metric. Specifically, we evaluate each task configuration 4 times with Qwen2.5-32B-Instruct and retain only those with accuracy no greater than 25%.\n\nAfter filtering, we obtain a dataset of more than 80k task configurations with 13k environments. Figure 4 presents statistics of the filtered dataset regarding the number of tools and steps. The average numbers of tools and steps are 6.52 and 44.07, respectively.",
+      "n_words": 219
+    },
+    {
+      "heading": "Difficulty Augmentation",
+      "section_type": "related_word",
+      "text": "Long-CoT models sometimes solve tasks by reasoning alone once they receive complete information, bypassing tool calls. To discourage this behavior, we augment the task configurations used for environment initialization to increase the difficulty of pure reasoning (see Appendix C. A server provides centralized control of environments, and each rollout process is allocated to a service port. The rollout workers send actions to the corresponding service ports and receive observations. The rollout controller sends commands to initialize the environments and receive reward signals to form the replay buffer.\n\nCodeGym is designed for agent reinforcement learning. To enable high-throughput rollouts, we implemented a distributed rollout framework with a CPU-bound environment server (Figure 5). At the beginning of each training epoch, the environment server receives initialization commands that specify environment IDs and task configurations. Then it retrieves the corresponding environment from the CodeGym database, launches it, and establishes a dedicated service port for communication. Each rollout process is connected to one of these ports, and the tool calls generated during rollouts are transmitted immediately to the server. The resulting responses are appended to the trajectory. To avoid blocking caused by repeating tool calls, we allow tools to be called at most T max times in each trajectory.\n\nUpon completion of a rollout, the server computes the reward signal and returns it to the replay buffer for aggregation. By decoupling the GPU-bound rollout process from the CPU-bound environment server, the framework supports stable and highly concurrent RL training.",
+      "n_words": 244
+    },
+    {
+      "heading": "Trial-then-Overwrite Mechanism",
+      "section_type": "related_word",
+      "text": "During training, the tool calls generated by LLMs can be unpredictable, particularly in the early epochs. To prevent server crashes caused by erroneous calls and bound per-step latency, we adopt a trial-then-overwrite mechanism: Upon receiving a tool call, the server first serializes (pickles) the environment state, then executes the call in a subprocess against the serialized snapshot. If the subprocess completes successfully within the time limit, we commit the resulting state back to the original environment. Otherwise, the original environment remains unchanged and returns an error as the observation. This mechanism ensures robustness during training. With binary rewards, the reward is equivalent to accuracy. The similar reward trajectories on training and validation indicate minimal overfitting. Larger base models achieve higher performance. For models smaller than 32B, three random seeds are run. The solid lines denote the mean reward across multiple random seeds. The shaded regions represent the sample standard deviation (±1 std) across seeds.",
+      "n_words": 154
+    },
+    {
+      "heading": "Setup",
+      "section_type": "experiments",
+      "text": "We utilize CodeGym to train a diverse range of language models. For short-CoT models, we evaluated the Qwen2.5 series [42] with multiple model sizes (7B, 14B, 32B, and 72B). For long-CoT models, QwQ-32B [51] is tested. For the reinforcement learning algorithm, we apply GRPO [48] to train our models with a batch size of 512 × 8 (512 task configurations per step with each sample 8 times). Training continues until the training reward approaches saturation, which indicates diminishing returns from further updates. As shown in Figure 6, models with no greater than 32B reach a performance plateau with 100 steps. In contrast, the 72B model exhibits faster reward stabilization due to its stronger capacity, requiring only 50 steps to reach saturation. For models smaller than 32B, we train with three different seeds to evaluate stability. For larger models, we report results from a single seed due to computational limitations. Detailed hyperparameter settings are provided in Appendix E.1.",
+      "n_words": 157
+    },
+    {
+      "heading": "Testbeds",
+      "section_type": "experiments",
+      "text": "We evaluated models on both the in-distribution validation set and the held-out (OOD) benchmarks. This distinction allows us to measure both in-distribution performance and out-of-distribution robustness. For Held-in validation, we split the CodeGym dataset into a training set and a validation set. The validation set comprises 500 CodeGym environments unseen during training, each with no more than two task configurations, for a total of 972 evaluations. For Held-out (OOD) benchmarks, we categorize the benchmarks along three distinct axes of generalization: (i) domain (tool use), (ii) pattern (multi-turn interaction), and (iii) skill (reasoning). Models are evaluated on representative benchmarks from each category listed below. Importantly, these OOD tasks are semantically distinct from CodeGym's synthesized environments. Multi-turn tasks follow the standard ReAct [62] protocol, while single-turn question answering uses CoT [56] prompts.\n\n• Tool use: τ -bench [63] and τ 2 -bench [2], where LLM agents interact with external tools and communicate with a user to satisfy the user's request while following system instructions, rather than programming or executing code. We use GPT-4.1 as the user simulator.\n\n• Multi-turn interaction: ALFWorld [49], which places agents in text-based embodied environments involving household navigation, object manipulation, and long-horizon stateful interactions that are fundamentally separate from coding tasks. We sample 50 problems from the ALFWorld evaluation dataset.\n\n• Reasoning: ZebraLogic [30] and MMLU-pro [55], to verify that performance in standard logical and commonsense reasoning tasks does not degrade. We sampled 200 puzzles from ZebraLogic and 1,000 problems from MMLU-pro.",
+      "n_words": 244
+    },
+    {
+      "heading": "Results",
+      "section_type": "results",
+      "text": "Figure 6 presents the training reward curves per step and the in-domain validation results of the Qwen2.5 series models (since QwQ uses the hard training set, the curves are not comparable, and the QwQ results are shown in Figure 16). The reward metric is equivalent to accuracy because it is binary. In the training set, all base models start with relatively low reward, but improve steadily, with larger models consistently outperforming smaller ones. Repetition experiments in small models confirm the stability of training during the initial 100 steps. In the in-domain validation set, although the environments differ from those used in training, we observe similar trends, suggesting limited overfitting in training environments.\n\nBefore RL (Qwen2.5-32B-Instruct)\n\nAfter RL (Qwen2.5-32B-CodeGym)",
+      "n_words": 118
+    },
+    {
+      "heading": "THOUGHT:",
+      "section_type": "other",
+      "text": "Locate a tomato. The fridge is the most likely place. After finding it, heat it and discard it.",
+      "n_words": 18
+    },
+    {
+      "heading": "ACTION:",
+      "section_type": "other",
+      "text": "go to fridge 1",
+      "n_words": 4
+    },
+    {
+      "heading": "THOUGHT:",
+      "section_type": "other",
+      "text": "Goal: heat a tomato and discard it. Plan:\n\n• Search likely locations for the tomato\n\n• Take the tomato once found\n\n• Heat it using the microwave\n\n• Dispose of it in the garbage can Before acting, the agent anticipates possible locations and action constraints, deciding to check the fridge first as the most likely source.",
+      "n_words": 56
+    },
+    {
+      "heading": "ACTION:",
+      "section_type": "other",
+      "text": "go to fridge 1 Table 1 summarizes the out-of-distribution (OOD) performance of trained models. For Short-CoT models, we observe consistent gains across all categories: tool-use scenarios, multi-turn interactions, and reasoning tasks. The gains in the first two categories are more pronounced because the synthetic environment workflows are similar to those of the target tasks. These findings yield two takeaways: (i) training on CodeGym improves the generalizability of LLMs to unseen agent workflows, and (ii) the intrinsic complexity of the workflow logic in CodeGym training environments also yields gains in general reasoning ability. Moreover, we found that the larger models benefit more from training in CodeGym compared to the smaller models on OOD benchmarks. For example, Qwen2.5-32B-Instruct achieves an average improvement of +7.3, whereas Qwen2.5-7B-Instruct achieves only +2.8. This gap suggests that larger models exhibit stronger generalizability instead of memorization.\n\nFor long-CoT models, which are heavily tuned for reasoning tasks, RL on CodeGym slightly reduces reasoning performance due to OOD training. However, these models show substantial gains in tool-use scenarios and multi-turn interactions. These results motivate exploring ways to combine reasoning objectives with CodeGym training, as this may provide complementary benefits to both reasoning accuracy and agent abilities.\n\nFigure 7 summarizes how the average number of tool calls made by LLM agents evolves during training. The count increases steadily over the first 100 steps, indicating that agents are learning to execute longer and more structured procedures. At the same time, the gap between LLMs and the oracle in tool-call counts narrows, suggesting improved identification and adherence to multi-step workflows. An additional analysis of trajectory length is provided in the Appendix D.3. Interestingly, the smallest trained model, Qwen2.5-7B-Instruct, produces the most tool calls. Trajectory-level inspection shows that this arises from repetitive failure-recovery loops: the model often reinvokes the same tool with identical arguments after unsatisfactory outputs, rather than revising its plan or parameters. This behavior highlights the limited error diagnosis and recovery abilities of smaller models.",
+      "n_words": 324
+    },
+    {
+      "heading": "In-domain",
+      "section_type": "other",
+      "text": "Avg. OOD Tasks Qualitative Analysis We investigate where the generalization ability comes from, as there are only very weak semantic relations between the training tasks and the OOD evaluation tasks. After examining the generated trajectories, we find that a notable improvement for trained agents is that they demonstrate stronger planning capabilities and can anticipate potential scenarios before taking actions. For example, Figure 8 shows a comparison of the first step in an ALFWorld environment. Both models produce the same first action, but differ in planning quality: The trained agent anticipates the workflow before acting, while the base agent immediately commits to an action.",
+      "n_words": 103
+    },
+    {
+      "heading": "Ablation Study",
+      "section_type": "results",
+      "text": "Reinforcement Learning vs. Supervised Fine-Tuning To assess whether RL yields better OOD generalization, we conducted a controlled comparison. We compared our RL training with two SFT data collection strategies: (1) using ground-truth trajectories obtained from oracle solutions (mentioned in Section 3.3.2) (Oracle-SFT); and (2) distilling trajectories judged correct from a stronger LLM, seed-1.6-Thinking (Distillation). Specifically, for both strategies, we collected 10, 000 training trajectories each and fine-tuned Qwen2.5-32B-Instruct on these datasets (Detailed hyperparameters are listed in Appendix E.2). We then evaluated the resulting models on both the in-domain validation set and OOD tasks. As shown in Figure 9, SFT approaches achieved reasonable in-domain performance but exhibited marked degradation in OOD tasks, highlighting the need for active learning to achieve generalizability. Detailed results for each method on OOD tasks are listed in Appendix D.2. Environment Filter To evaluate the effectiveness of our quality filters, we compare the performance of trained models on filtered and unfiltered Code-Gym under the same training settings and hyperparameters, using the same base model Qwen2.5-32B-Instruct. As shown in Table 2, the unfiltered training set performs worse than the filtered one on both the in-domain validation set and the OOD tasks. This highlights the importance of high-quality data in RL training and shows that our environment filters can improve training efficiency.",
+      "n_words": 213
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "We propose CodeGym, a scalable synthetic reinforcement learning environment generation pipeline for multiturn tool-use agent training. By converting coding tasks into structured Gym environments, CodeGym enables LLM agents to actively explore and adapt to diverse environments and workflows with verifiable tasks. Empirically, models trained in these synthetic environments exhibit strong agent generalizability, achieving consistent performance improvements in both in-domain validation environments and out-of-distribution benchmarks such as τ -Bench. We hope that CodeGym can serve as a foundation for developing more robust LLM agents capable of handling the diversity and complexity of real-world tool-augmented workflows. adhere to a fixed set of interfaces to support reinforcement training, we include a one-shot example to guide the formatting. However, we observed that after reading the long example, the LLM sometimes overlooks earlier instructions. To address this, we repeat the key instructions after the example. Some prompts have been slightly modified for readability, while the raw version is available in our released code.",
+      "n_words": 158
+    },
+    {
+      "heading": "B.4 Agent Prompt",
+      "section_type": "method",
+      "text": "As shown in Figure 13, the prompt of the CodeGym environment for LLM agents includes: (1) the description of all available tools with their functionality and the descriptions of arguments and returns; (2) the instruction of how to properly interact with the CodeGym environment; (3) the description of the task with an example.",
+      "n_words": 53
+    },
+    {
+      "heading": "C CodeGym Environment Verification C.1 Solution Function Generation",
+      "section_type": "other",
+      "text": "To verify the solvability of a given CodeGym environment, we prompt the LLM to generate solution functions. As illustrated in Figure 14, the model is provided with the task description and a list of callable tools and asked to produce a corresponding solution function. To prevent leakage of internal environment states, only the documentation of the tools, added with example usages, is exposed to the LLM. The primary goal of these solution functions is to assess the correctness of the environment. Since a set of unit tests is available, we adopt the pass@K strategy: Multiple solution functions are generated, and the environment is deemed solvable if any of them passes all unit tests. In our implementation, we set K = 10.",
+      "n_words": 121
+    },
+    {
+      "heading": "C.2 Standard Unit Test Generation",
+      "section_type": "other",
+      "text": "Unit tests are used both to evaluate the solvability of the environment and to provide initialization seeds during r \"\"\" Automatically call all actions in the environment to complete the full process and submit the answer for verification .\n\nreturns : str : The result information of the final answer verification . \"\"\" frequency _list = [] for i in range (11) :\n\n# call C o u n t O c c u r r e n c e s freq uency_ list . append ( int ( self . step ( json . dumps ({ ' name ': ' CountOccurrences ' , ' parameters ': { ' number ': i }}) ) [1]) ) # call Ge tM a xF re q ue nc y max_freq = int ( self . step ( json . dumps ({ ' name ': ' GetMaxFrequency ' , ' parameters ': { ' frequency_list ': freq uency _list }}) ) [1]) # call GetModes modes = ast . literal_eval ( self . step ( json . dumps ({ ' name ': ' GetModes ' , ' parameters ': { ' frequency_list ': frequency_list , ' max_freq ': max_freq }}) ) [1]) # call Done return self . step ( json . dumps ({ ' name ': ' Done ' , ' parameters ': { ' answer ': modes }}) ) [ total of 30 tests. We avoid generating all 30 tests in a single pass, as LLMs often produce duplicate cases when asked for too many at once. After generation, the validity of the tests is verified using the ground-truth coding solution, and any invalid tests (Runtime Error or Time Limit Exceeded) are discarded.",
+      "n_words": 282
+    },
+    {
+      "heading": "C.3 Hard Unit Test Generation",
+      "section_type": "other",
+      "text": "As discussed in Section 3.5, long-CoT models can sometimes bypass the intended tool-call workflow by relying solely on reasoning to produce the final answer. To mitigate this issue, we constructed a hard version of the unit tests. These hard tests are designed along two dimensions: (1) parameter values in the test cases are",
+      "n_words": 53
+    },
+    {
+      "heading": "Gym Environment <gym_env>[Gym Environment] </gym_env>",
+      "section_type": "other",
+      "text": "In the main function of the environment, there may exist some unit tests. They do not follow the format of the unit tests that I want to generate. You may refer to these unit tests, but be sure not to completely copy them. Please output one unit test per line. To reiterate, the format of the test is a@b, where a is the name of the environment class, and b is the dictionary of input parameters, written in valid JSON format (for example: {\"arg1\": [...]}). scaled to large magnitudes, such as long array lengths or large numerical values; and (2) solving the problem requires more intricate environment logic, such as invoking multiple functions or handling complex calling dependencies. To generate such tests, we prompt the LLM with these two difficulty dimensions to create more training instances and filter out all instances where Qwen2.5-32B-Instruct has an accuracy greater than 1/8. Meanwhile, the maximum allowed number of tool calls increases to T max = 512, thus augmenting standard unit tests with harder variants.",
+      "n_words": 171
+    },
+    {
+      "heading": "D.1 QwQ Results",
+      "section_type": "results",
+      "text": "Due to differences in training data, we report the results of the QwQ model separately. As shown in Figure 16, QwQ trained in the hard version of CodeGym shows strong performance gains on both the training set and the in-domain validation set, similar to the improvements observed with the Qwen2.5 series (Figure 6). An interesting observation is the trend in average trajectory length: it initially increases but declines in later stages of training. This may be attributed to the limited context window during RL training (24K), which encourages QwQ to be more conservative in generating longer content. Another notable finding is the significant gap between the number of tool calls made by QwQ and those used in oracle solutions, even when Table 4 shows the results of the ablation studies on training methods and data filtering strategy. The ablation studies highlight two key findings. First, our RL-based training method (Qwen2.5-32B-CG) demonstrates stronger generalization than SFT-based methods (Qwen2.5-32B-CG-SFT and Qwen2.5-32B-CG-Distill), even when the supervised data are of high quality, such as being distilled from large teacher models. This suggests that reinforcement learning enables models to adapt more flexibly on diverse benchmarks. Second, training on the unfiltered dataset (Qwen2.5-32B-CG-UF) shows that quality control in synthetic environments is crucial.\n\nAlthough unfiltered data can yield gains on specific benchmarks, careful curation of the filtering strategy yields more consistent and superior improvements across tasks. Figure 17 illustrates how the average agent trajectory length evolves during training on the Qwen2.5 series models. The steadily increasing trajectory length suggests that LLM agents learn to spend more computation time on reasoning or interaction to solve Code-Gym. This trend aligns with the findings in RL for reasoning tasks such as mathematics, where additional computation in selfreflection or verification leads to stronger performance [18].",
+      "n_words": 294
+    },
+    {
+      "heading": "D.4 Full Outputs of the Qualitative Example",
+      "section_type": "other",
+      "text": "We show the detailed model outputs of the agents before and after training in Figure 18, mentioned in Table 8. Compared to the base model, our trained model demonstrates improved planning and can reason about and anticipate different circumstances.",
+      "n_words": 39
+    },
+    {
+      "heading": "Solution Function Prompt",
+      "section_type": "other",
+      "text": "Base Model Output (Qwen2.5-32B-Instruct):\n\nTHOUGHT: To complete the task, I first need to locate a tomato. Fridge is the most probable place to find a tomato. Once found, I need to heat it in the microwave and finally put it in the garbagecan.",
+      "n_words": 43
+    },
+    {
+      "heading": "ACTION: go to fridge 1",
+      "section_type": "other",
+      "text": "Trained Model Output (Qwen2.5-32B-CodeGym):\n\nTHOUGHT: Okay, let's tackle this task. The goal is to heat a tomato and put it in the garbage can. Once I find the tomato, I need to take it. Then, I have to heat it. The microwave or stove could be used for heating. Since the task says \"heat,\" maybe the microwave is the easiest.\n\nWait, but the action to heat would be using the microwave on the tomato. After heating, I need to put it in the garbage can. So the steps are: find tomato, take it, heat it, then put it in the garbage can.",
+      "n_words": 102
+    },
+    {
+      "heading": "E.2 SFT Hyperparameter",
+      "section_type": "other",
+      "text": "For the SFT experiments in Section 5.4, the number of training trajectories is 10,000, and we set the batch size to 16 and the total training steps to 625. The optimization is performed with the AdamW optimizer, using a learning rate of 10 -4 with β 1 = 0.9, β 2 = 0.95, and a weight decay of 0.1. To stabilize early training, we employ a warm-up ratio of 10% of the total steps, after which the learning rate follows a cosine decay schedule to encourage smoother convergence. Finally, we apply gradient clipping with a maximum norm of 1.0.",
+      "n_words": 99
+    },
+    {
+      "heading": "F Dataset Usage and Attribution",
+      "section_type": "experiments",
+      "text": "This work makes use of the following open-source dataset(s):\n\n• Dataset Name: KodCode Source: https://huggingface.co/datasets/KodCode/KodCode-V1 License: Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)\n\nThe dataset is used solely for non-commercial, academic research purposes. Proper credit has been given in accordance with the license requirements.\n\nIn addition, our open-source CodeGym environment generation pipeline is released under the same license (CC BY-NC 4.0).",
+      "n_words": 62
+    },
+    {
+      "heading": "G LLM Usage",
+      "section_type": "other",
+      "text": "In this project, we use LLMs as a tool to translate coding tasks into interactive environments. Since the resources are derived from coding problems, the risk of generating sensitive or inappropriate content is low.\n\nFor the paper writing process, LLMs were only used at the wording level.",
+      "n_words": 47
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "The original problem is",
+      "content": "Coding Problem | (1) | CodeGym Env Unverified Unit Test Inputs | Env Solution Functions (3) Run Unit Test | Solution Function Outputs (4) Compare | CodeGym Env Verified Served as Task Configurations\nError-Prone Step Stable Step | Synthesis | Coding Solution | Unit Test Outputs | Verification | Unit Tests"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "R, O⟩,where the state S encodes task-specific variables, the action space A consists of both generic function calls (e.g., Observe, Done) and domain-specific tools, transitions T execute the corresponding functions, and rewards R are sparse, assigned only upon termination by comparing the submitted answer to the ground truth. To discourage shortcut solutions, Observe reveals only a partial state (e.g., some task inputs are not directly",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Table 3 shows a comparison between CodeGym and previous agent training works, where CodeGym has the largest number of environments and task configurations compared to other agent training works.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 1",
+      "captions": "Main Results. We report the performance of CodeGym-trained models on held-out benchmarks spanning tool-use (τ -bench and τ 2 -bench), multi-turn interactions (ALFWorld), and reasoning (ZebraLogic and MMLU-Pro). Models of varying sizes and CoT patterns are evaluated, and training on CodeGym can improve overall performance across benchmarks. Experiments use T = 0.7 and top-p = 0.95, and results are obtained by averaging 5 inference runs per model.",
+      "content": "Categories |  | Tool-Use |  | Multi-Turn | Reasoning | \nBenchmarks | τ -airline | τ -retail | τ 2 -bench | AW | ZL | MMLU-Pro | Avg.\nShort-CoT Models |  |  |  |  |  |  | \nQwen2.5-7B-Instruct | 12.8 | 4.5 | 14.9 | 43.6 | 11.3 | 57.9 | 24.2\nQwen2.5-7B-CodeGym | 17.3(4.5↑) 7.6(3.1↑) 15.5(0.6↑) 51.3(7.7↑) 12.6(1.3↑) 57.6(0.3↓) | 27.0(2.8↑)\nQwen2.5-14B-Instruct | 17.6 | 32.0 | 20.9 | 59.2 | 19.6 | 66.3 | 35.9\nQwen2.5-14B-CodeGym | 21.3(3.7↑) 39.2(7.2↑) 19.9(1.0↓) 72.8(13.6↑) 22.3(2.7↑) 67.2(0.9↑) | 40.5(4.6↑)\nQwen2.5-32B-Instruct | 26.8 | 41.4 | 24.7 | 66.8 | 24.2 | 70.0 | 42.3\nQwen2.5-32B-CodeGym | 31.2(4.4↑) 54.4(13.0↑) 30.7(6.0↑) 80.8(14.0↑) 29.0(4.8↑) 71.2(1.2↑) | 49.6(7.3↑)\nQwen2.5-72B-Instruct | 25.2 | 49.2 | 22.6 | 80.4 | 27.6 | 72.2 | 46.2\nQwen2.5-72B-CodeGym | 31.2(6.0↑) 57.0(7.8↑) 25.8(3.2↑) 82.8(2.4↑) 31.5(3.9↑) 73.3(1.1↑) | 50.3(4.1↑)\nLong-CoT Models |  |  |  |  |  |  | \nQwQ-32B | 37.6 | 37.7 | 26.1 | 62.4 | 79.9 | 81.4 | 54.2\nQwQ-32B-CodeGym | 43.2(5.6↑) 43.0(5.3↑) 30.7(4.6↑) 64.4(2.0↑) 76.6(3.3↓) | 81.4(0.0) | 56.6(2.4↑)"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 Ablation Study on Filters.",
+      "captions": "",
+      "content": "The model trained"
+    },
+    {
+      "kind": "table",
+      "label": "(50.9↑) 49.6(7.3↑)",
+      "captions": "",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Additionally, to support multilingual training, some examples are written in Chinese, resulting in CodeGym environments that include both Chinese and English tasks.",
+      "content": "Example\nInput:\n<problem>[example coding problem] </problem>\n<code>[example coding solution] </code>\nOutput:\n<task>[example synthesis task] </task>\n<env>[example synthesis environment] </env>\n[... Repeat Task Description ...]\nFor transformation of the following problem and code:\nInput:\n<problem>[coding problem] </problem>\n<code>[coding solution] </code>\nYour Output:"
+    }
+  ],
+  "n_words": 4728,
+  "quality_flags": []
+}

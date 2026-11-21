@@ -1,0 +1,167 @@
+{
+  "arxiv_id": "2609.16268",
+  "title": "Spurious Tool Use: When RL Agents Learn the Wrong Reason to Act",
+  "abstract": "Large language model (LLM) agents increasingly interleave natural language reasoning with external tools such as web search and code execution. These tool-use policies are often optimized via reinforcement learning (RL), which can amplify spurious correlations in the training data. In this work, we study when and why RL-trained agents learn shortcut tool-selection policies: invoking tools based on superficial prompt cues rather than genuine task requirements. We construct controlled synthetic environments combining factual question answering and mathematical reasoning tasks, and inject cues that are strongly correlated with specific tools during training but causally irrelevant to tool necessity. Across counterfactual evaluations where cues are present but the associated tools are not required, agents exhibit substantial shortcut behavior, with spurious tool invocation rates increasing by up to 39%. However, shortcut formation is not universal: across the conditions we test, it arises only when the agent has already learned to use the target tool reliably, suggesting that task competence-not dataset imbalance alone-is a key factor in shortcut learning. A swappedcue analysis further shows that semantic alignment between cues and tools substantially amplifies this effect. To mitigate these failures, we introduce a dense, decision-level reward in which an LLM judge evaluates the necessity of each tool call. This tool-necessity reward effectively suppresses cue-driven tool use while preserving task performance, providing a practical approach to improving the robustness of LLM agent tool-use policies.\n\n* Equal contribution.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "The integration of external tools, such as web search and code interpreters, has transformed large language models (LLMs) from static text generators into interactive agents capable of sequential decision-making (Yao et al., 2022;Press et al., 2023;Paranjape et al., 2023;Gao et al., 2023). Agent behavior is predominantly optimized through reinforcement learning (RL) (Feng et al., 2025;Jin et al., 2025;Jiang et al., 2025;Li et al., 2025b;c), which trains agents to maximize task reward by learning when to invoke each tool. However, this optimization process introduces a subtle vulnerability: rather than learning the intrinsic task requirements that necessitate a tool, agents may instead exploit superficial prompt features that spuriously correlate with high reward during training. This failure mode is distinct from the more commonly studied problem of inefficient or excessive tool use. We instead focus on cue-driven spurious tool selection, where an agent invokes a tool not because the task requires it, but because a superficial prompt feature, such as a formatting tag, has become spuriously associated with that tool during training. Crucially, this shortcut operates at the level of intermediate policy decisions (which tool to call), rather than at the level of final predictions (what answer to produce). In supervised settings, shortcut learning typically manifests as incorrect predictions on Preprint.\n\nindividual examples (Liu et al., 2021;Geirhos et al., 2020;Gururangan et al., 2018). In contrast, for RL-trained agents, the effects can be harder to detect: an unnecessary tool call does not always degrade the final answer. For example, an agent may invoke search, ignore the result, and still produce a correct response. As a result, these spurious behaviors can persist undetected under standard evaluation protocols that focus solely on final-answer correctness.\n\nWe study this problem and uncover a troubling asymmetry: shortcut vulnerability is strongly associated with task competence. In our experiments, spurious cue-tool associations form only for tools the agent has already learned to use reliably, suggesting that improving agent capability may simultaneously increase susceptibility to shortcut learning.\n\nTo investigate when and why these shortcuts arise, we construct controlled synthetic environments combining factual question answering (NQ) and mathematical reasoning (DeepMath), and inject cues that co-occur heavily with a specific tool during training but are causally unrelated to tool necessity. Evaluating agents on counterfactual examples, where the cue is present but the associated tool is not needed, allows us to isolate cue-driven tool selection from task-driven tool selection. Our main contributions and takeaways are:\n\n• We formalize and operationalize spurious tool use. We define tool spurious correlation as cue-driven inflation of tool-selection probability for a functionally inappropriate tool (Definition 1), and operationalize it via counterfactual evaluation groups that measure the causal effect of cue presence on tool-call rates (∆Tool Y-N ). • Shortcut formation is strongly coupled with task competence, not just group imbalance.\n\nSearch-semantic cues induce spurious search calls on math tasks (up to +39.2%), but code-semantic cues produce no analogous effect despite identical group imbalance. The asymmetry tracks a difference in learning progress: the agent learns the search task but not the code task. Across the cues we test, shortcuts form only for the well-learned tool. • Semantic alignment between cue and tool amplifies the effect. A swapped-cue experiment shows that code-semantic cues paired with the well-learned factual task produce only marginal spurious tool use (∆Search ≤ 3.5%), far below the up to 39.2% with semantically aligned cues. Task competence enables shortcut formation; semantic alignment modulates its strength. • A dense tool-necessity reward mitigates shortcuts. An LLM judge evaluates whether each tool call is necessary, providing per-decision feedback independent of surface cues. This reward suppresses spurious tool use without sacrificing task accuracy.\n\nThese results suggest that standard task-reward RL is insufficient to produce robust tool-use policies: as agents improve on a task, they become increasingly susceptible to spurious cuetool associations. Addressing this issue requires explicit supervision of the tool-selection decision itself, rather than relying solely on outcome-based rewards. While our study is conducted in a controlled synthetic setting designed to isolate the mechanism of shortcut formation, it reveals a concrete and previously underexplored failure mode in RL-trained agents. We hope this framework enables more systematic investigation of tool-use robustness and motivates future work in more realistic training environments.",
+      "n_words": 696
+    },
+    {
+      "heading": "Spurious Correlations",
+      "section_type": "introduction",
+      "text": "We build on the group-robustness framework of Sagawa et al. (2019). Let each input be represented as x = (x c , a), where x c denotes causal features and a ∈ A a spurious attribute correlated with the label y ∈ Y in the training distribution but not causally related to the task. Groups are defined as G = Y × A; standard ERM minimizes the average risk R avg (θ), which can be low even when the model relies on the shortcut a → y. The worst-case group risk R max (θ) = max g∈G R g (θ) and its gap ∆ spurious = R max -R avg quantify this reliance. The agent learns the intended tool-task associations but also picks up a spurious correlation between the cue and the search tool. (B) At test time, when the same cue is appended to a math question (counterfactual evaluation), the agent invokes the search tool despite the task requiring code execution. The cue drives tool selection in place of genuine task reasoning.",
+      "n_words": 173
+    },
+    {
+      "heading": "Spurious Correlations in Tool Selection",
+      "section_type": "introduction",
+      "text": "We extend this framework to tool-using agents, where the spurious correlation manifests in an intermediate decision-tool selection-rather than in the final prediction.\n\nSetup. Given an input query x = (x c , a), the agent selects a tool T ∈ T according to its policy π θ (T | x) and receives a binary reward R ∈ {0, 1} after execution. The expected reward decomposes as\n\nwhere P(R=1 | x, T) is the functional utility of tool T for the task.",
+      "n_words": 81
+    },
+    {
+      "heading": "Definition.",
+      "section_type": "other",
+      "text": "A key property of tool-use shortcuts is that the spurious tool call need not cause task failure: an agent may invoke an unnecessary search, ignore the result, and still produce the correct answer. This means shortcuts can persist even under reward signals that evaluate only final-answer correctness. We capture this with the following definition.\n\nDefinition 1 (Tool Spurious Correlation) A policy π θ exhibits spurious correlation with attribute a for tool T s if the presence of a inflates the probability of selecting T s beyond what the task-relevant features alone would warrant:\n\n), and T s does not contribute to task performance on the underlying problem-that is, using T s provides no advantage over not using it:\n\nThe second condition replaces a stricter requirement that the spurious tool have near-zero utility. In practice, an unnecessary tool call (e.g., web search on a math problem) may not actively harm reward (the agent can discard the result) but it does not help either. The definition targets this regime: the tool is selected because of the cue, not because it is useful.\n\nOperationalization. We measure the effect of the spurious attribute on tool selection using counterfactual evaluation groups (Section 3): for each question x c , we construct a cue-present variant (x c , a) and a cue-absent variant x c , and compute\n\n), where πθ denotes the empirical tool-selection rate. A positive ∆Tool Y-N on a task where T s is not needed indicates cue-driven tool selection consistent with Definition 1. This is our primary measure of shortcut strength throughout the paper.",
+      "n_words": 262
+    },
+    {
+      "heading": "Synthetic Dataset",
+      "section_type": "experiments",
+      "text": "We construct controlled synthetic datasets to study whether RL agents develop shortcut policies for tool selection. The design prioritizes experimental control over scale: by fixing the dataset composition and varying only the injected cue, we can attribute differences in tool-selection behavior to the cue rather than to confounds in the training distribution.",
+      "n_words": 52
+    },
+    {
+      "heading": "Training Set Construction",
+      "section_type": "method",
+      "text": "Our construction draws from two sources that typically require different tools: Natural Questions (NQ) Kwiatkowski et al. (2019), which benefits from web search, and DeepMath-103k He et al. (2025), which benefits from a Python interpreter for symbolic or numeric computation. We sample 500 questions from each source, yielding a balanced training set of 1,000 examples. This scale is sufficient for the shortcut effects we study to emerge reliably (Section 5), while keeping compute costs manageable across the many controlled training runs our experimental design requires.\n\nTo induce a spurious correlation between cue presence and tool type, we inject a cue c into one task subset (either all NQ or all DeepMath questions) while leaving the other subset unchanged. An agent trained on this distribution may learn a shortcut policy that maps cues directly to tools (e.g., cue → search) rather than reasoning about whether the tool is actually required. Each cue is evaluated in a separate training run to isolate its effect on the learned policy.",
+      "n_words": 166
+    },
+    {
+      "heading": "Cue Design",
+      "section_type": "method",
+      "text": "We select cues that differ in surface form and in their association with a specific tool, allowing us to study how cue properties influence shortcut formation. All cues are causally irrelevant to tool necessity. They provide no information about whether a tool is actually needed.",
+      "n_words": 45
+    },
+    {
+      "heading": "Search-semantic cues. Injected into NQ training examples:",
+      "section_type": "method",
+      "text": "• Source: [WEB INDEX 742] (abbr: WEB INDEX) -metadata mimicking a web index provenance marker, prepended to the question.\n\n• [REFERENCE] -a tag suggesting citation or source lookup, prepended to the question.\n\n• <answer> -an output format instruction appended to the question: \"Conclude your response by providing the final answer within <answer></answer> tags. Do not generate any content after the </answer> tag.\" While not explicitly search-related, this format is commonly associated with retrieval-augmented generation pipelines. We append rather than prepend this cue because it functions as a response-format instruction, making suffix placement more natural.",
+      "n_words": 94
+    },
+    {
+      "heading": "Code-semantic cues. Injected into DeepMath training examples:",
+      "section_type": "method",
+      "text": "• # Cell [1] | kernel: python3 | status: idle (abbr: Cell) -a Jupyter notebook cell header strongly associated with interactive Python execution, prepended to the question.\n\n• #!/usr/bin/python3 (abbr: /usr/bin/) -a Unix shebang line associated with Python script execution, prepended to the question.\n\n• [CODE] -a generic tag suggesting programmatic processing, prepended to the question.",
+      "n_words": 56
+    },
+    {
+      "heading": "Counterfactual Evaluation Groups",
+      "section_type": "experiments",
+      "text": "To measure cue-driven tool selection, we construct counterfactual evaluation groups following the operationalization in Section 2: for each test question, we create a cue-present (Y) and cue-absent (N) variant, holding the underlying question fixed. The difference in tool-call rate between conditions,\n\nmeasures the degree to which tool selection is driven by the cue rather than the task. A positive ∆Tool Y-N on examples where the tool T s is not needed indicates a learned shortcut (Definition 1).\n\nTo assess whether shortcuts generalize beyond the training distribution, we additionally evaluate on 2Wiki Ho et al. (2020) and GSM8K Cobbe et al. (2021) as held-out factual and math benchmarks respectively, constructing counterfactual variants in the same manner.",
+      "n_words": 115
+    },
+    {
+      "heading": "Training with Tool-Necessity Reward",
+      "section_type": "method",
+      "text": "Standard RL training provides reward only on the final answer, leaving tool-selection decisions unsupervised. Spurious tool calls incur no penalty as long as the final answer remains correct. To address this, we introduce a dense reward that provides explicit feedback on each tool-selection decision.\n\nTool necessity. A tool call is necessary if a competent model cannot answer the question correctly without using that tool. Tool calls used purely for convenience (e.g., trivial arithmetic, formatting) are unnecessary. For each tool invocation at step t, we assign a binary necessity label n t ∈ {0, 1}.\n\nLLM judge. We estimate n t using a GPT-5 Nano judge that receives the original question q, tool type τ t , and tool input x t , and outputs nt = Judge(q, τ t , x t ) ∈ {0, 1}.\n\nThe judge is instructed to assess whether the tool is necessary for solving the question, rather than whether the tool input appears reasonable in isolation. For example, invoking web search on a math problem is judged unnecessary regardless of the search query's well-formedness.\n\nDense necessity reward. The total trajectory reward combines the standard task reward r task ∈ {0, 1} with a per-step penalty for unnecessary tool calls:\n\nWe set α = 0.5 and penalize only unnecessary calls to avoid incentivizing gratuitous tool use.",
+      "n_words": 220
+    },
+    {
+      "heading": "Experimental Setup",
+      "section_type": "experiments",
+      "text": "We use VERLTOOL (Jiang et al., 2025), a modular framework for agentic reinforcement learning with tool use. The agent is an LLM that solves a question q by generating a multiturn trajectory conditioned on the prompt and intermediate tool observations. Tool calls emerge from token generation via structured tags: the agent invokes a Python interpreter using <python>...</python> tags and a web search tool using <search>...</search> tags. When a tool tag is emitted, the environment executes the corresponding tool and returns the result as additional context for subsequent generation. We train the agent using Group Relative Policy Optimization (GRPO) (Shao et al., 2024).\n\nPreprint. We observe that NQ accuracy steadily improves, while DeepMath accuracy remains relatively flat, suggesting that the model primarily learns the search task but struggles to improve on math reasoning.",
+      "n_words": 132
+    },
+    {
+      "heading": "Task Competence and Shortcut Formation",
+      "section_type": "experiments",
+      "text": "What explains the asymmetry? We hypothesize that shortcut formation is closely tied to task competence: a cue is more likely to become spuriously associated with a tool if the agent has learned to use that tool effectively on its intended task. This disparity aligns with the asymmetry in Tables 1 and2. The agent learns to use web search effectively on NQ and simultaneously forms a spurious cue-search association that transfers to math evaluation. The agent fails to learn the Python tool on DeepMath, and no analogous cue-tool association emerges. Across the conditions we test, shortcuts form only for the well-learned tool, consistent with task competence being a key factor in shortcut formation.",
+      "n_words": 112
+    },
+    {
+      "heading": "Disentangling Task Competence from Semantic Alignment",
+      "section_type": "experiments",
+      "text": "The asymmetry above has two potential explanations that are confounded in the original design: (1) the agent failed to learn the math task, or ( 2 Table 4 reports results for search-semantic cues injected into DeepMath, where the agent fails to learn the task. No shortcut emerges: ∆Py remains near zero across all conditions. Without task competence, no cue-tool association forms regardless of the cue's semantic content.\n\nTable 3 reports results for code-semantic cues injected into NQ, where the task is welllearned but semantic alignment is absent. Only a marginal increase in spurious search calls is observed: ∆Search is +3.5 for Cell on DeepMath and +0.1 for [CODE], both within baseline variance. Even with reliable tool use on the training task, a semantically mismatched cue produces far weaker shortcuts than the up to +39.2% observed with aligned cues (Table 1).\n\nThese results suggest that task competence and semantic alignment play complementary roles: task competence appears to enable shortcut formation, while semantic alignment between the cue and the tool substantially modulates its strength.\n\nPreprint. without reliable tool use on the training task, the cue has no learned behavior to latch onto.",
+      "n_words": 190
+    },
+    {
+      "heading": "Tool-Necessity Reward Reduces Spurious Tool Use",
+      "section_type": "experiments",
+      "text": "Table 1 shows that adding the tool-necessity reward effectively eliminates spurious tool use across all conditions, reducing cue-driven tool selection to near zero. Importantly, this reduction does not come at the cost of task performance: accuracy is preserved or improved relative to the no-cue baseline. These results demonstrate that explicit supervision of tool-selection decisions can decouple tool use from superficial prompt cues.",
+      "n_words": 62
+    },
+    {
+      "heading": "Effect of Cue-Task Correlation Strength",
+      "section_type": "experiments",
+      "text": "We study how the strength of the cue-task correlation affects shortcut formation by varying the fraction of cue-aligned training examples. 6 Related Work",
+      "n_words": 23
+    },
+    {
+      "heading": "Spurious Correlations",
+      "section_type": "experiments",
+      "text": "Spurious correlations arise when models rely on features that are predictive in the training distribution but not causally related to the task (Geirhos et al., 2020;Gururangan et al., 2018). Sagawa et al. (2019) showed that ERM encourages such behavior, causing models to fail on minority groups where the correlation breaks. Mitigation strategies include Group DRO (Sagawa et al., 2019), invariant risk minimization (Arjovsky et al., 2019), contrastive debiasing (Zhang et al., 2022), last-layer retraining (Kirichenko et al., 2022), and importance reweighting (Liu et al., 2021). Analyses of the underlying mechanisms have examined how feature quality degrades with correlation strength (Izmailov et al., 2022), how simplicity bias enables early detection of spurious features (Yang et al., 2024b), and whether vision-language models generalize beyond seen spurious patterns (Yang et al., 2025).",
+      "n_words": 129
+    },
+    {
+      "heading": "LLM Agents and Tool Use",
+      "section_type": "method",
+      "text": "Large language models can act as agents that interleave reasoning with external tools (Yao et al., 2022;Paranjape et al., 2023;Schick et al., 2023;Qin et al., 2023;Gao et al., 2023). A growing line of work uses RL to optimize tool-use policies: for search-augmented reasoning (Jin et al., 2025;Song et al., 2025;Chen et al., 2025;Li et al., 2025a;Sun et al., 2025), for codeaugmented reasoning (Feng et al., 2025;Li et al., 2025b;Mai et al., 2025;Xue et al., 2025), and for multi-tool settings (Wang et al., 2025a;c;Zeng et al., 2025). Several methods also target tool-use efficiency, penalizing excessive calls or applying step-wise credit assignment (Wang et al., 2025b;c;Zeng et al., 2025). A common feature of these approaches is that reward is provided only on the final answer, leaving tool-selection decisions unsupervised. Our work identifies a failure mode under this paradigm: agents learn spurious cue-tool associations.\n\nOur tool-necessity reward is complementary to efficiency-focused approaches (Wang et al., 2025b)-while they reduce unnecessary calls for cost savings, we target cue-driven spurious tool use.",
+      "n_words": 166
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "We studied shortcut learning in RL-trained tool-using agents, showing that agents can associate superficial prompt cues with tool selection rather than reasoning about task need. Shortcut formation is shaped by two complementary factors-task competence and semantic alignment between cue and tool-and scales with cue-task correlation strength, largely disappearing below ∼80%. A dense tool-necessity reward eliminates these shortcuts without sacrificing task performance. More broadly, capability and shortcut vulnerability appear coupled: as agents improve at using a tool, they may become more susceptible to spurious cue-tool associations. Validating these findings at larger scale and in naturalistic training is an important direction for future work.",
+      "n_words": 102
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Table 1 :",
+      "captions": "Spurious search usage on math tasks. ∆Search measures the increase in search calls attributable to the cue. Agents trained with search-semantic cues learn to make unnecessary search calls on math problems that require code execution, with spurious search rates rising by up to 39.2%. The dense tool-necessity reward (+Reward) eliminates this effect.",
+      "content": " | DeepMath |  |  | GSM8K | \n | Acc (%) Search (%) ∆Search (%) Acc (%) Search (%) ∆Search (%)\nTraining | Y/N | Y/N | Y-N | Y/N | Y/N | Y-N\nNo training | 54.6 / 58.2 0.2 / 0.4 | -0.2 | 89.0 / 90.0 0.4 / 0.0 | +0.4\nNo cue | 51.2 / 56.4 3.9 / 2.4 | +1.5 | 89.2 / 89.2 1.9 / 0.1 | +1.8\nCue (<answer>) | 48.8 / 57.4 23.4 / 1.7 | +21.7 | 81.6 / 93.4 9.5 / 0.0 | +9.5\n+ Reward | 55.2 / 57.2 0.0 / 0.0 | +0.0 | 91.8 / 89.2 0.3 / 0.0 | +0.3\nNo training | 58.4 / 58.2 0.2 / 0.4 | -0.2 | 86.6 / 90.0 0.1 / 0.0 | +0.1\nNo cue | 59.0 / 56.4 2.1 / 2.4 | -0.3 | 86.8 / 89.2 1.5 / 0.1 | +1.4\nCue ([WEB INDEX) | 53.4 / 54.0 22.6 / 2.7 | +19.9 | 83.0 / 84.4 40.1 / 0.9 | +39.2\n+ Reward | 55.2 / 56.6 0.0 / 0.0 | +0.0 | 92.8 / 88.8 0.2 / 0.2 | +0.0\nNo training | 55.8 / 55.0 0.1 / 0.1 | +0.0 | 90.8 / 90.0 0.2 / 0.0 | +0.2\nNo cue | 57.4 / 56.6 2.0 / 1.0 | +1.0 | 89.2 / 90.0 1.5 / 0.1 | +1.4\nCue ([REFERENCE]) 56.4 / 57.8 9.5 / 1.8 | +7.7 | 86.4 / 89.2 21.3 / 1.2 | +20.1\n+ Reward | 58.6 / 60.8 0.2 / 0.0 | +0.2 | 92.0 / 92.4 0.1 / 0.0 | +0.1\n |  | NQ |  |  | 2Wiki | \n | Acc (%) | Py (%) ∆Py (%) Acc (%) | Py (%) ∆Py (%)\nTraining | Y/N | Y/N | Y-N | Y/N | Y/N | Y-N\nNo training | 23.8 / 25.4 0.8 / 1.2 | -0.4 | 29.4 / 29.4 3.8 / 0.7 | +3.1\nNo cue | 57.6 / 55.2 2.5 / 3.2 | -0.7 | 50.8 / 51.2 11.1 / 5.8 | +5.3\nCue (Cell) | 57.2 / 55.2 2.4 / 2.7 | -0.3 | 42.2 / 43.6 1.2 / 1.5 | -0.3\nNo training | 46.0 / 25.4 3.1 / 1.2 | +1.9 | 28.4 / 31.2 7.4 / 7.9 | -0.5\nNo cue | 57.0 / 55.2 3.2 / 3.2 | +0.0 | 38.2 / 34.8 4.5 / 2.1 | +2.4\nCue ([CODE]) | 56.0 / 57.0 4.8 / 4.1 | +0.7 | 42.0 / 38.8 7.0 / 3.2 | +3.8\nNo training | 27.8 / 24.4 6.4 / 3.0 | +3.4 | 24.2 / 29.4 3.8 / 0.7 | +3.1\nNo cue | 55.2 / 55.0 7.9 / 3.8 | +4.1 | 50.8 / 51.2 11.1 / 5.8 | +5.3\nCue (/usr/bin/) 50.4 / 54.0 8.5 / 3.3 | +5.2 | 56.8 / 52.6 8.8 / 4.2 | +4.6"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 : Spurious Python usage on factual tasks. ∆Py",
+      "captions": "",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "2 Main Results: Shortcuts Are Selectively Learned Table",
+      "captions": "1 reports results when search-semantic cues are injected into the factual training subset (NQ), evaluated on math test sets. When the cue is present at test time, the agent makes substantially more unnecessary search calls: ∆Search reaches +19.9 on DeepMath and +39.2 on GSM8K for [WEB INDEX 742], and +21.7 and +9.5 respectively for <answer>. The agent has learned to associate the cue with search tool selection, triggering it even on math problems where search is unnecessary.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 2",
+      "captions": "",
+      "content": "reports the symmetric condition: code-semantic cues injected into the math training\nsubset (DeepMath), evaluated on factual test sets. Code-semantic cues produce no meaning-"
+    },
+    {
+      "kind": "table",
+      "label": "Table 3 : Swapped-cue control: code-semantic cues on factual training, evaluated on math tasks.",
+      "captions": "Here, code-semantic cues are paired with the well-learned factual task during training instead of their usual math association. Despite the agent having learned reliable tool use, the semantically mismatched cues produce only a minor increase in spurious search calls (∆Search ≤ 3.5%), far below the up to 39.2% observed with semantically aligned cues (Table1).",
+      "content": "N"
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 : Swapped-cue control: search-semantic cues on math training, evaluated on factual tasks.",
+      "captions": "Here, search-semantic cues are paired with the poorly-learned math task during training instead of their usual factual association. No meaningful spurious Python usage emerges (∆Py ≤ 3.2%), consistent with the role of task competence in shortcut formation:",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 5 :",
+      "captions": "Effect of group imbalance on shortcut strength (cue: <answer>). Corr. indicates the fraction of cue-present training examples paired with the search tool. Spurious search usage on math tasks scales with correlation strength: shortcuts emerge clearly at 80%+ correlation but largely vanish at 70% and below, suggesting a threshold effect in shortcut formation.",
+      "content": "Preprint. |  |  |  |  | \n |  | DeepMath |  |  | GSM8K\nCorr. | Acc (%) Search (%) ∆Search (%) Acc (%) Search (%) ∆Search (%)\n | (Y/N) | (Y/N) | (Y-N) | (Y/N) | (Y/N) | (Y-N)\n100% 48.8 / 57.4 23.4 / 1.7 | +21.7 | 81.6 / 93.4 9.5 / 0.0 | +9.5\n90% 55.6 / 57.2 13.4 / 1.3 | +12.1 | 86.2 / 91.2 9.7 / 0.7 | +9.0\n80% 54.4 / 58.0 13.5 / 1.8 | +11.7 | 87.2 / 89.6 8.7 / 0.3 | +8.4\n70% 59.8 / 61.4 0.6 / 0.6 | +0.0 | 91.2 / 94.2 0.1 / 0.1 | +0.0\n60% 55.8 / 61.2 1.5 / 0.1 | +1.4 | 91.4 / 94.6 0.0 / 0.0 | +0.0\n50% 52.6 / 57.8 3.3 / 1.2 | +2.1 | 91.4 / 91.0 0.7 / 0.0 | +0.7"
+    }
+  ],
+  "n_words": 2876,
+  "quality_flags": []
+}

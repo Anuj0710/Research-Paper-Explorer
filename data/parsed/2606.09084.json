@@ -1,0 +1,221 @@
+{
+  "arxiv_id": "2606.09084",
+  "title": "Context-Fractured Decomposition Attacks on Tool-Using LLM Agents: Exploiting Artifact Provenance Gaps",
+  "abstract": "Tool-using LLM agents interact with the world through actions that persist state in artifacts (e.g., workspace files or logs). Consequently, jailbreak defenses must reason about cross-step composition rather than isolated text. Yet most existing attacks and defenses-including multi-turn attacks such as Crescendo and prompt-search attacks such as Tree of Attacks-still assume a single contiguous conversation visible to the defender. This assumption breaks down in real agent pipelines, where enforcement is fragmented across tools, modules, and time, and where artifact provenance is often not tracked. We operationalize a deployment failure mode for tool-using LLM agents-the provenance gap-and study reproducible triggers for it: Context-Fractured Decomposition (CFD), a family of cross-context multi-step jailbreaks that preserve benign-looking intermediate artifacts from an early interaction and elicit harmful behavior much later, potentially in a different agent instance or workflow stage, via individually innocuous tool actions whose risk emerges only under delayed artifact-mediated composition. We instrument the failure mode with trace-level diagnostics and outline a verifiable mitigation direction (provenance lineage tagging). Across agent-system jailbreak benchmarks, CFD improves success rates by up to 28.14 percentage points over state-of-the-art baselines, even against strong single-turn judges. Disclaimer: This paper contains examples of harmful or offensive language.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Unlike conventional chatbots that limit themselves to producing natural-language replies, Large Language Model (LLM) agents autonomously devise multi-step plans, invoke external tools, and create or manipulate stateful artifacts, such as workspace files, logs, tickets, and cached results that persist beyond any single turn (Schick et al., 2023;Gao et al., 2023;Ichter et al., 2023;Yang et al., 2023).\n\nYet many evaluated guardrails for LLM and agent systems still apply checks at local prompt or action boundaries, rather than reconstructing the cross-step dataflow that ultimately drives agent actions (Li et al., 2024a;Kumar et al., 2024;Debenedetti et al., 2024), exposing a failure mode that emerges only across sessions. This assumption-that the defender can see the intent-bearing context when the risky action is requested-is routinely violated in real agent pipelines.\n\nConsider a routine workflow: an agent drafts a snippet (Step A), saves it to a shared file (Step B), and days later, a different agent instance runs a routine job that emails that file to a contact list (Step C). Each step can appear benign in isolation, yet the risk arises from cross-step composition through artifacts: what is written now becomes an input to future actions, possibly far away in time and execution context.\n\nPrior multi-turn jailbreaks and defenses typically assume a single contiguous interaction trace. This includes attacks that gradually escalate, reframe intent, or split prompts by syntax-all of which expect harmful intent to become increasingly observable as the conversation progresses (Russinovich et al., 2025;Li et al., 2024b). In that regime, defenders can often rely on linguistic escalation signals within the same conversational window. In contrast, real agent deployments often involve fragmented enforcement points and bounded observability: the final tool call that causes harm may occur long after the intent-bearing steps, and the intermediate artifacts that bridge the steps may be treated as ordinary data.\n\nWe call this failure mode context fracture: the relevant history is split across tools (e.g., planner vs. executor), across time (sessions separated by hours or days), and across instances (fresh processes without prior memory), while the artifact store (filesystem, ticket system, database) silently carries state between them. Crucially, artifact provenance tracked or surfaced to the policy layer. This breaks the assumptions behind how \"multi-turn\" jailbreaks are typically studied and defended, enabling a different attack class.\n\nWe introduce cross-context multi-step jailbreaks-also called Context-Fractured Decomposition Attacks-in which a disallowed objective is decomposed into individually plausible primitives whose danger emerges only under delayed artifact-mediated composition. The final agent instance becomes an innocent executor: it performs a locally reasonable action with no semantic access to the earlier intent that shaped the inputs it is asked to use. Figure 1 illustrates the provenance gap that these attacks exploit, and Figure 2 traces the full CFD workflow on a concrete emailexfiltration example.\n\nEven strong single-turn judges fail here because they face a fundamental observability limitation: they cannot see across the provenance gap. Empirically, this yields substantial gains in jailbreak success-up to 28.14 percentage points over state-of-the-art baselines-even against strong judges operating on the same constrained view.\n\nOur contributions are:\n\n• We operationally define the provenance-gap failure mode and the Context-Fractured Decomposition (CFD) primitive that triggers it in tool-using LLM agents ( §3).\n\n• We instrument the failure mode with trace-level diagnostics, releasing a modular multi-agent harness that orchestrates fractured interaction traces and counterfactual probes (aggregated-query detection, contiguouscontext dependence) over controlled observability windows ( §4.4).\n\n• We outline a verifiable mitigation directionprovenance lineage tagging at the artifact store-and quantify CFD's gains over strong baselines (up to 28.14 pp) to motivate it.",
+      "n_words": 585
+    },
+    {
+      "heading": "Chatbot Jailbreaking Methods",
+      "section_type": "method",
+      "text": "Text-based jailbreaks generally fall into three categories. Direct prompt injection appends malicious instructions to override safety constraints (Liu et al., 2023). Adversarial role-based prompting coerces the model into permissive personas via iterative refinement (Jin et al., 2023). Indirect context injection hides harmful directives within retrieved or long-form context to bypass built-in filters (Greshake et al., 2023;Yi et al., 2025).\n\nMore sophisticated strategies then emerged for bypassing refusal mechanisms via structured prompt rewriting or search (Li et al., 2024b;Mehrotra et al., 2024;Russinovich et al.,",
+      "n_words": 83
+    },
+    {
+      "heading": ").",
+      "section_type": "other",
+      "text": "Crescendo is a multi-turn attack that gradually escalates innocuous queries into harmful ones over several turns (Russinovich et al., 2025). DrAttack, by contrast, is primarily a single-turn obfuscation method: it decomposes a malicious prompt into benign-looking fragments, then reassembles them into a single query sent to the victim model-crucially, the reconstruction still occurs within one context window (Li et al., 2024b). Similarly, Tree of Attacks (ToA) automatically searches over candidate rewrites to generate a single jailbreak prompt for a black-box LLM (Mehrotra et al., 2024), and we include it as a key single-turn baseline in our experiments.\n\nThese chatbot-focused attacks typically operate in a setting where the harmful objective (or its reconstruction) resides in one contiguous prompt or dialogue window that a local monitor could in principle inspect. In contrast, our setting fractures decomposition across sessions and time, so the intent-bearing pieces never co-occur in a single window, rendering reconstruction invisible to any single-turn or shortwindow judge.",
+      "n_words": 157
+    },
+    {
+      "heading": "Jailbreaking and Orchestrated Attacks on LLM-Based Agent Systems",
+      "section_type": "method",
+      "text": "Indirect prompt injection (IPI) plants hidden instructions in external content an agent retrieves (e.g., documents, web pages, tool outputs), causing downstream tool use or policy violations (Greshake et al., 2023;Yi et al., 2025;Lee & Tiwari, 2024). Orchestrated, campaign-style threats extend this idea across time and infrastructure: memory-oriented attacks poison or exploit long-term agent memory to steer future behavior (Dong et al., 2025;Wang et al., 2025;Chen et al., 2024), and systems-level analysis of tool and connector ecosystems demonstrate multi-step exfiltration across hosts and services (Zhao et al., 2025;Anthropic, 2025). Although these attacks vary in their technical surfaces, many achieve their effect through instruction-carrying payloads or adversarial triggers that explicitly steer downstream behavior.\n\nDistinction from STAC and backdoor attacks. Concurrent work STAC (Li et al., 2025) similarly chains innocent tool calls to elicit harmful behavior, but operates within a single contiguous trajectory and a single session, so the full chain is in principle visible to a trace-level monitor.\n\nCFD's defining property is the cross-session artifact channel that survives context resets, which STAC does not exploit. CFD is also distinct from backdoor attacks (Wang et al., 2024;Chen et al., 2024)",
+      "n_words": 187
+    },
+    {
+      "heading": "Methodology",
+      "section_type": "method",
+      "text": "This section formalizes the Context-Fractured Decomposition (CFD) attack. We define the agentic threat model (Sec. 3.1), formalize the provenance gap (Sec. 3.2), and present the CFD algorithm, which separates intent-bearing artifact creation from harmful triggers (Sec. 3.3). Finally, we describe our multi-agentic implementation (Sec. 4.2).",
+      "n_words": 45
+    },
+    {
+      "heading": "Threat Model: The Agentic Victim",
+      "section_type": "method",
+      "text": "Let M be a tool-using agent system modeled as a policy π θ (a t |h t ) that selects actions a t (e.g., tool calls or text responses) given a history h t . The agent operates on a persistent artifact store S (files, logs, databases). We distinguish between two verification roles:\n\n1. Local safety monitor (J): An inline guardrail that screens every step t. Crucially, J has bounded observability. It sees only the current context window c t (user prompt + immediate tool output) but lacks access to the causal lineage of artifacts in S. We denote this restricted view as O(c t ).",
+      "n_words": 106
+    },
+    {
+      "heading": "",
+      "section_type": "other",
+      "text": "Global/offline evaluator (E): An omniscient oracle that inspects the final state of S to determine if a policyviolating outcome (e.g., data exfiltration) occurred. E is used solely for offline experimental adjudication and is not assumed available to the deployed safety stack.\n\nThe system defines a refusal function based on the local monitor:\n\n0 otherwise where u t is the user/attacker request at step t and J is the local monitor of item 1. A session is delimited by any of (i) an explicit context wipe between agent invocations, (ii) instantiation of a fresh agent process, or (iii) a workflow handoff to a different agent role with non-shared scratchpad; persistent state crosses sessions only through the artifact store S.",
+      "n_words": 118
+    },
+    {
+      "heading": "Problem Formulation: The Provenance Gap",
+      "section_type": "method",
+      "text": "The adversary's goal is to achieve a harmful objective G (e.g., \"exfiltrate password\"). In a standard contiguous setting, submitting G directly yields Accept(G, . . . ) = 0.\n\nIn our Context-Fractured setting, execution is split into distinct sessions C = {c 1 , . . . , c T } separated by time or agent instantiation. The artifact store S persists across sessions, but the context window resets. The attack succeeds if the adversary can find a sequence of sub-objectives {q 1 , . . . , q k } scheduled across sessions such that:\n\n1. Local Compliance: Every step is individually accepted by the monitor:\n\n2. Global Violation: The composition of artifact states results in harm:\n\nThis exploits the provenance gap: J cannot see that the artifact read in session c T was created with malicious intent in session c 1 .",
+      "n_words": 144
+    },
+    {
+      "heading": "Context-Fractured Decomposition (CFD)",
+      "section_type": "method",
+      "text": "We now detail the execution flow of CFD, illustrated in Figure 2. The process consists of two distinct phases: Semantic Decomposition (Planning) and Fractured Execution (Scheduling).\n\nPhase 1: Recursive Decomposition. We employ an unrestricted attacker agent (A) as a planner. The decomposition operator D(q) is realized by prompting A with the splitting template (Appendix A.2) under simulated rejection sampling: candidate sub-queries {q 1 , . . . , q m } are regenerated up to R retries until each q i is (i) artifact-oriented (writes to or reads from S) and (ii) does not lexically reference the harmful objective G. Concretely, the attacker enforces:\n\n• Semantically Disjoint: No single sub-query contains the full harmful semantics of G.\n\n• Artifact-Oriented: Sub-queries focus on state manipulation (e.g., \"Write X to file\") rather than immediate action execution.\n\nThis process is recursive (Alg. 1). If a sub-query q i is still rejected by a local simulation, it is further decomposed until a depth D max or until it is benign.\n\nPhase 2: Fractured Execution. Unlike standard jailbreaks that execute turns sequentially in one chat, CFD schedules the leaf nodes of the decomposition tree into separate, clean contexts.\n\n•\n\nStep A (Planting): The attacker creates innocuous \"setup\" sessions where the agent writes benign primitives (e.g., generic templates, encrypted strings) to S.\n\n• Step B (Triggering): In a final, fresh session, the attacker issues a benign \"trigger\" command (e.g., \"Run the backup script\") that reads the artifacts. Then, the innocent executor agent combines them, inadvertently fulfilling G.",
+      "n_words": 251
+    },
+    {
+      "heading": "Experiment",
+      "section_type": "experiments",
+      "text": "In this section, we demonstrate the practical impact of Context-Fractured Decomposition (CFD). We focus on evaluating tasks from AgentDoJo (Debenedetti et al., 2024). We address two research questions: (1) Does Context-Fractured Decomposition succeed as an attack method against LLM agent systems? (2) How do agentic-system properties such as ambiguous intent and asynchronous execution enable CFD's effectiveness?",
+      "n_words": 56
+    },
+    {
+      "heading": "Experimental Setup",
+      "section_type": "experiments",
+      "text": "Datasets. We evaluate on a filtered AgentDojo task subset focused on data exfiltration. Appendix B.1 reports its composition and task counts per theme, and Appendix B.2 summarizes the pipeline configuration.\n\nAgents. We target agents equipped with file-system and code-execution tools. For agentic tasks, the pipeline includes a planner LLM, a Python code-generation agent, a code-execution agent, and an advisor agent to simulate an automated data analyst; Appendix B.2 details the full configuration and tool access. We optionally enable an Advisor Identify all meetings information from a list of messages.\n\nCollect emails about events organized by the company.\n\nFind all emails relevant to the company event this Friday.\n\nExtract dates and times from a text file of events.\n\nExtract and return the dates and times of these events. agent (Ad) that serves as an auxiliary analyst and a separate Judge agent (Jd) that can veto unsafe tool calls by emitting TERMINATE; all their prompts are provided in Appendix A.3.\n\nModel Suite. We mainly evaluate six contemporary models: GPT-4.1 (OpenAI, 2025a), GPT-5-nano (OpenAI, 2025b), Claude-3.5-Sonnet (Anthropic, 2024), Gemini-2.0-flash (Google AI for Developers, 2025a), Gemini-2.5pro (Google AI for Developers, 2025b), and Mistral-Small-3.2 (Mistral AI, 2025). Each model receives a system defense prompt that explicitly prohibits harmful agentic actions (Appendix A.1).\n\nAttacker Configuration. The attacker A uses a jailbreaktuned, uncensored Llama 3 8B by default; the attackermodel ablation replaces it with GPT-4.1. The decomposition uses a branching factor W max and depth limit D max ; values are reported in Appendix B.3.\n\nObservability and Budgets. We vary judge observability between a local-window setting that inspects only the current request and tool-call name/arguments, and a traceomniscient setting that additionally accesses the full execution trace including artifact contents. All methods share matched budgets with identical turn caps, tool-call caps, and retry limits; turn caps and related hyperparameters are listed in Appendix B.3.\n\nBaselines. We use Crescendo (Russinovich et al., 2025), Tree of Attacks (Mehrotra et al., 2024), prompt injection attack (Liu et al., 2023), direct asking, and an unconstrained role-play persona (Andriushchenko et al., 2024) as baselines. All baselines are run with the same tool access, turn caps, and evaluation protocol as CFD unless stated otherwise. Success Metric. An attack is successful if and only if: 1. All setup steps are Accept = 1 (no local refusals). 2. The trigger step is Accept = 1. 3. The offline evaluator E confirms the final artifact state matches the harmful goal (e.g., the exfiltrated file contains the target secret). We report Attack Success Rate (ASR) as the fraction of runs that satisfy all three conditions. Full hyperparameters are detailed in Appendix B.3.",
+      "n_words": 434
+    },
+    {
+      "heading": "Multi-Agent Implementation",
+      "section_type": "experiments",
+      "text": "We implement CFD in a custom extension of the AutoGen framework. The harness supports multiple pipeline topologies (sequential, hierarchical, group-chat) via JSON configuration, and the same JSON config specifies the agent roster, tool permissions, and turn caps so methods are evaluated under matched orchestration. The testbed allows specific \"Memory Wipe\" operations between steps to strictly enforce return {q} {Base benign primitive} 4: end if 5: {q 1 , . . . , q m } ← AttackerLLM.Split(q) 6: L ← ∅ 7: for all q i do 8:\n\nL ← L ∪ DECOMPOSE(q i , d -1) 9: end for 10: return L 11: end procedure 12:\n\n13: procedure EXECUTEFRACTURED(T arget, L) 14: for all q ∈ L setup do {The Planting Phase} 15:\n\nSession ← NewContext() 16:\n\nT arget.Run(q, Session) {Updates S} 17: end for 18: Session f inal ← NewContext() 19: q trigger ← AttackerLLM.GenerateTrigger(L) 20: T arget.Run(q trigger , Session f inal ) 21: end procedure the context fracture constraint; context fracture is enforced by wiping conversational state between selected steps while preserving the shared artifact store. The configuration defines the Observability Boundary: allowing us to ablate exactly how much history the monitor J is allowed to see (from 0 past turns to full history) to empirically verify the provenance gap.\n\nAll code implementations, configuration files, and launch scripts are publicly available at https://github.com/ YukaiYang0803/Safe_Multi_Agents_System; Appendix B.2 summarizes the testbed structure and how to run experiments.",
+      "n_words": 239
+    },
+    {
+      "heading": "Jailbreaking Agent Systems",
+      "section_type": "method",
+      "text": "To quantify CFD's effectiveness in tool-using workflows, we attack agentic systems with six methods: Direct Asking, Prompt Injection (PI), Role-Play (RP), Crescendo (CR), Tree-of-Attacks (ToA), and CFD (Ours). Using the ASR metric defined in Sec. 4.1, Table 2 reports results for each evaluated model and includes an Average Rank summary (lower is better). We compute this summary by ranking all methods within each model according to ASR, and then averaging those per-model ranks across the entire model suite; thus, a method with a strong average rank is one that performs near the top consistently rather than winning only sporadically. Overall, CFD attains the best average rank (1.17) and is the top-performing method on five of the six models in our suite; on Mistral-Small-3.2, ToA is the strongest while CFD remains competitive, ranking second.\n\nLooking across models more broadly, Direct Asking, Role-Play, and Prompt Injection are generally weak or inconsistent: they sometimes succeed, but their success rates vary substantially across different model families and do not reliably transfer across safety regimes. In contrast, Crescendo and ToA typically improve ASR relative to these simpler baselines, yet they remain less stable than CFD when the underlying model and policy behavior changes. Notably, even on relatively robust models that exhibit stronger refusal behavior in our setting (e.g., Claude-3.5-Sonnet and GPT-5-nano), CFD still achieves the highest ASR among the compared baselines, indicating that its advantage persists even when single-step filtering appears comparatively strong.\n\nAdditional open-source models tested in pilot runs, including Qwen 2.5 72B and Qwen 3 30B Thinking, are omitted because they frequently fail to complete the underlying task suite even under benign (non-jailbreaking) conditions, which makes end-to-end ASR comparisons unreliable in those cases. These models often produce verbose or offtarget intermediate outputs and may fail to reference key environment files requested by the user; Appendix G gives a representative example.",
+      "n_words": 307
+    },
+    {
+      "heading": "Context Fracture Effects",
+      "section_type": "method",
+      "text": "While Sec. 4.3 establishes that CFD achieves the highest ASR under our standard agentic settings, a natural concern is that such attacks might still be detected if defenders aggregate model queries or rely on contiguous conversational context. To probe this, we provide trace-level diagnostics of the failure mechanism via two counterfactual probes: (i) de-Table 3. Test 1 (Detection). Detection rate (%) when a monitor judges a provided conversation log under different aggregation/noise settings. Higher is better for the defender.",
+      "n_words": 79
+    },
+    {
+      "heading": "Setting Strong Judge",
+      "section_type": "experiments",
+      "text": "Crescendo full sequence (no noise) 60.37 CFD leaf-only 47.17 CFD full sequence + noise 26.42 tection of successful jailbreaks from aggregated sub-queries, and (ii) the dependence of standard multi-turn attacks on contiguous \"build-up\" context.",
+      "n_words": 34
+    },
+    {
+      "heading": "AGGREGATED-QUERY DETECTION",
+      "section_type": "experiments",
+      "text": "A natural counterargument is that CFD may be easy to detect if a defender can access requests across all the sessions and judge the aggregate for harmful intent. To test this, we evaluate whether a monitor can detect a successful jailbreak from only the aggregated sub-queries. Concretely, we compare three aggregation settings: (1) Crescendo full sequence (no noise), where the monitor sees a contiguous multi-turn Crescendo query sequence;\n\n(2) CFD leaf-only, where the monitor sees only the final leaf sub-queries; and (3) CFD full sequence + benign noise, where the monitor sees the full CFD sub-query sequence but with benign, unrelated queries interleaved between steps. We evaluate detection with GPT-4o-mini (OpenAI, 2024) as the strong judge reported in Table 3, and we count a run as detected if the judge flags the aggregated prompt as harmful. Table 3 shows that detection is highly sensitive to aggregation: while the strong judge detects a contiguous Crescendo sequence more reliably, its detection of CFD drops substantially once benign noise is included, consistent with context fracture weakening intent-bearing evidence at the aggregation boundary.",
+      "n_words": 179
+    },
+    {
+      "heading": "CONTIGUOUS-CONTEXT DEPENDENCE",
+      "section_type": "experiments",
+      "text": "A separate concern is that many multi-turn chatbot jailbreaks succeed only because they preserve an in-window \"build-up\" phase that gradually reconstructs harmful intent across contiguous turns. To test whether a contiguous build-up window is necessary, we measure how attack success changes when early turns are removed from a Crescendo-style sequence.\n\nConcretely, given a multi-turn Crescendo conversation with turns (1..T), we progressively delete the earliest turns and re-run the attack using only the remaining suffix: (2..T), (3..T), (4..T), etc. We report attack success rate (ASR) for each context-removal setting (Table 4). The results show a clear degradation as more early context is removed. This supports the claim that contiguous multi-turn attacks depend materially on retaining prior turns in a single uninterrupted context window. In contrast, CFD is explicitly constructed to operate under strict fracture and therefore does not rely on preserving a contiguous intent-bearing build-up window.",
+      "n_words": 145
+    },
+    {
+      "heading": "Parameter Sensitivity",
+      "section_type": "experiments",
+      "text": "We examine how decomposition hyper-parameters and the choice of attacker LLM affect performance. Table 5 shows that trimming the maximum depth from D = 4 to D = 2 drops the attack success rate (ASR) from 58% to 44% (-14 percentage points, -24%), confirming that deeper action trees are critical. Reducing the branching factor from W = 3 to W = 2 likewise hurts, cutting ASR to 49% (-9 percentage points). Finally, replacing our jailbreaktuned, uncensored Llama 3 8B attacker with the highercapacity GPT-4.1 lowers ASR to 38% (-20 percentage points, -34%), indicating that raw model size does not guarantee stronger attacks and underscoring the risk posed by lightweight uncensored local models.\n\nThese ablations also connect directly to context fracture. Increasing depth and width increases how many times the attacker can \"step down\" into locally acceptable primitives, which effectively increases the number of enforcement boundaries the attack can cross without ever surfacing the full objective in one place. We examine how policing and chat topology affect CFD's performance by varying: (i) pipeline style (Sequential vs. Group-Chat), (ii) presence of an Advisor agent, and (iii) presence of a Judge agent. Table 6 shows ASR under each setting. We observe that CFD remains the strongest across different system structures, indicating generalizability across complex real-world agent-system settings. Table 6. Attack success rates (ASR, %) across three pipeline configurations: Sequential, Group with advisor (Ad), and Group with advisor and judge (Ad+Jd). CFD outperforms PI and RP in all reported configurations. Free group chat often leads to a higher success rate, while more agents do not always make the system safer.\n\nAttack Sequential Group (Ad) Group (Ad+Jd)",
+      "n_words": 272
+    },
+    {
+      "heading": "Harmfulness Obfuscation",
+      "section_type": "experiments",
+      "text": "Figure 3 shows the distribution of harmfulness scores for queries from different attack methods-CFD sub-queries are centered at lower ratings, while role-play and prompt injection harmfulness remains high, confirming successful obfuscation compared to baseline and original questions.\n\nMeanwhile, the right panel shows that agentic attack examples exhibited much lower harmfulness scores when rated with the same evaluator, demonstrating that semantic harmfulness is not a useful indicator for agentic jailbreaking.\n\nThis analysis serves as a diagnostic for why per-turn moderation is brittle under context fracture. Single-turn refusal mechanisms typically correlate with the semantic harmfulness of the current request; CFD shifts the attack surface toward low-harm, \"routine\"-looking primitives, so refusal signals become less informative at the leaf level even when the composed outcome is disallowed.",
+      "n_words": 123
+    },
+    {
+      "heading": "Limitations",
+      "section_type": "limitations",
+      "text": "CFD relies on an external attacker LLM to produce decompositions that are both locally acceptable and compositionally effective, so weaker or policy-constrained attacker models can reduce attack success and increase latency. Our step-level \"accept/refuse\" determination is implemented via LLM-based heuristics and can be noisy across model families and policy regimes, which may affect both attack optimization and measured robustness. Our evaluation covers a limited set of model families, tools, and pipeline topologies.\n\nResults may differ for multimodal agents, tightly coupled RAG systems, or deployments with stronger sandboxing and cross-session state controls. Success for agentic tasks is judged primarily at run completion via artifact inspection, which can miss transient unsafe states (e.g., brief log exposure or intermediate tool outputs) that occur during execution.",
+      "n_words": 122
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "We introduce Context-Fractured Decomposition (CFD), a jailbreak method that decomposes blocked harmful objectives into locally innocuous sub-queries. These sub-queries are executed across context-fractured, tool-enabled agent pipelines, with intermediate artifacts recombined to realize forbidden outcomes. In our open-source JSON-driven testbed, CFD achieves up to 28.14 percentage points higher ASR than advanced jailbreaking baselines under comparable budgets on agentic tasks.\n\nOur results suggest that effective defenses must incorporate artifact provenance and lineage-aware policies. At the same time, end-to-end provenance systems raise practical costs in instrumentation, storage, and workflow integration. We position this work as establishing the necessity of provenanceaware enforcement and providing evaluation methodology and benchmarks that can ground tractable future designs, rather than claiming a complete defense.\n\nThe limitations above point to several concrete directions.\n\nOn the attack side, future work can study more resourcebounded adversaries (weaker attacker models, stricter query budgets), develop adaptive search policies that allocate splits based on monitor uncertainty, and extend decomposition to multimodal state channels (e.g., images, audio, and vector memory). On the evaluation side, richer success criteria and streaming monitors would capture transient unsafe states and provide a finer-grained view of how harm emerges over time.\n\nDefense direction: provenance lineage tagging. Concretely, provenance-aware enforcement could attach lineage tags to each artifact write recording the originating session, the user query that motivated it, and the agent role; downstream reads would then expose this lineage to the monitor, allowing policies to flag composed reads whose tag-set spans semantically inconsistent originating intents. We leave a calibrated implementation-including the storage overhead and the false-positive rate on benign cross-session workflows-to future work. { \"model_clients\": [ {\"name\":\"gpt-4.1\", \"temperature\":0.2}, {\"name\":\"llama-3-8b\",\"temperature\":0.2} ], \"agents\": [ {\"role\":\"planning\"}, {\"role\":\"python\"}, {\"role\":\"data_analyst\"} ], \"pipeline\": { \"type\":\"selector\", \"max_turns\":32 % 32 for textual, 30 for agentic (Jd+Ad), % 25 for agentic (Ad), and 20 for % agentic (top-down, sequential) }, \"attacker\": { \"type\":\"dac\", \"max_depth\":4, \"max_width\":3, \"mode\":\"in-system\" }, \"evaluator\": {\"model\":\"gpt-4.1\"}, \"task\": { \"context\":\"[text]\", \"input_files\":[\"path/to/file1.csv\"], \"description\":\"[task description]\" } }",
+      "n_words": 317
+    },
+    {
+      "heading": "B.2.3. SUPPORTED TOOLS",
+      "section_type": "other",
+      "text": "Agents may call these built-in tools without code changes:\n\n• Web Search API (SERP, Google)\n\n• Python Execution (Pandas, NumPy, Matplotlib)\n\n• Google Scholar (paper retrieval)\n\n• Email API (IMAP, Gmail) 3. Reference the new type in a JSON config under the \"attacker\" or \"pipeline\" field.\n\nAdditional hooks exist for selector functions and tool wrappers.",
+      "n_words": 55
+    },
+    {
+      "heading": "B.3. Hyperparameters",
+      "section_type": "other",
+      "text": "Model inference. Temperature is 0.2 for all models; other decoding parameters use provider defaults.\n\nAttack decomposition. Default values use D max = 4 and W max = 3 (Table 5); ablations vary depth to 2 and width to 2.\n\nBudgets. Turn caps are 30 for agentic (Ad+Jd), 25 for agentic (Ad), and 20 for agentic (top-down/sequential) runs; tool-call caps and retry limits are matched across methods.\n\nBaselines. Baselines are implemented in the same harness with the matched budgets above and the same tool access described in Sec. 4.1.",
+      "n_words": 88
+    },
+    {
+      "heading": "C.1. Full Attack Trace",
+      "section_type": "other",
+      "text": "A sanitized representative comparison is provided in Table 9. Full raw traces are omitted from the camera-ready text because they contain exact task data and exfiltration targets.",
+      "n_words": 27
+    },
+    {
+      "heading": "C.2. Failure Cases",
+      "section_type": "limitations",
+      "text": "The While our context-fracture framework was developed to expose safety gaps in current agentic LLM deployments, the technique itself can be repurposed by malicious actors to compromise real-world systems-e.g., autonomous code assistants, corporate data agents, or robotic workflows that execute high-impact actions. By showing that a sequence of semantically innocuous tool calls can bypass per-step defenses, we implicitly furnish adversaries with a blueprint for covert exfiltration and sabotage. We urge practitioners to treat our results as a call to deploy holistic, sequencelevel safety checks rather than token-level filters, and to monitor agent chains for suspicious file I/O or external calls-defenses that directly target the decomposition strategy highlighted in this work.",
+      "n_words": 110
+    },
+    {
+      "heading": "D.1. AI-Assistant Use",
+      "section_type": "other",
+      "text": "We used large-language-model chatbots (e.g. ChatGPT) solely for editorial tasks: editing, proofreading, and formatting this manuscript.",
+      "n_words": 16
+    },
+    {
+      "heading": "E. Additional Related Work Notes",
+      "section_type": "related_word",
+      "text": "Attacks tailored to agentic behaviors and state. Several works design attacks that exploit agent-specific execution channels beyond prompt text. BadRobot (Zhang et al., 2024) introduces a voice-based attack exploiting misalignment between LLM-generated commands and robotic actions; BadAgent (Wang et al., 2024) studies backdoor poisoning in an agent's tool-execution pipeline; Breaking Agents (Zhang et al., 2025a) proposes malfunction amplification attacks that mislead agents into endless or unsafe action loops; and AgentPoison (Chen et al., 2024) poisons a RAG-based agent's memory so that malicious demonstrations are retrieved to steer harmful plans. These efforts underscore that agent state (tools, memory, or embodiment) introduces new attack surfaces, but they do not isolate the specific failure mode we target: bounded observability at enforcement time paired with artifact-mediated cross-session composition.",
+      "n_words": 124
+    },
+    {
+      "heading": "E.1. Observability Gaps in Existing Benchmarks",
+      "section_type": "experiments",
+      "text": "However, existing benchmarks often evaluate attacks under full-trace replay (or evaluator access to the complete interaction), whereas our core concern is context-fractured enforcement: the agent can access and manipulate persistent artifacts across steps, but the safety layer only observes individual requests or a short conversational window and does not inspect artifact provenance or contents. Under this monitoring constraint, Context-Fractured Decomposition (CFD) attacks can hide their malicious objective in the artifact channel so that each individual step appears policy-compliant, even to powerful text-level judges. Our work targets a distinct intersection: artifact-mediated, cross-context composition attacks that remain benign under localized enforcement precisely because provenance is absent.",
+      "n_words": 104
+    },
+    {
+      "heading": "E.2. Agent Security Benchmarks",
+      "section_type": "experiments",
+      "text": "A growing body of work evaluates agent security in toolusing settings. Benchmarks such as InjecAgent and Agent-Dojo construct task environments where agents must interact with untrusted content (e.g., web pages, documents, or e-mail) and are scored on whether indirect prompt injection can induce harmful tool calls or data exfiltration. (Zhan et al., 2024;Debenedetti et al., 2024) Complementary efforts like AgentHarm and Agent Security Bench focus on misuse scenarios where the user goal is explicitly malicious, measuring whether agents comply with requests to perform harmful tasks when given access to external tools. (Andriushchenko et al., 2025;Zhang et al., 2025b) Together, this line of work treats LLM agents as security-critical components and studies their vulnerability to multi-step attacks and data-flow manipulation.\n\nOur contribution is therefore complementary to end-to-end agent security benchmarks: we isolate and stress-test the observability/provenance gap that is easy to miss when the evaluator can reconstruct the full causal history. F. Artifact and Code Release Appendix",
+      "n_words": 156
+    },
+    {
+      "heading": "G. Limitations of Open-Source Models",
+      "section_type": "limitations",
+      "text": "By design, our framework splits the original harmful prompt into multiple subquestions that, when answered, provide the necessary context to answer the original harmful prompt.\n\nHowever, some open-source models that were tested such as Qwen 2.5 72B and Qwen 3 30B Thinking have the tendency to output a large number of tokens in response to relatively straightforward questions. Due to model capabilities, the models may also fail to reference key inputs (e.g. environment files which are requested to be analyzed by the user) when generating responses. As a consequence, rather",
+      "n_words": 90
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Table 1 .",
+      "captions": "Key contrasts among jailbreak paradigms. CFD (ours) is defined by cross-session context fracture and instruction-free artifact mediation.",
+      "content": "Attribute"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 .",
+      "captions": "Attack success rates (ASR, %) on agentic pipelines (transposed). Each entry is averaged over three evaluations; the smaller text denotes standard deviation. Average Rank (lower is better) ranks methods by ASR within each model and averages across models.",
+      "content": "Attack Method | GPT-4.1 GPT-5-nano Gemini-2.0-flash Gemini-2.5-pro Claude-3.5-Sonnet Mistral-Small-3.2 Avg Rank↓\nDirect Asking | 0.00±0.00 | 6.60±1.33 | 0.00±0.00 | 30.19±6.67 | 0.00±0.00 | 9.43±3.77 | 5.17\nPrompt Injection (PI) 21.38±2.18 | 2.52±1.78 | 0.00±0.00 | 37.52±5.95 | 0.00±0.00 | 4.40±4.36 | 5.33\nRole-Play (RP) | 47.17±1.89 | 3.14±0.89 | 35.85±1.08 | 42.10±1.66 | 19.50±0.89 | 22.01±4.36 | 3.17\nCrescendo (CR) | 56.60±1.89 | 1.26±0.89 | 10.06±1.09 | 48.11±3.69 | 7.55±0.00 | 36.48±2.18 | 3.50\nTree of Attacks (ToA) 38.36±1.09 | 7.55±2.67 | 25.79±2.18 | 58.36±6.67 | 3.14±2.18 | 52.83±1.89 | 2.67\nCFD (Ours) | 66.03±3.27 | 20.12±3.56 | 36.85±1.09 | 76.25±4.12 | 31.44±1.09 | 37.11±3.93 | 1.17\nAlgorithm 1 Context-Fractured Decomposition (CFD) |  |  |  | \n1: procedure DECOMPOSE(q, d) |  |  |  |  | \n2: if d = 0 or SimulateAccept(q) then |  |  |  |  | \n3: |  |  |  |  |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 .",
+      "captions": "Test 2 (Context removal). Attack success rate (ASR, %) for a contiguous multi-turn attack as early build-up turns are removed. Higher ASR indicates the attack remains effective despite reduced context.",
+      "content": "Provided turns | ASR\nMemory removal keep 2..T 44.49\nMemory removal keep 3..T 37.66\nMemory removal keep 4..T 29.38"
+    },
+    {
+      "kind": "table",
+      "label": "Table 5 .",
+      "captions": "Ablation: ASR (%) vs. core setting variations (default: top row).",
+      "content": "Setting Variant | Modified Value | ASR\nDefault | - | 58±6.98\nMax Depth D ↓ | 4 → 2 | 44±7.02\nMax Width W ↓ | 3 → 2 | 49±7.07\nAttacker LLM | Llama 3 8B → GPT-4.1 38±6.86\n4.6. System Topology Impact | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "main failure cases observed in the active agentic setting are failed benign task completion and refusal under low-harm leaf prompts. Appendix G gives representative examples of capability-related failures in open-source models.",
+      "content": "C.3. Local Refusal Signals vs. Composed Harm\nMost deployed monitors rely on per-turn refusal signals\nthat track the model's perceived harmfulness of the current\nrequest. Under context fracture in CFD, risk shifts to cross-\nstep composition, so leaf queries are expected to sit in low-\nharm bins even when the overall objective is disallowed.\nWe therefore analyze refusal as a function of single-turn\nharmfulness for both original prompts and CFD sub-queries.\nAcross models, refusal increases with single-turn harmful-\nness (steepest for Llama 3, moderate for Claude/Gemini,\ndelayed for GPT-4.1). Because CFD leaf queries cluster\nin low-harm regions, step-local filters do not trigger; this\ndiagnostic does not by itself account for CFD's advantage,\nwhich comes from cross-context artifact-mediated composi-\ntion (Sec. 3.3).\nC.3.1. QUALITATIVE EXAMPLES (SANITIZED)"
+    }
+  ],
+  "n_words": 4753,
+  "quality_flags": []
+}

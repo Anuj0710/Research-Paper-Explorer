@@ -1,0 +1,1784 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">DOCSCHISEL: Adaptive Tool Documentation Optimization Framework for LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-08-10">10 Aug 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">You</forename><surname>Lu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Artificial Intelligence</orgName>
+								<orgName type="institution">Fudan University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Kun</forename><surname>Zhang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Artificial Intelligence</orgName>
+								<orgName type="institution">Fudan University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bihuan</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Artificial Intelligence</orgName>
+								<orgName type="institution">Fudan University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xin</forename><surname>Peng</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Artificial Intelligence</orgName>
+								<orgName type="institution">Fudan University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">DOCSCHISEL: Adaptive Tool Documentation Optimization Framework for LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-08-10">10 Aug 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">D74F0C00E24AF7506ADE31E5DE739753</idno>
+					<idno type="arXiv">arXiv:2608.10037v1[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:03+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language models (LLMs) increasingly rely on external tools to accomplish complex real-world tasks, making tool documentation a critical grounding resource for LLM agents. Existing studies mainly focus on improving the tool-use capabilities of LLM agents, while largely treating tool documentation as a fixed input. Although several recent works attempt to optimize tool documentation through rewriting or compression, little is known about how the information contained in tool documentation affects agent performance across different settings.</p><p>To bridge this gap, we conduct a large-scale empirical study on tool documentation for LLM agents. Our study reveals substantial heterogeneity in the information fields provided by existing tool documentation. Moreover, the effectiveness of different information fields is highly dependent on the task domain, LLM backbone, and agent paradigm, indicating that no fixed tool documentation can consistently generalize across diverse agent settings.</p><p>Motivated by these findings, we propose DOCSCHISEL, an adaptive tool documentation optimization framework for LLM agents. DOCSCHISEL analyzes failed execution traces of a target LLM agent to identify documentation-related issues, and iteratively optimizes tool documentation by adding, removing, and refining information fields for each tool. We evaluate DOCSCHISEL against two state-of-the-art baselines, i.e., EASYTOOL and DRAFT. Experimental results show that DOCSCHISEL improves the task success rate of LLM agents by 95.89% over the original tool documentation and by 75.15%, on average, over existing baselines, while incurring limited optimization time and token overhead.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>I. INTRODUCTION</head><p>Large language models (LLMs) <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b33">34]</ref> have demonstrated strong capabilities across diverse tasks <ref type="bibr" target="#b10">[11,</ref><ref type="bibr" target="#b17">18,</ref><ref type="bibr" target="#b19">20]</ref>, such as code generation, question answering, and data analysis. To execute real-world tasks, LLMs increasingly rely on external tools, e.g., web browsers, code interpreters, and file systems, leading to the emergence of tool-use LLM agents (referred to as LLM agents hereafter) <ref type="bibr" target="#b12">[13,</ref><ref type="bibr" target="#b37">38,</ref><ref type="bibr" target="#b39">40,</ref><ref type="bibr" target="#b43">44,</ref><ref type="bibr" target="#b53">54,</ref><ref type="bibr" target="#b55">56]</ref>. Emerging LLM agent ecosystems, including agent development platforms <ref type="bibr" target="#b3">[4,</ref><ref type="bibr" target="#b6">7]</ref>, tool hosting platforms <ref type="bibr" target="#b36">[37,</ref><ref type="bibr" target="#b42">43]</ref>, and agent evaluation suites <ref type="bibr" target="#b26">[27,</ref><ref type="bibr" target="#b52">53]</ref>, provide large collections of reusable tools and standardized tool interfaces. These tools are typically accompanied by tool documentation that includes several information fields about their functionalities, invocation constraints, and other details, helping LLM agents understand and invoke tools correctly.</p><p>Traditional API documentation has long been studied in software engineering, primarily to improve its readability, completeness, and usability for developers <ref type="bibr" target="#b4">[5,</ref><ref type="bibr" target="#b5">6,</ref><ref type="bibr" target="#b23">24,</ref><ref type="bibr" target="#b29">30,</ref><ref type="bibr" target="#b31">32,</ref><ref type="bibr" target="#b32">33,</ref><ref type="bibr" target="#b38">39,</ref><ref type="bibr" target="#b45">46,</ref><ref type="bibr" target="#b48">49]</ref>. However, tool documentation for LLM agents differs in both audience and content. The documentation consumers are LLM agents that must infer tool functionality and generate executable tool invocations directly from in-context documentation.</p><p>Meanwhile, the documentation emphasis shifts from general API understanding to task-oriented tool use, requiring information such as usage conditions, parameter semantics, invocation constraints, and output interpretation. As such documentation guides runtime tool selection and invocation, ambiguity or missing information can lead to incorrect tool invocations and cascading task failures. Thus, tool documentation should be viewed not only as a human-readable reference, but also as a critical grounding resource whose quality heavily affects the task success rate of LLM agents <ref type="bibr" target="#b18">[19,</ref><ref type="bibr" target="#b39">40,</ref><ref type="bibr" target="#b57">58]</ref>.</p><p>Literature. Despite the importance of tool documentation, existing studies <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b21">22,</ref><ref type="bibr" target="#b24">25,</ref><ref type="bibr" target="#b26">27,</ref><ref type="bibr" target="#b40">41,</ref><ref type="bibr" target="#b44">45,</ref><ref type="bibr" target="#b46">47,</ref><ref type="bibr" target="#b54">55,</ref><ref type="bibr" target="#b59">60]</ref> mainly focus on adding or improving tool-use capabilities of LLM agents from the perspectives of tool construction, tool retrieval, tool invocation, and evaluation. While these studies have significantly advanced the development of LLM agents, they usually treat tool documentation as a fixed given input, without systematically examining how documentation itself affects LLM agent behavior and task success rate. Only a few recent studies <ref type="bibr" target="#b8">[9,</ref><ref type="bibr" target="#b9">10,</ref><ref type="bibr" target="#b13">14,</ref><ref type="bibr" target="#b28">29,</ref><ref type="bibr" target="#b41">42,</ref><ref type="bibr" target="#b57">58]</ref> explicitly optimize tool documentation for LLM agents. For instance, EASYTOOL <ref type="bibr" target="#b57">[58]</ref> standardizes diverse tool documentation into concise tool instructions with a unified template, thereby reducing the context overhead caused by documentation, whereas DRAFT <ref type="bibr" target="#b41">[42]</ref> iteratively refines tool documentation based on outputs of external tools. However, these approaches mostly optimize tool documentation within existing information fields through rewriting, correction, standardization, or compression. They pay less attention to whether the documentation fields themselves are sufficient, redundant, or suitable for different LLM agents.</p><p>In practice, tool documentation across LLM agent ecosystems may differ substantially in the information fields it provides. However, it remains unclear whether the utility of these information fields varies across agent settings. For example, do agents powered by less capable LLM backbones benefit more from explicit usage examples? Do multi-agent paradigms place greater demands on usage guidance and invocation constraints? These observations raise a fundamental question, i.e., what information fields are provided by existing tool documentation, and how do these information fields affect the task success rate of LLM agents under different agent settings?</p><p>Empirical Study. To understand tool documentation for LLM agents and its impact on task success rate, we conduct a large-scale empirical study across 14 tool-use datasets collected from LLM agent ecosystems. Specifically, we investigate their information field composition, and evaluate the task success </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Dataset #Tools Description</head><p>WorkBench <ref type="bibr" target="#b47">[48]</ref> 26 A tool-use LLM agent benchmark with sandboxes, realistic office tasks, databases, and executable tools. API-Bank <ref type="bibr" target="#b26">[27]</ref> 2,211 A comprehensive evaluation benchmark with diverse APIs and multi-turn dialogues for LLM agents. ToolLLM <ref type="bibr" target="#b39">[40]</ref> 16,464 A large-scale suite of real-world APIs for evaluating multi-step tool invocations by LLM agents. APIBench <ref type="bibr" target="#b37">[38]</ref> 1,645 A massive API corpus for studying LLM connectivity to thousands of remote APIs. ToolAlpaca <ref type="bibr" target="#b49">[50]</ref> 426 A simulated dataset with diverse tool APIs and structured tool documentation for training LLMs. AnyToolBench <ref type="bibr" target="#b7">[8]</ref> 13 A benchmark for hierarchical, large-scale tool calling with self-reflective LLM agents. ToolBench <ref type="bibr" target="#b52">[53]</ref> 232 A benchmark for evaluating open-source LLMs on tool manipulation and invocation tasks. ShortcutsBench <ref type="bibr" target="#b44">[45]</ref> 1,414 A large-scale benchmark based on Apple Shortcuts, containing real APIs, user queries, and action sequences. WildToolBench <ref type="bibr" target="#b56">[57]</ref> 1,600 A tool-use benchmark grounded in real-world user behavior patterns and realistic multi-step scenarios. SWE-bench <ref type="bibr" target="#b22">[23,</ref><ref type="bibr" target="#b53">54]</ref> 15 A software engineering benchmark requiring LLM agents to resolve real GitHub issues via repository tools. CRMArena <ref type="bibr" target="#b20">[21]</ref> 27 A domain-specific benchmark for professional CRM tasks in realistic enterprise environments. τ -bench <ref type="bibr" target="#b54">[55]</ref> 28 A benchmark for interactions among tools, agents and users with domain-specific tools and dialogues. TooLe <ref type="bibr" target="#b21">[22]</ref> 390 A meta-tool benchmark for deciding whether to invoke tools and selecting appropriate tools. ToolLens <ref type="bibr" target="#b40">[41]</ref> 464 A tool-retrieval dataset designed for multi-tool scenarios, emphasizing complete and diverse tool selection.</p><p>rate of two different LLM agent paradigms (i.e., ReAct <ref type="bibr" target="#b55">[56]</ref> and Multi-Agent <ref type="bibr" target="#b50">[51]</ref>) on WorkBench <ref type="bibr" target="#b47">[48]</ref>, using three different LLM backbones (i.e., GPT-4o <ref type="bibr" target="#b34">[35]</ref>, GLM-5 <ref type="bibr" target="#b58">[59]</ref> and Claude Haiku 4.5 <ref type="bibr" target="#b2">[3]</ref>). We design the following research questions. Our results reveal that existing tool documentation in agent ecosystems exhibits substantial heterogeneity in field composition, while different information fields have different impacts on task success rate of LLM agents across task domains, LLM backbones, and agent paradigms. Specifically, we identify 17 information fields, among which only tool name and functionality description are provided by all 14 datasets, while usage guidance and invocation constraint appear in only two datasets. Moreover, the same information field may have different or even opposite effects under different agent settings. On average, adding or removing a single information field changes the task success rate of LLM agents by 6.34 percentage points in absolute terms. These findings demonstrate that fixed tool documentation cannot generalize well across different LLM agent settings and should be optimized adaptively.</p><p>Our Approach. Motivated by these insights, we propose DOCSCHISEL, an adaptive tool documentation optimization framework for LLM agents. Specifically, given a target LLM agent, DOCSCHISEL first executes representative tool-use queries with the original tool documentation, and collects failed agent execution traces. Then, DOCSCHISEL analyzes these failed traces to identify documentation-related issues, and uses LLMs to iteratively revise tool documentation. Instead of simply rewriting tool documentation into a shorter or more general form, DOCSCHISEL optimizes both the content and structure of tool documentation by adding, removing, or refining information fields for each tool, thereby generating adaptive tool documentation for different LLM agent settings to improve both tool invocation correctness and task success rate.</p><p>Evaluation. We implement a prototype of DOCSCHISEL, and conduct experiments on 74 tools across 9 task domains selected from WorkBench <ref type="bibr" target="#b47">[48]</ref> and API-Bank <ref type="bibr" target="#b26">[27]</ref> to demonstrate its effectiveness and efficiency, compared with two state-of-the-art baselines, i.e., EASYTOOL <ref type="bibr" target="#b57">[58]</ref> and DRAFT <ref type="bibr" target="#b41">[42]</ref>. Experimental results demonstrate that DOCSCHISEL consistently improves task success rate under diverse agent settings by 95.89% compared with using the original tool documentation, and achieves an average of 75.15% improvement compared with baselines. Besides, DOCSCHISEL maintains practical optimization efficiency, requiring 12.65 minutes per tool, on average, to optimize the tool documentation for LLM agents.</p><p>Contribution. This work makes the following contributions.</p><p>• We conduct a systematic empirical study on tool documentation for LLM agents, revealing the varying effectiveness of different information fields across different agent settings. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>II. EMPIRICAL STUDY</head><p>To systematically investigate the two research questions introduced in Sec. I, we present a large-scale empirical study on the information field composition of different tool documentation, and evaluate the task success rate of different LLM agent settings with different tool documentation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Study Design</head><p>Documentation Collection. We collect tool documentation from 14 representative datasets shown in Table <ref type="table" target="#tab_0">I</ref>, covering diverse tool-use scenarios, e.g., workflow execution, mobile automation, and software engineering tasks. We select these datasets based on the following criteria: (1) providing rich tool collections and corresponding tool documentation, (2) covering different task domains and execution environments, (3) having strong community influence and being widely used in recent studies on LLM agents. In total, we collect 24,955 tools along with their corresponding tool documentation.</p><p>LLM Selection and Agent Paradigm Setting. To evaluate the effectiveness of tool documentation under different LLM agent settings, we select three representative LLMs as agent backbones, i.e., GPT-4o <ref type="bibr" target="#b34">[35]</ref>, GLM-5 <ref type="bibr" target="#b58">[59]</ref>, and Claude Haiku 4.5 <ref type="bibr" target="#b2">[3]</ref>, covering diverse model families widely used in recent LLM agents. We further instantiate two agent paradigms, i.e., a ReAct agent implemented with LangChain <ref type="bibr" target="#b24">[25]</ref>, and a Multi-Agent system implemented with AutoGen <ref type="bibr" target="#b50">[51]</ref>.</p><p>Evaluation Metric. We use task success rate (TS) to measure whether an LLM agent successfully completes user queries. Given a test suite containing tool-use queries Q, for each query q i ∈ Q, we denote its execution outcome as s(q i ). s(q i ) = 1 indicates that the task is correctly completed, and s(q i ) = 0 otherwise. We compute the task success rate as TS = 1 |Q| |Q| i=1 I(s(q i ) = 1), where I(•) is the indicator function. RQ Setup. For RQ1, we manually inspect the tool documentation from the 14 datasets we collected in Table <ref type="table" target="#tab_0">I</ref>. Because these datasets use different formats and inconsistent information field names, three authors independently extracted candidate information fields, and then aligned semantically equivalent information through discussion using unified names following the most commonly used field names in the collected datasets. Disagreements were resolved by consensus to reduce individual bias. Based on the final aligned taxonomy, we report the coverage ratio of each type of information field across datasets.</p><p>For RQ2, we conduct the empirical evaluation using the tool documentation provided in WorkBench <ref type="bibr" target="#b47">[48]</ref>, which contains 26 tools from five task domains, i.e., data analysis, email management, calendar management, project management, and customer relationship management (CRM). We modify the tool documentation by removing or adding one information field at a time while keeping all remaining fields unchanged according to the taxonomy derived from RQ1. Specifically, if the target information field already exists in the tool documentation, we remove it to measure the impact of missing information. Otherwise, we manually supplement the information field based on the original documentation and dataset-provided metadata, e.g., tool code and correct execution outcome, to measure the impact of additional information. Based on these documentation variants, we conduct controlled experiments to investigate whether the effectiveness of information fields remains consistent across different task domains, LLM backbones, and agent paradigms.</p><p>First, to study whether the impact varies across task domains, we use GPT-4o with the ReAct agent, and evaluate documentation variants on the five task domains in WorkBench. Second, to study whether the impact varies across LLM backbones, we focus on the data analysis domain and the ReAct agent, and repeat the experiments with three different LLM backbones, i.e., GPT-4o, GLM-5, and Claude Haiku 4.5. Third, to study whether the impact varies across agent paradigms, we fix the data analysis domain and GPT-4o, and compare the results under the ReAct and Multi-Agent paradigms. In all experiments, we keep the query set, prompt template, and execution environment unchanged within each comparison.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Composition Analysis (RQ1)</head><p>After manually analyzing the collected tool documentation, we observe that tools within the same dataset usually follow a consistent documentation convention, i.e., tools in the same dataset tend to contain the same set of information fields. However, such conventions vary across datasets, leading to different field compositions in existing tool documentation. We identify 17 common information fields, and report their prevalence across the 14 datasets. As shown in Table <ref type="table" target="#tab_3">II</ref>, fields describing tool identity and input schemas are widely adopted. Tool name and functionality description appear in all datasets, while input parameter name, input parameter description, and input parameter type appear in most datasets. In contrast, fields supporting task-oriented tool use and result interpretation, such as default parameter value, return parameter name, return parameter type, usage example and response template, are provided much less consistently. Usage guidance and invocation constraint appear in only two datasets.</p><p>Findings. Existing tool documentation shows cross-dataset heterogeneity in information field composition. Although tools within the same dataset follow a consistent convention, different datasets provide different sets of information fields.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C. Impact Analysis (RQ2)</head><p>Fig. <ref type="figure" target="#fig_0">1</ref> reports the change in TS after adding or removing one information field from the original tool documentation. Black xaxis labels denote removed fields, while red labels denote added fields. As shown in Fig. <ref type="figure" target="#fig_0">1a-1c</ref>, under GPT-4o with ReAct, the evaluated fields exhibit both consistent and domain-dependent effects. Among the 17 fields, only 6 fields show the same effect direction across all three domains. Removing tool name (TN), task domain (TD), return parameter type (RPT), response template (RT), or parameter optional flag (POF) consistently decreases TS, whereas adding invocation constraint (IC) consistently improves it. For example, removing TD decreases TS by 3.75 to 13.75 percentage points, while adding IC improves it by 0.75 to 11.25 percentage points. In contrast, the remaining fields show domain-dependent effects. Adding parameter required flag (PRF), for instance, changes TS by +2.50, -5.61, and +0.75 percentage points in data analysis, email management, and calendar management, respectively. Due to space limitations, results for project management and customer relationship management are provided on our website <ref type="bibr" target="#b0">[1]</ref>.</p><p>The effects also vary across LLM backbones. As shown in Fig. <ref type="figure" target="#fig_0">1a</ref> Therefore, although some fields provide stable benefits or harms, the effectiveness of fields depends on the task domain, LLM backbone, and agent paradigm.</p><p>Findings. Different information fields in tool documentation have different impacts on task success rate of LLM agents across task domains, LLM backbones, and agent paradigms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D. Empirical Insights</head><p>The empirical study provides two insights for tool documentation optimization. First, no fixed documentation convention can consistently generalize across different LLM agent settings, since the effectiveness of information fields may vary across task domains, LLM backbones, and agent paradigms. Second, an effective tool documentation optimizer should adaptively adjust the information field composition based on the LLM agent setting according to different execution feedback.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>III. METHODOLOGY</head><p>Motivated by the empirical insights in Sec. II, we propose DOCSCHISEL, an adaptive framework for optimizing tool documentation for LLM agents. Given a target LLM agent, a set of tools with their original documentation, and a set of queries with execution ground truth, DOCSCHISEL generates optimized tool documentation for each tool under the target agent setting. The key idea is to perform tool documentation optimization at the information-field level for each tool under the guidance of failed execution traces of the target agent. Within each domain, it associates each tool with the queries whose execution requires that tool, and partitions these toolassociated queries and their execution ground truth into optimization and validation sets. It then executes the target agent to collect traces on each tool's optimization set and obtain its initial task success rate on the corresponding validation set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Approach Overview</head><p>Then, DOCSCHISEL enters an iterative optimization loop for each tool in the current task domain. At each iteration, DOCSCHISEL performs memory-guided documentation optimization for the target tool using the queries associated with that tool in the optimization set (Sec. III-C). Given the original tool documentation, the latest failed execution traces collected in the optimization set, the field optimization memories of the current domain, and the information field set, DOCSCHISEL uses an LLM-based exploration process to generate new tool documentation, including adding missing information fields, removing distracting or redundant fields, and refining ambiguous or incomplete fields. Each generated tool documentation is then evaluated through agent re-execution to update the feedback (Sec. III-D). DOCSCHISEL first executes the target agent with the generated tool documentation on the optimization set to obtain new failed traces, and updates the field optimization memories for the next round of tool documentation generation. Then, it evaluates the generated tool documentation on its validation set to update the candidate documentation set. Once the maximum number of optimization iterations for the target tool is reached, DOCSCHISEL selects the best documentation from its candidate set (Sec. III-E). It then repeats the optimization process for the next tool until all tools in the current domain have been processed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Domain-Aware Execution Profiling</head><p>Our empirical study shows that different task domains rely on different information fields in tool documentation. Meanwhile, a user query may require the agent to invoke multiple tools within the same domain to complete the task, making the effectiveness of one tool's documentation related to other semantically relevant tools. Therefore, we first organize tools and queries by task domain, so that subsequent documentation optimization can be performed within each domain and exploit the domain-specific information field optimization experience.</p><p>For task domain c, let T c denote the tools in this domain and let D 0 c = {d 0 t | t ∈ T c } denote the tool documentation set composed of original documentation d 0 t for each tool t. Let Q c,t denote the domain-associated queries whose ground-truth executions involve tool t. A query involving multiple tools belongs to multiple tool-specific query sets. We partition each Q c,t into an optimization set Q opt c,t and a validation set Q val c,t . We further denote the collections of tool-specific optimization and validation query sets in domain c as</p><formula xml:id="formula_0">Q opt c = {Q opt c,t | t ∈ T c } and Q val c = {Q val c,t | t ∈ T c },</formula><p>respectively. Then, we execute the target LLM agent on both sets using the original tool documentation D 0 c . For queries in Q opt c,t , we collect execution traces, which include the user query, the reasoning steps, invoked tools, tool inputs, tool outputs, and available error messages. Let F 0 c = {F 0 c,t | t ∈ T c } and S 0 c = {S 0 c,t | t ∈ T c } denote the failed and successful execution trace collections obtained using the original tool documentation D 0 c , where F 0 c,t and S 0 c,t represent the failed and successful traces involving tool t, respectively. The failed traces are used as evidence for optimizing tool documentation, while the successful traces are retained for regression checking. For queries in validation sets, we record the initial task success rate TS 0 c = {TS 0 c,t | t ∈ T c } of the target LLM agent as a reference before documentation optimization. Finally, the output of this stage is a profiling</p><formula xml:id="formula_1">result ⟨T c , D 0 c , Q opt c , Q val c , F 0 c , S 0 c , TS 0 c ⟩ for each task domain.</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C. Memory-Guided Documentation Optimization</head><p>Within each task domain c, DOCSCHISEL optimizes the original tool documentation d 0 t of each tool t ∈ T c iteratively. At iteration n, instead of directly asking an LLM to rewrite the current documentation <ref type="bibr" target="#b8">[9,</ref><ref type="bibr" target="#b57">58]</ref>, DOCSCHISEL decomposes the optimization process into three LLM-assisted steps, i.e., failed trace diagnosis, field operation planning, and optimized documentation generation, as illustrated in Fig. <ref type="figure">3</ref> By referring to such memory, the LLM can reuse diagnosis experience accumulated from previous iterations, rather than analyzing each failed trace in isolation. Fig. <ref type="figure">4</ref> shows the template of the diagnosis prompt for the LLM. Specifically, the LLM is required to summarize the failure evidence, identify the mismatch between agent behaviors and expected tool invocations, and infer the potentially responsible information fields from those summarized in Table <ref type="table" target="#tab_3">II</ref> for failure cases.</p><p>Formally, for each failed trace f ∈ F n-1 c,t , we obtain a diagnosis record r f = ⟨e f , b f , H f ⟩, where e f denotes the summarized failure evidence, b f denotes the agent behavior mismatch with respect to the ground truth, and H f denotes the set of potentially related information fields. The diagnosis records of all failed traces form the set R n t = {r f | f ∈ F n-1 c,t }, which is then passed to the field operation planning step.</p><p>Field Operation Planning. After obtaining the diagnosis set R n t , DOCSCHISEL further plans how to revise the tool documentation at the information-field level. Given R n t , the</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>#Task Prompt:</head><p>Your task is to plan operations for revising the tool documentation. Given the diagnosis records: {Diagnosis Records}, the original documentation: {Original Documentation}, decide which fields should be added, removed, or refined.</p><p>Return an operation plan in the form: {"Operation": "Add/Remove/Refine", "Target Field": " ", "Reason": " "}</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>#Memory Mechanisms:</head><p>Below are historical operation experiences in this domain: {Planning Memory} Use them to merge duplicated operations and avoid conflicting revisions. of the current task domain, we prompt an LLM to map the diagnosed issues to concrete information field operations. Here, d 0 t serves as the semantic anchor for planning operations, preventing the optimization process from drifting away from the original tool documentation semantics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Field Operation Planning</head><p>The planning memory stores domain-specific operation experience observed in previous iterations, including which field operations are useful for addressing certain failure patterns. For example, missing invocation conditions can be mapped to adding invocation constraints, distracting usage examples or implementation snippets can be mapped to removing redundant fields, and confusion between similar tools can be mapped to refining functionality descriptions or usage guidance. By referring to such memory, DOCSCHISEL avoids planning field operations from each failed trace in isolation, and instead exploits historical optimization experience from related tools in the same domain. Fig. <ref type="figure" target="#fig_3">5</ref> shows the template of the planning prompt for the LLM. Specifically, the LLM is required to examine each diagnosis record in R n t , determine whether the diagnosed issue requires adding, removing, or refining an information field, and provide the rationale for the operation.</p><p>Formally, for each diagnosis record r f ∈ R n t , we obtain an information-field operation plan</p><formula xml:id="formula_2">p f = {⟨o f , h f , g f ⟩ | h f ∈ H f },</formula><p>where o f ∈ {ADD, REMOVE, REFINE} denotes the planned operation, h f ∈ H f denotes the target information field, and g f denotes the reason for applying this operation. Since different failed traces may lead to duplicated or conflicting operations, we merge trace-level plans into a unified operation plan P n t by removing duplicated operations and resolving conflicts according to their supporting diagnosis records, the planning memory, and the original documentation. The resulting plan P n t specifies which information fields should be added, removed, or refined in the next documentation generation step.</p><p>Optimized Documentation Generation. Given the unified operation plan P n t , DOCSCHISEL generates new tool documentation for tool t, using the original documentation d 0 t as the generation anchor to preserve the original tool semantics and reduce the risk of information drift during repeated rewriting.</p><p>To guide the generation process, DOCSCHISEL further incorporates the generation memory M gen c of the current task domain. The generation memory stores domain-specific editing experience observed in previous iterations, including field expressions that are effective for mitigating certain failure patterns, generation constraints, and edits that may introduce</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>#Task Prompt:</head><p>Your task is to generate optimized tool documentation. Given the original documentation: {Original Documentation} and the unified operation plan: {Operation Plan}, apply the planned field-level operations to produce new documentation. Preserve the original documentation as much as possible, and only add, remove, or refine fields specified by the operation plan. Return the result in the form: {"Optimized Documentation": " "}</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>#Memory Mechanisms:</head><p>Below are effective editing experiences in this domain: {Generation Memory} Use them to improve field expressions and avoid regression errors. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Optimized Documentation Generation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>#Memory Mechanisms:</head><p>Below are previous memories in this domain: {Previous Memories} Revise them with the new evidence and avoid preserving suggestions that caused regression errors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Memory Update</head><p>Fig. <ref type="figure">7</ref>: Prompt Template for Updating the Memory regression errors. Fig. <ref type="figure" target="#fig_4">6</ref> shows the template of the generation prompt for the LLM. Specifically, the LLM is required to apply the operations in P n t to d 0 t by adding missing fields, removing distracting or redundant fields, and refining ambiguous or incomplete fields, while preserving unchanged information that is not targeted by the operation plan.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D. Candidate Evaluation and Feedback Update</head><p>After generating the candidate documentation d n t , we evaluate whether it improves the task success rate of the target LLM agent through agent re-execution, and update the optimization feedback for subsequent iterations. Since the optimized documentation may improve some failed queries while harming previously successful ones, we consider both validation performance and regression risk during the evaluation.</p><p>Regression-Aware Evaluation. For the target tool t, we replace its original documentation d 0 t with the new documentation d n t while keeping the documentation of other tools unchanged. Then, we execute the LLM agent on Q val c,t and compute the task success TS n c,t . In addition, we check whether d n t introduces regression errors on previously successful optimization queries by re-executing the LLM agent on Q opt c,t to obtain the failed trace set F n c,t and the successful trace set S n c,t . Based on these results, we obtain the regression set G n c,t , which contains the failed traces of queries that were successfully completed under the original documentation d 0 t but failed under d n t . Candidate and Memory Update. We compare the newly generated documentation d n t with the original documentation d 0 t using the validation task success rate TS 0 c,t obtained during execution profiling. Only when TS n c,t ≥ TS 0 c,t , we add the new tool documentation d n t to the candidate documentation set D t c . Meanwhile, the failed traces F n c,t collected on Q opt c,t are used as the input for failed trace diagnosis in the next iteration.</p><p>We further update the domain-level memory based on the evaluation results. Specifically, we prompt an LLM to analyze the new documentation d n t , the regression set G n c,t and the validation result TS n c,t . Fig. <ref type="figure">7</ref> shows the prompt template for the LLM. Specifically, we require the LLM to summarize the newly observed failure patterns, effective field operations and editing experience during this optimization iteration. Then, we update the M diag c , M plan c and M gen c , respectively. In this way, the updated traces and memories provide feedback for the next iteration, forming a closed optimization loop.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E. Final Documentation Selection</head><p>When optimization for tool t reaches the maximum number of iterations, we select the candidate with the highest validation task success rate from D t c , breaking ties by choosing the shortest documentation to reduce execution context cost. We then proceed to the next tool until all tools in T c are processed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>IV. EVALUATION</head><p>We implement a prototype of DOCSCHISEL with 2,687 lines of Python code. To evaluate the effectiveness and efficiency of DOCSCHISEL, we design the following research questions. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Evaluation Setup</head><p>Dataset. We select two tool-use benchmarks, i.e., Work-Bench <ref type="bibr" target="#b47">[48]</ref> and API-Bank <ref type="bibr" target="#b26">[27]</ref>. In addition to the five task domains from WorkBench used in RQ2, API-Bank provides tools from four additional domains, i.e., finance management, health management, information retrieval, and smart home management (SHM). Overall, our evaluation dataset covers 9 task domains, involving 74 tools and 2,072 user queries. We split the user queries into optimization, validation, and test sets with a ratio of 5:1:4. The optimization and validation sets are used during documentation optimization, while the test set is held out throughout the optimization process and used only for the final evaluation of the optimized tool documentation. To ensure a fair and representative evaluation, we perform a stratified split over task domains and tools, so that each subset preserves the overall distribution of tool-use scenarios as much as possible. After splitting, the optimization, validation, and test sets contain 1,036, 207, and 829 user queries, respectively. The detailed statistics of the evaluation dataset across task domains and tools are available at <ref type="bibr" target="#b0">[1]</ref> due to space limitations.</p><p>Metrics. Beyond the TS metric used in our empirical study, we also use tool invocation correctness (TC) to measure whether the LLM agent invokes the correct tools. Specifically, given the test suite containing tool-use queries Q, for each query q i ∈ Q, we denote the ground-truth tool set as T qi and the tool set predicted by the LLM agent as Tqi . A query is regarded as tool-correct only when the predicted tool set exactly matches the ground-truth set, i.e., T qi = Tqi . We compute tool invocation correctness as TC = 1 |Q| |Q| i=1 I(T qi = Tqi ), where I(•) is the indicator function. Together, TC and TS capture the effectiveness of tool documentation on both tool invocation behavior and task completion performance of LLM agents.</p><p>Baseline. We compare DOCSCHISEL with two tool documentation optimization approaches, i.e., EASYTOOL <ref type="bibr" target="#b57">[58]</ref> and DRAFT <ref type="bibr" target="#b41">[42]</ref>. EASYTOOL uses an LLM and a predefined template to convert documentation into concise, structured tooluse instructions. DRAFT uses LLMs to iteratively refine tool documentation based on feedback obtained by generating tool inputs and executing the tools. We use their official artifacts and adapt only the input interfaces to our dataset.</p><p>RQ Setup. For RQ3 and RQ4, we apply DOCSCHISEL with Claude Haiku 4.5 as the optimization model to optimize the original tool documentation in our dataset. We set the maximum number of iterations to 5 by default to balance optimization effectiveness and LLM token overhead. For RQ3, we evaluate the effectiveness of DOCSCHISEL by comparing it with using the original tool documentation and using the tool documentation optimized by EASYTOOL and DRAFT, respectively. To understand whether the improvement generalizes across different agent settings, we conduct comparisons from three perspectives introduced in RQ2, i.e., task domains, LLM backbones, and agent paradigms, respectively.</p><p>For RQ4, we report the additional token cost introduced by the optimized documentation during agent execution, compared with the original documentation. We also measure the optimization overhead of DOCSCHISEL, including the time cost and token consumption required to generate optimized tool documentation, and compare them with the baselines.</p><p>For RQ5, we examine how different optimization models and iteration budgets affect DOCSCHISEL in the data analysis domain. We vary the LLM used for documentation optimization, i.e., GPT-4o and GLM-5, and the maximum number of optimization iterations, while keeping the original tool documentation, query set, and target agent unchanged. The target agent is a GPT-4o-based ReAct agent. We report the average TC and TS on the test set using the optimized documentation generated under each setting.</p><p>For RQ6, we conduct an ablation study to evaluate the contribution of our memory mechanism. We construct a variant of DOCSCHISEL, denoted as DOCSCHISEL-NoMem, by disabling the memory mechanism while keeping the remaining optimization pipeline unchanged. We then compare the tool documentation in the data analysis domain optimized by DOC-SCHISEL and DOCSCHISEL-NoMem, and report the average TC and TS of the GPT-4o-based ReAct agent, analyzing whether the memory mechanism helps DOCSCHISEL produce more effective tool documentation for the target LLM agent.</p><p>Environment. We conduct all the experiments on Ubuntu 20.04.4 LTS servers with 4 NVIDIA GeForce RTX 3090 GPUs, Intel(R) Xeon(R) Silver 4310 @ 2.10GHz and 128GB memory. Overall Results. Fig. <ref type="figure" target="#fig_5">8</ref> compares DOCSCHISEL (DC) with the original documentation (OG), EASYTOOL (ET), and DRAFT (DRT) across task domains, LLM backbones, and agent paradigms. We independently repeat the optimization process three times. For each optimized result, we conduct five independent evaluation runs on the test set to account for execution randomness. Hence, each boxplot summarizes the results from 3 × 5 = 15 runs. Overall, DOCSCHISEL achieves the highest average TC and TS in all evaluated settings. Compared with the original documentation, DOCSCHISEL improves TC by 34.69% and TS by 95.89% on average. Compared with the two baseline approaches, it achieves an average TC improvement of 30.83% and TS improvement of 75.15%. Even against the strongest baseline in each setting, DOCSCHISEL improves TC and TS by 26.23% and 46.11% on average, respectively.</p><p>With respect to task domains, Fig. <ref type="figure" target="#fig_5">8a</ref>-8g show that DOC-SCHISEL consistently achieves the highest average TC and TS in the seven domains presented in the paper. The remaining two domains, i.e., project management and finance management, are reported on our website <ref type="bibr" target="#b0">[1]</ref> due to space limitations. Across all nine evaluated domains, DOCSCHISEL improves TC and TS by 46.27% and 194.22% over the original documentation, respectively, and by 27.34% and 42.36% over the strongest documentation optimization baseline on average. The gains are particularly evident in domains such as email management, customer relationship management, health management, and smart home management, where the original and baseline documentation often yields low task success rate despite moderate tool invocation correctness.</p><p>With respect to LLM backbones, Fig. <ref type="figure" target="#fig_5">8a</ref>, Fig. <ref type="figure" target="#fig_5">8h</ref>, and Fig. <ref type="figure" target="#fig_5">8i</ref> show that DOCSCHISEL remains best-performing for all three backbones. Compared with the strongest baseline, it improves TC by 3.45% and TS by 60.83%, on average, across GPT-4o, GLM-5, and Claude Haiku 4.5.</p><p>With respect to agent paradigms, Fig. <ref type="figure" target="#fig_5">8a</ref> and Fig. <ref type="figure" target="#fig_5">8j</ref> compare ReAct and Multi-Agent under the same task domain and GPT-4o backbone. DOCSCHISEL achieves the highest TC and TS under both paradigms. Compared with the strongest baseline, it improves TC by 3.44% and 3.34%, and TS by 63.61% and 58.35% under ReAct and Multi-Agent, respectively.</p><p>The results further show that DOCSCHISEL generally achieves higher lower-end performance and more compact distributions across repeated runs. Compared with EASYTOOL and DRAFT, DOCSCHISEL reduces the average interquartile range of TC by 41.56% and 52.93%, respectively, and that of TS by 36.71% and 44.07%. These results indicate that DOCSCHISEL introduces stable improvements across different agent settings.</p><p>Breakdown Analysis. EASYTOOL improves some settings by transforming documentation into concise and structured instructions. However, its fixed template applies the same information fields across agent settings. It may remove fields useful to a particular agent or fail to introduce fields absent from the original documentation, resulting in limited improvements.</p><p>DRAFT uses feedback obtained by generating tool inputs and executing tools to iteratively refine tool documentation. Although such feedback helps correct tool descriptions, it mainly reflects isolated tool executions rather than failures occurring during end-to-end agent task solving. Moreover, it does not explicitly adapt the composition of information fields. Consequently, documentation-related failures observed in complete agent traces may remain unresolved.</p><p>In contrast, DOCSCHISEL diagnoses failed agent execution traces and performs field-level addition, removal, and refinement according to the target agent setting, allowing for  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C. Efficiency Evaluation (RQ4)</head><p>Table III reports the average documentation length and optimization overhead per tool. EASYTOOL produces the shortest documentation because it primarily compresses the original content. In contrast, DRAFT and DOCSCHISEL generate slightly longer documentation by incorporating additional information. The documentation produced by DOCSCHISEL contains 189.23 tokens on average, which is 24.02% longer than the original documentation but comparable to DRAFT. Thus, DOCSCHISEL introduces only a limited additional context cost.</p><p>For optimization overhead, DOCSCHISEL consumes 6.35% fewer tokens than DRAFT for each tool during optimization. However, it requires 12.65 minutes on average, longer than EASYTOOL and DRAFT, because DOCSCHISEL repeatedly diagnoses failed traces, generates candidate documentation, and evaluates candidates through agent re-execution. Overall, DOCSCHISEL trades additional offline optimization time for substantially improved effectiveness, while maintaining comparable documentation length and token consumption to DRAFT.</p><p>Summary. DOCSCHISEL incurs a higher optimization-time cost, requiring 12.65 minutes per tool on average, while consuming 6.35% fewer optimization tokens than DRAFT and producing documentation of comparable length.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D. Sensitivity Analysis (RQ5)</head><p>Model Sensitivity. Table IV reports the effectiveness of DOC-SCHISEL using different optimization models while keeping the target agent and evaluation setting unchanged. Claude Haiku 4.5 achieves the best performance, improving TC and TS over GLM-5 by 27.12% and 57.87%, respectively, and over GPT-4o Iteration Sensitivity. Fig. <ref type="figure">9</ref> shows that increasing the number of optimization iterations improves both TC and TS. The gains are most pronounced in the early rounds. Compared with one iteration, five iterations improve TS by 80.00% and TC by 14.50%. This indicates that iterative execution feedback progressively helps DOCSCHISEL identify and address documentation deficiencies. After five iterations, however, the marginal gains become small, suggesting that the optimization process has largely converged. We therefore set the default iteration budget to five to avoid large optimization overhead.</p><p>Summary. Stronger optimization models generally yield better documentation quality, while iterative refinement substantially improves optimization effectiveness. The budget of five iterations achieves a favorable trade-off.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E. Ablation Study (RQ6)</head><p>Fig. <ref type="figure" target="#fig_0">10</ref> compares DOCSCHISEL with DOCSCHISEL-NoMem over five optimization iterations. In the first two iterations, the two variants achieve similar performance, indicating that both can improve documentation using the feedback from the current iteration. However, their performance diverges as optimization proceeds. At the fifth iteration, DOCSCHISEL-NoMem reduces TC and TS by 13.64% and 76.47% compared with DOC-SCHISEL, respectively. Moreover, the relative TS improvement between DOCSCHISEL and DOCSCHISEL-NoMem increases from 4.17% at Iteration-1 to 76.47% at Iteration-5, indicating that the benefit of memory becomes more pronounced as optimization experience accumulates. Without memory, both metrics largely plateau after the second iteration. In contrast, DOCSCHISEL continues to improve by reusing previously observed documentation deficiencies, effective field operations, and editing experience. Such experience guides subsequent diagnosis, field planning, and candidate generation, preventing the optimizer from repeatedly exploring ineffective revisions.</p><p>Summary. The memory mechanism is critical to iterative documentation optimization, improving the final TC and TS, on average, by 13.64% and 76.47%, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>V. THREATS TO VALIDITY</head><p>First, the selection of agent paradigms, LLM backbones, and datasets may limit the generalizability of our findings. To mitigate this threat, we evaluate DOCSCHISEL using two agent paradigms with three LLM backbones across nine task domains.</p><p>Second, our evaluation metrics may not capture all aspects of agent tool-use effectiveness. To reduce this threat, we report complementary metrics that evaluate both tool invocation correctness and final task success rate. Moreover, identifying information fields and constructing documentation variants involve manual inspection and correction, which may introduce subjective bias. To mitigate this threat, multiple authors independently conducted the analysis and resolved disagreements through discussion, achieving a Cohen's kappa coefficient of 0.862, with strong inter-rater agreement.</p><p>Finally, the inherent randomness of LLMs and the instability of agent execution pose additional threats to validity. To mitigate these threats, we keep the prompts and execution environments unchanged within each comparison, use the official replication artifacts of all baselines, and conduct three independent optimization runs, each followed by five evaluation runs. Thus, each evaluated setting is assessed over 3 × 5 = 15 runs. Across our evaluation, we apply the Mann-Whitney U test <ref type="bibr" target="#b30">[31]</ref>, and the improvements of DOCSCHISEL remain statistically significant after Holm correction <ref type="bibr" target="#b15">[16]</ref> (p adj &lt; 0.05).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>VI. RELATED WORK</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. LLM Agent Ecosystems</head><p>Recent advances in LLM agents and agent ecosystems have substantially improved the capability of LLMs to interact with external tools <ref type="bibr" target="#b2">[3,</ref><ref type="bibr" target="#b6">7,</ref><ref type="bibr" target="#b14">15,</ref><ref type="bibr" target="#b16">17,</ref><ref type="bibr" target="#b24">25,</ref><ref type="bibr" target="#b51">52]</ref>. Specifically, ReAct <ref type="bibr" target="#b55">[56]</ref> introduces the reasoning-and-acting paradigm for iterative tool invocation, while Toolformer <ref type="bibr" target="#b43">[44]</ref> demonstrates that LLMs can learn tool-use behaviors through self-supervised training. AutoGen <ref type="bibr" target="#b50">[51]</ref> provides a unified framework for multi-agent orchestration and workflow automation. Subsequent works <ref type="bibr" target="#b26">[27,</ref><ref type="bibr" target="#b37">38,</ref><ref type="bibr" target="#b39">40]</ref> further improve large-scale tool-use capabilities of LLM agents. Representative agent systems such as Claude Code <ref type="bibr" target="#b1">[2]</ref>, OpenAI Codex <ref type="bibr" target="#b35">[36]</ref>, and SWE-agent <ref type="bibr" target="#b53">[54]</ref> have demonstrated the growing applicability of tool-use LLM agents in software engineering and other complex domains <ref type="bibr" target="#b27">[28]</ref>. To evaluate the reliability and execution capability of tool-use LLM agents, recent studies <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b20">21,</ref><ref type="bibr" target="#b21">22,</ref><ref type="bibr" target="#b22">23,</ref><ref type="bibr" target="#b44">45,</ref><ref type="bibr" target="#b47">48,</ref><ref type="bibr" target="#b49">50,</ref><ref type="bibr" target="#b52">53,</ref><ref type="bibr" target="#b54">55,</ref><ref type="bibr" target="#b56">57]</ref> propose diverse benchmarks that include tools with documentation.</p><p>Although these studies significantly advance tool-use capabilities of LLM agents, they mainly focus on tool construction, retrieval, invocation, and evaluation strategies, while largely treating tool documentation as fixed input for tool grounding and execution. In contrast, our work systematically investigates the structure and effectiveness of tool documentation itself, and studies how adaptive tool documentation optimization affects downstream task success rate across different agent settings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Tool Documentation Engineering</head><p>Software engineering research has long recognized the importance of API usability, interface specifications, and documentation quality in supporting correct software usage <ref type="bibr" target="#b4">[5,</ref><ref type="bibr" target="#b5">6,</ref><ref type="bibr" target="#b29">30,</ref><ref type="bibr" target="#b31">32,</ref><ref type="bibr" target="#b38">39,</ref><ref type="bibr" target="#b48">49]</ref>. These works focus on API documentation generation <ref type="bibr" target="#b32">[33]</ref>, API documentation optimization <ref type="bibr" target="#b45">[46]</ref> and documentation smell detection <ref type="bibr" target="#b23">[24]</ref> to improve documentation readability, completeness, and consistency for human developers. With the rapid development of LLM agents, tool documentation has also attracted research attention. Patel et al. <ref type="bibr" target="#b8">[9]</ref> automatically generate executable tool-use demonstrations to reduce the manual effort of writing tool documentation, while EASYTOOL <ref type="bibr" target="#b57">[58]</ref> compresses existing tool documentation into concise instructions using predefined templates to reduce context overhead. A few works <ref type="bibr" target="#b9">[10,</ref><ref type="bibr" target="#b25">26,</ref><ref type="bibr" target="#b41">42]</ref> further leverage LLMs and feedback from tool execution to iteratively refine the tool documentation for better tool invocation correctness.</p><p>These studies improve tool documentation quality and the tool-use capabilities of LLM agents to some extent. However, they mainly optimize tool documentation from an isolated, tool-level perspective, focusing on rewriting, correction, compression, or refinement within existing information fields. In contrast, DOCSCHISEL does not treat documentation of each tool as an independent optimization target. Instead, it considers the interactions among tools within the same task domain and transfers optimization experience derived from domain-level and agent-aware execution failures to improve individual tool documentation by adding, removing, or refining information fields. In this way, DOCSCHISEL aims not only to enhance the invocation correctness of each tool, but also to improve the overall task success of different LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>VII. CONCLUSION</head><p>We conduct an empirical study of tool documentation for LLM agents, revealing the varying effectiveness of different information fields on task success rate across task domains, LLM backbones, and agent paradigms. Our findings demonstrate that fixed tool documentation cannot consistently support different agent settings. Thus, we propose DOCSCHISEL, an adaptive tool documentation optimization framework that automatically refines tool documentation based on the execution traces of LLM agents. Large-scale experiments have been conducted to demonstrate the effectiveness and efficiency of DOCSCHISEL.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Fig. 1 :</head><label>1</label><figDesc>Fig.1reports the change in TS after adding or removing one information field from the original tool documentation. Black xaxis labels denote removed fields, while red labels denote added fields. As shown in Fig.1a-1c, under GPT-4o with ReAct, the evaluated fields exhibit both consistent and domain-dependent effects. Among the 17 fields, only 6 fields show the same effect direction across all three domains. Removing tool name (TN), task domain (TD), return parameter type (RPT), response template (RT), or parameter optional flag (POF) consistently decreases TS, whereas adding invocation constraint (IC) consistently improves it. For example, removing TD decreases TS by 3.75 to 13.75 percentage points, while adding IC improves it by 0.75 to 11.25 percentage points. In contrast, the remaining fields show domain-dependent effects. Adding parameter required flag (PRF), for instance, changes TS by +2.50, -5.61, and +0.75 percentage points in data analysis, email management, and calendar management, respectively. Due to space limitations, results for project management and customer relationship management are provided on our website<ref type="bibr" target="#b0">[1]</ref>.The effects also vary across LLM backbones. As shown in Fig.1a, Fig.1d, and Fig.1e, when fixing the domain and agent paradigm, 12 of the 17 fields exhibit different effect directions across GPT-4o, GLM-5, and Claude Haiku 4.5. For example, removing POF decreases TS for GPT-4o and GLM-5, but improves it by 7.5 percentage points for Claude Haiku 4.5. This indicates that different LLM backbones rely on different</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Fig. 2 Fig. 2 :</head><label>22</label><figDesc>Fig.2shows the approach overview. First, DOCSCHISEL performs domain-aware execution profiling with the original tool documentation (Sec. III-B). In this stage, when the target</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Fig. 3 :Fig. 4 :</head><label>34</label><figDesc>Fig. 3: Memory-Guided Documentation Optimization</figDesc><graphic coords="5,312.37,70.03,83.23,123.64" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Fig. 5 :</head><label>5</label><figDesc>Fig. 5: Prompt Template for Field Operation Planning original documentation d 0 t , and the planning memory M plan c</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Fig. 6 :</head><label>6</label><figDesc>Fig. 6: Prompt Template for Documentation Generation</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Fig. 8 :</head><label>8</label><figDesc>Fig. 8: Effectiveness Comparison across Task Domains, LLM Backbones, and Agent Paradigms B. Effectiveness Evaluation (RQ3)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Fig. 9 :Fig. 10 :</head><label>910</label><figDesc>Fig. 9: Results of Iteration Sensitivity</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>TABLE I :</head><label>I</label><figDesc>Overview of the Collected Tool-Use Datasets</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>TABLE II :</head><label>II</label><figDesc>Prevalence of Information Fields across Datasets</figDesc><table><row><cell>Information Field</cell><cell>Brief Description</cell><cell>Prevalence</cell></row><row><cell>Tool Name (TN)</cell><cell>Invocation identifier of target tool</cell><cell>14/14</cell></row><row><cell>Functionality Description (FD)</cell><cell>Tool purpose and capability</cell><cell>14/14</cell></row><row><cell>Task Domain (TD)</cell><cell>Application scenario or category</cell><cell>6/14</cell></row><row><cell>Input Parameter Name (IPN)</cell><cell>Input argument identifier</cell><cell>13/14</cell></row><row><cell>Input Parameter Description (IPD)</cell><cell>Input argument semantics</cell><cell>12/14</cell></row><row><cell>Input Parameter Type (IPT)</cell><cell>Input data types or formats</cell><cell>13/14</cell></row><row><cell>Default Parameter Value (DPV)</cell><cell>Default input parameter values</cell><cell>3/14</cell></row><row><cell>Parameter Required Flag (PRF)</cell><cell>Required argument indicator</cell><cell>10/14</cell></row><row><cell>Parameter Optional Flag (POF)</cell><cell>Optional argument indicator</cell><cell>7/14</cell></row><row><cell>Return Parameter Name (RPN)</cell><cell>Output argument identifier</cell><cell>4/14</cell></row><row><cell cols="2">Return Parameter Description (RPD) Output argument semantics</cell><cell>5/14</cell></row><row><cell>Return Parameter Type (RPT)</cell><cell>Output data types or formats</cell><cell>5/14</cell></row><row><cell>Code Implementation (CI)</cell><cell>Tool implementation snippets</cell><cell>5/14</cell></row><row><cell>Usage Example (UE)</cell><cell>Concrete invocation examples</cell><cell>4/14</cell></row><row><cell>Response Template (RT)</cell><cell>Expected tool response format</cell><cell>4/14</cell></row><row><cell>Usage Guidance (UG)</cell><cell>Tool usage recommendations</cell><cell>2/14</cell></row><row><cell>Invocation Constraint (IC)</cell><cell>Invocation conditions or restrictions</cell><cell>2/14</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>What is the effectiveness of DOCSCHISEL in improving task success rate of LLM agents?</figDesc><table /><note><p>• RQ3 Effectiveness Evaluation. • RQ4 Efficiency Evaluation. What is the efficiency and optimization overhead of DOCSCHISEL? • RQ5 Sensitivity Analysis. How do optimization models and iteration budgets affect the effectiveness of DOCSCHISEL? • RQ6 Ablation Study. What is the contribution of our memory mechanism to the effectiveness of DOCSCHISEL?</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>TABLE III :</head><label>III</label><figDesc>Results of Efficiency Evaluation</figDesc><table><row><cell>Approach</cell><cell cols="3">Doc Length Token Cost Time Cost (min)</cell></row><row><cell>Original</cell><cell>152.58</cell><cell>-</cell><cell>-</cell></row><row><cell>EASYTOOL</cell><cell>82.68</cell><cell>237.81</cell><cell>0.23</cell></row><row><cell>DRAFT</cell><cell>189.56</cell><cell>4,784.39</cell><cell>2.26</cell></row><row><cell>DOCSCHISEL</cell><cell>189.23</cell><cell>4,480.81</cell><cell>12.65</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>TABLE IV :</head><label>IV</label><figDesc>Results of Model Sensitivity</figDesc><table><row><cell cols="4">Metrics GPT-4o GLM-5 Claude Haiku 4.5</cell></row><row><cell>TC</cell><cell>47.50%</cell><cell>73.75%</cell><cell>93.75%</cell></row><row><cell>TS</cell><cell>21.25%</cell><cell>35.63%</cell><cell>56.25%</cell></row><row><cell cols="4">better alignment of tool documentation with the information</cell></row><row><cell cols="4">requirements of the target agent, explaining its consistent</cell></row><row><cell cols="4">improvements in both TC and TS. Nevertheless, DOCSCHISEL</cell></row><row><cell cols="4">does not achieve perfect results. Some failures originate from</cell></row><row><cell cols="4">factors beyond tool documentation, such as incorrect task</cell></row><row><cell cols="4">decomposition, stochastic LLM reasoning, or incomplete user</cell></row><row><cell cols="4">queries. Therefore, documentation optimization can substan-</cell></row><row><cell cols="4">tially improve agent effectiveness, but cannot eliminate failures</cell></row><row><cell cols="4">caused by other components of the agent execution process.</cell></row><row><cell cols="4">Summary. DOCSCHISEL consistently outperforms EASY-</cell></row><row><cell cols="4">TOOL and DRAFT across task domains, LLM backbones,</cell></row><row><cell cols="4">and agent paradigms, improving tool invocation correctness by</cell></row><row><cell cols="4">30.83% and task success rate by 75.15%, on average.</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Anonymous</surname></persName>
+		</author>
+		<ptr target="https://anonymous.4open.science/r/F42D-DocsChisel" />
+		<imprint>
+			<date type="published" when="2026-05-11">2026. May 11, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Claude code</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<ptr target="https://www.anthropic.com/claude-code" />
+		<imprint>
+			<date type="published" when="2025-05-13">2025. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Writing effective tools for agents -with agents</title>
+		<ptr target="https://www.anthropic.com/engineering/writing-tools-for-agents" />
+		<imprint>
+			<date type="published" when="2025-05-13">2025. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Coze</title>
+		<author>
+			<persName><surname>Bytedance</surname></persName>
+		</author>
+		<ptr target="https://www.coze.com" />
+		<imprint>
+			<date type="published" when="2024-05-13">2024. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Automatic evaluation of api usability using complexity metrics and visualizations</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">R B</forename><surname>De Souza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">L M</forename><surname>Bentolila</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st International Conference on Software Engineering</title>
+		<meeting>the 31st International Conference on Software Engineering</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="299" to="302" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Improving api documentation usability with knowledge pushing</title>
+		<author>
+			<persName><forename type="first">U</forename><surname>Dekel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Herbsleb</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE 31st International Conference on Software Engineering</title>
+		<meeting>the IEEE 31st International Conference on Software Engineering</meeting>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<biblScope unit="page" from="320" to="330" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Dify</title>
+		<author>
+			<persName><surname>Dify</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ai</surname></persName>
+		</author>
+		<ptr target="https://dify.ai" />
+		<imprint>
+			<date type="published" when="2024-05-13">2024. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Anytool: Self-reflective, hierarchical agents for large-scale api calls</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning</title>
+		<meeting>the 41st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page">829</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Play2prompt: Zero-shot tool instruction optimization for llm agents via tool play</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Glass</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Findings of the Association for Computational Linguistics</title>
+		<meeting>the Findings of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page">290</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Jtpro: A joint tool-prompt reflective optimization framework for language agents</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ghoshal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mittal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ballesteros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Benajiba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bharadwaj</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.19821</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Glm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rojas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12793</idno>
+		<title level="m">Chatglm: A family of large language models from glm-130b to glm-4 all tools</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Google gemini</title>
+		<author>
+			<persName><surname>Google</surname></persName>
+		</author>
+		<ptr target="https://gemini.google.com/" />
+		<imprint>
+			<date type="published" when="2023-05-13">2023. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Autogpt: Build, deploy, and run ai agents</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gravitas</surname></persName>
+		</author>
+		<ptr target="https://github.com/significant-gravitas/autogpt" />
+		<imprint>
+			<date type="published" when="2023-05-13">2023. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Learning to rewrite tool descriptions for reliable llm-agent tool use</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Das</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.20426</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Llm-based multi-agent systems for software engineering: Literature review, vision, and the road ahead</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Treude</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Transactions on Software Engineering and Methodology</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="1" to="30" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">A simple sequentially rejective multiple test procedure</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Holm</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Scandinavian Journal of Statistics</title>
+		<imprint>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="65" to="70" />
+			<date type="published" when="1979">1979</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Metagpt: Meta programming for a multiagent collaborative framework</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhuge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">2024</biblScope>
+			<biblScope unit="page">275</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Large language models for software engineering: A systematic literature review</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Grundy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Transactions on Software Engineering and Methodology</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1" to="79" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Tool documentation enables zero-shot toolusage with large language models</title>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-A</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-L</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Fujii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ratner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-Y</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Pfister</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.00675</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Chatgpt for shaping the future of dentistry: the potential of multi-modal large language model</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zheng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Oral Science</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page">29</biblScope>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Crmarena: Understanding the capacity of llm agents to perform professional crm tasks in realistic environments</title>
+		<author>
+			<persName><forename type="first">K.-H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dhawan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Laban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-S</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference of the Nations of the Americas Chapter</title>
+		<meeting>the Conference of the Nations of the Americas Chapter</meeting>
+		<imprint>
+			<publisher>Human Language Technologies</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="3830" to="3850" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Metatool benchmark for large language models: Deciding whether to use tools and which to use</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Gong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page">7</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Swe-bench: Can language models resolve real-world github issues</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">2024</biblScope>
+			<biblScope unit="page" from="54" to="107" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Automatic detection of five api documentation smells: Practitioners&apos; perspectives</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Y</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">Tawkat</forename><surname>Islam Khondaker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Uddin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Iqbal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE International Conference on Software Analysis, Evolution and Reengineering</title>
+		<meeting>the IEEE International Conference on Software Analysis, Evolution and Reengineering</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="318" to="329" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Langchain: Build agents faster, your way</title>
+		<author>
+			<persName><surname>Langchain</surname></persName>
+		</author>
+		<ptr target="https://langchain.com" />
+		<imprint>
+			<date type="published" when="2024-05-13">2024. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Verification-guided context optimization for tool calling via hierarchical llms-as-editors</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>You</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Di Palo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jain</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2512.13860</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Api-bank: A comprehensive benchmark for tool-augmented llms</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="3102" to="3116" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Soen-101: Code generation by emulating software process models using large language model agents</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">J</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T.-H</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2025 IEEE/ACM 47th International Conference on Software Engineering (ICSE)</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="1527" to="1539" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Toolscope: Enhancing llm agent tool use through tool merging and context-aware filtering</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">M</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Parllaku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Upadhyay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">F A</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Roth</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.20036</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Patterns of knowledge in api reference documentation</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Maalej</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">P</forename><surname>Robillard</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on software Engineering</title>
+		<imprint>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="1264" to="1282" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Mann-whitney u test</title>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">E</forename><surname>Mcknight</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Najab</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Corsini encyclopedia of psychology</title>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<biblScope unit="page" from="1" to="1" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Collaboration challenges in building ml-enabled systems: Communication, documentation, engineering, and process</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Nahar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kästner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 44th international conference on software engineering</title>
+		<meeting>the 44th international conference on software engineering</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="413" to="425" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">A systematic mapping study on api documentation generation approaches</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Nybom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ashraf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Porres</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 44th Euromicro Conference on Software Engineering and Advanced Applications</title>
+		<meeting>the 44th Euromicro Conference on Software Engineering and Advanced Applications</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="462" to="469" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Introducing chatgpt</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<ptr target="https://openai.com/blog/chatgpt" />
+		<imprint>
+			<date type="published" when="2023-05-13">2023. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Gpt-4o</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<ptr target="https://openai.com/index/hello-gpt-4o/" />
+		<imprint>
+			<date type="published" when="2024-05-13">2024. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Introducing codex</title>
+		<ptr target="https://openai.com/index/introducing-codex/" />
+		<imprint>
+			<date type="published" when="2025-05-13">2025. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Openapihub</surname></persName>
+		</author>
+		<ptr target="https://www.openapihub.com" />
+		<imprint>
+			<date type="published" when="2024-05-13">2024. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Gorilla: Large language model connected with massive apis</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="126" to="544" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">An empirical study of api usability</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Piccioni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">A</forename><surname>Furia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Meyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM / IEEE International Symposium on Empirical Software Engineering and Measurement</title>
+		<meeting>the ACM / IEEE International Symposium on Empirical Software Engineering and Measurement</meeting>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="5" to="14" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Toolllm: Facilitating large language models to master 16000+ real-world apis</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Qian</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">2024</biblScope>
+			<biblScope unit="page" from="9695" to="9717" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Towards completeness-oriented tool retrieval for large language models</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-R</forename><surname>Wen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 33rd ACM International Conference on Information and Knowledge Management</title>
+		<meeting>the 33rd ACM International Conference on Information and Knowledge Management</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="1930" to="1940" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">From exploration to mastery: Enabling llms to master tools via self-driven interactions</title>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page">697</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Rapidapi</surname></persName>
+		</author>
+		<ptr target="https://rapidapi.com" />
+		<imprint>
+			<date type="published" when="2024-05-13">2024. May 13, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68" to="539" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Shortcutsbench: A large-scale real-world benchmark for api-based agents</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Learning Representations</title>
+		<meeting>the International Conference on Learning Representations</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page">797</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">An empirical study on evolution of api documentation</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the International Conference on Fundamental Approaches To Software Engineering</title>
+		<meeting>the International Conference on Fundamental Approaches To Software Engineering</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="416" to="431" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Tool learning in the wild: Empowering language models as automatic tool agents</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Verberne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM on Web Conference</title>
+		<meeting>the ACM on Web Conference</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="2222" to="2237" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Workbench: a benchmark dataset for agents in a realistic workplace setting</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Styles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Cerda-Mardini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Guha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Sanchez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Vidgen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.00823</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Live api documentation</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Subramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Inozemtseva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Holmes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th international conference on software engineering</title>
+		<meeting>the 36th international conference on software engineering</meeting>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="643" to="652" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Toolalpaca: Generalized tool learning for language models with 3000 simulated cases</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Sun</surname></persName>
+		</author>
+		<idno>abs/2306.05301</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ArXiv</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Autogen: Enabling next-gen llm applications via multi-agent conversations</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 1st Conference on Language Modeling</title>
+		<meeting>the 1st Conference on Language Modeling</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Demystifying llm-based software engineering agents</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">S</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dunn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the ACM on Software Engineering</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="801" to="824" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+		<respStmt>
+			<orgName>FSE</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">On the tool manipulation capability of open-source large language models</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno>abs/2305.16504</idno>
+	</analytic>
+	<monogr>
+		<title level="j">ArXiv</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Swe-agent: Agent-computer interfaces enable automated software engineering</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Press</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="50" to="528" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12045</idno>
+		<title level="m">A benchmark for tool-agent-user interaction in real-world domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<title level="m" type="main">Benchmarking llm tool-use in the wild</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.06185</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Easytool: Enhancing llm-based agents with concise tool instruction</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference of the Nations of the Americas Chapter</title>
+		<meeting>the 2025 Conference of the Nations of the Americas Chapter</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="951" to="972" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.15763</idno>
+		<title level="m">Glm-5: from vibe coding to agentic engineering</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<analytic>
+		<title level="a" type="main">Losemb: Logicguided semantic bridging for inductive tool retrieval</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM Web Conference</title>
+		<meeting>the ACM Web Conference</meeting>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="3835" to="3846" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

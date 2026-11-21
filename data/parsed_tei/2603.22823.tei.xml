@@ -1,0 +1,676 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">EMPIRICAL COMPARISON OF AGENT COMMUNICATION PROTOCOLS FOR TASK ORCHESTRATION</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<title level="a" type="main">EMPIRICAL COMPARISON OF AGENT COMMUNICATION PROTOCOLS FOR TASK ORCHESTRATION</title>
+					</analytic>
+					<monogr>
+						<idno type="ISSN">2313-688X</idno>
+					</monogr>
+					<idno type="MD5">92611CE3901201C8D7F19B2B833749F1</idno>
+					<idno type="DOI">10.15588/1607-3274-2000-0-0</idno>
+					<note type="submission">Received 00.00.2000. Accepted 00.00.2000.</note>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:08+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>
+					<term>agent communication protocols</term>
+					<term>Model Context Protocol</term>
+					<term>Agent-to-Agent protocol</term>
+					<term>multi-agent systems</term>
+					<term>large language model orchestration</term>
+					<term>benchmark</term>
+					<term>tool use</term>
+				</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Context. The problem of comparative evaluation of communication protocols for task orchestration by large language model (LLM) agents is considered. The object of study is the process of interaction between LLM agents and external tools, as well as between autonomous LLM agents, during task orchestration.</p><p>Objective. The goal of this work is to develop a systematic pilot benchmark comparing tool integration, multi-agent delegation, and hybrid architectures for standardized queries at three levels of complexity, and to quantify the advantages and disadvantages in terms of response time, context window consumption, cost, error recovery, and implementation complexity.</p><p>Method. An open-source health analyzer application was developed to query four public data sources for repository statistics, package downloads, vulnerability data, and community metrics. Thirty queries were run five times for each architecture at three levels of complexity, resulting in 450 fail-safe executions. The same large language model was used in all executions. The statistical analysis used bootstrap confidence intervals, the Mann-Whitney test with Bonferroni correction, and Cliff's delta effect sizes.</p><p>Results. A statistically significant crossover effect was found: the tool integration protocol is faster for simple queries, but the multi-agent protocol outperforms on complex multi-project comparisons, consuming fewer tokens through distributed context windows, resulting in lower cost. The hybrid architecture tracks the winner at each level of complexity with near-optimal performance.</p><p>Conclusions. The scientific novelty is an empirical demonstration that the two protocols exhibit a complexity-dependent performance crossover, showing that they complement each other rather than compete. Context-window bloat in single-agent architectures is quantified for the first time in a pilot case study. The practical significance is a validated decision framework: using a tool integration protocol for single-source queries, a multi-agent protocol for complex orchestration, and a hybrid routing when complexity is unknown at runtime. Directions for further research include extending the benchmark to additional models, distributed deployments, and additional application domains.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ABBREVIATIONS</head><p>A2A is an Agent-to-Agent Protocol; API is an Application Programming Interface; AST is an Abstract Syntax Tree; CI is a Confidence Interval; HTTP is a Hypertext Transfer Protocol; JSON-RPC is a JSON Remote Procedure Call; LLM is a Large Language Model; LOC is a line of Code; MCP is a Model Context Protocol; SDK is a Software Development Kit; stdio is a Standard Input/Output; NOMENCLATURE A is a set of architectural configurations; c is a complexity tier; f is a weighted objective function; n is a number of executions per cell; P is a performance vector (latency, tokens, cost); p is a statistical significance (p-value); Q is a set of benchmark queries; δ is a Cliff's delta effect size.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>INTRODUCTION</head><p>The rapid development of large language model (LLM) agent systems has raised a fundamental architectural question: how should agents interact with tools and with each other? Between 2025 and 2026, two protocols have become de facto standards.</p><p>The Model Context Protocol (MCP), introduced by Anthropic <ref type="bibr">[1]</ref>, standardizes how LLM agents can call external LLM tools. An agent connects to MCP servers via stdio or HTTP transport, checks for available tools, and calls them within a single context window. The MCP SDK has exceeded 97 million downloads monthly <ref type="bibr">[2]</ref>.</p><p>The Agent-to-Agent Protocol (A2A), introduced by Google <ref type="bibr">[3]</ref>, allows for autonomous agents to discover, interact with, and delegate tasks to other agents over HTTP using JSON-RPC. Each agent publishes an Agent Card at /.well-known/agent.json to check capabilities. The A2A has been launched with support by more than 50 technology partners <ref type="bibr">[4]</ref>.</p><p>The most relevant prior work is a survey by Ehtesham et al. <ref type="bibr">[5]</ref>, which treats MCP, ACP, A2A, and ANP as complementary layers in the agent interaction stack but provides no empirical measurements.</p><p>The object of study is the communication process between LLM agents and external tools or other agents during task orchestration.</p><p>The subject of study is the comparative performance characteristics of MCP, A2A, and Hybrid communication architectures at different levels of query complexity.</p><p>The purpose of the work is to develop the empirical benchmark for comparing agent communication protocols and to define a decision-making framework for protocol selection. To achieve this goal, the following tasks were completed: developing three equivalent architectures (MCP-only, multi-agent A2A, Hybrid) implementing the same application logic; defining 30 standardized queries at three complexity levels; conducting 450 controlled experiments and collecting six performance metrics; applying nonparametric statistical tests to quantify the significance and magnitude of the observed differences; and developing a practical protocol selection framework based on query complexity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">PROBLEM STATEMENT</head><p>Given a set of natural language queries Q = {q₁, q₂, …, q₃₀} classified into three complexity levels (simple, medium, complex), and three architectural configurations A ∈ {MCP, A2A, Hybrid}, the objective is to determine for each complexity level which architecture minimizes a composite performance vector P = (latency, tokens, cost) subject to correctness constraints.</p><p>Formally, for each complexity level c ∈ {simple, medium, complex}, the goal is to identify A* = argminₐ f(Pₐ,c), where f is a weighted objective function. The constraints require zero execution failures (reliability = 1.0) and zero hallucinations in the output.</p><p>The input variables are 30 standardized queries and four public API data sources (GitHub, npm, OSV.dev, Stack Overflow). The output variables are six metrics: wall-clock latency, total number of LLM tokens, cost in USD, number of LLM API calls, number of data source API calls, and code complexity. The quality assessment criteria are statistical significance (Mann-Whitney U test) and effect size magnitude (Cliff's delta).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">REVIEW OF THE LITERATURE</head><p>The tool augmentation of LLMs was standardized by Schick et al. <ref type="bibr">[6]</ref> with Toolformer, which demonstrated that language models can learn to invoke external tools during text generation. Patil et al. <ref type="bibr">[7]</ref> extended this with Gorilla, enabling API-level tool invocation with improved accuracy. Yao et al. <ref type="bibr">[8]</ref> introduced ReAct, which demonstrated the reasoning-action loop that underpins modern agent frameworks. The work mentioned above establishes tool use capabilities but does not address inter-agent communication protocols.</p><p>Multi-agent LLM orchestration has been explored through several frameworks. Wu et al. <ref type="bibr">[9]</ref> proposed Au-toGen for conversable multi-agent systems. Moura <ref type="bibr">[10]</ref> introduced CrewAI for role-based agent orchestration. Hong et al. <ref type="bibr">[11]</ref> developed MetaGPT for collaborative software engineering through multi-agent coordination. All three frameworks implement their own proprietary communication mechanisms but do not use standardized protocols such as MCP or A2A.</p><p>MCP was released by Anthropic in November 2024 <ref type="bibr">[1]</ref> as an open standard for tool integration. Google introduced A2A in April 2025 <ref type="bibr">[3]</ref> as an open protocol for inter-agent delegation. Ehtesham et al. <ref type="bibr">[5]</ref> surveyed four agent-interoperability protocols (MCP, ACP, A2A, ANP) and proposed a phased-adoption roadmap that treats MCP and A2A as complementary rather than competing. Their analysis is qualitative and does not include empirical measurements. No previous study has benchmarked these protocols head-to-head with controlled experiments. The unsolved part of the problem is the absence of empirical data to guide practitioners in selecting between MCP and A2A for specific use cases. The present work addresses this gap.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">MATERIALS AND METHODS</head><p>An Open Source Health Analyzer was built as the experimental application. It answers natural-language queries about open-source project health by pulling data from four public APIs: the GitHub REST API for repository statistics, the npm Registry for package downloads, OSV.dev for vulnerability data, and Stack Overflow for community metrics. The same application logic was implemented in three architectures described below.</p><p>In Architecture A (MCP-Only), a single LLM agent connects to four MCP tool servers via stdio transport. The agent decides which tools to call, executes them within its tool-use loop, and accumulates all tool responses in a single context window (Fig. <ref type="figure" target="#fig_0">1</ref>). In Architecture B (A2A Multi-Agent), a coordinator agent delegates subtasks to four specialist agents over HTTP using the A2A protocol. Each specialist runs as an independent FastAPI server, publishes an Agent Card at /.well-known/agent.json, and processes tasks via JSON-RPC. The coordinator discovers agents, plans a delegation, dispatches them in parallel, and synthesizes the results. Each specialist preserves its own LLM context window (Fig. <ref type="figure" target="#fig_1">2</ref>). In Architecture C (Hybrid), a routing layer classifies query complexity using keyword-based heuristics at zero LLM cost. Simple queries are routed directly through MCP; complex queries are delegated via A2A (Fig. <ref type="figure" target="#fig_2">3</ref>). Thirty queries were defined across three complexity levels: ten simple queries (single-source, single-project), ten medium queries (multi-source, single-project), and ten complex queries (multi-source, multi-project comparison). Each query was executed five times per architecture, yielding a total of 450 executions. All executions used Claude Sonnet (claude-sonnet-4-20250514) to control for model variation.</p><p>Six metrics were recorded for each execution: wallclock latency in milliseconds, total LLM tokens (prompt plus completion), cost in USD at the rate of $3 per million input tokens and $15 per million output tokens, number of LLM API calls, number of data source API calls, and code complexity measured in lines of code and cyclomatic complexity via AST analysis.</p><p>For statistical analysis, 95% bootstrap confidence intervals were computed using 10,000 resamples for all means. Pairwise comparisons used the Mann-Whitney U test <ref type="bibr">[12]</ref> with Bonferroni correction for nine simultaneous tests. Effect sizes were computed via Cliff's delta <ref type="bibr">[13]</ref> and interpreted using the thresholds proposed by Romano et al. <ref type="bibr">[14]</ref>: negligible (|δ| &lt; 0.147), small (0.147 ≤ |δ| &lt; 0.33), medium (0.33 ≤ |δ| &lt; 0.474), and large (|δ| ≥ 0.474).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">EXPERIMENTS</head><p>All experiments were conducted on a single machine with all A2A agents deployed on localhost to eliminate network variability. Each of the 30 queries was executed five times per architecture (MCP, A2A, Hybrid), producing 450 total executions. The four data source APIs (GitHub, npm, OSV.dev, Stack Overflow) were queried live during each run; no caching was employed.</p><p>Numerical claims in the output (download counts, star counts, version numbers, CVE IDs) were compared programmatically against the JSON values returned by the corresponding APIs. APIs. No divergences were detected. All 450 executions completed successfully with zero failures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">RESULTS</head><p>Table <ref type="table" target="#tab_0">1</ref> shows the results summary across all 450 executions. Figure <ref type="figure" target="#fig_3">4</ref> shows the latency crossover, which is the central finding. For simple queries, MCP (8.9 s) is much faster than A2A (19.8 s) with p &lt; 0.0001 and a large effect (δ = -0.90). For medium queries, MCP (30.3 s) retains its advantage (p = 0.0001, δ = -0.51). For complex queries, A2A (45.1 s) outperforms MCP (51.8 s) with a small-to-medium effect (δ = +0.29). The Hybrid architecture tracks the winner at each complexity level. Token consumption explains the crossover. For complex queries, MCP consumes 34,959 tokens, which is 3.1 times more than A2A (11,318 tokens; p &lt; 0.0001, δ = +0.84). In the MCP single-agent architecture, every tool response is added to a single growing context window. For complex queries that requiring many API calls, this accumulation becomes the dominant cost driver. A2A distributes context across specialist agents, keeping each agent's context lean.</p><p>Cost follows token usage. All three architectures cost approximately $0.017 for simple queries. For complex queries, MCP costs $0.130 while A2A costs $0.079, representing a 39% reduction. One thousand complex queries would cost $130 with MCP versus $79 with A2A at enterprise scale.</p><p>All pairwise comparisons at the simple and complex tiers show large effects (|δ| ≥ 0.474), confirming that the observed performance differences are not artifacts of sampling variability.</p><p>Regarding code complexity, MCP requires 706 LOC across 11 files. A2A requires 1,530 LOC across 15 files, which is 2.2 times more. The Hybrid architecture requires 1,899 LOC. The A2A overhead comes from HTTP server infrastructure (291 LOC) and per-agent boilerplate. Average cyclomatic complexity is 7.9 for MCP and 10.7 for A2A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">DISCUSSION</head><p>Based on the findings, the following decision framework is proposed (Fig. <ref type="figure" target="#fig_4">5</ref>). For queries involving a single data source or simple lookups, MCP should be used due to its zero-overhead advantage: no HTTP, no agent discovery, no delegation LLM call. For complex queries involving multiple projects and multiple data sources, A2A should be used because it distributes context across specialist agents, keeping each at approximately 2,263 tokens versus 34,959 tokens in MCP's single window. When query complexity is unknown at runtime, the Hybrid architecture with a lightweight heuristic router achieves near-optimal performance across tiers. The exception is the medium tier, where the A2A uses fewer total tokens than the MCP but has slightly higher monetary cost due to a larger share of output tokens in the multi-agent protocol. Two opposing forces drive the crossover. MCP's advantage on simple queries comes from zero overhead: no HTTP connections, no agent discovery, and no delegation LLM call. A2A's advantage on complex queries comes from context isolation: MCP accumulates all tokens in a single window, whereas A2A distributes them across independent agents.</p><p>These results imply that MCP and A2A are complementary rather than competing. MCP excels as a tool integration layer (agent-to-tool), while A2A excels as an orchestration layer (agent-to-agent). The A2A specialist agents in this study use direct API calls internally; in production, they could use MCP for their tool connections, combining both protocols.</p><p>The present work confirms empirically the complementarity hypothesized qualitatively by Ehtesham et al. <ref type="bibr">[5]</ref> and further identifies the specific complexity regime in which the crossover occurs, driven by context-window accumulation. Several limitations should be noted. All experiments use a single LLM model (Claude Sonnet); the results may not be generalizable to other models. The A2A agents run on a localhost; actual network latency will increase A2A overhead and could shift the crossover point. Only one application domain was tested (open-source projects analysis). Five runs per query (50 per cell) provide good statistical power for detecting large effects but limit the detection of small effects. Different system queries may affect relative performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>CONCLUSIONS</head><p>A pressing scientific problem of empirically comparing agent communication protocols, previously considered only theoretically, has now been solved.</p><p>The scientific novelty of these results lies in the fact that a statistically significant, complexity-dependent crossover effect between MCP and A2A has been empirically demonstrated: MCP is faster for simple queries (p &lt; 0.0001), while A2A consumes 3.1 times fewer tokens for complex queries, reducing the cost by 39%. This lets practitioners make evidence-based protocol selection decisions rather than relying on intuition. The context window bloat phenomenon in single-agent architectures, previously discussed only qualitatively, has been further developed: it has been quantified as a 3.1-fold increase in token costs, increasing the cost by 39% for complex queries. This enables architects to predict the cost implications of protocol choice.</p><p>The practical significance of the obtained results lies in the solution structure, validated by 450 executions: use MCP for single-source queries, A2A for complex orchestration of multiple projects, and hybrid routing for unknown execution complexity. The hybrid architecture validates automatic routing with near-optimal performance at each level of complexity. All code, benchmark data, and analysis tools are available under the MIT license at: <ref type="url" target="https://github.com/IvanDobrovolsky/mcp-vs-">https://github.com/IvanDobrovolsky/mcp-vs-</ref>a2a-bench.</p><p>Prospects for further research include extending the benchmark to additional LLM models, testing on realworld distributed deployments with network latency, evaluating additional application domains, and developing adaptive routing that explores the data crossover point.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 -</head><label>1</label><figDesc>Figure 1 -MCP-Only architecture: single agent with four stdio tool servers</figDesc><graphic coords="2,304.23,292.30,235.07,144.76" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 -</head><label>2</label><figDesc>Figure 2 -A2A Multi-Agent architecture: coordinator delegates to four independent HTTP agent servers</figDesc><graphic coords="2,311.73,571.78,234.31,144.38" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 -</head><label>3</label><figDesc>Figure 3 -Hybrid architecture: heuristic router selects protocol per query</figDesc><graphic coords="3,57.02,132.73,233.44,144.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 -</head><label>4</label><figDesc>Figure 4 -Latency crossover: MCP wins on simple and medium queries; A2A wins on complex queries (95% bootstrap CI shown as error bars)</figDesc><graphic coords="3,304.75,393.02,233.90,143.05" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 -</head><label>5</label><figDesc>Figure 5 -Decision framework for protocol selection based on query complexity</figDesc><graphic coords="4,56.32,421.88,234.77,106.37" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 -</head><label>1</label><figDesc>Summary results across 450 executions</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Complexity Architecture Latency, s Tokens Cost, $ n</head><label></label><figDesc></figDesc><table><row><cell>Simple</cell><cell>MCP</cell><cell>8.9</cell><cell>4,671 0.0169 50</cell></row><row><cell>Simple</cell><cell>A2A</cell><cell>19.8</cell><cell>1,988 0.0162 50</cell></row><row><cell>Simple</cell><cell>Hybrid</cell><cell>10.6</cell><cell>4,040 0.0162 50</cell></row><row><cell>Medium</cell><cell>MCP</cell><cell>30.3</cell><cell>9,965 0.0435 50</cell></row><row><cell>Medium</cell><cell>A2A</cell><cell>36.0</cell><cell>6,420 0.0521 50</cell></row><row><cell>Medium</cell><cell>Hybrid</cell><cell>34.8</cell><cell>6,556 0.0476 50</cell></row><row><cell>Complex</cell><cell>MCP</cell><cell>51.8</cell><cell>34,959 0.1297 50</cell></row><row><cell>Complex</cell><cell>A2A</cell><cell>45.1</cell><cell>11,318 0.0789 50</cell></row><row><cell>Complex</cell><cell>Hybrid</cell><cell>45.9</cell><cell>16,421 0.0941 50</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>© Dobrovolskyi I.V., 2026 DOI 10.15588/1607-3274-2000-0-0</p></note>
+		</body>
+		<back>
+
+			
+			<div type="acknowledgement">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ACKNOWLEDGEMENTS</head><p>The study was performed without financial support.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>DECLARATIONS</head></div>
+			</div>
+
+
+			<div type="availability">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Data availability:</head><p>The manuscript has associated data in a data repository available at: <ref type="url" target="https://github.com/IvanDobrovolsky/mcp-vs-a2a-bench">https://github.com/IvanDobrovolsky/mcp-vs-a2a-bench</ref>.</p><p>Software availability: The manuscript has associated software in a repository available at: <ref type="url" target="https://github.com/IvanDobrovolsky/mcp-vs-a2a-bench">https://github.com/IvanDobrovolsky/mcp-vs-a2a-bench</ref>.</p><p>Use of artificial intelligence tools: The authors confirm that they did not use artificial intelligence technologies in creating the submitted work.</p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Conflict of interest:</head><p>The author declares that there is no conflict of interest in relation to this research, whether financial, personal, authorship, or otherwise, that could affect the research and its results presented in this paper.</p><p>Authors' contributions: Ivan Dobrovolskyi: Conceptualization, Methodology, Software, Investigation, Data Curation, Writing -Original Draft, Writing -Review &amp; Editing, Visualization.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Model Context Protocol Specification [Electronic resource]. -2024</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<ptr target="https://modelcontextprotocol.io/specification" />
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Donating the Model Context Protocol and establishing the Agentic AI Foundation</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<ptr target="https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation" />
+	</analytic>
+	<monogr>
+		<title level="m">Anthropic News. -2025. -Mode of access</title>
+		<imprint/>
+	</monogr>
+	<note>Electronic resource. date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">A2A: Agent-to-Agent Protocol [Electronic resource]. -2025</title>
+		<author>
+			<persName><surname>Google</surname></persName>
+		</author>
+		<ptr target="https://github.com/a2aproject/A2A" />
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Agent2Agent: A new open protocol for connecting AI agents</title>
+		<author>
+			<persName><surname>Google</surname></persName>
+		</author>
+		<ptr target="https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/" />
+	</analytic>
+	<monogr>
+		<title level="m">Google Developers Blog. -2025. -Mode of access</title>
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ehtesham</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2505.02279</idno>
+		<idno type="arXiv">arXiv:2505.02279.-2025</idno>
+		<title level="m">A Survey of Agent Interoperability Protocols: Model Context Protocol (MCP), Agent Communication Protocol (ACP), Agent-to-Agent Protocol (A2A), and Agent Network Protocol</title>
+		<editor>
+			<persName><forename type="first">/</forename><forename type="middle">A</forename><surname>Anp</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Ehtesham</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">G</forename><forename type="middle">K</forename><surname>Singh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Gupta</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Kumar</surname></persName>
+		</editor>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">T</forename><surname>Toolformer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Dessi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Language Models Can Teach Themselves to Use Tools</title>
+		<title level="s">Neural Information Processing Systems. -2023.</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+		</imprint>
+	</monogr>
+	<note>et al.</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">S</forename><surname>Gorilla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2305.15334</idno>
+		<idno type="arXiv">arXiv:2305.15334.-2023.-P.1-10</idno>
+		<title level="m">Large Language Model Connected with Massive APIs</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">S</forename><surname>React</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+		<title level="m">International Conference on Learning Representations. -2023</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="20" />
+		</imprint>
+	</monogr>
+	<note>Synergizing Reasoning and Acting in Language Models /</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Enabling Next-Gen LLM Applications via Multi-Agent Conversation</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">Q</forename><surname>Autogen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2308.08155</idno>
+		<idno type="arXiv">arXiv:2308.08155.-2023.-P.1-16</idno>
+		<imprint/>
+	</monogr>
+	<note>et al.</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Framework for orchestrating roleplaying autonomous AI agents [Electronic resource]. -2024</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Moura</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Crewai</surname></persName>
+		</author>
+		<ptr target="https://github.com/crewAIInc/crewAI" />
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Meta Programming for A Multi-Agent Collaborative Framework</title>
+		<author>
+			<persName><forename type="first">Hong</forename><forename type="middle">S</forename><surname>Metagpt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">S</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhuge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="22" />
+		</imprint>
+	</monogr>
+	<note>et al.</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">R</forename><surname>Whitney</surname></persName>
+		</author>
+		<idno type="DOI">10.1214/aoms/1177730491</idno>
+	</analytic>
+	<monogr>
+		<title level="s">Annals of Mathematical Statistics. -1947.</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="50" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Dominance statistics: Ordinal analyses to answer ordinal questions</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cliff</surname></persName>
+		</author>
+		<idno type="DOI">10.1037/0033-2909.114.3.494</idno>
+		<imprint>
+			<date type="published" when="1993">1993</date>
+			<biblScope unit="volume">114</biblScope>
+			<biblScope unit="page" from="494" to="509" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Appropriate statistics for ordinal level data: Should we really be using t-test and Cohen&apos;s d for evaluating group differences on the NSSE and other surveys?</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Romano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">/</forename><forename type="middle">J</forename><surname>Romano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Kromrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Coraggio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Skowronek // Annual Meeting of the Florida Association of Institutional Research</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="33" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Model Context Protocol Specification [Electronic resource]. -2024</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<ptr target="https://modelcontextprotocol.io/specification" />
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Donating the Model Context Protocol and establishing the Agentic AI Foundation</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<ptr target="https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation" />
+	</analytic>
+	<monogr>
+		<title level="m">Anthropic News. -2025. -Mode of access</title>
+		<imprint/>
+	</monogr>
+	<note>Electronic resource. date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">A2A: Agent-to-Agent Protocol [Electronic resource]. -2025</title>
+		<author>
+			<persName><surname>Google</surname></persName>
+		</author>
+		<ptr target="https://github.com/a2aproject/A2A" />
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Agent2Agent: A new open protocol for connecting AI agents</title>
+		<author>
+			<persName><surname>Google</surname></persName>
+		</author>
+		<ptr target="https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/" />
+	</analytic>
+	<monogr>
+		<title level="m">Google Developers Blog. -2025. -Mode of access</title>
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ehtesham</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2505.02279</idno>
+		<idno type="arXiv">arXiv:2505.02279.-2025</idno>
+		<title level="m">A Survey of Agent Interoperability Protocols: Model Context Protocol (MCP), Agent Communication Protocol (ACP), Agent-to-Agent Protocol (A2A), and Agent Network Protocol</title>
+		<editor>
+			<persName><forename type="first">/</forename><forename type="middle">A</forename><surname>Anp</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Ehtesham</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">G</forename><forename type="middle">K</forename><surname>Singh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">S</forename><surname>Gupta</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Kumar</surname></persName>
+		</editor>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">T</forename><surname>Toolformer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Dessi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Language Models Can Teach Themselves to Use Tools</title>
+		<title level="s">Neural Information Processing Systems. -2023.</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+		</imprint>
+	</monogr>
+	<note>et al.</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">S</forename><surname>Gorilla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2305.15334</idno>
+		<idno type="arXiv">arXiv:2305.15334.-2023.-P.1-10</idno>
+		<title level="m">Large Language Model Connected with Massive APIs</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">S</forename><surname>React</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+		<title level="m">International Conference on Learning Representations. -2023</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="20" />
+		</imprint>
+	</monogr>
+	<note>Synergizing Reasoning and Acting in Language Models /</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Enabling Next-Gen LLM Applications via Multi-Agent Conversation</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">Q</forename><surname>Autogen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2308.08155</idno>
+		<idno type="arXiv">arXiv:2308.08155.-2023.-P.1-16</idno>
+		<imprint/>
+	</monogr>
+	<note>et al.</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Framework for orchestrating roleplaying autonomous AI agents [Electronic resource]. -2024</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Moura</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Crewai</surname></persName>
+		</author>
+		<ptr target="https://github.com/crewAIInc/crewAI" />
+		<imprint/>
+	</monogr>
+	<note>date of access: 15.03.2026</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Meta Programming for A Multi-Agent Collaborative Framework</title>
+		<author>
+			<persName><forename type="first">Hong</forename><forename type="middle">S</forename><surname>Metagpt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><forename type="middle">S</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhuge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="22" />
+		</imprint>
+	</monogr>
+	<note>et al.</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">On a Test of Whether one of Two Random Variables is Stochastically Larger than the Other</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">R</forename><surname>Whitney</surname></persName>
+		</author>
+		<idno type="DOI">10.1214/aoms/1177730491</idno>
+	</analytic>
+	<monogr>
+		<title level="s">Annals of Mathematical Statistics. -1947.</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="50" to="60" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Dominance statistics: Ordinal analyses to answer ordinal questions</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cliff</surname></persName>
+		</author>
+		<idno type="DOI">10.1037/0033-2909.114.3.494</idno>
+		<imprint>
+			<date type="published" when="1993">1993</date>
+			<biblScope unit="volume">114</biblScope>
+			<biblScope unit="page" from="494" to="509" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Appropriate statistics for ordinal level data: Should we really be using t-test and Cohen&apos;s d for evaluating group differences on the NSSE and other surveys?</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Romano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">/</forename><forename type="middle">J</forename><surname>Romano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Kromrey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Coraggio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Skowronek // Annual Meeting of the Florida Association of Institutional Research</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="33" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

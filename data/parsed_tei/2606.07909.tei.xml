@@ -1,0 +1,1084 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MemToolAgent: Leveraging Memory for Tool Using Agents Based on Environment and User Feedback</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-06-10">10 Jun 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Suleyman</forename><surname>Armagan Er</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Washington</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Danilo</forename><surname>Ribeiro</surname></persName>
+							<email>danilrib@amazon.com</email>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yogesh</forename><surname>Virkar</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Surafel</forename><surname>Lakew</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Adi</forename><surname>Kalyanpur</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">James</forename><surname>Gung</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Thomas</forename><surname>Delteil</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Arshit</forename><surname>Gupta</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">AWS AI</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MemToolAgent: Leveraging Memory for Tool Using Agents Based on Environment and User Feedback</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-06-10">10 Jun 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">829DAA21312E891CFF1A29E307DD3FE8</idno>
+					<idno type="arXiv">arXiv:2606.07909v2[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Modern large language model (LLM) agents can use external tools to help users solve complex tasks. However, for problems that require learning from long-term historical events or from previous agent-environment interactions, LLM agents are required to use memory mechanisms to store and retrieve experiences. While sophisticated memory systems exist for dialogue agents, few studies have empirically examined how to improve agents' tool-using capabilities through past user-agent conversations. We propose MemToolAgent, a framework that improves tool use through memory management. Our approach contains a memory extraction module that processes past experiences into structured memory entries, and a retrieval module that dynamically selects a subset of the stored memory entries. This enables more personalized and accurate responses aligned with user preferences and feedback without requiring LLM fine-tuning. In summary, this work has three main contributions: (1) a unified memory entry format that improves both general-purpose and personalized tool use without LLM fine-tuning, (2) a reflection-based memory extraction that uses environment and user feedback to distill wrong executions into critiques to store, and (3) a retrieval module that chooses how many past experiences to use based on the memory similarity distribution. MemToolAgent achieves 29%, 80%, and 17% relative improvements compared to strong baselines on the WorkBench, NESTFUL, and PEToolBench benchmarks, respectively.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Combining powerful LLMs with additional components like memory systems, workflow mechanisms, APIs, and other tools to create LLM agents is an emerging trend. These agents are designed to solve complex tasks that require sequential reasoning and multi-step planning. In this context, tools are functions utilized by agents to interact with their environment. Integrating LLMs with external tools and APIs allows these language models to leverage various systems, enabling end-users to interact with those systems through a chat interface. An LLM agent's tool use ability, i.e., using appropriate tools for solving a task, is an important capability.</p><p>Despite significant advancements in recent years, fixed context windows of LLMs limit maintaining coherence and thematic continuity during long realworld conversations <ref type="bibr">(Tan et al., 2025)</ref>. Due to long sequences containing abundant irrelevant information, the attention mechanism loses its effectiveness, which is not desired for critical scenarios in education and healthcare. As a result, integrating memory mechanisms into agents is crucial for long-term interaction ability. LLM agents need reliable external feedback to correct themselves <ref type="bibr" target="#b10">(Kamoi et al., 2024)</ref>, and memory can provide this feedback by storing and retrieving past interactions. Using experiences allows agents to more accurately anticipate user needs and learn from mistakes.</p><p>Integrating memory into an LLM agent supports two main types of tasks: personalized and generalpurpose tool use, as shown in Figure <ref type="figure" target="#fig_0">1</ref>. Users utilize the same tools in particular ways, such as using different input parameters, or they might use different tools to achieve the same goal. In scenarios where the agent has access to tools with similar functionalities, it requires user context to correctly execute the task. Storing the past interactions in the memory allows for better personalization. For instance, personalization can resolve the tool-level ambiguity if "create a ticket" could refer to Zendesk ticket creation or Jira issue creation. Regarding general-purpose tool use, there are common error patterns in tool use agents, such as dependency violation, parameter hallucination, and premature tool calling. Having past experiences in memory can help the agent use the correct parameters for tools and use the tools in the correct order. For example, this is useful in scenarios where the agent utilizes the same set of tools for a group of users to solve generic tasks like forwarding emails.</p><p>Our work offers three main contributions: (1) a unified memory entry format of storing past experiences for better general-purpose and personalized tool use performance without LLM fine-tuning, (2) an environment and user feedback-based reflection approach for memory writing to distill failed past experiences into critiques, and (3) a retrieval module based on similarity distribution that dynamically selects relevant memory entries to guide the agent for the current task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>There has been a growing interest in memory management for LLM agents in recent years. A related earlier idea is Case-based reasoning (CBR) <ref type="bibr" target="#b0">(Aamodt and Plaza, 1994)</ref> where systems retrieve and use similar past cases (experiences) to solve new problems. MemGPT (MemoryGPT) <ref type="bibr" target="#b12">(Packer et al., 2023)</ref> introduces an OS-inspired memory hierarchy with two memory types called the main context and the external context. More recent work includes graph-based architectures to organize the information more flexibly and expressively. In Mem0 <ref type="bibr" target="#b7">(Chhikara et al., 2025)</ref>, the memory is modeled as a directed knowledge graph to express complex relationships. This allows dynamic and more advanced storage and retrieval. A-MEM (Agentic Memory) <ref type="bibr">(Xu et al., 2025b)</ref> proposes a memory based on the Zettelkasten knowledge management system. The memory entries are linked as interconnected networks, and the existing entries are updated based on new experiences. Similarly, Zep <ref type="bibr" target="#b13">(Rasmussen et al., 2025)</ref> and Cognitive Weave <ref type="bibr" target="#b20">(Vishwakarma et al., 2025)</ref> are based on temporally aware knowledge graphs and Spatio-Temporal Resonance Graphs, respectively.</p><p>Reflexion agents <ref type="bibr" target="#b16">(Shinn et al., 2023)</ref> turn task feedback into self-reflections that are stored in an episodic memory for subsequent runs. Reflective Memory Management (RMM) <ref type="bibr">(Tan et al., 2025)</ref> uses a Reinforcement Learning based approach to rank memory entries based on their utilities in past executions. PersonaAgent <ref type="bibr">(Zhang et al., 2025a)</ref> combines episodic and semantic memory for an LLM agent with personalized memory that enables the agent to perform actions customized to the user. Agent Workflow Memory <ref type="bibr">(Wang et al., 2024b)</ref> stores workflows in the memory to guide the agent in web navigation tasks. EXPEREPAIR <ref type="bibr" target="#b11">(Mu et al., 2025)</ref> introduces an agent with a dual-memory mechanism for code repair. T1 <ref type="bibr">(Chakraborty et al., 2025)</ref> uses a simple cache for agents to store tool call results. However, the main goal is to reuse the previously accessed data.</p><p>M em p <ref type="bibr" target="#b8">(Fang et al., 2025</ref>) is a procedural memory framework that extracts both fine-grained instructions and high-level abstractions from past agent trajectories. Memento <ref type="bibr">(Zhou et al., 2025)</ref> stores past experiences in an episodic memory, learns and continually updates a case-selection policy based on environmental feedback. Training-Free GRPO <ref type="bibr">(Cai et al., 2025)</ref> is a training-free alternative to agentic RL that optimizes an experience library consisting of natural-language experiential knowledge. TOOLMEM <ref type="bibr" target="#b25">(Xiao et al., 2025)</ref> stores memories of tool capabilities from previous interactions and helps the agent select the most suitable tool for a given task at inference. LEGOMem <ref type="bibr" target="#b9">(Han et al., 2025)</ref> is a procedural memory approach for multi-agent systems that distills only success-Figure <ref type="figure">2</ref>: MemToolAgent overview with a simple restaurant booking scenario where the agent retrieves similar memories, receives feedback on an invalid time format, and generates a reflection to update its memory ful task trajectories into memory entries with brief reflections. ReMem agents <ref type="bibr">(Wei et al., 2025)</ref> combine reasoning, action, and memory refinement and actively exploit, prune, and reorganize their memory while solving the current task.</p><p>There are in-context learning (ICL) approaches closely related to agents with memory. For example, STE <ref type="bibr">(Wang et al., 2024a)</ref> creates tool use trajectories based on a trial-and-error approach offline and stores them in a static memory for inference. In-Context Abstraction Learning (ICAL) <ref type="bibr" target="#b14">(Sarch et al., 2024)</ref> creates memory abstractions from suboptimal trajectories based on human-in-the-loop learning and self-reflection.</p><p>Unlike the related work, MemToolAgent addresses both personalized and general-purpose tool use. It proposes a general memory entry format and stores and leverages detailed information like tool trajectories and a reflection/critique about the execution. Importantly, MemToolAgent also incorporates user feedback as a signal to improve the quality of memory entries.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method: MemToolAgent</head><p>MemToolAgent consists of two main components: the memory retrieval and memory extraction modules. Figure <ref type="figure">2</ref> illustrates the general overview of our proposed approach. Memory entries, i.e., past experiences, are retrieved from the memory based on the semantic similarity between the query and the entries. Dynamic "n" Top-n Embedding-based Retrieval is proposed for retrieval. Instead of retrieving a fixed number of memory entries for each query, the number of entries to retrieve is dynamically determined based on the cosine similarities between the embeddings of memory entries' queries and the test query. Then, the entries are used as incontext learning to guide the agent for the current task.</p><p>To add a new entry to the memory based on the current query, an LLM-based "Memory Extraction" module provides a reflection/critique of the execution, which is then stored in the memory with the query and user feedback.</p><p>MemToolAgent specifies what to store in memory with a general memory entry format. Each memory entry m is represented as a tuple m = (q, a, f, r) where:</p><p>• q: the user query • a = {a 1 , a 2 , . . . , a n }: the sequence of tool calls executed by the agent</p><p>• f ∈ {0, 1}: binary user feedback indicating task success (f = 1) or failure (f = 0)</p><p>• r: reflection or critique generated by the memory extractor when f = 0 (otherwise r = ∅)</p><p>With binary user feedback, we simulate the scenarios where the user does not know anything about the underlying tools/APIs and gives feedback based on the outcome. However, this feedback could easily be replaced by any other type of feedback, such as text or score. Figure <ref type="figure" target="#fig_1">3</ref> illustrates an example memory entry with reflection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Memory Retrieval: Dynamic "n" Top-n</head><p>Embedding-based Retrieval</p><p>Retrieving a fixed number of memory entries for every query is not optimal since some queries might not have relevant memory entries, while there might be many similar entries for other queries.</p><p>Prior work <ref type="bibr" target="#b18">(Taguchi et al., 2025;</ref><ref type="bibr">Xu et al., 2025c)</ref> in retrieval-augmented generation (RAG) addresses the trade-off between missing information with too small k and adding redundancy with too large k, where k is the number of retrieved documents. These methods dynamically decide the number k and show that the optimal amount of retrieved context varies across queries. Adaptive-k <ref type="bibr" target="#b18">(Taguchi et al., 2025)</ref> selects "k" as the largest adjacent similarity-score gap.</p><p>Our Dynamic "n" approach has four main steps illustrated by the Algorithm 1. The first two steps are calculating the cosine similarity values between the query and memory entries and sorting them in descending order. The third step calculates a first-order derivative estimate of sorted similarities based on a sliding window approach where x is an array of sorted similarities, and R is considered as the "radius" of the derivative estimate. The final step is finding the peaks, i.e., sudden drops in similarity, ideally showing a class boundary. The peak corresponds to our "n" value for Dynamic "n" retrieval. The entire process is inspired by the concept of finding "knees" for designing systems <ref type="bibr" target="#b15">(Satopaa et al., 2011)</ref>. The find_peaks * function from the SciPy library is utilized for peak finding. Figure <ref type="figure">4</ref> illustrates an example. The blue line shows the sorted similarity values, while the red line shows the first derivative estimation. As observed, the locations where there are local maxima, i.e., a peak, correspond to locations with a sudden drop in similarity. Dynamic "n" retrieval has three parameters, namely R, prominence, and the peak number. R is a smoothing parameter, and larger R values result in smoother derivative estimates. Prominence is a parameter of the find_peaks function to filter important peaks based on comparison of neighboring values. The peak number is simply which peak to select. Similarity curves can be noisy, have multiple knees and multi-step drops rather than huge gaps. We hypothesize that finding peaks based on the derivative estimate rather than raw similarity values results in a more robust approach than Adaptivek. Dynamic "n" robustly finds points of change or cluster boundaries on noisy similarity curves, while Adaptive-k finds the biggest drop and works well only when the curve has one clean knee.</p><p>Algorithm 1 Dynamic "n" Retrieval 1: input: q (query), M (memory), R (radius), peak number, prominence 2: output: n (number of entries to select) 3: S ← [CalculateSimilarity(q, m)</p><formula xml:id="formula_0">for m ∈ M] 4: x ← SortDescending(S) 5: for j = R to |x| -R -1 do 6: y(j) ← - R τ =-R τ x(j+τ ) R τ =-R τ 2 7: end for 8: peaks ← f ind_peaks(y, prominence) 9: n ← peaks[peak_number]</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Memory Extraction Module</head><p>The agent needs to apply experience to the current task based on the user feedback and the context. An important observation from our experiments is that agents struggle to effectively learn from retrieved negative experiences when they are presented as raw execution traces. We hypothesize this is because the agent must simultaneously understand what went wrong in the past example while solving the current task. To make the agent's work easier, a "Memory Extraction" module is proposed. It reflects on the context and user feedback to understand what was wrong. For wrong executions, the reflection/critique is added to the memory instead of the raw context, which might be too complicated and contain irrelevant parts. Doing the reflection as a separate step helps the agent focus only on the current task and learn from its mistakes.</p><p>The memory extraction module is an LLM E that takes the following as input: (1) current query q, (2) set of available tools T = {t 1 , t 2 , . . . , t m }, (3) agent's response (actions) a = {a 1 , a 2 , . . . , a n } including tool calls, (4) environment feedback e including tool responses, (5) user feedback f ∈ {0, 1}, and (6) retrieved semantically similar memory entries M ′ ⊂ M. The module outputs a reflection/critique r = E(q, T , a, e, f, M ′ ).</p><p>Query: Was total visits more than 21 at any time in the last 1 weeks ? If so , please plot it as a line chart Answer (Tool Calls): <ref type="bibr">[' analytics . total_visits_count . func ( time_min ="2023 -11 -23" , time_max ="2023 -11 -30") ' , ' analytics . create_plot . func ( time_min ="2023 -11 -23" , time_max ="2023 -11 -30</ref>" , value_to_plot =" total_visits ", plot_type =" line ") '] User Feedback: Incorrect Reflection: The agent created the line chart despite the condition not being met . The agent concluded correctly that the total visits did not exceed 21 at any point ( the highest was 19 visits on 2023 -11 -28) , but then proceeded to create the line chart anyway . This contradicts the original instruction which specified to plot the data ONLY IF visits exceeded 21. Using retrieved memory entries that are semantically similar to the current user query is important. The main use case for general-purpose tool use is having different queries with common mistakes, which are only sometimes detected by the memory extractor. A similar entry with a correct reflection could help the memory extractor produce a correct critique. For personalized tool use, memory extractor is slightly different. Semantically similar memory entries are used to find user patterns and preferences. The memory extraction module is used to extract high-level user preferences, such as "User prefers tools under AP I_X".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Evaluation</head><p>Memory can be applied to multiple problem settings in tool-using agents. Our experiments focus on two main tasks: (1) general-purpose tool use and (2) personalization. Three benchmarks, Work-Bench <ref type="bibr" target="#b17">(Styles et al., 2024)</ref>, NESTFUL <ref type="bibr">(Basu et al., 2024)</ref>, and PEToolBench <ref type="bibr">(Xu et al., 2025a)</ref>, were used for evaluation. WorkBench and NESTFUL are general-purpose tool use benchmarks, while PEToolBench is a personalized tool orchestration benchmark.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Benchmarks</head><p>WorkBench is an outcome-centric tool use benchmark that evaluates agents on workplace tasks such as sending emails and scheduling meetings. It includes five databases and 27 tools. WorkBench tasks are from different domains like Analytics, Calendar, etc. The evaluation metric is accuracy, which is defined as the percentage of tasks where the outcome from the agent's actions matches the expected outcome. The correct outcome means the correct changes in the database values.</p><p>WorkBench queries were created based on predefined templates such as 'Delete an email from person X' or 'Schedule a meeting with person Y'. There are 10 queries per template. Since the benchmark has no train-test split, one query from each template is used to populate the memory. This ensures that there is at least one directly relevant memory entry for each test query. This setup is used to show the advantages of using the memory. The test set consists of 108 Analytics, 99 Calendar, 72 CRM, 81 Email, and 189 Multi-domain tasks.</p><p>NESTFUL benchmark evaluates LLMs on nested sequences of tool calls, where the output of one tool call is used as input for the next tool call. It includes 1891 test queries based on MathQA <ref type="bibr" target="#b1">(Amini et al., 2019)</ref> and StarCoder2-Instruct <ref type="bibr" target="#b24">(Wei et al., 2024)</ref> benchmarks. The first 500 tasks are used as test set while the next 500 tasks are used to populate the memory. The benchmark uses five evaluation metrics, which are F1 scores for tool and parameter generation, Partial Sequence Matching, Full Sequence Matching, and Win Rate. Partial Sequence Matching measures how many predicted APIs with their argument-value pairs match the gold API sequence, Full Sequence Matching evaluates whether the model produces the exact full sequence, and Win Rate assesses whether the predicted APIs lead to the gold answer when executed. PEToolBench is a personalized tool orchestration benchmark. Each query comes with an instruction history consisting of 80-100 past user queries, where each past query includes a binary rating (1 for correct/desired execution, 0 otherwise). For our experiments, this instruction history forms the memory, where each memory entry consists of a past query, its corresponding tool call, and binary user feedback. Test queries are designed such that the agent must rely on user preferences from memory for correct tool execution. A subset of 591 queries is used as the test set after filtering the queries with sufficiently long instruction histories (at least 80 past queries). This makes sure that the agent needs a memory rather than using the full history in context. The benchmark uses two evaluation metrics: Tool Accuracy, which evaluates the model's ability to call the appropriate tool based on user preferences, and Parameter Accuracy, which assesses whether the model generates the correct parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Experiment Results</head><p>This section presents the main experiments with details, ablation studies demonstrating the contribution of individual MemToolAgent parts, and a cost analysis.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Experiment Settings</head><p>Claude 3.5 Sonnet <ref type="bibr" target="#b2">(Anthropic, 2024)</ref> is used for PEToolBench results while NESTFUL and Work-Bench experiments use Claude 3.7 Sonnet (Anthropic, 2025). Qwen3-Embedding-8B <ref type="bibr">(Zhang et al., 2025b)</ref> embedding model is used for memory retrieval. All experimental results are based on a single run. Dynamic "n" retrieval hyperparameters are manually tuned. R is set to 10 and prominence is set to 10 -5 . Empirically, using the second peak for PEToolBench performs better while the first peak is the optimal choice for WorkBench and NEST-FUL.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method</head><p>Tool Accuracy Parameter Accuracy A-MEM 0.700 0.820 Mem0 0.700 0.820 MemToolAgent 0.820 0.820  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.3">Hard Preference Guiding and Simple Ranking for PEToolBench</head><p>Table <ref type="table">4</ref> demonstrates the effectiveness of simple ranker and Hard Preference Guiding ideas through ablation studies. The original approach for PETool-Bench provides the agent with the entire instruction history, which is not optimal, as irrelevant queries can make the task more challenging. Embeddingbased Retrieval_v1 improves this by retrieving only the top-10 semantically similar queries from memory. Retrieval_v2 builds on v1 by introducing a simple ranker that separates memory entries by rating (1 vs. 0) in the system prompt to emphasize user preferences. This is a small modification for personalization tasks. Although it substantially increases the tool accuracy, there is a decrease in parameter accuracy. This is due to binary feedback, which only provides correct/incorrect information.</p><p>Negative feedback causes the agent to consider correct parameters as incorrect, as the tool itself can be incorrect even with correct parameters.</p><p>Error analysis revealed cases where the agent selected tools despite negative user preferences from the memory. To address this, we introduce an alternative baseline called Hard Preference Guiding which removes tools with a rating of 0 from the system prompt. This is a substitute for the memory extraction module's approach of providing user preferences as soft guidance. It provides a costefficient alternative to the LLM-based memory extraction module, eliminating the need for additional LLM calls during memory addition. Hard Preference Guiding extends MemToolAgent w/o memory extractor and improves Tool Accuracy from 0.72 to 0.84, as shown in Table <ref type="table">4</ref>. Although less general than memory extraction, Hard Preference Guiding is effective for scenarios like PEToolBench and could be used as a complementary approach.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.4">Experiments with Different Memory</head><p>Entry Types start scenario where no queries exist to populate the memory before inference. Given the tool descriptions, an LLM generates synthetic queries, which are then executed and added to the memory. Using synthetic queries improves results compared to the no-memory baseline, except on multi-domain tasks. For multi-domain tasks, it is challenging to generate queries that are both complex enough and sufficiently similar to the test set. Nevertheless, this still demonstrates that synthetic queries can help avoid starting with an empty memory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Token Usage Analysis</head><p>Table <ref type="table" target="#tab_4">5</ref> shows the total number of input and output tokens used by Claude 3.7 Sonnet for 50 NESTFUL test queries. Although MemToolAgent increases the total number of input tokens, the number of output tokens has a much lower increase compared to the Extended Thinking and ReAct baselines. This is an advantage given that output tokens tend to be more expensive and contribute more to the overall response latency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>MemToolAgent is a memory framework that enhances the tool-using capabilities of LLM agents by using past experiences. The results show significant improvements across multiple benchmarks in both personalized and general-purpose tool use scenarios. The main contributions of the framework include (1) a retrieval mechanism that dynamically determines the number of relevant memory entries to retrieve, (2) a memory extraction module that generates reflections on incorrect executions to help avoid similar mistakes, and (3) an overall effective approach for both general-purpose and personalized tool use based on user and environment feedback.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Despite the improvements in general-purpose and personalized tool use performance achieved by MemToolAgent, several limitations remain for future work. One limitation is the cold-start problem of memory. Moreover, the benchmarks used contain fewer than 40 tools. However, there are typically more tools in real-life applications. As the number of tools increases, it is more challenging to cover the usage of all tools with memory. This could potentially make the cold-start problem more severe. Our experiments using synthetically generated queries show that even a simple approach can help the cold-start problem.</p><p>Another limitation emerges in conversational scenarios with multiple turns. The benchmarks used in our experiments are single-turn. For singleturn tasks, the memory retrieval is done once at the beginning of the conversation. This might not be optimal for multiple-user turn tasks where the agent needs to obtain the necessary information from the user across multiple turns. One possible solution is to extend MemToolAgent to retrieve from memory after each user turn, so that the agent can focus on the sub-task associated with that specific turn.  Answer: [ ' search_customers . func ( customer_name =" Dakota Wilson ") ' , ' find_email_address . func ( name =" Raj ") ' , ' update_customer . func ( customer_id ="00000076" , field =" assigned_to_email ", new_value =" raj . patel@atlas . com ") '] User Feedback: Execution : Correct Test query: I haven ' t spoken to Quinn Thomas in a while . Can you check if it 's been over 14 days ? If so , book a 30 -minute meeting with whoever is assigned to them called ' Update on Quinn Thomas ' at the first time I 'm free tomorrow</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Related memory entry:</head><p>Query : If we haven 't spoke to Cameron Anderson in the past fortnight book a 30 -minute meeting with whoever is assigned to them called ' Update on Cameron Anderson ' at the first time I 'm free tomorrow</p><p>Answer : [ ' customer_relationship_manager . search_customers . func ( customer_name = " Cameron Anderson ") ' , ' calendar . search_events . func ( time_min ="2023 -12 -01 09:00:00" , time_max ="2023 -12 -01 18:00:00") ' , ' calendar . create_event . func ( event_name =" Update on Cameron Anderson ", participant_email =" sofia . santos@atlas . com ", event_start ="2023 -12 -01 13:00:00" , duration ="30") ']</p><p>User Feedback : Execution : Correct</p><p>Incorrect response of the agent without memory: [ ' customer_relationship_manager . search_customers . func ( customer_name =" Quinn Thomas ") ' ,' company_directory . find_email_address . func ( name =" Akira Sato ") ' , ' company_directory . find_email_address . func ( name =" Akira ") ' , ' calendar . create_event . func ( event_name =" Update on Quinn Thomas ", participant_email =" akira . sato@atlas . com ", event_start ="2023 -12 -01 09:00:00" , duration ="30") ']</p><p>Correct response of the agent with memory: [ ' customer_relationship_manager . search_customers . func ( customer_name =" Quinn Thomas ") ' ,' calendar . search_events . func ( time_min ="2023 -12 -01 09:00:00" , time_max ="2023 -12 -01 18:00:00") ' , ' calendar . create_event . func ( event_name =" Update on Quinn Thomas ", participant_email =" akira . sato@atlas . com ", event_start ="2023 -12 -01 13:00:00" , duration ="30") '] Test query: Can you make a line chart of total visits since September 24 if it was more than 21 since at any time September 24?</p><p>Related memory entry: Query : was total visits less than 3 at any time since September 13? If so , please plot it as a line chart</p><p>Answer : [ ' analytics . total_visits_count . func ( time_min ="2023 -09 -13" , time_max ="2023 -11 -30") ' , ' analytics . create_plot . func ( time_min ="2023 -09 -13" , time_max ="2023 -11 -30" , value_to_plot =" total_visits ", plot_type =" line ") ']</p><p>User Feedback : Incorrect Reflection : The primary mistake was a logical error in interpreting the data and understanding the user 's question . The agent correctly retrieved the data showing no days had less than 3 visits but incorrectly reported October 1 as having exactly 3 visits ( which is correct but irrelevant ). It generated the plot as requested despite the condition " If so " not being met ( no days had less than 3 visits ). The agent should have clearly stated that the condition was not met .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Incorrect response of the agent without memory:</head><p>[ ' analytics . total_visits_count . func ( time_min ="2023 -09 -24" , time_max ="2023 -11 -30") ' , ' analytics . create_plot . func ( time_min ="2023 -09 -24" , time_max ="2023 -11 -30" , value_to_plot =" total_visits ", plot_type =" line ") ']</p><p>Correct response of the agent with memory: [ ' analytics . total_visits_count . func ( time_min ="2023 -09 -24" , time_max ="2023 -11 -30") ']   1) Find emails from Lena about homepage alignment issues from October , delete them since that project is done , and send her an email about the new homepage design meeting scheduled for December 5 th at 11 am .</p><p>2) Forward Fatima the latest quarterly tech roundup email from Dmitri . I want to make sure she 's up to speed before our meeting tomorrow .</p><p>3) I need to reply to Santiago 's latest email about the UX feedback submission improvements . Tell him I ' ve reviewed it and it looks great , but I 'd like to discuss the project timeline adjustments he mentioned next week .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Figure 13: Example synthetic queries for WorkBench email domain</head><p>Your task is to use a tool that not only meets real -time user instructions but also aligns with user preferences .</p><p>These preferences can be inferred from the user 's interaction history provided below , including past user instructions and corresponding tool calls , with user 's binary ratings reflecting the user 's satisfaction with the tool calls .</p><p>Interaction history is :</p><p>instruction 1: I want to search for the TV show ' Stranger Things ' with an offset of 0 and limit suggestions to 20 and limit titles to 50 tool_call 1: {" tool_name ": "&lt; Data &gt;. &lt; Netflix Data &gt;. &lt; search &gt;, " parameters ": {" query ": " stranger " , " offset ": 0, " limit_suggestions ": 20 , " limit_titles ": 50}} , " rating ": 1} , instruction 2: ...  If however , there were 10 men less , it would take 10 days more for the work to be finished . How many men were there originally ?</p><p>Tool Calls Used : [{" name ": " multiply ", " label ": " $var_1 ", " arguments ": {" arg_0 ": 100 , " arg_1 ": "x "}} , {" name ": " subtract ", " label ": " $var_2 ", " arguments ": {" arg_0 ": "x", " arg_1 ": 10}} , {" name ": " multiply ", " label ": " $var_3 ", " arguments ": {" arg_0 ": " $var_2 . result$ ", " arg_1 ": 110}} , {" name ": " divide ", " label ": " $var_4 ", " arguments ": {" arg_0 ": " $var_1 . result$ ", " arg_1 ": 100}} , {" name ": " divide ", " label ": " $var_5 ", " arguments ": {" arg_0 ": " $var_3 . result$ ", " arg_1 ": 110}} , {" name ": " subtract ", " label ": " $var_6 ", " arguments ": {" arg_0 ": " $var_5 . result$ ", " arg_1 ": " $var_4 . result$ "}} , {" name ": " divide ", " label ": " $var_7 ", " arguments ": {" arg_0 ": 1000 , " arg_1 ": 10}} , {" name ": " divide ", " label ": " $var_8 ", " arguments ": {" arg_0 ": " $var_7 . result$ ", "  You are a helpful assistant with access to the following function calls . Your task is to produce a sequence of function calls necessary to generate response to the user utterance . Here is a list of functions in JSON format that you can invoke : { TOOLS } DO NOT try to answer the user question , just invoke the tools needed to respond to the user , if any . The output MUST strictly adhere to the following JSON format : [{" name ": " func_name1 " , " arguments ": {" argument1 ": " value1 " , " argument2 ": " value2 "} , " label ": " $var_1 "} , ... ( more tool calls as required )]. Please make sure the parameter type is correct and follow the documentation for parameter format .</p><p>If no function call is needed , please directly output an empty list .</p><p>Here are some examples and what was wrong with the agent response : Example Query : Two employees X and Y are paid a total of Rs . 506 per week by their employer . If X is paid 120 percent of the sum paid to Y , how much is Y paid per week ? Tool Calls Used : [{" name ": " add " , " label ": " $var_1 " , " arguments ": {" arg_0 ": 1 , " arg_1 ": 1.2}} , {" name ": " divide " , " label ": " $var_2 " , " arguments ": {" arg_0 ": 506 , " arg_1 ": " $var_1 . result$ "}} , {" name ": " multiply " , " label ": " $var_3 " , " arguments ": {" arg_0 ": " $var_2 . result$ " , " arg_1 ": 1}}] Reflection / Critic : correct tool calls ======================================== Example Query : Rs .385 were divided among X ,Y , Z in such a way that X had Rs .20 more than Y and Z had Rs 15 more than X . How much was Y 's share ? Tool Calls Used : [{" name ": " add " , " label ": " $var_1 " , " arguments ": {" arg_0 ": 20 , " arg_1 ": 15}} , {" name ": " subtract " , " label ": " $var_2 " , " arguments ": {" arg_0 ": 385 , " arg_1 ": " $var_1 . result$ "}} , {" name ": " divide " , " label ": " $var_3 " , " arguments ": {" arg_0 ": " $var_2 . result$ " , " arg_1 ": 3}}] Reflection / Critic : I need to analyze the incorrect tool execution for solving this problem about dividing Rs .385 among X , Y , and Z with specific conditions .</p><p>The mistake in the agent ' s execution :</p><p>The agent tried to solve the problem by : 1. Adding 20 + 15 = 35 2. Subtracting this from 385 to get 350 3. Dividing 350 by 3 This approach is incorrect because it misunderstands the relationships between X , Y , and Z. The correct approach should account for : -X has Rs .20 more than Y ( so X = Y + 20) -Z has Rs .  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Integrating memory for two main tool use tasks</figDesc><graphic coords="2,116.22,70.87,362.83,155.01" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Memory entry with negative feedback for WorkBench</figDesc><graphic coords="5,70.87,235.45,216.08,127.38" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Memory extraction module's system prompt for general purpose tool use (WorkBench)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Memory entry with positive feedback for WorkBench</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Example from WorkBench where a positive memory entry helps</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 9 :</head><label>9</label><figDesc>Figure 9: Example from WorkBench benchmark where a negative memory entry helps</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 12 :</head><label>12</label><figDesc>Figure 12: System prompt for the synthetic WorkBench query generation</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 15 :Figure 16 :</head><label>1516</label><figDesc>Figure 15: Memory extraction module's system prompt for PEToolBench</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>s approach to solve this work problem contains multiple errors . Let 's examine the problem and the agent 's solution :Problem UnderstandingWe have a certain number of men ( let 's call it x) who can finish work in 100 days With 10 fewer men (x -10) , the same work takes 110 days (100+10 days ) Correct ApproachThe key insight is that work = men × days , and the total work is constant . So :x × 100 = (x -10) × 110 Errors in the Agent 's Solution : Parameter Type Error : In the first function call , the agent uses "x" as a string instead of a numeric variable , which would cause execution issues . Mathematical Logic Error : The agent 's sequence of operations doesn 't correctly set up or solve the equation . The proper approach requires solving the equation x × 100 = (x -10) × 110. Unnecessary Operations : The last two divisions with 1000 and 10 don 't relate to the problem ' s solution and appear arbitrary . Missing Final Calculation : The agent doesn 't actually solve for the original number of men . Correct Solution Would Be : Set up the equation : x × 100 = (x -10) × 110 Expand : 100x = 110x -1100 Rearrange : 100x -110x = -1100 Simplify : -10x = -1100 Solve : x = 110 The original number of men was 110. The agent failed to properly formulate and solve the algebraic equation needed for this problem .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 17 :</head><label>17</label><figDesc>Figure 17: Example memory entry for NESTFUL</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head></head><label></label><figDesc>15 more than X ( so Z = X + 15 = Y + 20 + 15 = Y + 35) If we call Y 's share Y , then : -20 + 15 = 35 ( for the total of additional money beyond Y ) 2. Added 35 to Y to represent Z ( not needed as a separate step ) 3. Realized that the equation is 3 Y + 55 = 385 4. Subtracted 55 from 385 to get 330 5. Divided 330 by 3 to get Y = 110 The mistake was in not properly setting up the equation to account for all three shares in terms of Y before solving . Use these insights to avoid similar mistakes . Consider these examples when solving the current task .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 18 :</head><label>18</label><figDesc>Figure 18: Example NESTFUL system prompt with a test query and retrieved memory entries</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="3,93.55,70.87,408.19,224.91" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="7,116.22,70.87,362.84,153.58" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>MemToolAgent Results for General Purpose Tool Use Benchmarks</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">WorkBench Accuracy</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>NESTFUL</cell><cell></cell><cell></cell></row><row><cell>Method</cell><cell cols="11">Analytics Calendar CRM Email Multi-Domain Overall F1 Func. F1 Param. Part. Acc. Full Acc. Win Rate</cell></row><row><cell>No Memory</cell><cell>18.52</cell><cell>73.74</cell><cell cols="2">69.44 79.01</cell><cell>57.67</cell><cell>57.56</cell><cell>96.30</cell><cell>61.30</cell><cell>31.90</cell><cell>15.60</cell><cell>51.20</cell></row><row><cell>Extended Thinking</cell><cell>38.89</cell><cell>85.86</cell><cell>75</cell><cell>86.42</cell><cell>53.44</cell><cell>64.12</cell><cell>95.20</cell><cell>62.70</cell><cell>33.40</cell><cell>16.90</cell><cell>66.10</cell></row><row><cell>ReAct Agent</cell><cell>27.78</cell><cell>91.92</cell><cell cols="2">72.22 90.12</cell><cell>61.38</cell><cell>65.94</cell><cell>93.20</cell><cell>56.40</cell><cell>29.50</cell><cell>10.80</cell><cell>58.20</cell></row><row><cell>MemToolAgent</cell><cell>86.11</cell><cell>92.93</cell><cell cols="2">88.89 97.53</cell><cell>73.54</cell><cell>85.06</cell><cell>96.00</cell><cell>78.00</cell><cell>40.60</cell><cell>30.40</cell><cell>70.20</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>MemToolAgent Results for PEToolBench 4.2.2 General Purpose Tool Use Experiments</figDesc><table><row><cell>Table 1 compares MemToolAgent with no-memory,</cell></row><row><cell>extended thinking, and ReAct (Yao et al., 2022) in</cell></row><row><cell>NESTFUL and WorkBench. For NESTFUL, Mem-</cell></row><row><cell>ToolAgent nearly doubles the Full Sequence Match-</cell></row><row><cell>ing performance (from 15.6% to 30.4%) compared</cell></row><row><cell>to the no-memory baseline, while the Win Rate</cell></row><row><cell>increases from 51% to 70%. Enabling extended</cell></row><row><cell>thinking improves Win Rate but yields only a slight</cell></row><row><cell>increase in Full Sequence Matching. These re-</cell></row><row><cell>sults demonstrate that extra reasoning alone is not</cell></row><row><cell>enough, and the model requires concrete examples</cell></row><row><cell>from memory to properly follow the tool calling</cell></row><row><cell>format. MemToolAgent demonstrates significant</cell></row><row><cell>performance improvements on WorkBench, with</cell></row><row><cell>Analytics task accuracy increasing from 18% to</cell></row><row><cell>86% and overall accuracy rising from 57% to 85%</cell></row><row><cell>compared to the no-memory baseline.</cell></row><row><cell>4.2.3 Personalized Tool Orchestration</cell></row><row><cell>Experiments</cell></row><row><cell>Table 2 shows MemToolAgent's performance com-</cell></row><row><cell>pared to state-of-the-art memory architectures A-</cell></row><row><cell>MEM and Mem0 on PEToolBench. Due to the cost</cell></row><row><cell>of LLM calls for memory addition in these meth-</cell></row><row><cell>ods and the MemToolAgent with memory extractor,</cell></row><row><cell>the experiments used a 50-query subset consisting</cell></row><row><cell>of the first 50 queries from the 591-query test set.</cell></row><row><cell>Top-15 embedding-based retrieval was used for</cell></row><row><cell>A-MEM and Mem0. MemToolAgent achieves a</cell></row><row><cell>Tool Accuracy of 0.82, representing a 17% rela-</cell></row><row><cell>tive improvement over A-MEM and Mem0. This</cell></row><row><cell>demonstrates that MemToolAgent is more effective</cell></row><row><cell>at leveraging memories for selecting the appropri-</cell></row><row><cell>ate tool based on user preferences. All methods</cell></row><row><cell>perform equally well at generating the appropriate</cell></row><row><cell>parameters.</cell></row></table><note><p>Figure 5: Ablation studies comparing fixed top-k memory retrieval with the Dynamic top-n approach (a) Effect of memory extraction module on MemToolAgent Performance (b) Comparison of Different Memory Types for WorkBench</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Ablation Studies for memory extraction module and Memory Types</figDesc><table><row><cell>4.3 Ablation Studies</cell><cell>racy in PEToolBench. Furthermore, NESTFUL</cell></row><row><cell>4.3.1 Comparing Fixed Top-k Retrieval with Dynamic Top-n Figure 5 compares fixed top-k with the Dynamic top-n memory approach on 100 PEToolBench queries (the first 100 queries from the 591-query test set). Dynamic top-n retrieval finds a sweet spot</cell><cell>experiments with top-5 retrieval show that adding reflection/critique to memory significantly boosts performance. WorkBench experiments with top-1 retrieval further demonstrate that reflections enable better learning from mistakes than raw execution context alone.</cell></row><row><cell>for the optimal number of memory entries. The</cell><cell></cell></row><row><cell>figure also demonstrates that Dynamic top-n out-</cell><cell></cell></row><row><cell>performs the fixed top-k method across different k</cell><cell></cell></row><row><cell>values on the first 50 queries from the NESTFUL</cell><cell></cell></row><row><cell>test set. The results confirm our hypothesis that</cell><cell></cell></row><row><cell>the optimal number of memory entries depends on</cell><cell></cell></row><row><cell>the test query, and the proposed Dynamic top-n</cell><cell></cell></row><row><cell>approach moves us in that direction.</cell><cell></cell></row><row><cell>4.3.2 Effect of Memory Extraction module</cell><cell></cell></row><row><cell>Tables 3a and 3b show the performance improve-</cell><cell></cell></row><row><cell>ments achieved by incorporating the memory ex-</cell><cell></cell></row><row><cell>traction module into MemToolAgent. Due to cost</cell><cell></cell></row><row><cell>and time constraints, PEToolBench uses 50 queries</cell><cell></cell></row><row><cell>while NESTFUL and WorkBench use full test sets.</cell><cell></cell></row><row><cell>Using the memory extractor to store high-level</cell><cell></cell></row><row><cell>user preferences in memory improves Tool Accu-</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 5 :</head><label>5</label><figDesc>Total number of input and output tokens</figDesc><table><row><cell>Table 3b compares different memory entry for-</cell></row><row><cell>mats for WorkBench. The "MemToolAgent w/</cell></row><row><cell>paraphrased queries and w/o memory extractor"</cell></row><row><cell>setting uses paraphrased versions of queries that</cell></row><row><cell>are used for generating memory entries while en-</cell></row><row><cell>suring they have the same ground truth (GT). Ev-</cell></row><row><cell>erything else remains identical to MemToolAgent</cell></row><row><cell>w/o memory extractor. Since the memory entries</cell></row><row><cell>and test queries are similar to each other, this set-</cell></row><row><cell>ting simulates a scenario where memory entries</cell></row><row><cell>are slightly different. Using different query formu-</cell></row><row><cell>lations can expand the agent's exploration space.</cell></row><row><cell>Using paraphrased queries leads to better perfor-</cell></row><row><cell>mance on Multi-domain and Calendar tasks than</cell></row><row><cell>original queries.</cell></row><row><cell>The "MemToolAgent w/ synthetic queries and</cell></row><row><cell>w/o memory extractor" setting addresses the cold-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 6 :</head><label>6</label><figDesc>WorkBench Accuracy Results with Claude 4 Sonnet</figDesc><table><row><cell>Method</cell><cell cols="5">Analytics Calendar CRM Email Multi-Domain Overall</cell></row><row><cell>No Memory</cell><cell>50</cell><cell>91.92</cell><cell>68.06 87.65</cell><cell>57.14</cell><cell>67.94</cell></row><row><cell>Extended Thinking</cell><cell>55.56</cell><cell>88.89</cell><cell>76.39 88.89</cell><cell>57.14</cell><cell>69.76</cell></row><row><cell>ReAct</cell><cell>48.15</cell><cell>90.91</cell><cell>79.17 88.89</cell><cell>58.20</cell><cell>69.40</cell></row><row><cell>MemToolAgent</cell><cell>92.59</cell><cell>93.94</cell><cell>84.72 88.89</cell><cell>68.78</cell><cell>83.06</cell></row><row><cell cols="6">You are an agent responsible for analyzing the INCORRECT execution of a tool -use</cell></row><row><cell>agent .</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="6">Today ' s date is Thursday , 2023 -11 -30 and the current time is 00:00:00.</cell></row><row><cell cols="6">Remember the current date and time when answering queries . Meetings must not start</cell></row><row><cell cols="2">before 9 am or end after 6 pm .</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">The agent had access to these tools :</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>{ TOOL DESCRIPTIONS }</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">Here are similar queries , their executions , and user feedback :</cell><cell></cell></row><row><cell cols="2">{ SIMILAR ENTRIES FROM MEMORY }</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="6">For each query where user feedback indicates incorrect execution , reflect on what</cell></row><row><cell cols="2">went wrong and use these insights .</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="6">The whole agent execution including tool calls and corresponding responses is :</cell></row><row><cell>{ AGENT EXECUTION }</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">Check if the agent used a correct order of tools</cell><cell></cell><cell></cell></row><row><cell cols="4">Check if the agent hallucinated any tool parameters</cell><cell></cell><cell></cell></row><row><cell cols="4">Check if the agent used wrong values for tool parameters</cell><cell></cell><cell></cell></row><row><cell cols="6">Check if the agent only used the information from tools or directly from user .</cell></row><row><cell cols="6">Check if the agent had a correct temporal and conditional reasoning .</cell></row></table><note><p>Before sending any error message , verify you ' re not contradicting yourself Remember this is a wrong response , there is at least one mistake in tool usage Reflect on the query , response , and other similar queries to catch the mistake , try to keep your response short .</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head></head><label></label><figDesc>Today ' s date is Thursday , 2023 -11 -30 and the current time is 00:00:00. Remember the current date and time when answering queries . Meetings must not start before 9 am or end after 6 pm . All my emails from yuki from the last 3 days need to be deleted . Can you do that ? → Remove Yuki 's emails that arrived in the previous three days 3) carlos needs all the emails from chenwei last week about ' Update on Supply Chain Enhancement Workshop '. Can you forward them ? → Could you forward to Carlos every email Chenwei sent last week about ' Update on Supply Chain Enhancement Workshop '? Figure 11: Examples of original WorkBench email queries and their paraphrased forms</figDesc><table><row><cell>Here are similar queries , their executions , and user feedback :</cell></row><row><cell>{ RETRIEVED MEMORIES }</cell></row><row><cell>For each query where user feedback indicates incorrect execution , reflect on what</cell></row><row><cell>went wrong and use these insights to avoid similar mistakes . Consider these examples</cell></row><row><cell>when solving the current task .</cell></row><row><cell>Figure 10: System Prompt for WorkBench</cell></row><row><cell>1) Delete my last email from nadia → Remove the most recent email I received from</cell></row><row><cell>Nadia</cell></row><row><cell>2) You are an expert system designed to generate realistic queries that are executable</cell></row><row><cell>using available tools to create high -quality training data for tool -use agents .</cell></row><row><cell>## Your Objectives :</cell></row><row><cell>Generate diverse , realistic user queries that can be solved using the available</cell></row><row><cell>tools</cell></row><row><cell>## Available Tools :</cell></row><row><cell>{ TOOLS }</cell></row><row><cell>## Generation Guidelines :</cell></row><row><cell>Today ' s date is Thursday , 2023 -11 -30 and the current time is 00:00:00.</cell></row><row><cell>Remember the current date and time when answering queries . Meetings must not start</cell></row><row><cell>before 9 am or end after 6 pm .</cell></row><row><cell>### Query Diversity :</cell></row><row><cell>-Include multi -tool scenarios</cell></row><row><cell>-Create queries that require different reasoning patterns ( sequential , parallel ,</cell></row><row><cell>conditional )</cell></row><row><cell>### Query Quality Standards :</cell></row><row><cell>-Queries should be realistic and represent actual user needs</cell></row><row><cell>-Use natural language that real users would employ</cell></row><row><cell>-Avoid overly artificial or contrived scenarios</cell></row><row><cell>### Execution Requirements :</cell></row><row><cell>-Follow proper tool calling conventions and error handling</cell></row><row><cell>-Provide clear reasoning for tool selection and parameter choices</cell></row><row><cell>-Each query should include at least one write operation</cell></row><row><cell>-Queries should not give explicit information</cell></row></table></figure>
+		</body>
+		<back>
+
+			<div type="availability">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>* <ref type="url" target="https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html">https://docs.scipy.org/doc/scipy/reference/ generated/scipy.signal.find_peaks.html</ref> </p></div>
+			</div>
+
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethical Considerations</head><p>The proposed MemToolAgent approach has been implemented and evaluated using the publicly available NESTFUL, WorkBench, and PEToolBench benchmarks.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Case-based reasoning: Foundational issues, methodological variations, and system approaches</title>
+		<author>
+			<persName><forename type="first">Agnar</forename><surname>Aamodt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enric</forename><surname>Plaza</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">AI communications</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="39" to="59" />
+			<date type="published" when="1994">1994</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Mathqa: Towards interpretable math word problem solving with operation-based formalisms</title>
+		<author>
+			<persName><forename type="first">Aida</forename><surname>Amini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saadia</forename><surname>Gabriel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shanchuan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rik</forename><surname>Koncel-Kedziorski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics: Human language technologies</title>
+		<meeting>the 2019 conference of the North American chapter of the association for computational linguistics: Human language technologies</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="2357" to="2367" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Claude 3.5 sonnet. Large language model</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Claude 3.7 sonnet. Large language model</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kinjal</forename><surname>Basu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ibrahim</forename><surname>Abdelaziz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kiran</forename><surname>Kate</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mayank</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Crouse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yara</forename><surname>Rizk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelsey</forename><surname>Bradford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asim</forename><surname>Munawar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.03797</idno>
+		<title level="m">Sadhana Kumaravel, Saurabh Goyal, and 1 others. 2024. Nestful: A benchmark for evaluating llms on nested sequences of api calls</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yuzheng</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siqi</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lichao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulei</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zongyi</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.08191</idno>
+		<title level="m">Haojia Lin, and 1 others. 2025. Training-free group relative policy optimization</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Amartya</forename><surname>Chakraborty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paresh</forename><surname>Dashore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nadia</forename><surname>Bathaee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anmol</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anirban</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shi-Xiong</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.16986</idno>
+		<title level="m">Sambit Sahu, Milind Naphade, and Genta Indra Winata. 2025. T1: A tool-oriented conversational dataset for multi-turn agentic planning</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Saket Aryan, Taranjeet Singh, and Deshraj Yadav</title>
+		<author>
+			<persName><forename type="first">Prateek</forename><surname>Chhikara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dev</forename><surname>Khant</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.19413</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Mem0: Building production-ready ai agents with scalable long-term memory</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Runnan</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaobin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuofei</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengjun</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ningyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.06433</idno>
+		<title level="m">Memp: Exploring agent procedural memory</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Dongge</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Camille</forename><surname>Couturier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">Madrigal</forename><surname>Diaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuchao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Rühle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saravan</forename><surname>Rajmohan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.04851</idno>
+		<title level="m">Legomem: Modular procedural memory for multi-agent llm systems for workflow automation</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">When can llms actually correct their own mistakes? a critical survey of selfcorrection of llms</title>
+		<author>
+			<persName><forename type="first">Ryo</forename><surname>Kamoi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="1417" to="1440" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Experepair: Dualmemory enhanced llm-based repository-level program repair</title>
+		<author>
+			<persName><forename type="first">Fangwen</forename><surname>Mu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shoubin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qing</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.10484</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Packer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivian</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shishir_G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wooders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph_E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<title level="m">Memgpt: Towards llms as operating systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Preston</forename><surname>Rasmussen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavlo</forename><surname>Paliychuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Travis</forename><surname>Beauvais</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Ryan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Chalef</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.13956</idno>
+		<title level="m">Zep: a temporal knowledge graph architecture for agent memory</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Vlm agents generate their own memories: Distilling experience into embodied programs of thought</title>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Sarch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lawrence</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Tarr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenneth</forename><surname>Marino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katerina</forename><surname>Fragkiadaki</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="75942" to="75985" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ville</forename><surname>Satopaa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeannie</forename><surname>Albrecht</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Irwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barath</forename><surname>Raghavan</surname></persName>
+		</author>
+		<title level="m">Finding a&quot; kneedle&quot; in a haystack: Detecting knee points in system behavior. In 2011 31st international conference on distributed computing systems workshops</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="166" to="171" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Reflexion: Language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="8634" to="8652" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Olly</forename><surname>Styles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patricio</forename><surname>Cerda-Mardini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tanaya</forename><surname>Guha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Sanchez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bertie</forename><surname>Vidgen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.00823</idno>
+		<title level="m">Workbench: a benchmark dataset for agents in a realistic workplace setting</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Efficient context selection for long-context qa: No tuning, no iteration, just adaptive-k</title>
+		<author>
+			<persName><forename type="first">Chihiro</forename><surname>Taguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seiji</forename><surname>Maekawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikita</forename><surname>Bhutani</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.08479</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rujun</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zifeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><forename type="middle">T</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwen</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanfei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamid</forename><surname>Palangi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.08026</idno>
+		<title level="m">George Lee, and 1 others. 2025. In prospect and retrospect: Reflective memory management for long-term personalized dialogue agents</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Akash</forename><surname>Vishwakarma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hojin</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohith</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Priyam</forename><surname>Shankar Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rahul</forename><surname>Vishwakarma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sparsh</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuvraj Anupam</forename><surname>Chauhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.08098</idno>
+		<title level="m">Cognitive weave: Synthesizing abstracted knowledge with a spatio-temporal resonance graph</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">2024a. Llms in the imaginarium: tool learning through simulated trial and error</title>
+		<author>
+			<persName><forename type="first">Boshi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Eisner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Van Durme</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.04746</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zora</forename><surname>Zhiruo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayuan</forename><surname>Mao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.07429</idno>
+		<title level="m">Daniel Fried, and Graham Neubig. 2024b. Agent workflow memory</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tianxin</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noveen</forename><surname>Sachdeva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Coleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhankui</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanchen</forename><surname>Bei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuying</forename><surname>Ning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengting</forename><surname>Ai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunzhe</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingrui</forename><surname>He</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2511.20857</idno>
+		<title level="m">Chi, and 1 others. 2025. Evo-memory: Benchmarking llm agent test-time learning with self-evolving memory</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Harm de Vries, Leandro Von Werra, Arjun Guha, and Lingming Zhang</title>
+		<author>
+			<persName><forename type="first">Yuxiang</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifeng</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Mueller</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="s">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="62787" to="62874" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>Selfcodealign: Self-alignment for code generation</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yunzhong</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangmin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hewei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunlong</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zora</forename><surname>Zhiruo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.06664</idno>
+		<title level="m">Toolmem: Enhancing multimodal agents with learnable tool capability memory</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">2025a. Petoolllm: Towards personalized tool learning in large language models</title>
+		<author>
+			<persName><forename type="first">Qiancheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongqi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heming</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenjie</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.18980</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Wujiang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Tan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.12110</idno>
+		<title level="m">Zujie Liang, and Yongfeng Zhang. 2025b. A-mem: Agentic memory for llm agents</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vipul</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rohit</forename><surname>Aggarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varsha</forename><surname>Mahadevan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhaskar</forename><surname>Krishnamachari</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2511.14769</idno>
+		<title level="m">Cluster-based adaptive retrieval: Dynamic context selection for rag applications</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2210.03629</idno>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Yifan Gao, and 1 others. 2025a. Personaagent: When large language model agents meet personalization at test time</title>
+		<author>
+			<persName><forename type="first">Weizhi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangwei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhepei</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henry</forename><forename type="middle">Peng</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengyang</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.06254</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yanzhao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingxin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dingkun</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengjun</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.05176</idno>
+		<title level="m">Junyang Lin, and 1 others. 2025b. Qwen3 embedding: Advancing text embedding and reranking through foundation models</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">Huichi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yihang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xue</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kin</forename><surname>Hei Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ka</forename><forename type="middle">Yiu</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guchun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Shao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.16153</idno>
+		<title level="m">Linyi Yang, and 1 others. 2025. Memento: Fine-tuning llm agents without fine-tuning llms</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Navalia: Advancing Cowork Agents through Verifiable Task Synthesis and Long-Horizon Post-Training</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Allspark</forename><surname>Team</surname></persName>
+						</author>
+						<title level="a" type="main">Navalia: Advancing Cowork Agents through Verifiable Task Synthesis and Long-Horizon Post-Training</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">A1240CBD8242A48167CD1B0D06C9BEEA</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:07+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language model (LLM) agents are evolving from conversational assistants into Cowork Agents capable of autonomous planning, tool use, and complex task execution. Financial analysis requires these agents to integrate cross-document evidence and perform multistep numerical reasoning, but expert task authoring is costly, while direct LLM synthesis struggles to produce challenging tasks with reliable answers. We introduce Navalia, a framework for Cowork Agents that combines verifiable task synthesis with long-horizon post-training. Using corporate financial reports as its data source, Navalia semantically selects supporting evidence from complete fact sets and constructs executable computation chains to generate analytical tasks with traceable evidence and actual data dependencies between steps. We further use independent LLM review and programmatic checks to verify evidence consistency and answer correctness. The verified tasks are then used for trajectory collection, cold-start supervised fine-tuning (SFT), and reinforcement learning (RL) to improve long-horizon task execution. Navalia, initialized from Qwen3.6-35B-A3B, achieves consistent gains over the base model across all five benchmarks: OfficeQA Pro, Fin-SearchComp, Finance Agent Benchmark, APEX-Agents-AA, and Workspace-Bench-Lite. These results demonstrate that Navalia improves evidence integration, tool use, and long-horizon task execution capabilities and generalizes to broader Cowork settings, including general office tasks.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Agents based on large language models (LLMs) <ref type="bibr" target="#b22">[23]</ref> are evolving from conversational assistants <ref type="bibr" target="#b2">[3,</ref><ref type="bibr" target="#b19">20]</ref> into Cowork Agents that autonomously plan, invoke tools, and deliver verifiable results to achieve user goals <ref type="bibr" target="#b0">[1,</ref><ref type="bibr" target="#b21">22,</ref><ref type="bibr" target="#b10">11]</ref>. Financial analysis is an important application of such agents <ref type="bibr" target="#b6">[7,</ref><ref type="bibr" target="#b24">25,</ref><ref type="bibr" target="#b9">10]</ref>: agents must locate evidence in lengthy documents and complex tables, identify differences in metric definitions and reporting scope across companies and reporting periods, and perform multistep numerical analysis through repeated tool interactions. Document retrieval, evidence integration, and computation are interdependent, and errors at any stage may affect the final conclusions. Evaluation results on OfficeQA Pro <ref type="bibr" target="#b12">[13]</ref> also reveal substantial limitations in agents' ability to retrieve evidence and perform numerical reasoning over large collections of financial documents.</p><p>Improving these capabilities requires the scalable construction of training tasks with both analytical depth and verifiability. A reliable financial analysis task must not only have sufficient analytical depth but also specify its source documents, supporting evidence, computational dependencies, and reference answer, while ensuring consistency in reporting periods, metric definitions, units, and algorithmic parameters. Relying on domain experts to construct and verify individual tasks is costly and difficult to scale to meet post-training data demands; allowing LLMs to freely generate question-answer pairs directly from raw document environments may lead them to mix data with inconsistent metric definitions or reporting scope, make calculation errors <ref type="bibr" target="#b4">[5]</ref>, or favor simple lookup and basic arithmetic <ref type="bibr" target="#b18">[19]</ref>. Even when questions contain multiple steps, those steps may lack actual data dependencies and thus fail to provide effective training signals for multistep analysis <ref type="bibr" target="#b20">[21]</ref>. In addition, systematic and stable post-training on these reliable tasks is needed to improve agents' cross-document evidence integration, multistep numerical reasoning, and long-horizon task execution capabilities <ref type="bibr" target="#b11">[12]</ref>. However, systematic public documentation covering data construction through complete post-training pipelines for Cowork Agents remains limited, making related methods difficult to reproduce and extend.</p><p>To this end, we introduce Navalia, a framework for Cowork Agents that combines verifiable task synthesis with long-horizon post-training. Figure <ref type="figure" target="#fig_0">1</ref> provides an overview of the pipeline. Navalia constructs a dual-view representation of documents and facts from corporate financial reports, using documents to provide the interactive environment and traceable facts to support task construction and verification. To reduce evidence omissions caused by rule-based prefiltering, an LLM semantically selects supporting evidence from the complete fact sets of candidate documents and checks metric definitions and reporting scope. Building on this evidence, Navalia constructs executable computation chains with actual data dependencies and combines deterministic execution of complex computations, independent LLM review, and programmatic checks to verify consistency among the question, evidence, computation process, and reference answer. This provides analytical tasks with traceable evidence, verifiable answers, and actual multistep dependencies for post-training.</p><p>Navalia adopts a two-stage post-training pipeline of cold-start supervised fine-tuning (SFT) followed by reinforcement learning (RL) <ref type="bibr" target="#b16">[17,</ref><ref type="bibr" target="#b7">8]</ref>. We collect teacher trajectories using a lightweight ReAct Harness <ref type="bibr" target="#b23">[24]</ref> with FIFO context management <ref type="bibr" target="#b15">[16]</ref> and filter them to construct the cold-start SFT dataset. After the cold start, we adapt the same Harness for RL, focusing training on solvable tasks that the model cannot yet solve reliably. Under FIFO context management, a complete interaction trajectory is divided into multiple segments. We compute trajectory-level advantages from final task outcomes and share them across the segments, enabling end-to-end optimization of the entire trajectory so that earlier retrieval and analysis behaviors can also learn from the final feedback.</p><p>We build Navalia on Qwen3.6-35B-A3B and evaluate it on five benchmarks covering document analysis, financial search, and general office tasks. Navalia achieves clear improvements over the base model on all five benchmarks and reaches performance levels comparable to those of leading open-source and closedsource models on several evaluations. Although Navalia's training tasks and interaction environments are all constructed from publicly disclosed corporate financial reports, the trained model still achieves substantial gains on open-domain financial search benchmarks <ref type="bibr" target="#b8">[9,</ref><ref type="bibr" target="#b3">4]</ref> and long-horizon task benchmarks for general office settings. On APEX-Agents-AA <ref type="bibr" target="#b21">[22]</ref>, which covers investment banking, management consulting, and corporate legal tasks, and Workspace-Bench-Lite <ref type="bibr" target="#b17">[18]</ref>, which focuses on cross-file operations and long-horizon task execution, Navalia improves by 13.20 and 13.07 percentage points, respectively. These results indicate that the retrieval planning, evidence integration, tool use, and long-horizon task execution capabilities strengthened through training on financial-report tasks can transfer to a broader range of Cowork tasks.</p><p>Our main contributions are as follows:</p><p>• We propose an automated task synthesis pipeline that combines a dual-view representation of documents and facts with semantic evidence selection, executable computation chains, and multi-stage verification to construct analytical tasks with traceable evidence, actual multi-step dependencies, and verifiable answers.</p><p>• We develop a complete post-training recipe covering trajectory collection and filtering, cold-start SFT, and RL within a unified interaction framework. For long trajectories segmented under FIFO context management, we share trajectory-level advantages across segments to optimize the entire trajectory using final task outcomes.</p><p>• We plan to release model weights and open-source key components of our task construction, post-training, and evaluation pipelines to support reproducibility and further research on Cowork Agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Verifiable Task Synthesis</head><p>Given a collection D of financial reports from public corporate disclosures, Navalia constructs analytical tasks with traceable evidence and verifiable answers, enforcing actual data dependencies in multistep tasks. Each task is represented as T = (q, y, C, F + , G, a, θ), <ref type="bibr" target="#b0">(1)</ref> where q is a natural-language question and y is the reference answer. The interactive task environment C is constructed from corporate financial reports and supports evidence retrieval and numerical analysis through multi-turn tool use. The set F + contains traceable supporting facts, and G is an executable computation chain comprising these facts, ordered computational steps, and their intermediate results. The task anchors a specify the companies, reporting periods, and financial metrics involved, including metric definitions and reporting scope. The operator parameters θ specify how each operator in the chain is evaluated.  The construction pipeline first samples analytical operators and task anchors, identifies candidate documents, and semantically selects supporting facts from their complete fact sets. It then constructs an executable computation chain with actual data dependencies and computes the reference answer. Finally, it generates the question according to the task constraints and verifies consistency through independent review and programmatic checks. By constraining question generation using traceable supporting facts and explicit computations, the pipeline produces financial analysis tasks with traceable evidence and reproducible answers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Dual-View Representation of Documents and Facts</head><p>For each financial report d ∈ D, Navalia constructs two complementary representations: a document view that supports autonomous retrieval and analysis by the agent, and a fact view for task construction and validation:</p><formula xml:id="formula_0">d -→ r(d), F (d) . (<label>2</label></formula><formula xml:id="formula_1">)</formula><p>We parse financial reports from different sources and formats into Markdown to obtain the document view r(d), preserving body text, headings, and table structure. The resulting documents form a corpus that provides the document resources the agent accesses through tools in the interactive task environment C. </p><formula xml:id="formula_2">F = d∈D F (d).<label>(3)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Operator-Driven Task Design and Environment Construction</head><p>Navalia uses analytical operators, task anchors, and operator parameters to jointly determine the analytical objectives and data requirements of each task. Let O denote the collection of predefined analytical operators and their composite templates, covering aggregation across reporting periods, trend comparison, statistical analysis, regression, numerical transformations, and cross-company analysis. Each operator or template o ∈ O specifies the required data types, computation rules, output format, and parameter space.</p><p>Composite templates connect operators with compatible inputs and outputs to form multistep tasks with computational dependencies.</p><p>Navalia first samples an operator or composite template, then samples task anchors conditioned on the operator and fact database, and operator parameters conditioned on the operator:</p><formula xml:id="formula_3">o ∼ p(o), a ∼ p(a | o, F ), θ ∼ p(θ | o). (<label>4</label></formula><formula xml:id="formula_4">)</formula><p>Navalia then checks document coverage under the sampled configuration. Time-series tasks require coverage of the specified consecutive reporting periods, cross-company tasks require comparable data from different companies for the same periods, and multistep tasks require coverage of all steps' data requirements. Configurations that do not satisfy these requirements are resampled. For configurations that pass these checks, Navalia identifies the candidate document set D cand and samples distractor documents from other reporting periods of the same companies and from peer companies. Together, the candidate and distractor documents form the document resources available in the interactive task environment C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Semantic Selection of Supporting Facts</head><p>Navalia reads all facts from the candidate documents D cand to form the candidate fact set F cand = d∈D cand F (d). Navalia does not prefilter facts using keywords or fixed metric-based rules. Instead, an LLM determines whether each fact meets the computational requirements by jointly considering the analytical operator, task anchors, operator parameters, and the fact's reporting period, metric definition, reporting scope, unit, and context. This semantic selection aims to reduce evidence omissions caused by incomplete rule coverage.</p><p>When the candidate fact set is large, providing all records in a single model input may exceed the context window and introduce redundant information that interferes with evidence assessment. Navalia therefore first reads each document's complete fact set separately and performs within-document semantic preselection. The facts retained from individual documents are aggregated into F cand , with all records retained for documents containing few facts. When preselection is not triggered, we set F cand = F cand . A reasoning model then jointly assesses the aggregated candidate facts across documents to determine the final supporting fact set:</p><formula xml:id="formula_5">F + = Select o, a, θ; F cand .<label>(5)</label></formula><p>Each supporting fact retains its identifier, location in the original document, reporting period, unit, metric definition, and reporting scope, making each computational input traceable to its source. If F + does not cover the raw data required by the target computation, or if the selected facts' metric definitions or reporting scopes do not satisfy the task requirements, we discard the current task instance and resample.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Executable Computation Chains and Numerical Evaluation</head><p>Navalia adopts different solution methods depending on the computational complexity of the analytical operator. For simple single-step tasks involving lookup, summation, rates of change, or averaging, an LLM derives the result directly from the supporting facts. For complex computations involving regression, forecasting, statistical analysis, or numerical transformations, the LLM extracts numerical values from the supporting facts and arranges them according to the operator's input requirements. Predefined numerical routines then execute the computations deterministically using the specified parameters to reduce intermediate errors that may arise when the model performs complex calculations directly. Fixed input formats and computation rules yield consistent results for identical data and parameters.</p><p>For multistep tasks, Navalia combines the sampled composite template with the supporting facts to construct an executable chain comprising multiple data extraction or computation steps. The template specifies each step's operator, input sources, and execution order. Task anchors impose consistent constraints on companies, reporting periods, metric definitions, and reporting scope throughout the chain, while operator parameters specify the computational configuration. Data extraction steps read raw fact values, while computation steps take these values or intermediate results from earlier steps as inputs. Complex steps are executed by the corresponding numerical routines.</p><p>For a linear chain containing K computation steps, we write</p><formula xml:id="formula_6">z 1 = o 1 (x 1 ; θ 1 ) , z k = o k (z k-1 , x k ; θ k ) , k = 2, . . . , K.<label>(6)</label></formula><p>Here, x k denotes the raw supporting data required at step k, o k and θ k denote its operator and parameters, and z k denotes its output. Later steps must use earlier outputs, excluding nominally multistep tasks without actual data dependencies. The computation chain G records each step's supporting facts, operator, parameters, input sources, and intermediate results, allowing the final answer to be traced back to the original evidence. Instances are discarded if the data are incomplete, types are incompatible between steps, or numerical evaluation fails. The final chain output undergoes unit conversion, precision adjustment, and format normalization to produce the reference answer y for subsequent question generation and validation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Question Generation and Quality Control</head><p>Given the computation chain G and reference answer y, Navalia generates the question q under the constraints imposed by the analytical operators, task anchors, operator parameters, and computation chain. Single-step questions specify the analytical objective, data scope, and computational requirements, while multistep questions describe the required analysis in the execution order of the computation chain and request only the final result. All constraints that affect the answer, including companies, reporting periods, financial metrics, reporting scope, and algorithmic parameters, must be preserved in the question. Requirements concerning unit conversion, precision, or specific output formats must also be explicitly stated.</p><p>After question generation, an independent review model derives an answer from q and F + without reusing the reasoning produced during generation. The reviewer checks consistency between the question and supporting evidence and compares its independently derived result with the reference answer y according to the requirements stated in the question, identifying errors in evidence identification and numerical computation. Tasks passing this review undergo further programmatic checks, such as verifying that the output of every non-final step in a multistep task is actually used by a subsequent step and checking that the reporting periods specified in the question match those recorded in the supporting facts. Only tasks that pass both independent review and programmatic checks are retained as final task instances T . </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Cold-Start Supervised Fine-Tuning</head><p>For the analytical tasks constructed and verified by the preceding pipeline, we use a strong teacher model to autonomously retrieve evidence, perform numerical analysis, and produce answers in the corresponding document environments, recording the complete interaction trajectories. We first apply trajectory-level filtering based on final-answer correctness, tool-call validity, and a minimum number of interaction turns. We then group trajectories into capability pools according to their analytical operators or composite templates and sample evenly across these pools. For the retained trajectories, we further assess quality at the turn level, masking supervision for low-quality model responses while retaining them as context for subsequent interactions.</p><p>Training samples are constructed using FIFO context management with a stride of 10 turns. Each sample contains the task instructions, up to 20 turns of interaction history, and up to 10 new interaction turns. SFT computes the cross-entropy loss only on model responses that pass quality assessment within the new interaction turns, normalized by the total number of supervised tokens. The supervision intervals do not overlap across samples, so each model response that passes quality filtering contributes to the loss in exactly one training sample.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Long-Horizon Agentic Reinforcement Learning</head><p>Navalia uses the cold-start SFT model as its initial policy, reuses the ReAct harness and FIFO context management mechanism from SFT trajectory collection, samples rollouts online, and optimizes the policy using group-relative policy gradients. Before RL, we select training tasks based on the success rates of the coldstart SFT model on sampled rollouts for candidate tasks. We retain tasks with both successful and failed rollouts and discard those for which all sampled rollouts succeed. Tasks for which all sampled rollouts fail are retained only if a stronger model successfully solves them, focusing training on solvable tasks that the current policy cannot yet solve reliably.</p><p>For any question-answer pair, the policy model samples G trajectories. The g-th trajectory can be represented as τ g = s g,1 , . . . , s g,J g , g = 1, . . . , G. (</p><p>Here, J g denotes the number of segments in the trajectory. We designate the final segment s g,J g as the Anchor and use this segment to compute the final task reward R g for the entire trajectory. Group-relative advantages are computed exclusively from the Anchor rewards of the trajectories and shared across all segments of the same trajectory. Through advantage sharing, document retrieval, tool use, and analytical actions in earlier segments also receive learning signals based on the task outcome.</p><p>We further adopt a dynamic sampling strategy that selects training data according to the Anchor rewards of trajectories sampled for the same task. Only task groups with nonzero within-group reward variance are retained, increasing the proportion of examples in the training batch that provide effective learning signals. As in SFT, the policy loss applies only to newly generated model responses in each segment, while reused historical context and environment observations are excluded through loss masking. For trajectories terminated because a single model response reaches the generation length limit, their Anchor rewards still contribute to group-relative advantage computation and dynamic sampling statistics, while all generated tokens in the entire trajectory are masked out of the loss, preventing truncation failures from unduly penalizing earlier effective exploration.</p><p>Navalia adopts on-policy sampling, with each rollout batch used for only one policy update. Let M denote the index set of valid tokens in the batch. The policy loss is normalized by the total number of valid tokens |M|:</p><formula xml:id="formula_8">L RL (θ) = - 1 |M| ∑ u∈M min r u (θ) A u , clip r u (θ), 1 -ϵ low , 1 + ϵ high A u .<label>(8)</label></formula><p>Here, y u is the target token generated by the model, x u is its generation context, and r u (θ) = π θ (y u |x u )</p><formula xml:id="formula_9">π θ old (y u |x u )</formula><p>is the importance sampling ratio for token y u . The advantage A u is the shared Anchor advantage of the trajectory containing token y u . Token-level normalization across the batch avoids the additional segment weighting introduced by averaging losses separately over segments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Setting</head><p>Implementation Details. We initialize Navalia from Qwen3.6-35B-A3B and perform cold-start supervised fine-tuning followed by reinforcement learning. The base model has a native context length of 262,144 tokens. SFT trajectory collection and RL rollouts share a lightweight ReAct harness <ref type="bibr" target="#b23">[24]</ref> with FIFO context management <ref type="bibr" target="#b15">[16]</ref>, using a window of up to 30 interaction turns and an update stride of 10 turns. Within each benchmark, models evaluated by us use the same agent harness, system prompt, tool interfaces, and interaction budget.</p><p>Evaluation Benchmarks. We evaluate Navalia on five benchmarks: OfficeQA Pro <ref type="bibr" target="#b12">[13]</ref>, which assesses evidence retrieval and numerical reasoning over financial documents (using 133 questions under the Full Corpus setting); FinSearchComp <ref type="bibr" target="#b8">[9]</ref> and Finance Agent Benchmark <ref type="bibr" target="#b3">[4]</ref>, which assess financial search and research capabilities (using the T2/T3 subsets and the 77 public questions from v1.1 and v2, respectively); and APEX-Agents-AA <ref type="bibr" target="#b21">[22]</ref> and Workspace-Bench-Lite <ref type="bibr" target="#b17">[18]</ref>, which assess long-horizon professional task execution and general office tasks involving cross-file operations, respectively. Scoring protocols and harness configurations are detailed in Appendix D.</p><p>Comparison Models. We compare Navalia against two groups of models to assess its training gains and relative performance: frontier closed-source models, including GPT-5.4, Claude Opus 4.6, Gemini 3.1 Pro Preview, and Qwen3.7-Plus; and large open-weight models, including DeepSeek-V4-Flash, Kimi-K2.6, GLM-5.2, and Qwen3.8-Flash-Next <ref type="bibr" target="#b14">[15]</ref>. We also include Qwen3.6-35B-A3B without our post-training as the baseline to quantify the performance gains achieved by Navalia. The comparison includes both results obtained by us and publicly reported results; the corresponding markers are explained in the caption of Table <ref type="table" target="#tab_4">1</ref>.  The constructed training data is characterized by retrieval-intensive tasks, long tool-use trajectories, and diverse reasoning capabilities. We further compare the tool-use behavior, evidence retrieval, and task performance of Qwen3.6-35B-A3B and Navalia-35B-A3B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Analysis</head><p>As shown in Figure <ref type="figure" target="#fig_2">2</ref>(a), each task in the training data contains an average of 5.85 supporting documents and 208.69 distractor documents, with maxima of 15 and 994, respectively. These statistics indicate that the model must locate and integrate evidence from multiple supporting documents within large, noisy document environments. The corresponding trajectories contain an average of 59.27 tool-use turns and 61.10 tool calls. Such noisy retrieval environments and long-horizon tool interactions help develop the model's cross-document retrieval, multi-turn tool use, and evidence integration capabilities.</p><p>Figure <ref type="figure" target="#fig_2">2</ref>(b) presents the capability distribution of the training data. The distribution is relatively balanced, with no single category accounting for more than 16.5% of the data. This helps prevent any particular task category from dominating training and provides diverse training coverage for financial information retrieval, quantitative analysis, and multi-step reasoning.</p><p>Figure <ref type="figure" target="#fig_2">2</ref>(c) compares tool use, evidence retrieval, and task performance on OfficeQA Pro before and after training. Following training, Navalia's task accuracy increases from 39.60% to 62.66%. The proportion of tasks for which all supporting documents are retrieved increases from 45.4% to 69.8%, and supporting document recall improves from 50.8% to 74.7%. Meanwhile, the average numbers of tool-use turns and tool calls increase from 39.3 and 41.5 to 47.8 and 55.2, respectively. These results indicate that our task synthesis and post-training pipeline effectively improves the model's long-horizon tool use, evidence retrieval, and financial task-solving capabilities.</p><p>To evaluate the effects of different context management methods on training efficiency and downstream performance, we compare per-turn sliding window and FIFO context management under the same limit of 30 visible interaction turns. The former advances the window by one turn and constructs a training sample for each target turn, whereas FIFO updates the window with a fixed stride, reducing context overlap between adjacent samples. Table <ref type="table" target="#tab_7">2</ref> shows that FIFO reduces the average number of samples per trajectory from 40.52 to 3.90, a reduction of 90.4%, while improving OfficeQA Pro accuracy from 49.96% to 51.56%. These results indicate that FIFO substantially reduces sample expansion while maintaining comparable downstream performance. We therefore adopt FIFO context management for subsequent SFT trajectory collection and reinforcement learning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Limitations and Future Work</head><p>We use a lightweight single-agent ReAct harness for SFT trajectory collection and RL rollouts. Context is managed solely through a fixed-window FIFO mechanism, without introducing more complex mechanisms such as trajectory compression, long-term memory, or multi-agent collaboration. The fixed window removes earlier interactions from the visible context, while our current advantage-sharing mechanism, based on final task rewards, does not explicitly distinguish the contributions of actions at different stages to task completion. Nevertheless, Navalia outperforms the baseline on Workspace-Bench-Lite using the Claude Code Harness and APEX-Agents-AA using the Stirrup Agent Harness. These results indicate that our task synthesis and post-training pipeline strengthens the model's document retrieval, evidence integration, and long-horizon tool-use capabilities, and that these improvements transfer across evaluation harnesses. Future work will explore more comprehensive agent harnesses and finer-grained reinforcement learning signals to further improve long-horizon Cowork task execution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We introduced Navalia, a framework for advancing Cowork Agents through verifiable task synthesis and long-horizon post-training. Based on a dual-view representation of documents and facts, Navalia constructs analytical tasks with traceable evidence, actual multistep dependencies, and verifiable answers. We combine this task synthesis pipeline with cold-start SFT and RL. Built on Qwen3.6-35B-A3B, Navalia consistently improves over the base model across all five benchmarks. These results indicate that training on financial-report tasks improves evidence integration, tool use, and long-horizon task execution, with benefits extending to open-domain financial search and broader Cowork tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Contributions</head><p>Authors are listed in order of contribution.</p><p>Hengqi Liu * , Ziyuan Liu * , Yang Qin † , Wanting Zhou , Zichuan Wang, Jiachen Liang, Xu Chu, Shaowei Chen, Zhaokai Luo, Mu Chuan .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Related Work</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Cowork Agents</head><p>Cowork Agents are designed to perform real-world professional tasks using files, data, and tools. APEX-Agents <ref type="bibr" target="#b21">[22]</ref> evaluates long-horizon, cross-application tasks designed by investment banking analysts, management consultants, and corporate lawyers, requiring agents to complete tasks in work environments equipped with files and tools. Workspace-Bench 1.0 <ref type="bibr" target="#b17">[18]</ref> focuses on office environments containing large collections of heterogeneous files. It evaluates agents' ability to retrieve relevant information across files, track file versions and revision histories, and integrate cross-file evidence to perform tasks such as data processing, file modification, and report generation.</p><p>Financial analysis is an important application of Cowork Agents <ref type="bibr" target="#b5">[6,</ref><ref type="bibr" target="#b6">7]</ref>. OfficeQA Pro <ref type="bibr" target="#b12">[13]</ref> uses a large document corpus comprising U.S. Treasury Bulletins to evaluate agents' capabilities in document parsing, evidence retrieval, and analytical reasoning over unstructured text and tables. Finance Agent Benchmark <ref type="bibr" target="#b3">[4]</ref> comprises expert-authored, real-world financial research questions spanning nine task categories, ranging from information retrieval to complex financial modeling. Agents use tools such as web search and SEC EDGAR search to retrieve information and conduct analyses. FinSearchComp <ref type="bibr" target="#b8">[9]</ref> focuses on open-domain financial search and reasoning, with three task categories: time-sensitive data retrieval, simple historical lookup, and complex historical investigation. Its tasks require external tools to obtain the necessary information.</p><p>These benchmarks provide representative, realistic environments and evaluation tasks for Cowork Agents, covering key capabilities including document understanding, information retrieval, cross-document reasoning, tool use, and financial modeling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Data and Environment Synthesis for Cowork Agents</head><p>Several representative benchmarks for Cowork Agents rely on experts for task design and quality validation. APEX-Agents <ref type="bibr" target="#b21">[22]</ref> engages professionals from investment banking, management consulting, and law to simulate collaboration on multiday projects, construct work environments, and develop corresponding tasks, reference answers, and evaluation rubrics. OfficeQA Pro <ref type="bibr" target="#b12">[13]</ref> begins with seed question-answer pairs written by the authors, which annotation teams expand using the original documents. The questions and answers are validated through independent question answering, disagreement resolution, and multiple rounds of end-to-end quality checks. These approaches preserve realistic constraints of professional tasks and provide reliable reference answers and evaluation rubrics. However, their reliance on manual construction and validation limits data scale, making it difficult to continually expand them into large, diverse datasets for post-training. Improving the automation of task and environment construction while preserving task constraints and verifiability is therefore an important direction for Cowork Agent data synthesis.</p><p>Recent work has explored scalable task and environment construction. OfficeVerse <ref type="bibr" target="#b13">[14]</ref> constructs office tasks and accompanying files from real-world public data and uses staged validation to check consistency among task requirements, file contents, and evaluation rubrics. ClawGym <ref type="bibr" target="#b1">[2]</ref> combines task synthesis, workspace construction, and hybrid verification, generating lightweight mock files and auxiliary resources according to task requirements and training agents on filtered interaction trajectories. Navalia focuses on multistep financial analysis over corporate documents. It constructs the agent's task environment from these documents and semantically selects supporting facts from the complete fact sets of the candidate documents. Analytical operators and their compositions determine each task's data requirements and computational procedures. Multistep tasks connect computational steps through explicit data dependencies, while numerical evaluation, independent review, and programmatic checks verify consistency among the question, evidence, computation, and answer. The resulting tasks support post-training to improve Cowork Agents' cross-document evidence integration, multistep numerical reasoning, and long-horizon task execution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Additional Implementation Details</head><p>We use Qwen3.6-35B-A3B as the baseline and perform cold-start supervised fine-tuning followed by reinforcement learning. SFT is implemented using slime, with 2 training epochs, a global batch size of 128, and a maximum training sequence length of 256K tokens. RL is implemented using dressage with on-policy training, where each rollout batch is used for a single policy update. We set max-token to 64K tokens per model response and allow at most 200 interaction turns per trajectory. Teacher trajectory collection and online RL rollouts both use a lightweight ReAct harness with FIFO context management, maintaining a visible context window of at most 30 interaction turns and updating it with a stride of 10 turns.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Evaluation Settings</head><p>We evaluate Navalia on five benchmarks covering financial document analysis, open-domain financial research, and general office tasks. Within each benchmark, models evaluated by us use the same task set, prompts, tool interfaces, and inference budget.</p><p>OfficeQA Pro. OfficeQA Pro <ref type="bibr" target="#b12">[13]</ref> comprises 133 questions constructed from historical U.S. Treasury Bulletins and primarily evaluates evidence retrieval and cross-document numerical reasoning over large document collections. We adopt the Full Corpus setting, providing agents with the complete document corpus in TXT format, with tables retaining their Markdown structure. Evaluation uses a ReAct harness with a maximum of 200 steps per task. Context is managed through a sliding window that retains the system prompt and original question, together with the most recent 30 assistant turns and their associated tool calls and responses. We evaluate final answers following the official scoring protocol and report accuracy.</p><p>FinSearchComp. The full FinSearchComp benchmark <ref type="bibr" target="#b8">[9]</ref> contains 635 financial search questions covering global and Greater China markets, organized into three categories: timely data retrieval, simple historical lookup, and complex historical investigation. We evaluate only T2 (simple historical lookup) and T3 (complex historical investigation) and report accuracy. Evaluation uses a ReAct harness that retains the complete interaction history without context truncation, compression, or summarization, with a maximum of 200 interaction turns per task.</p><p>Finance Agent Benchmark. Finance Agent Benchmark <ref type="bibr" target="#b3">[4]</ref> targets real-world financial research workflows, covering information retrieval, numerical reasoning, market analysis, and financial modeling. We combine the 50 public validation questions from v1.1 with the 27 public questions from v2 to form the Public-77 evaluation set. Evaluation uses a ReAct harness that retains the complete interaction history without context truncation, compression, or summarization. Public-77 contains 489 grading criteria in total. We use an LLM judge with thinking mode enabled to assess each criterion according to the fine-grained rubrics provided with the corresponding benchmark version. A question is marked as passed only if all its grading criteria are satisfied and the response does not contradict the expert answer. We report Class-Balanced (CB) All-Pass, calculated as the unweighted mean of per-category task pass rates using the original category labels from both versions.</p><p>APEX-Agents-AA. APEX-Agents-AA is Artificial Analysis's independent implementation of APEX-Agents <ref type="bibr" target="#b21">[22]</ref>, covering long-horizon, cross-application tasks in investment banking, management consulting, and corporate law. We evaluate its 452 tasks selected from the original public set of 480 tasks using the Stirrup Agent Harness. We report Pass@1, defined as the proportion of tasks for which all grading criteria are satisfied in a single attempt.</p><p>Workspace-Bench-Lite. Workspace-Bench-Lite <ref type="bibr" target="#b17">[18]</ref> comprises 100 representative tasks selected from the full benchmark, primarily evaluating cross-file retrieval, contextual reasoning, and long-horizon task execution in file-based workspaces. We use the Claude Code Harness and report Rubric Pass Rate, defined as the number of passed rubric items divided by the total number of rubric items across all evaluation tasks.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Overview of Navalia's task synthesis and post-training pipeline.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>3</head><label></label><figDesc>Long-Horizon Agent Post-Training 3.1 Training Framework Overview Navalia adopts a two-stage post-training pipeline comprising cold-start supervised fine-tuning (SFT) and reinforcement learning (RL). SFT trajectory collection and online RL rollouts use the same lightweight Re-Act harness with FIFO context management. Training samples reproduce the context visible during trajectory generation, with the loss computed only on newly generated model responses, enabling training over long-horizon interactions within a limited context window.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Training data characteristics and model behavior. The constructed training data is characterized by retrieval-intensive tasks, long tool-use trajectories, and diverse reasoning capabilities. We further compare the tool-use behavior, evidence retrieval, and task performance of Qwen3.6-35B-A3B and Navalia-35B-A3B.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>1. Dual-view Representation Corporate Financial Reports ...</head><label></label><figDesc></figDesc><table><row><cell></cell><cell cols="4">ID Fact Source Year</cell></row><row><cell></cell><cell>F1</cell><cell>...</cell><cell>...</cell><cell>2021</cell></row><row><cell></cell><cell>F2</cell><cell>...</cell><cell>...</cell><cell>2022</cell></row><row><cell>Full Document Corpus</cell><cell>F3 ...</cell><cell>... ...</cell><cell>... ...</cell><cell>2023 ...</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Global Fact Database 2. Verifiable Task Synthesis Operators &amp; Constraints f(x) Analytical Operators θ Operator Parameters 2007-2014 Time Windows Companies Candidate Documents ... Complete Fact Sets ... Supporting Documents ... LLM Supporting Facts ... Add Distractor Documents + ... Task Environment ... ... Semantic Selection Source Mapping Executable Computation Chain Numerical Evaluation Question + Answer o₁ z₁ … xₖ Explicit Data Dependencies oₖ o₂ 3. Multi-stage Verification Independent Review Programmatic Checks Verified QA</head><label></label><figDesc></figDesc><table><row><cell>Evidence Consistency</cell><cell>Constraint Completeness</cell></row><row><cell>Answer Agreement</cell><cell></cell></row><row><cell>4</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>. Post-training Verified QA + Task Environment Cold-Start SFT Long Horizon RL Navalia Training Tasks Trajectory Collection</head><label></label><figDesc></figDesc><table><row><cell></cell><cell>Unit &amp; Format</cell></row><row><cell></cell><cell>Consistency</cell></row><row><cell>Reporting-Period Alignment</cell><cell>Dependency Validation</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 1 :</head><label>1</label><figDesc>Main results on financial research and professional workplace tasks. All benchmark scores are reported as percentages. The final row reports gains over Qwen3.6-35B-A3B in percentage points. Results marked with * are taken directly from the original papers, technical reports, or official websites; all other results are obtained by us under the unified evaluation setup. When the marker follows a model name, it applies to the entire row; when it follows an individual score, it applies only to that entry. Scores marked with † were obtained using a different document representation or Agent Harness and are included for reference only.</figDesc><table><row><cell></cell><cell>OfficeQA Pro</cell><cell>FinSearchComp</cell><cell>Finance Agent</cell><cell>APEX-Agents-AA</cell><cell>Workspace-Bench-Lite</cell></row><row><cell>Model</cell><cell>Correctness ↑</cell><cell>T2&amp;T3 Acc. ↑</cell><cell>Public-77 CB All-Pass ↑</cell><cell>Pass@1 ↑</cell><cell>Rubric Pass Rate ↑</cell></row><row><cell>Proprietary Frontier Models</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>GPT-5.4 *</cell><cell>50.40</cell><cell>-</cell><cell>-</cell><cell>33.26</cell><cell>52.9</cell></row><row><cell>Claude Opus 4.6 *</cell><cell>55.60</cell><cell>-</cell><cell>-</cell><cell>33.04</cell><cell>-</cell></row><row><cell>Claude Opus 4.7 *</cell><cell>46.6  †</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>66.6</cell></row><row><cell>Gemini 3.1 Pro Preview *</cell><cell>39.10</cell><cell>-</cell><cell>-</cell><cell>32.01</cell><cell>38.7</cell></row><row><cell>Seed2.1 Pro *</cell><cell>70.9  †</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>53.0  †</cell></row><row><cell>Qwen3.7 Plus</cell><cell>55.39</cell><cell>61.1</cell><cell>56.94</cell><cell>22.42 *</cell><cell>55.01</cell></row><row><cell>Large Open-Weight Models</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Kimi-K3</cell><cell>67.92</cell><cell>68.8</cell><cell>65.02</cell><cell>37.13</cell><cell>60.56</cell></row><row><cell>DeepSeek-V4 Flash</cell><cell>65.66</cell><cell>65.2</cell><cell>58.87</cell><cell>36.43</cell><cell>58.08</cell></row><row><cell>Qwen3.8 Flash Next</cell><cell>64.04</cell><cell>70.3</cell><cell>58.48</cell><cell>38.86</cell><cell>61.96</cell></row><row><cell>GLM-5.2</cell><cell>63.41</cell><cell>65.7</cell><cell>63.1</cell><cell>33.89</cell><cell>59.34</cell></row><row><cell>Kimi-K2.6</cell><cell>58.65</cell><cell>59.1</cell><cell>54.49</cell><cell>29.28</cell><cell>54.96</cell></row><row><cell>Qwen3.5-397B-A17B</cell><cell>47.62</cell><cell>50.4</cell><cell>51.82</cell><cell>14.60</cell><cell>50.51</cell></row><row><cell>Baseline</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Qwen3.6-35B-A3B</cell><cell>39.6</cell><cell>41.7</cell><cell>43.19</cell><cell>12.24</cell><cell>46.2</cell></row><row><cell>Navalia-35B-A3B</cell><cell>62.66 (+23.06)</cell><cell>55.80 (+14.10)</cell><cell>57.10 (+13.91)</cell><cell>25.44 (+13.20)</cell><cell>59.27 (+13.07)</cell></row><row><cell>4.2 Main Results</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 1</head><label>1</label><figDesc></figDesc><table /><note><p><p>presents the overall performance of the evaluated models on benchmarks covering documentgrounded analysis, open-web financial research, and professional work across multiple domains.</p>Navalia outperforms the baseline on all five benchmarks. Navalia achieves scores of 62.66, 55.80, 57.10, 25.44, and 59.27 on OfficeQA Pro, FinSearchComp, Finance Agent Benchmark, APEX-Agents-AA, and Workspace-Bench-Lite, respectively, improving over Qwen3.6-35B-A3B by 23.06, 14.10, 13.91, 13.20, and 13.07 percentage points. The improvement is most pronounced on OfficeQA Pro, indicating that our task synthesis and post-training pipeline can effectively enhance the model's document retrieval, tool use, and financial analysis capabilities.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Generalization to Broader Cowork Tasks. Navalia</head><label></label><figDesc>'s training tasks are constructed from corporate financial reports and require the model to locate information in corporate documents, integrate cross-document evidence, and perform multi-step numerical analysis through repeated tool use. These tasks jointly strengthen retrieval planning, evidence integration, tool use, and long-horizon task execution capabilities. On APEX-Agents-AA, which covers professional work across multiple domains, and Workspace-Bench-Lite, which emphasizes cross-file operations and long-horizon task execution, Navalia improves over the baseline by 13.20 and 13.07 percentage points, respectively. These results indicate that the retrieval planning, evidence integration, tool use, and long-horizon task execution capabilities strengthened by this pipeline generalize across tasks and can transfer to general-purpose Cowork settings.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Mean</cell><cell>Max</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>7.7%</cell><cell>5.1%</cell><cell>16.5%</cell></row><row><cell></cell><cell>5.85</cell><cell>15</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>59.27</cell><cell></cell><cell></cell><cell>200</cell><cell></cell><cell>8.3%</cell><cell>Multi-step reasoning Basic retrieval</cell></row><row><cell>Gold documents</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Tool turns</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Statistical reasoning</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>13.6%</cell><cell>16.5%</cell><cell>Temporal reasoning Relational reasoning Predictive reasoning</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">208.69</cell><cell>994</cell><cell></cell><cell>61.10</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>282</cell><cell>Entity identification Comparative reasoning</cell></row><row><cell>Distractor documents</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Tool calls</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">15.8%</cell><cell>16.5%</cell></row><row><cell>1</cell><cell>3</cell><cell>10</cell><cell>30</cell><cell>100</cell><cell>300</cell><cell>1000</cell><cell>0</cell><cell>50</cell><cell>100</cell><cell>150</cell><cell>200</cell><cell>250</cell><cell>300</cell></row><row><cell></cell><cell cols="6">Number of documents per task (log scale)</cell><cell cols="7">Number of tool interactions per trajectory</cell></row><row><cell cols="11">(a) Retrieval environment and tool-use statistics</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="15">Comparison with Larger and Frontier Models. Despite its smaller parameter scale, Navalia outperforms</cell></row><row><cell cols="15">Qwen3.5-397B-A17B on all five benchmarks and surpasses other strong comparison models on selected</cell></row><row><cell cols="15">benchmarks. Specifically, Navalia outperforms Kimi-K2.6 by 4.01 and 2.61 percentage points on OfficeQA</cell></row><row><cell cols="15">Pro and Finance Agent Benchmark, respectively. It also exceeds Qwen3.5-397B-A17B by 5.40 percentage</cell></row><row><cell cols="15">points on FinSearchComp, Qwen3.7-Plus by 3.02 percentage points on APEX-Agents-AA, and DeepSeek-</cell></row></table><note><p>V4-Flash by 1.19 percentage points on Workspace-Bench-Lite. These results indicate that high-quality task synthesis and systematic post-training can improve the competitiveness of smaller models and narrow the performance gap with larger and frontier models.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 2 :</head><label>2</label><figDesc>Training efficiency and downstream performance of trajectory segmentation strategies. FIFO substantially reduces sample expansion while achieving higher accuracy on OfficeQA Pro.</figDesc><table><row><cell>Segmentation strategy</cell><cell></cell><cell cols="2">Training-set statistics</cell><cell>OfficeQA Pro</cell></row><row><cell></cell><cell>Trajectories</cell><cell>Samples ↓</cell><cell>Samples/trajectory ↓</cell><cell>Accuracy (%) ↑</cell></row><row><cell>Per-turn sliding window</cell><cell>6,826</cell><cell>276,598</cell><cell>40.52</cell><cell>49.96</cell></row><row><cell>FIFO</cell><cell>6,031</cell><cell>23,523</cell><cell>3.90</cell><cell>51.56</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Apodex 1.1: Scaling agentic intelligence for complex work</title>
+		<author>
+			<persName><surname>An</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.23283</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huatong</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daixuan</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yike</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renyuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ran</forename><surname>Tao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.26904</idno>
+		<title level="m">A scalable framework for building effective claw agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Training a helpful and harmless assistant with reinforcement learning from human feedback</title>
+		<author>
+			<persName><forename type="first">Yuntao</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kamal</forename><surname>Ndousse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nova</forename><surname>Dassarma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Drain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stanislav</forename><surname>Fort</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deep</forename><surname>Ganguli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2204.05862</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Bigeard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Langston</forename><surname>Nashold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rayan</forename><surname>Krishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shirley</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.00828</idno>
+		<title level="m">Finance agent benchmark: Benchmarking llms on real-world financial research tasks</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Program of thoughts prompting: Disentangling computation from reasoning for numerical reasoning tasks</title>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueguang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.12588</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Finqa: A dataset of numerical reasoning over financial data</title>
+		<author>
+			<persName><forename type="first">Zhiyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charese</forename><surname>Smiley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameena</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iana</forename><surname>Borova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dylan</forename><surname>Langdon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reema</forename><surname>Moussa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Beane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting-Hao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bryan R Routledge</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2021 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="3697" to="3711" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Convfinqa: Exploring the chain of numerical reasoning in conversational finance question answering</title>
+		<author>
+			<persName><forename type="first">Zhiyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charese</forename><surname>Smiley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiqiang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sameena</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2022 conference on empirical methods in natural language processing</title>
+		<meeting>the 2022 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6279" to="6292" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Dejian</forename><surname>Daya Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runxin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruoyu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shirong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.12948</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Finsearchcomp: Towards a realistic, expert-level evaluation of financial search and reasoning</title>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianpeng</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiashuo</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongyuan</forename><surname>Mutu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanle</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhoufutu</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiyuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanliang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianci</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="46402" to="46428" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Pranab</forename><surname>Islam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anand</forename><surname>Kannappan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Douwe</forename><surname>Kiela</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rebecca</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nino</forename><surname>Scherrer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bertie</forename><surname>Vidgen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.11944</idno>
+		<title level="m">Financebench: A new benchmark for financial question answering</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Nanbeige4. 2-3b: Unlocking agentic capabilities in a compact model</title>
+		<author>
+			<persName><forename type="first">Nanbeige</forename><surname>Lab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengrui</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fufeng</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanhui</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huatong</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaqi</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaying</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinlin</forename><surname>Niu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.22083</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ziyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hengqi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zichuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiachen</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaowei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuantao</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mu</forename><surname>Chuan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2609.04304</idno>
+		<title level="m">Iris: Climbing to the search frontier</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Officeqa pro: An enterprise benchmark for endto-end grounded reasoning</title>
+		<author>
+			<persName><forename type="first">Krista</forename><surname>Opsahl-Ong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arnav</forename><surname>Singhvi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jasmine</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cindy</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashutosh</forename><surname>Baheti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Owen</forename><surname>Oertell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Portes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Havens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erich</forename><surname>Elsen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.08655</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Sungrae</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanghoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gyoungjin</forename><surname>Gim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jungho</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyunwoong</forename><surname>Ko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minbyul</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minjeong</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keunwoo</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaehun</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chanwoong</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongjun</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunwon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gyungin</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyeonju</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyungkyu</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Inseo</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jisu</forename><surname>Bae</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiyoon</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiyun</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joonkee</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyeop</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mikyoung</forename><surname>Cha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sangwon</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sehwan</forename><surname>Joo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seokyoon</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seonghoon</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seung</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seunghyun</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seungseop</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seungyoun</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sukyung</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taegyeong</forename><surname>Eo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taehwan</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taewhoo</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wonho</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wonjun</forename><surname>Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wonseok</forename><surname>Hwang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunsu</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yura</forename><surname>Shim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hwalsuk</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunghun</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Du-Seong</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seungju</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junsuk</forename><surname>Choe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hwaran</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minjeong</forename><surname>Ban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun</forename><surname>Taewon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hwanjun</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jae-Gil</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyungtae</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alice</forename><surname>Oh</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2607.20062" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>Solar open 2 technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanpeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huaqing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bochao</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengruidong</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.30320</idno>
+		<title level="m">On the design of qwen3. 8-next architecture: Evaluation, efficiency, and training stability</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Bytedance</forename><surname>Seed</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.00248</idno>
+		<title level="m">Seed2. 0 model card: Towards intelligence frontier for real-world complexity</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhihong</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runxin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">K</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.03300</idno>
+		<title level="m">Pushing the limits of mathematical reasoning in open language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Workspace-bench 1.0: Benchmarking ai agents on workspace tasks with large-scale file dependencies</title>
+		<author>
+			<persName><forename type="first">Zirui</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanhe</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yumou</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linchun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yukai</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongzhang</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiachen</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.03596</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Webshaper: Agentically data synthesizing via information-seeking formalization</title>
+		<author>
+			<persName><forename type="first">Zhengwei</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbiao</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pu</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junkai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baixuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiyang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="101872" to="101889" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Llama 2: Open foundation and fine-tuned chat models</title>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Louis</forename><surname>Martin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Stone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Albert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amjad</forename><surname>Almahairi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasmine</forename><surname>Babaei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolay</forename><surname>Bashlykov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soumya</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prajjwal</forename><surname>Bhargava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Bhosale</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.09288</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">musique: Multihop questions via single-hop question composition</title>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niranjan</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="539" to="554" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Bertie</forename><surname>Vidgen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Austin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abby</forename><surname>Fennelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">Wright</forename><surname>Stanly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Rothman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Burstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Benchek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ostrofsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anirudh</forename><surname>Ravichandran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Debnil</forename><surname>Sur</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.14242</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Apex-agents. arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">A survey on large language model based autonomous agents. Frontiers of computer science</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueyang</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingsen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiakai</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page">186345</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Tat-qa: A question answering benchmark on a hybrid of tabular and textual content in finance</title>
+		<author>
+			<persName><forename type="first">Fengbin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenqiang</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youcheng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiancheng</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fuli</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tat-Seng</forename><surname>Chua</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th annual meeting of the Association for Computational Linguistics and the 11th international joint conference on natural language processing</title>
+		<meeting>the 59th annual meeting of the Association for Computational Linguistics and the 11th international joint conference on natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3277" to="3287" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

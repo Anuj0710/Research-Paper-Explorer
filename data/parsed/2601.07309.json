@@ -1,0 +1,215 @@
+{
+  "arxiv_id": "2601.07309",
+  "title": "ARM: Role-Conditioned Neuron Transplantation for Training-Free Generalist LLM Agent Merging",
+  "abstract": "Interactive large language model agents have advanced rapidly, but most remain specialized to a single environment and fail to adapt robustly to other environments. Model merging offers a training-free alternative by integrating multiple experts into a single model. In this paper, we propose Agent-Role Merging (ARM), an activation-guided, role-conditioned neuron transplantation method for model merging in LLM agents. ARM improves existing merging methods from static natural language tasks to multi-turn agent scenarios, and over the generalization ability across various interactive environments. This is achieved with a well designed 3-step framework: 1) constructing merged backbones, 2) selection based on its role-conditioned activation analysis, and 3) neuron transplantation for fine-grained refinements. Without gradient-based optimization, ARM improves cross-benchmark generalization while enjoying efficiency. Across diverse domains, the model obtained via ARM merging outperforms prior model merging methods and domain-specific expert models, while demonstrating strong out-of-domain generalization.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Recently, we have witnessed the surge of agents by fine-tuning large language models (LLMs) in interactive environments, such as web browsing and operating systems [8,23]. These LLM-based agents can think, plan, and act through external tools to accomplish real-world tasks, making them practically valuable [12,18]. Despite these advances, current LLM-based agents often exhibit limited cross-environment robustness [14,19]. Models tuned for one environment often degrade sharply when deployed in another one with different tool schemas, action interfaces, or trajectory distributions [14,19]. A straightforward solution is to further fine-tune a single model across all environments, but this introduces substantial engineering and optimization complexity (e.g., curriculum/order effects across environments, heterogeneous tool interfaces, and extensive debugging) and incurs huge training costs [6,22].\n\nIn this paper, we focus on a training-free alternative, model merging. It aims at combining multiple checkpoints of the same architecture -often specialists fine-tuned for different environments (marked as expert in the rest of paper) -into a single model that aims to inherit the strengths of each [4,16]. Without additional training, model merging offers a practical path to greatly improving capabilities and reducing the burden of maintaining many specialized checkpoints [4,15]. A growing literature studies training-free merging, from simple parameter-space compositions [4] to interference-aware recipes such as TIES-Merging [16]. Recent work further investigates activation merging (e.g., AIM [11], NeuronMerge [3]), leveraging internal signal tracing to mitigate inter-model interference. However, the above methods are predominantly developed on static, single-turn tasks, and few works target interactive agent settings. To this end, we propose agentic merging to combine multiple LLMs that generalize well across interactive environments. We highlight two critical challenges.\n\nFirst, how can we preserve general capabilities reliably? Different base model families exhibit different internal mechanism and activation features. Their behaviors can become highly unstable across benchmarks. As shown in Figure 1, widely used heuristics exhibit pronounced cross-benchmark variance, with no single heuristic consistently strong across environments. This motivates a stability-aware backbone selection strategy prior to any fine-grained intervention. Second, how can we avoid capability conflicts during merging? This is a core challenge for model merging, and multi-turn agent trajectories exacerbate it. Small deviations in role-critical spans (e.g., tool-call formatting, action serialization, or final-answer JSON) can cascade into repeated failures and negative transfer across environments.\n\nTherefore, we design Agent-Role Merging (ARM), an activation-guided, role-conditioned neuron transplantation framework for training-free model merging. To tackle the first challenge, ARM introduces a dynamic backbone construction and selection stage. It constructs a small candidate pool of merged backbones using standard weight-space merge operators, then dynamically selects a strong one using a well-designed strategy based on mechanism analysis. Note that this step remains training-free and avoids costly operations while maximizing the reserved capabilities. To tackle the second challenge, ARM performs fine-grained neuron transplantation at the level of role-critical behaviors. Specifically, ARM conducts role-conditioned activation tracing on a small calibration set to identify key neurons for specific abilities (e.g., tool calls, actions, and final-answer JSON), and then selectively transplants these neurons from the corresponding expert into the chosen backbone. We also use a conflict-aware policy to reduce negative transfer in multi-turn settings.\n\nWe evaluate ARM on multiple widely used agentic benchmarks, and show that it yields the strongest single merged generalist across both Qwen3 and Qwen2.5 expert pools, improving average performance and worst-suite robustness while maintaining strong out-of-domain generalization compared to prior training-free merging baselines.\n\nOur contributions are summarized as follows:\n\n• We propose to curate and select merged backbones dynamically for reliable general capability reservation.\n\n• We propose a fine-grained neuron transplantation mechanism for agentic LLM merging towards better generalization.\n\n• Extensive experiments on four in-domain suites and two out-of-domain benchmarks demonstrate that ARM consistently improves generalist performance and robustness over strong weight-space and activation-aware training-free baselines using a single merged checkpoint.",
+      "n_words": 623
+    },
+    {
+      "heading": "Related Work",
+      "section_type": "related_word",
+      "text": "Training generalist agents. One route to cross-environment generalization is to train a single generalist agent using large-scale multi-task trajectories, often via online interaction and reinforcement learning. AgentRL [22] explores scaling agentic RL in multi-turn settings, and Chain-of-Agents [6] studies multi-agent distillation and agentic RL for foundation agents. While effective, such pipelines require expensive interaction and task coverage; our goal is complementary: training-free composition of existing specialists.\n\nModel merging beyond static-task heuristics. Model merging combines multiple fine-tuned models into a single model without additional gradient updates, ranging from weight averaging and model soups [15], task arithmetic and task vectors [4] to interference-aware recipes such as TIES-Merging [16]. Recent work also explores activation-aware merging, such as AIM [11] and NeuronMerge [3], to mitigate interference by tracing internal signals. However, most existing approaches are developed and validated on static, single-turn NLP tasks. They lack activation-based criteria for selecting a strong merged backbone and do not incorporate conflict-aware policies to protect role-critical circuits when importing benchmark-specific behaviors. Our framework complements these efforts by using role-conditioned activation tracing for backbone selection and conflict-aware, role-salient neuron transplantation for mitigating negative transfer in interactive agents.",
+      "n_words": 188
+    },
+    {
+      "heading": "Method",
+      "section_type": "method",
+      "text": "In this section, we present Agent-Role Merging (ARM), a training-free pipeline for consolidating benchmarkspecialized experts into a single multi-benchmark agent model. ARM proceeds in three phases: (i) Backbone\n\nPool Construction, which constructs a pool of merged backbones via training-free weight-space merging, (ii) Backbone Selection selects the backbone that best preserves expert role-salient neurons using Activation-Overlap Score (AOS), and (iii) Neuron Transplantation repairs remaining capability gaps via conflict-aware neuron transplantation while strictly protecting neurons that are important for any other benchmark.",
+      "n_words": 80
+    },
+    {
+      "heading": "Backbone Pool Construction",
+      "section_type": "method",
+      "text": "To compare different merging strategies and select the best backbone, we first need to construct a set of candidate backbones, where each backbone represents a single merged model. Thus, we consider 𝑁 benchmark-specialized experts {𝑀 exp 𝑏 𝑖 } 𝑁 𝑖=1 fine-tuned from the same base LLM, and thus sharing the same architecture and tokenizer. ℬ denotes the set of benchmarks, and 𝑀 exp 𝑏 𝑖 denote the expert corresponding to the 𝑖-th benchmark 𝑏 𝑖 ∈ ℬ with a one-to-one mapping between benchmarks and experts. Our goal is to obtain a single merged model that performs well across all benchmarks in ℬ without additional gradient-based retraining. Since different training-free weight-space merge operators can yield markedly different trade-offs, we construct a small pool of candidate merged backbones by applying a set of standard merging operators 𝒢, such as uniform averaging [15], task arithmetic [4], and TIES-Merging [16]. Each operator 𝑔 ∈ 𝒢 produces a candidate backbone:",
+      "n_words": 156
+    },
+    {
+      "heading": "Backbone Selection",
+      "section_type": "method",
+      "text": "To select the backbone that best preserves expert role-salient neurons for model merging, we first need to compare candidate merged backbones, which requires a criterion that identifies the parameters supporting benchmark-critical behaviors.\n\nTo achieve this, we propose role-conditioned MLP activations, which serve as a lightweight, training-free criterion, to approximate these circuits and summarize them as top-𝑘 neuron sets. For a given model 𝑀 with 𝐿 blocks, z ℓ (𝑡) ∈ ℝ 𝑑 ff denotes the post-activation vector of the MLP in block ℓ at token position 𝑡. 𝑇 𝑏 𝑖 ,𝑟 (𝑥) denotes the role-𝑟 token positions in trajectory 𝑥 for benchmark 𝑏 𝑖 . Trajectories without a given role segment (i.e., 𝑇 𝑏 𝑖 ,𝑟 (𝑥) = ∅) are ignored when estimating saliency for (𝑏 𝑖 , 𝑟). Therefore, Role-conditioned saliency is defined as the expected per-role mean activation:\n\nNext, the top-𝑘 fraction of neurons is selected per layer:\n\nwhere 𝑆(𝑀; 𝑏 𝑖 , 𝑟) = {(ℓ , 𝑗) : 𝑗 ∈ 𝑆 ℓ (𝑀; 𝑏 𝑖 , 𝑟)} is the role-salient set. An element 𝑛 = (ℓ , 𝑗) ∈ 𝑆(𝑀; 𝑏 𝑖 , 𝑟) is referred to as a neuron index. For brevity, 𝑆(𝑀; 𝑏 𝑖 ) ≡ 𝑆(𝑀; 𝑏 𝑖 , 𝑟 𝑏 𝑖 ) is used when the target role is clear from the benchmark.\n\nHereafter, we design an Activation-Overlap Score (AOS) to select a backbone that preserves role-salient neurons from the corresponding experts across benchmarks. Specifically, for each benchmark 𝑏 𝑖 , we denote the role-salient neuron sets of the expert model and the candidate backbone as 𝑆 Based on these definitions, the Activation-Overlap Score of a candidate backbone on benchmark 𝑏 𝑖 is defined as:\n\nFinally, we select the backbone with the highest mean AOS:\n\nAOS(𝑀 (0,𝑔) ; 𝑏 𝑖 ),\n\nUsing the AOS, the selector favors backbones that best preserve experts' role-salient neurons, yielding a robust starting point without exhaustive evaluation of every merge candidate.",
+      "n_words": 323
+    },
+    {
+      "heading": "Neuron Transplantation",
+      "section_type": "method",
+      "text": "To repair remaining capability gaps and protect neurons that are important for any other benchmarks, we propose conflict-aware neuron transplantation.\n\nSpecifically, we first conduct capability-gap diagnosis to identify weak benchmarks ℬ weak ⊆ ℬ introduced by role-specific regressions in model merging. A held-out development set 𝒟 dev (e.g., benchmarks with the largest performance gaps between 𝑀 (0) and the corresponding expert) is selected to apply transplantation for 𝑏 𝑖 ∈ ℬ weak . This development evaluation is used only to decide where transplantation is applied (not to train parameters). For each benchmark 𝑏 𝑖 , we use its corresponding expert as the donor and denote it by\n\nNext, considering that weight-space merging is a global operation and can blur or overwrite benchmarkspecific circuits. To correct specific failures without retraining the entire model, we perform localized edits by transplanting a small number of donor MLP neurons into the selected backbone. To achieve this, we refine 𝑀 (0) by selectively transplanting a small subset of MLP neurons from donors into the backbone. For block ℓ , the MLP parameters are denoted as 12: for 𝑏 ∈ ℬ weak do 13:\n\n𝒫 -𝑏 ← 𝑏 ′ ∈ℬ, 𝑏 ′ ≠𝑏 𝑆(𝑀; 𝑏 ′ ).\n\n14:",
+      "n_words": 202
+    },
+    {
+      "heading": ":",
+      "section_type": "other",
+      "text": "Transplant neurons in 𝒯 𝑏 from 𝑀 don 𝑏 into 𝑀.\n\n16: end for 17: return 𝑀.\n\nFor gated MLPs (e.g., SwiGLU), a neuron index 𝑗 corresponds to the same index across the gate and up projections as well as the down projection; we transplant the corresponding rows and columns accordingly. We apply transplantation only to a small set of neurons, keeping the rest of the network unchanged to reduce collateral interference, similar in spirit to localized editing methods that aim to confine behavioral changes [9,10].\n\nFinally, since naively transplanting all donorsalient neurons can overwrite neurons that the backbone already relies on for other benchmarks, causing negative transfer, we employ conflictaware transplantation policy to strictly protect backbone neurons that are salient for any other benchmark, and only transplant donor neurons that do not belong to those protected sets.\n\nFor each benchmark 𝑏 𝑖 , we define the set of backbone neurons that are salient for any other bench-mark's critical role:\n\nwhere we use the shorthand 𝑆(𝑀; 𝑏 𝑖 ) ≡ 𝑆(𝑀; 𝑏 𝑖 , 𝑟 𝑏 𝑖 ). When repairing benchmark 𝑏, we start from the donor's role-salient neurons 𝑆(𝑀 don 𝑏 ; 𝑏) and exclude all neurons that are salient for any other benchmark:\n\nWith this conflict-aware transplantation strategy, we target capability gaps while protecting the stability of other benchmarks and minimizing negative transfer.",
+      "n_words": 225
+    },
+    {
+      "heading": "Experiment Setup",
+      "section_type": "experiments",
+      "text": "Expert models. We adopt Qwen3-8B [17] as the primary backbone architecture and merge three benchmarkspecialized SFT experts released in the Simia framework [7], namely Simia-Tau-SFT-Qwen3-8B, Simia-OfficeBench-SFT-Qwen3-8B, and Simia-AgentBench-SFT-Qwen3-8B. Each expert is fine-tuned on synthesized multi-turn trajectories with benchmark-specific tool interactions, including airline and retail tool calls in a 𝜏 2 -Bench-style environment [1], OfficeBench multi-application workflows, and AgentBench-style operating system and WebShop tasks. For additional comparisons, we also evaluate an expert pool based on Qwen2.5-7B trained with the same Simia recipe.\n\nBaselines. We compare ARM with strong training-free weight-space merging baselines, including uniform averaging, Model Stock [5], task arithmetic [4], TIES [16], and TIES+DARE [20] (all implemented in MergeKit [2]), as well as WIDEN [21], AIM [11], and NeuronMerge [3]. For detailed baseline settings, see Appendix A.1.",
+      "n_words": 127
+    },
+    {
+      "heading": "Benchmarks.",
+      "section_type": "experiments",
+      "text": "To evaluate the generalization capability of our method, we conduct experiments under both in-domain and out-of-domain settings: 1) In-domain benchmarks include 𝜏-bench [19], OfficeBench [14], WebShop, and Operating System (Both from AgentBench [8])) Out-of-domain benchmarks include DBbench [23] and AlfWorld [13]. Further details on benchmark composition and settings are provided in Appendix A.2.",
+      "n_words": 53
+    },
+    {
+      "heading": "Calibration data and role spans.",
+      "section_type": "other",
+      "text": "To compute role-conditioned saliency (Section 3.2), we construct a calibration set that is disjoint from all evaluation and test splits, containing a total of 699 tasks and 1240 trajectories. This calibration set is used solely for forward-pass activation tracing without gradient updates. Details of its composition are provided in Appendix A.3.",
+      "n_words": 51
+    },
+    {
+      "heading": "Main Results",
+      "section_type": "results",
+      "text": "Tables 1 and2 summarize the overall results on the Qwen3-8B and Qwen2.5-7B expert pools, from which we draw the following observations:\n\n(1) ARM yields the strongest single merged generalist across both expert pools. It is the only approach that consistently surpasses the BEST-of-Three oracle on both backbones. We attribute this to ARM's two-stage design: AOS-based backbone selection avoids starting from an unstable merge, and the subsequent localized repair targets only the remaining suite-specific deficiencies.\n\n(2) Weight-space merging is highly brittle in interactive agent suites. Across both backbones, common merge operators show pronounced cross-suite trade-offs, where gains on some environments come with severe regressions on others. This suggests that global parameter blending can easily perturb role-critical behaviors, and such small deviations may cascade into long-horizon failures in multi-turn trajectories. (3) ARM improves cross-environment robustness by isolating role-critical circuits and mitigating negative transfer. Compared to both weight-space and activation-aware baselines, ARM tends to better preserve performance on role-sensitive suites while retaining strong out-of-domain generalization. This is mainly due to (i) role-conditioned tracing that focuses saliency on benchmark-critical spans, and (ii) conflict-aware protection during transplantation that prevents overwriting neurons needed by other environments, thereby reducing destructive interference.",
+      "n_words": 194
+    },
+    {
+      "heading": "Ablation Study",
+      "section_type": "results",
+      "text": "We ablate ARM to validate the contribution of each component and to characterize robustness and practical overhead in interactive agent suites. Our design targets two failure modes highlighted in Section 1: (i) backbone instability across weight-space merge operators, and (ii) destructive interference in multi-turn trajectories, where small errors on role-critical spans (tool calls, action serialization, structured outputs) can cascade into repeated failures. Unless otherwise stated, AOS and saliency statistics are computed on the disjoint calibration set (Section 4), without using evaluation data.",
+      "n_words": 82
+    },
+    {
+      "heading": "Effectiveness of AOS as a lightweight proxy for backbone quality.",
+      "section_type": "other",
+      "text": "The goal of AOS is to provide a training-free, benchmark-agnostic selection signal that correlates with downstream cross-suite performance, avoiding full interactive evaluation for every merge candidate. Figure 3 shows a positive relationship between AOS (measured on calibration trajectories) and overall performance (Avg) across candidate backbones. In our candidate pools, selecting the highest-AOS backbone identifies the bestperforming initialization in hindsight: Average for Qwen3-8B and Model Stock for Qwen2.5-7B. These results support AOS as a practical criterion for reliably choosing a strong starting point before any neuron-level intervention, which is particularly important given the high variability of merge operators in agent environments.",
+      "n_words": 100
+    },
+    {
+      "heading": "Role segmentation reduces cross-benchmark interference.",
+      "section_type": "experiments",
+      "text": "A core motivation of ARM is that agent generalization is often bottlenecked by failures on role-critical spans (e.g., tool-call formats or structured final answers), rather than generic language tokens. To test whether role-conditioning makes the traced neuron sets more benchmark-specific, we compare role-conditioned tracing against a role-agnostic variant that computes saliency over all response tokens. Figure 4 visualizes the top-10% salient neurons and highlights neurons shared across benchmark-specific sets. Role-conditioned tracing yields substantially lower cross-benchmark overlap: the overlap rate drops from 61% to 41% on Qwen3-8B, and from 50% to 43% on Qwen2.5-7B. This suggests that restricting tracing to benchmarkcritical role spans produces more specialized neuron sets, which is desirable for localized transplantation: fewer shared neurons implies fewer accidental edits to capabilities needed by other environments.\n\nConflict-aware protection improves robustness. Neuron transplantation can repair benchmark-specific regressions, but directly transplanting all donor-salient neurons may overwrite neurons that are also important for other environments, leading to negative transfer. ARM mitigates this risk via conflict-aware set subtraction (Section 3.3), which removes donor neurons that overlap with the aggregated salient set from the remaining benchmarks. We ablate this protection by comparing ARM against an unprotected variant and sweeping the per-layer top-𝑘 fraction used to define role-salient neurons. Figure 5 shows that the unprotected variant 3 Generalization summaries for the AOS-selected initialization backbone and ARM. Avg is the unweighted mean over six benchmark aggregates. WS is the minimum over the six aggregates. RHM is the harmonic mean of the six aggregate scores normalized by BEST-of-Three. For Qwen3-8B, the AOS-selected initialization is Average; for Qwen2.5-7B, it is Model Stock.\n\nis more sensitive to 𝑘: performance decreases more rapidly as 𝑘 grows, whereas conflict-aware protection yields consistently higher performance and a flatter degradation trend across a wide range of 𝑘. Overall, the results suggest that conflict-aware subtraction improves robustness to the choice of 𝑘 and helps limit negative transfer when the intervention scope increases. Generalization metrics beyond Avg. To better characterize cross-environment generalization, we report two robustness-oriented summaries in addition to Avg: Worst-suite (WS), the minimum over the six benchmark aggregates, and an oracle-normalized harmonic mean (RHM), which emphasizes balanced performance across suites. Table 3 shows that the AOS-selected initialization is dominated by its weakest suite, resulting in low WS. ARM improves this worst-case robustness while also increasing Avg, raising WS from 19.1 to 28.5 on Qwen3-8B and from 16.4 to 22.0 on Qwen2.5-7B, and substantially improving RHM. Overall, these summaries indicate that ARM yields a more balanced generalist model that approaches the oracle selector more uniformly by alleviating the weakest-suite bottleneck.",
+      "n_words": 425
+    },
+    {
+      "heading": "Failure analysis on role-critical errors.",
+      "section_type": "results",
+      "text": "A key motivation of ARM is that cross-environment failures in interactive agents are often triggered by localized errors on role-critical spans that can cascade across multi-turn trajectories. To make this failure mode measurable, we leverage the benchmark-specific deterministic parsers already used in our pipeline to identify these spans (tool-call spans for 𝜏-bench, final-answer JSON spans for OfficeBench, and action schema spans for AgentBench), and we inspect representative episodes where the AOS-selected merged backbone fails due to span-level violations. Compared to the AOS-selected backbone, ARM typically repairs the earliest blocking violation, allowing subsequent tool execution to proceed with minimal changes to the remaining trajectory. We provide side-by-side trajectory excerpts and parser-flagged error annotations in Appendix B.\n\nEfficiency and overhead. ARM is training-free and only requires forward-pass activation tracing on a lightweight calibration set; detailed compute, storage, and edit locality statistics are reported in Appendix C.",
+      "n_words": 144
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "We presented Agent-Role Merging (ARM), a training-free framework for consolidating benchmark-specialized LLM agents into a single generalist checkpoint. ARM addresses two failure modes of agentic model merging: (i) instability across weight-space merge operators, and (ii) destructive interference on role-critical behaviors in multi-turn trajectories. To this end, ARM selects a strong merged initialization using an Activation-Overlap Score computed from role-conditioned activation tracing, and then performs conflict-aware transplantation of a small set of role-salient MLP neurons to repair weak environments while protecting capabilities needed elsewhere. Across both Qwen3-8B and Qwen2.5-7B expert pools, ARM achieves the best overall merged model and substantially improves worst-suite robustness. These results suggest that targeting role-critical circuits enables localized, training-free edits that mitigate negative transfer in interactive agent suites.",
+      "n_words": 121
+    },
+    {
+      "heading": "Limitations",
+      "section_type": "limitations",
+      "text": "ARM is training-free, but it makes several assumptions that limit its applicability and leave room for future work. First, ARM requires access to homologous expert checkpoints that share the same architecture and tokenizer; it does not directly apply to merging heterogeneous model families or black-box APIs.",
+      "n_words": 46
+    },
+    {
+      "heading": "B Case Studies: Repairing Role-Critical Failure Cascades",
+      "section_type": "other",
+      "text": "Setup. We analyze representative failure cases to illustrate how merge-induced deviations on role-critical spans can cascade into long-horizon failures in interactive environments. We focus on suites whose role-critical spans are deterministically identifiable by benchmark-specific parsers used in our pipeline: final-answer JSON spans for OfficeBench, tool-call spans for 𝜏-bench, and action schema spans for OS and WebShop. Unless otherwise noted, we compare the AOS-selected initialization backbone against ARM under the same decoding and evaluation settings.",
+      "n_words": 74
+    },
+    {
+      "heading": "B.1 OfficeBench: Structured Output (JSViolations",
+      "section_type": "other",
+      "text": "Span-level violation rate. Table 6 reports the fraction of episodes with invalid final structured outputs that cannot be parsed by the evaluator. ARM reduces invalid episodes from 8.5% to 4.7%.\n\nRepresentative failure modes. Across failures, the backbone commonly violates the required action/answer structure by nesting a JSON action inside a string field, emitting the entire <think><answer> template as a string, or producing malformed escapes that break JSON parsing, often followed by an invalid got_stuck action.\n\nCase studies. We show three representative OfficeBench episodes. In each, the backbone fails due to a structured-output violation, while ARM preserves the required schema and completes the workflow.\n\nOfficeBench Task 2-14: reward meetings for top-3 students",
+      "n_words": 111
+    },
+    {
+      "heading": "Backbone (Model Stock) -Fail",
+      "section_type": "other",
+      "text": "{\"action\": \" {\\\"app\\\": \\\"shell\\\", \\\"action\\\": \\\"command\\\", \\\"command\\\": \\\"sort -nr -k2,2 score.xlsx | head -3\\\"} \"} {\"action\": \"{\\\"app\\\": \\\"system\\\", \\\"action\\\": \\\"got_stuck\\\"}\"}",
+      "n_words": 20
+    },
+    {
+      "heading": "JSON nesting",
+      "section_type": "other",
+      "text": "Action JSON is wrapped as a quoted string inside a field (e.g., \"action\": \"{...}\").",
+      "n_words": 14
+    },
+    {
+      "heading": "Template confusion",
+      "section_type": "other",
+      "text": "The model outputs <think>...</think><answer>...</answer> as a literal string field. Escape error Invalid escape sequences cause JSON parsing failure (e.g., Invalid \\\\escape).",
+      "n_words": 21
+    },
+    {
+      "heading": "Crash action",
+      "section_type": "other",
+      "text": "The model emits an invalid fallback action (e.g., got_stuck) that violates the required schema.\n\nTable 7 Common structured-output error patterns on OfficeBench.",
+      "n_words": 22
+    },
+    {
+      "heading": "ARM -Success",
+      "section_type": "other",
+      "text": "{\"app\":\"excel\",\"action\":\"read_file\",\"file_path\":\".../score.xlsx\"} {\"app\":\"calendar\",\"action\":\"create_event\",\"user\":\"Alice\", ...} {\"app\":\"calendar\",\"action\":\"create_event\",\"user\":\"David\", ...} {\"app\":\"calendar\",\"action\":\"create_event\",\"user\":\"Carol\", ...} {\"app\":\"system\",\"action\":\"finish_task\",\"answer\":\"None\"} Result: Success {\"action\":\"<think>...</think><answer> {\\\"app\\\":\\\"system\\\", \\\"action\\\":\\\"switch_app\\\",\\\"target_app\\\":\\\"excel\\\"} </answer>\"} [Error] Malformed action string. Expected <think>...</think><answer>[JSON]</answer>. Result: Fail",
+      "n_words": 22
+    },
+    {
+      "heading": "ARM -Success",
+      "section_type": "other",
+      "text": "{\"app\":\"excel\",\"action\":\"read_file\",\"file_path\":\".../schedule.xlsx\"} {\"app\":\"calendar\",\"action\":\"create_event\",\"user\":\"Alice\", ...} {\"app\":\"calendar\",\"action\":\"create_event\",\"user\":\"Carol\", ...} {\"app\":\"email\",\"action\":\"send_email\",\"sender\":\"Alice\", ...} {\"app\":\"email\",\"action\":\"send_email\",\"sender\":\"Carol\", ...} {\"app\":\"system\",\"action\":\"finish_task\",\"answer\":\"None\"} Result: Success [Error] Invalid \\\\escape ... Malformed action! {\"action\":\"{\\\"app\\\":\\\"system\\\",\\\"action\\\":\\\"got_stuck\\\"}\"} Result: Fail",
+      "n_words": 21
+    },
+    {
+      "heading": "ARM -Success",
+      "section_type": "other",
+      "text": "{\"app\":\"excel\",\"action\":\"read_file\",\"file_path\":\".../students.xlsx\"} {\"app\":\"word\",\"action\":\"write_to_file\",\"file_path\":\".../admission.docx\", ...} {\"app\":\"email\",\"action\":\"send_email\",\"recipient\":\"jennifer.gonzalez@example.com\", ...} ... Result: Success",
+      "n_words": 8
+    },
+    {
+      "heading": "B.2 𝜏-bench: Tool-Call Failure Cascades",
+      "section_type": "other",
+      "text": "Representative tool-call cascades. We present three cases where the backbone either repeats a failing tool call without correcting the underlying issue, makes redundant queries and acts on the wrong target, or omits a required critical tool action. costing ∼0.5 GPU-hour per backbone-benchmark pair on a single H20 (about 12 GPU-hours total); once the backbone is selected, the merge and neuron transplantation completes in under 20 minutes. At the benchmark level, each transplant set is typically small (roughly 2-3% for 𝜏-bench, OfficeBench, and WebShop). Activation statistics are stored in compressed NPZ files, requiring less than 500MB total. Overall, these results indicate that ARM can produce a more robust generalist agent with modest one-time calibration cost and targeted neuron-level edits, without any additional training.",
+      "n_words": 122
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Step 1: Backbone Pool Construction Step 2: Backbone Selection Step 3: Neuron Transplantation",
+      "captions": "⊆ 𝒟 cal denote the calibration trajectories for benchmark 𝑏 𝑖 .",
+      "content": "Expert A | Expert B | Expert C | Selector | Weak task\n |  |  |  |  | Role-Critical Neurons\n |  |  |  |  | Expert A\nModel Merging |  |  | Dataset A\n |  |  |  | Role-Conditioned\n: Neurons Candidate Backbones | AOS = | 𝑠 𝑏 𝑖 0,𝑔 ∩𝑠 𝑏 𝑖 exp 𝑠 𝑏 𝑖 0,𝑔 ∪𝑠 𝑏 𝑖 exp | Protection Set | Frozen\nBackbone 1 |  |  | Activation Datasets | Transplant to Backbone\nBackbone 2 |  |  | \nBackbone 3 |  |  | \nSpecifically, a small calibration set 𝒟 cal is sampled from splits that are disjoint from evaluation/test sets (see\nSection 4). 𝒟 | (𝑏 𝑖 ) |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "Algorithm 1: ARM-Candidate merging, backbone selection, and conflict- aware neuron transplantation Require",
+      "captions": "Merged model 𝑀 ★ . Select weak benchmarks ℬ weak ⊆ ℬ on 𝒟 dev .",
+      "content": "1: Set donor 𝑀 don 𝑏 | ← 𝑀 | exp 𝑏 | for each 𝑏 ∈ ℬ.\n2: Compute donor saliency 𝑆 don 𝑏 | ← 𝑆(𝑀 don 𝑏 ; 𝑏) for each 𝑏 ∈ ℬ.\n3: Construct candidate backbones {𝑀 (0,𝑔) } 𝑔∈𝒢 .\n4: for 𝑔 ∈ 𝒢 do |  | \n5: | Compute backbone saliency 𝑆 | (0,𝑔)\n6: | Score(𝑔) ← 1 |ℬ| | 𝑏∈ℬ AOS(𝑀 (0,𝑔) ; 𝑏).\n7: end for 8: 𝑔 ★ ← arg max 𝑔∈𝒢 Score(𝑔).\n9: 𝑀 ← 𝑀 (0,𝑔 ★ ) . 10: Assign backbone saliency 𝑆(𝑀; 𝑏) ← 𝑆 | (0,𝑔 ★ ) 𝑏 | for each 𝑏 ∈ ℬ.\n11: |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 2",
+      "captions": "Results with Qwen2.5-7B experts. Metrics follow Table1. Parentheses show relative change compared to BEST-of-Three for each aggregate.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Second, ARM relies on activation-level signals to identify role-salient circuits, yet diagnostics tailored to multi-turn interactive agent behaviors remain relatively under-explored. Future advances in activation-based interpretability for agentic settings would likely enable more accurate interventions and further improve performance.",
+      "content": "Domain | Benchmark | Subset # Tasks\n | 𝜏-bench | Airline Retail | 50 115\nIn-domain | OfficeBench | 2-apps 3-apps | 51 55\n | WebShop | - | 200\n | Operating System | - | 144\nOut-of-domain | DB-bench AlfWorld | -- | 300 50"
+    },
+    {
+      "kind": "table",
+      "label": "Table 4",
+      "captions": "Statistics of In-domain and Out-of-domain Evaluation Datasets.",
+      "content": "Dataset | # Tasks # Trajectories\n𝜏-bench Retail (train) | 500 | 500\nOfficeBench 1-app | 93 | 372\nWebShop (dev) | 26 | 208\nOperating System (dev) | 80 | 160\nTotal | 699 | 1240"
+    },
+    {
+      "kind": "table",
+      "label": "Table 5",
+      "captions": "Composition of the calibration set. To balance the impact of datasets with different sizes, we sample a varying number of trajectories for each dataset, as indicated by the ratio of trajectories to tasks.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 6",
+      "captions": "[Error] Malformed action string. Expected <think>...</think><answer>[JSON]</answer>. OfficeBench invalid final JSON episode rate (Qwen2.5-7B pool).",
+      "content": "Result: Fail"
+    }
+  ],
+  "n_words": 3575,
+  "quality_flags": []
+}

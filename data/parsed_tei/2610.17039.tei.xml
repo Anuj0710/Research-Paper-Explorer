@@ -1,0 +1,1239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MENTOR: PROCEDURAL SHIELDING OF TOOL-USING LLM AGENTS</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-12">12 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Ashwani</forename><surname>Anand</surname></persName>
+							<email>ashwani@mpi-sws.org</email>
+							<affiliation key="aff0">
+								<orgName type="department">Max Planck Institute for Software Systems</orgName>
+								<address>
+									<settlement>Kaiserslautern</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ivi</forename><surname>Chatzi</surname></persName>
+							<email>ichatzi@mpi-sws.org</email>
+							<affiliation key="aff0">
+								<orgName type="department">Max Planck Institute for Software Systems</orgName>
+								<address>
+									<settlement>Kaiserslautern</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ritam</forename><surname>Raha</surname></persName>
+							<email>ritam.raha@tno.nl</email>
+							<affiliation key="aff1">
+								<orgName type="institution">TNO-ESI</orgName>
+								<address>
+									<settlement>Eindhoven</settlement>
+									<country key="NL">The Netherlands</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Anne-Kathrin</forename><surname>Schmuck</surname></persName>
+							<email>akschmuck@mpi-sws.org</email>
+							<affiliation key="aff0">
+								<orgName type="department">Max Planck Institute for Software Systems</orgName>
+								<address>
+									<settlement>Kaiserslautern</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MENTOR: PROCEDURAL SHIELDING OF TOOL-USING LLM AGENTS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-12">12 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">E0B89498871FB022204407E7E08B9191</idno>
+					<idno type="arXiv">arXiv:2610.17039v1[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool-using LLM agents are increasingly used to automate workflows governed by procedural manuals, such as company rules for booking travel or procuring hardware. These manuals are written in natural language for humans and describe general requirements over such complex workflows. Ensuring compliance of LLM agents with these manuals is difficult, and state-of-the-art techniques use either LLM judges or manually written rules to forbid problematic tool-calls locally at runtime. This is insufficient because (i) only blocking tool calls keeps the agent clueless about how to make correct progress towards fulfilling its task, and (ii) can lead to overly conservative behavior of the agent, as tool calls might only be problematic in certain contexts. To overcome these challenges, we introduce MENTOR, which (i) additionally provides guidance for the agent to make procedural-compliant progress on the task, and (ii) ensures that this compliance is context-aware. We achieve these goals by building a novel history-dependent runtime shield that is obtained from the procedural manual via a multi-step autoformalization pipeline. At its core, MENTOR utilizes a game-based technique to ensure robustness against runtime uncertainty without over-resticting agents' behavior. This yields a formally assisted framework for procedural shielding of LLM agents that improves compliance well beyond existing methods. In particular, MENTOR lifts the compliance of shielded light-weight open-source LLMs above that of non-shielded proprietary models. Since a shield is synthesized once per manual and then serves every task, a MENTOR-shielded agent becomes a viable choice for repeatedly executed workflows, potentially reducing deployment costs when the offline construction cost is amortized over repeated tasks.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">INTRODUCTION</head><p>The abilities of tool-using large language model (LLM) agents allow them to be used to automate workflows such as hardware procurement <ref type="bibr" target="#b37">(Zdravković et al., 2022;</ref><ref type="bibr" target="#b27">Ozman, 2025)</ref>, patient diagnosis <ref type="bibr" target="#b32">(Tu et al., 2025;</ref><ref type="bibr" target="#b14">Ghezloo et al., 2025)</ref> or travel bookings <ref type="bibr" target="#b11">(Dwivedi et al., 2025)</ref>. Such workflows are governed by procedural manuals, written in natural language for human operators, that specify how such tasks must be executed. For example, Fig. <ref type="figure">1</ref> (top right) shows a simple manual for booking a business trip.</p><p>While such workflows may seem natural for humans, LLM agents have been observed to struggle with them, both in existing work about evaluating compliance post-hoc <ref type="bibr" target="#b22">(Li et al., 2025;</ref><ref type="bibr" target="#b26">Nandi et al., 2026;</ref><ref type="bibr">Anand et al., 2026a)</ref>, and in our own experiments. For instance in the domain of Fig. <ref type="figure">1</ref>, checking agents' tool call traces reveals they often attempt to book business class after inventing a fake "urgent reason", or never book anything at all.</p><p>To aid LLM agents in such tasks, we introduce MENTOR, a procedural shield that checks proposed tool calls against formalized requirements and guides agents towards fulfilling outstanding obligations. Shielding is a well-established technique for policies obtained by reinforcement learning (RL), where a shield monitors the actions a policy proposes at runtime and blocks those that violate a formal specification <ref type="bibr" target="#b21">(Könighofer et al., 2022;</ref><ref type="bibr" target="#b18">Hsu et al., 2024)</ref>. We develop this approach for tool-using LLM agents around four interconnected challenges. Figure <ref type="figure">1</ref>: Running example. Our procedural shield MENTOR is generated from a procedural manual (top right) and applied to a travel-booking task (top left). MENTOR shields the interaction between an LLM agent (pink) and the environment (brown). MENTOR blocks tool calls (red), allows tool calls (green), and provides guidance towards task completion (orange).</p><p>⟨C1⟩ Context-dependence &amp; guidance. A procedural manual, as e.g. the one in Fig. <ref type="figure">1</ref>, induces a partial temporal order over tool calls, so whether a tool call complies is context-dependent (e.g., booking a flight is allowed in step 5 but not in step 2). This context-dependence introduces obligations an agent needs to fulfill before another necessary call would be allowed (e.g., checking the distance before any booking) and it must eventually make some specific tool calls to complete its task (e.g., the booking itself). Blocking a call without identifying a compliant next step can leave the agent repeatedly attempting blocked calls and failing to complete its task, as illustrated by our experiments (Fig. <ref type="figure" target="#fig_5">5</ref> in App. A.2). Shields that also incorporate context-dependent progress guidance were only recently introduced for RL as strategy template based runtime shields (STARS) <ref type="bibr">(Anand et al., 2026b)</ref>. MENTOR adapts this idea to LLM agents, by first auto-formalizing the manual into Linear Temporal Logic (LTL) and then synthesizing a strategy template from it.</p><p>⟨C2⟩ Argument-based constraints. Context-dependence does not only affect the order of tool calls, but also their arguments. For example, booking an economy class flight is allowed without an urgent reason in step 5, whereas booking business class is not in step 4. The values these arguments can take often range over unbounded domains, such as strings, and might only be revealed at runtime, making it challenging to express constraints over them. The importance of checking argument values is illustrated by our analysis of SOP-Bench <ref type="bibr" target="#b26">(Nandi et al., 2026)</ref>, whose evaluator accepts some incorrect traces because it does not check the relevant tool arguments (App. C.3). MENTOR addresses this problem with argument constraints using Satisfiability Modulo Theories (SMT) that are checked and, if violated, repaired at runtime. ⟨C3⟩ Natural language. Any formally assisted framework for procedural shielding of LLM agents needs to translate natural language texts within the manual, the task description, and tool outputs into formal artifacts. In our work, we automatically translate the manual into a formal specification offline. Then, at runtime, we observe that both cheap proprietary LLMs and fine-tuned small open-weights LLMs can effectively ground the task description and tool outputs.</p><p>⟨C4⟩ Delivering the shield. A classical shield for an RL policy intervenes directly on the action the policy proposes. In the context of LLM agents, however, actions are tool calls which are written token by token. Depending on the availability of the agent's next-token distribution, MENTOR can deliver the blocking and advice of tool calls to the agent in two ways: (i) via a prompt shield that injects textual feedback in the tool call outputs, and (ii) via a token shield, which masks the tokens of unsafe calls and boosts those of progressing calls during generation.</p><p>To show its impact on procedural compliance of shielded agents, we evaluate MENTOR on 3 benchmarks covering 8 domains using both proprietary and open-weights agents. The experiments show that MENTOR clearly outperforms unshielded agents and other guarding methods, and lifts the compliance of small open-weight models above those of unshielded proprietary ones. We provide all our code and parameters at <ref type="url" target="https://anonymous.4open.science/r/mentor-llm-shield/">https://anonymous.4open.science/r/mentor-llm-shield/</ref>.</p><p>Related Work. Shielding LLM agents has received increasing attention very recently, but none of the existing approaches addresses the outlined challenges appropriately. We compare them here and in  One line of work on LLM shielding techniques delegate compliance decisions to a guardrail LLM <ref type="bibr" target="#b36">(Xiang et al., 2024;</ref><ref type="bibr" target="#b17">Hoover et al., 2026;</ref><ref type="bibr" target="#b20">Kang et al., 2026)</ref> which can interpret natural language (⟨C3⟩) within the manual, tasks, and tool outputs. However, the resulting judgements can be unreliable due to the stochastic nature of LLMs. Alternatively, deterministic guards hard-code procedural constraints, which are either written by hand in a dedicated language <ref type="bibr" target="#b33">(Wang et al., 2026;</ref><ref type="bibr" target="#b35">Winston et al., 2026;</ref><ref type="bibr" target="#b28">Palumbo et al., 2026;</ref><ref type="bibr" target="#b30">Reddy et al., 2026;</ref><ref type="bibr" target="#b19">Kamath et al., 2025)</ref> or extracted by an LLM <ref type="bibr" target="#b31">(Shi et al., 2025;</ref><ref type="bibr" target="#b25">Mondl et al., 2026)</ref>. Such deterministic guards, however, cannot interpret natural language tool outputs during their execution. As a result, they cannot provide rich enough context-dependent guidance to the agent (⟨C1⟩). In addition, manually translating the procedural manual into formal constraints can make shield synthesis labor intensive and hard to extend to new domains, and this task is known to be difficult even for experts <ref type="bibr" target="#b8">(Czepa et al., 2019;</ref><ref type="bibr" target="#b16">Greenman et al., 2023)</ref>. MENTOR combines the strengths of both approaches by using a refinement-based auto-formalization technique to build a deterministic tool-call evaluator which is paired with a labeler to ground tool call outputs.</p><p>LTL was recently proposed as the right formalism to capture procedural dependencies <ref type="bibr">(Anand et al., 2026a;</ref><ref type="bibr" target="#b0">Aminof et al., 2026)</ref>, and translating natural language into LTL is well studied <ref type="bibr" target="#b6">(Chen et al., 2023;</ref><ref type="bibr" target="#b7">Cosler et al., 2023;</ref><ref type="bibr" target="#b12">Fuggitti et al., 2023;</ref><ref type="bibr" target="#b23">Liu et al., 2023;</ref><ref type="bibr" target="#b24">Ma et al., 2025;</ref><ref type="bibr" target="#b34">Wang et al., 2025)</ref>. However, none of the above work used LTL in the context of shielding LLM agents. In addition, LTL constraints are propositional and cannot express numeric ranges or unbounded argument domains (⟨C2⟩). Auto-generated SMT-based constraints have so far only served post-hoc verification <ref type="bibr" target="#b1">(An et al., 2025;</ref><ref type="bibr">Anand et al., 2026a)</ref>, not runtime shielding.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">OVERVIEW</head><p>MENTOR (Monitoring and ENforcement of Temporal Objectives at Runtime) sits between a toolusing LLM agent and its environment (Fig. <ref type="figure" target="#fig_0">2</ref>). We outline how its components address ⟨C1⟩-⟨C4⟩.</p><p>Setting. A tool schema T defines the set of tools available to the agent. Let A be the set of valid toolcalls α = (t, a), with tool t ∈ T and argument assignment a, including the terminating call done that ends the interaction. Let H denote the set of finite interaction traces h = [o 0 , α 1 , o 1 , . . . , α l , o l ], where o 0 is the natural-language task and o i the environment's response to α i . The agent π : H → ∆(A) repeatedly samples α i ∼ π(• | h) and observes o i , until it generates done. Each call is generated internally by an autoregressive LLM over a token vocabulary V . A natural-language procedural manual D specifies which traces are acceptable.</p><p>Deterministic tool call evaluator (Fig. <ref type="figure" target="#fig_0">2</ref>, bottom). Our goal is that the trace generated by the agent completes the task o 0 while complying with D. To this end, for each proposed call α i and history h, the evaluator asks two questions: is α i safe, i.e., whether a compliant complete trace under D still exists after α i , and does α i make progress towards completion (⟨C1⟩)? Also, are its arguments a i permitted (⟨C2⟩)? Safe calls with permitted arguments are executed; non-progressing calls additionally receive advice identifying a progressing call. Other calls are blocked, returning advice identifying a prerequisite call or repaired arguments instead. The call done is blocked while the task remains incomplete (Fig. <ref type="figure" target="#fig_0">2</ref>, bottom).</p><p>Building MENTOR offline (Fig. <ref type="figure" target="#fig_0">2</ref>, top). MENTOR is constructed once per manual D and tool schema T and then reused for every task. First, a multi-agent autoformalization loop (Sec. 3.2) translates D into a formal specification with two parts (Sec. 3.1): (i) temporal requirements in linear temporal logic (LTL) formulas to capture tool call order, restrictions that tool outputs impose, and obligations before done, and (ii) argument constraints in satisfiability modulo theories (SMT) encoding, which fix the permitted argument values over possibly unbounded argument domains (⟨C2⟩). The LTL requirements are compiled into a game between agent and environment on a finite graph, and a strategy template (Sec. 3.2) marks, at every vertex of this graph, which calls are unsafe and which are progressive (⟨C1⟩). The template and SMT solver form the deterministic evaluator.</p><p>Applying MENTOR online (Fig. <ref type="figure" target="#fig_0">2</ref>, left). Since the task o 0 and some tool outputs are in natural language, at runtime, a labeler LLM (Sec. 3.3) grounds them into formal, labeled events consistent with the specifications (⟨C3⟩). For each proposed call, the shield advances through the game graph following h, consults the template and the solver, and produces a verdict and advice. These reach the agent in one of two ways (⟨C4⟩): (i) via a prompt shield that delivers them as text in the tool output, or (ii) via a token shield that additionally masks the tokens of unsafe calls and boosts those of progressing calls during generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">METHODOLOGY</head><p>This section formalizes the components in Fig. <ref type="figure" target="#fig_0">2</ref> and explains how each addresses challenges ⟨C1⟩-⟨C4⟩. We introduce our specification language in Sec. 3.1, then describe the offline construction of MENTOR in Sec. 3.2 and its online use for procedural shielding in Sec. 3.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">SPECIFICATION LANGUAGE</head><p>Temporal Requirements via LTL. LTL extends propositional logic with temporal operators that express requirements on the ordering of events over time. We use standard LTL syntax with finte trace semantics <ref type="bibr" target="#b15">(Giacomo &amp; Vardi, 2013)</ref> (refer to App. B for details). We interpret these requirements over interaction traces h. At each step, propositions are evaluated from predicates on the tool call α = (t, a) and, when needed, its observed outcome o. Formulas can thus relate proposed actions to preceding calls and results, and require successful completion before termination.</p><p>In our example in Fig. <ref type="figure">1</ref>, booking travel requires a preceding distance check, the resulting distance restricts the permitted travel mode, and the requested booking must eventually succeed. For origin x and destination y, let checked distance(x, y) denote a check distance tool call, and booked train(x, y) and booked flight(x, y) the corresponding booking calls. The distance-check prerequisite P1 can be expressed in LTL as ¬ booked train(x, y) ∨ booked flight(x, y) W checked distance(x, y).</p><p>Here, W denotes 'weak until', which means that bookings are forbidden until the distance check occurs, and throughout the interaction if it never occurs. This blocks the bookings in steps 1 and 2. Crucially, each (x, y) is tracked separately, i.e., a Toronto-Chicago check cannot satisfy the prerequisite for Toronto-Montreal.</p><p>Tool results can further restrict the continuation. Let distance small(x, y) hold if check distance returns a distance below 500 km for that route. The prohibition on flights below 500 km in P2 can then be expressed in LTL as G distance small(x, y) → G ¬booked flight(x, y) . Here, G denotes 'globally', i.e., a result below 500 km forbids all subsequent flight bookings for that route.</p><p>Both formulas above would permit an execution that checks the distance and then stops without making a booking, so we also express obligations to complete the task. Let booked train ok(x, y) and booked flight ok(x, y) denote booking calls whose outcomes confirm success. For the requested route, the requirement is F booked train ok(x, y) ∨ booked flight ok(x, y) , where F denotes 'eventually' and requires a successful booking before termination. An activated obligation that These examples illustrate how our temporal specification captures both safety, by excluding forbidden behavior, and progress, by requiring obligations to be fulfilled before termination. Grounding propositions in tool calls and their outcomes enables runtime monitoring. However, tool arguments may range over unbounded domains, so we parameterize the propositions arguments and bind them to concrete entities at runtime. Preserving these bindings is essential, as ignoring (x, y) would make a short-distance result for one route prohibit flights on every route. To mitigate this, we use SMT to check that the tool calls' arguments are consistent with the proposition bindings.</p><p>Argument Constraints via SMT. We express argument constraints as predicates on the arguments a of a call α = (t, a), which may also depend on information from the interaction trace h. Each constraint applies to calls identified by its associated proposition. In our example, satisfying the distance-check does not by itself permit a business-class booking, since P3 also requires the agent to establish an urgent reason and the absence of an economy seat for that route.</p><p>We encode argument constraints using SMT, which decides the satisfiability of first-order formulas modulo theories. In our implementation, we use Z3 (de Moura &amp; Bjørner, 2008) with quantifier-free formulas over strings and linear integer arithmetic. SMT can directly express argument restrictions, enabling a solver to check whether multiple restrictions are jointly satisfiable and efficiently find satisfying values without fully enumerating the argument domain. Our argument constraints use a domain-specific language that is evaluated directly on proposed arguments and has an SMT encoding for satisfiability checks and symbolic argument search (App. B).</p><p>For the Toronto-Chicago flight in Fig. <ref type="figure">1</ref>, let business allowed(h, x, y) indicate whether h establishes both an urgent reason and the absence of an economy seat for route (x, y). P3 constrains calls satisfying booked flight(x, y) via the constraint</p><formula xml:id="formula_0">a[class] = business → business allowed(h, x, y),</formula><p>where a[class] denotes the booking-class argument represented as a string-valued SMT variable, and business allowed(h, x, y) is a fixed Boolean value for the given history and route. The distance check in step 3 satisfies P1, and its 700 km result does not trigger P2's flight prohibition. However, no urgent reason has been established, so business allowed(h, Toronto, Chicago) is false. The business-class booking in step 4 therefore violates the constraint.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">BUILDING MENTOR OFFLINE</head><p>To build MENTOR, we first translate natural-language manuals into the specifications of Sec. 3.1 (⟨C3⟩), to compute templates that provide the guidance required by ⟨C1⟩ (Fig. <ref type="figure" target="#fig_0">2</ref>, top right). Autoformalization. We use a multi-agent refinement loop with three LLM agents: a translator, an evaluator, and an orchestrator (Fig. <ref type="figure">3</ref>). The translator takes the manual and the tool schema and formalizes the requirements in the specification language defined above. The evaluator generates test traces from the manual, consisting of tool calls α i and their outcomes o i , and labels them as compliant or non-compliant with the manual. A deterministic conflict checker then compares the proposed specification's verdicts on these traces with the evaluator's proposed labels and returns disagreements to first the translator to revise the specification. The translator can contest a label, by providing an explanation grounded in the manual, which the evaluator reviews. The orchestrator coordinates these revisions and resolves remaining disagreements referring to the manual. The loop ends when the specification agrees with the evaluated traces or reaches a fixed iteration limit.</p><p>Note that if the loop terminates successfully, it provides some evidence of consistency between the generated specification and the manual, but it does not prove that it captures every requirement correctly. However, formalizing natural-language requirements is difficult even for human experts <ref type="bibr" target="#b16">(Greenman et al., 2023;</ref><ref type="bibr" target="#b8">Czepa et al., 2019)</ref>. Given that there exists no perfect method for this task, we believe that our loop provides a practical way to iteratively refine the specification and will become increasingly reliable as LLMs and autoformalization techniques improve.</p><p>Template Construction. The LTL specification φ defines compliance for interaction traces h. Shielding, however, requires determining which tool calls must be blocked or advised during interaction, before the trace is complete. Towards this, we adopt a standard game-theoretic approach, which automatically maps φ into a finite two-player game between the agent and the environment (see Fig. <ref type="figure" target="#fig_3">4</ref> for an example) <ref type="bibr" target="#b29">(Pnueli &amp; Rosner, 1989)</ref>. At an agent vertex (circle), the agent chooses a call, which leads to an environment vertex (square), at which the environment chooses its outcome. Each vertex abstracts the part of the history h relevant for the specification into residual LTL formulas, i.e., the requirements that the remaining interaction must still satisfy (black). Calls violating a requirement lead to a sink ⊥ (red), from which no compliant continuation exists, and done leads to the accepting vertex (✓, green) if and only if no duty is open. To obtain a shielding mechanism from the above translation, we employ a recent method <ref type="bibr" target="#b2">(Anand et al., 2023;</ref><ref type="bibr">2026b</ref>) that automatically computes a strategy template over a given game. At each agent vertex, the template marks (i) unsafe tools (red, dashed), which violate a requirement immediately or later unavoidably, and (ii) progressing tools (orange, solid), which advance the fulfillment of open duties. In Fig. <ref type="figure" target="#fig_3">4</ref>, done is unsafe at v 0 , v 1 and v 2 because the booking duty is still open, but it is progressing at v 3 because the confirmed booking fulfills it.</p><formula xml:id="formula_1">v 0 ⊥ ⊥ v 1 v 2 v 3 ✓ P1 open</formula><p>Intuitively, the template turns the global requirements into local constraints that let MENTOR block unsafe calls and advise progress toward compliance. It is also permissive, because the agent may choose freely any safe tool, including non-progressing calls. MENTOR interferes with the agent's preferences only where compliance requires it, and reminds of the open duties with its advice so that the agent can choose when to address them. However, the template only ranges over tools. The admissibility of their arguments requires additional SMT-based checks. In Fig. <ref type="figure" target="#fig_3">4</ref>, booking a business-class flight (step 4 from Fig. <ref type="figure">1</ref>) is progressing for the template in v 2 but blocked by the argument constraint P3. The next section discusses how this is handled by MENTOR at runtime.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">APPLYING MENTOR AT RUNTIME</head><p>The template-annotated game (Fig. <ref type="figure" target="#fig_3">4</ref>) provides the context-dependent behavior of MENTOR. At runtime, the executed tool calls and outcomes are followed through the game, and the template of the current vertex determines unsafe and progressing calls. MENTOR additionally checks the arguments of proposed calls against the SMT constraints and, when a call is blocked, uses the solver to compute admissible values from the history h. Together, this yields the evaluator of Fig. <ref type="figure" target="#fig_0">2</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>(bottom).</head><p>Two further components make this deterministic evaluator applicable to real agent interactions: (i) a labeler LLM that grounds propositions in the natural-language task description and tool outputs (the runtime part of ⟨C3⟩), and (ii) two shielding mechanisms, a prompt shield and a token shield, that deliver the evaluator's verdicts and advice to the agent (⟨C4⟩). We describe both below.</p><p>Labeler LLM. The tool-call evaluator operates on structured data, applying predicates to arguments a and outcomes o in h to evaluate propositions such as booked flight(x, y) and argument constraints such as P3. However, the task description o 0 and free-text tool outputs, e.g. from check distance, are natural language. MENTOR uses a labeler LLM to convert both into structured events according to the specification, on which the tool-call evaluator deterministically makes shielding decisions.</p><p>Before the first tool call, the labeler turns o 0 into one or more pseudo tool calls. The specification declares their names, arguments, and a plain-text extraction rule per argument. For Fig. <ref type="figure">1</ref>, the task becomes request travel(Toronto, Chicago, class=business, urgent=false). The predicates of the temporal requirements bind x = Toronto, y = Chicago to this event, which activates the route's booking duty, and no urgent reason is given which makes business allowed(h, x, y) false.</p><p>Further, for each tool output marked as natural language, the specification declares a small label vocabulary. After a tool call, the labeler maps the returned text to exactly one label or none, and Preprint stores it in o i for propositions to read like any other value. In Fig. <ref type="figure">1</ref>, check distance is labeled as ≥500 km, determining that distance small(x, y) does not hold and the agent moves to v 2 in Fig. <ref type="figure" target="#fig_3">4</ref>.</p><p>Prompt shield. The tool-call evaluator enforces its decision through the tool call output, and the prompt shield delivers the verdict and advice to the agent in the form of text along with the tool outcome. If a call α = (t, a) is blocked, it is not executed, and the agent receives as feedback the violated excerpt from the manual and a suggested tool call. The suggestion may be either the template-indicated missing prerequisite call at the current vertex, or an SMT-repaired call for a violated argument constraint. Alternatively, if α is allowed, it is executed. However, if duties remain open, its result is augmented with a reminder listing the open duties and a progressing call. The call done is refused while duties remain open, or until a preset limit on the number of calls is reached.</p><p>As an example, consider that at v 0 of Fig. <ref type="figure" target="#fig_3">4</ref> the agent calls book train (step 1 of Fig. <ref type="figure">1</ref>). This call is unsafe at v 0 as check distance is a prerequisite, so the agent receives the feedback:</p><p>[SHIELD] Blocked book_train(origin="Toronto", destination="Chicago").</p><p>-Policy rule for trip Toronto-&gt;Chicago: Check the distance before any booking. (P1) First: check_distance(origin="Toronto", destination="Chicago")</p><p>The prompt shield relies on agents following its feedback, which may be difficult for small openweight models as shown in our experiments in Sec. 4. If the next-token distribution is accessible, MENTOR can additionally apply a token shield to enforce the same constraints at the token level.</p><p>Token shield. LLM agents express tool calls as token sequences, so we modify the next-token distribution during generation of the tool name t and arguments a. We do this by adapting the technique from STARS <ref type="bibr">(Anand et al., 2026b)</ref>, which uses a strategy template to modify an RL policy's action distribution, assigning unsafe actions probability zero and increasing the probability of progressing actions.</p><p>Before each model call, MENTOR derives unsafe and progressing tool names and argument values from the current tool-call evaluation. Since tool names precede arguments, a name is considered unsafe only if every call with that tool name is unsafe. At v 0 in Fig. <ref type="figure" target="#fig_3">4</ref>, book train, book flight, and done are unsafe, and check distance is progressing. For arguments, SMT identifies unsafe candidate values from the history h and suggested calls from prior advice. At v 2 , business from the task description is unsafe under P3, while economy from the advised call is progressing. Each name and value is tokenized according to the model's tool-call format to identify its token sequence, so that we do not change the token distribution outside of tool calls.</p><p>Let V be the token vocabulary, τ full the token context, and p(τ | τ full ) the next-token probability for τ ∈ V . Since tool names may span several tokens and share prefixes, e.g., book flight and book train, we mask a token if the tokens written so far followed by τ can continue into unsafe names alone and into no safe one. For argument values, we only mask tokens completing an identified unsafe value, to avoid overrestriction. Tokens that continue a progressing call are boosted, including prefixes shared with safe, non-progressing alternatives. The modified distribution is</p><formula xml:id="formula_2">p(τ | τ full ) =    0, if τ is masked, p(τ | τ full ) + ηb τ , if τ is boosted, p(τ | τ full ),</formula><p>otherwise, renormalized before sampling. Here, η &gt; 0 controls the boost strength and b τ a counter that starts at 1 for each progressing tool call and increases for each step it is not called; if several progressing tools share τ , the largest counter is used. At v 2 , the agent may still call check distance, but each such call further boosts book flight.</p><p>After the tool call has been generated, it is still evaluated through the deterministic tool call evaluator and its advice returned to the LLM agent, because the modified distribution does not guarantee compliance on its own. That is because each argument is constrained separately during generation, so unsafe combinations of arguments may still be generated.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">EXPERIMENTS</head><p>We implemented MENTOR and evaluated its performance on three compliance benchmarks. We used Claude Opus 5 for the autoformalization loop, and tried several open-weights and proprietary models as LLM agents and as labelers. For the SMT solver, we used Z3 (de <ref type="bibr" target="#b10">Moura &amp; Bjørner, 2008)</ref>. All experiments were run on a cluster with nodes of 2x Intel Xeon Gold 5317 CPUs, 2x Nvidia A100 GPUs and 1024 GB RAM. See App. C for the exact model versions and all hyperparameters used.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head><p>Benchmarks. We evaluated MENTOR on MANTRA <ref type="bibr">(Anand et al., 2026a)</ref>, SOP-Bench <ref type="bibr" target="#b26">(Nandi et al., 2026)</ref> and AGENTORCA <ref type="bibr" target="#b22">(Li et al., 2025)</ref>. Each benchmark contains several domains with a procedural manual, tool schema, tasks, and a compliance evaluator. We evaluated MENTOR on 4 domains from MANTRA (2 original and 2 adapted from τ 2 -bench), 2 domains from SOP-Bench, and 2 domains from AGENTORCA. However, we observed that SOP-Bench's evaluator does not read the arguments of tool calls and misses argument-based constraint violations. For this reason, we did not include SOP-bench in our main results, and refer to App. C.3 for further details.</p><p>Baselines. We compare the compliance of agents shielded with both versions of MENTOR (prompt and token shield) against unshielded agents and, on MANTRA, three other baselines. DYNAGUARD provides a specialized LLM that judges the compliance of tool calls at runtime. PROGENT provides a specialized LLM that dynamically creates constraints during the interaction, which are then deterministically checked against the tool calls. AGENTSPEC provides a DSL in which humans write constraints that are then enforced deterministically at runtime, and a manually written labeler that uses fixed keywords and regex patterns. We write the constraints and labeling rules for AGENTSPEC using MENTOR's autoformalization loop (see App. C.4), and in Table <ref type="table">8</ref> we show that it is comparable with AGENTSPEC's own LLM-based rule generator that uses 10% of the test cases as a validation set.</p><p>Metric. We ran 5 independent runs of each task per agent and report Passˆ5, the probability that all 5 runs of a task succeed, averaged over the entire benchmark. In App. C, we also report Pass@1 and Pass@5, the average single-run success rate and the probability that at least one of 5 runs of a task succeeds, respectively.</p><p>Results. Table <ref type="table" target="#tab_2">1</ref> summarizes the results for both benchmarks. MENTOR consistently improves compliance for every agent, proprietary and open-weights, in comparison to unshielded agents, and outperforms the baselines. We observe that the prompt-based shield is most effective for stronger agents that can act on its feedback. On MANTRA, it sometimes struggles to help Llama 3.1 (see App. C.7 for an example), but the token-based shield instead improves it from ∼ 5 -20% to ∼ 30-60% in all domains. The baselines are less effective, often due to their lack of guidance towards progress, resulting in agents repeating blocked calls over and over (see App. A.2 for examples).</p><p>Impact of labeler and autoformalization. In Table <ref type="table" target="#tab_2">1</ref> the autoformalization was done by Claude Opus 5, and the labeler was gpt-4.1 for the open-weights models and gpt-4.1-mini for the proprietary models. To understand the role of these choices, we conducted ablation studies on MANTRA in App. C.4, varying the autoformalization and labeling models and observing their impact on compliance. The results in Table <ref type="table">7</ref> reveal that strong models are necessary for autoformalization using our loop, otherwise compliance drops. Similarly, the results in Table <ref type="table" target="#tab_5">9</ref> show that open-weights models struggle to label successfully, but even small proprietary models such as gpt-4.1-mini are satisfactory. However, a small open-weights model can be easily finetuned to match this performance and act as a generalizable labeler, as we demonstrate with Qwen3-4B in Table <ref type="table" target="#tab_2">11</ref> in App. C.5, where we trained it on gpt-4.1 labels from one domain and tested it on others.</p><p>Cost and latency. The autoformalization is performed once per manual and incurs a one-time cost, after which the generated constraints can be reused for all tasks within that domain. For this step, we used a 100 USD per month Claude subscription. The most expensive labeler, gpt-4.1, cost between 0.3 and 1.2 US cents per MANTRA test case (see Table <ref type="table" target="#tab_2">14</ref> in App. C.6), whereas using a fine-tuned open-weights labeler incurs zero cost per test case. Regarding latency, both our shields' and 2 of 3 baselines' overhead over not using a shield is negligible (see Table <ref type="table" target="#tab_3">12</ref> in App. C.6).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">DISCUSSION, LIMITATIONS AND FUTURE WORK</head><p>Here, we discuss the limitations of MENTOR and propose directions for future work.</p><p>Autoformalization. MENTOR requires the natural language manual to be translated into formal specifications. This process is difficult both for humans and LLMs, and our loop requires strong LLMs to produce satisfactory results and does not guarantee correctness, especially for ambiguous rules that may require careful interpretation. Investigating better autoformalization techniques is a promising direction for future work that will improve MENTOR.</p><p>Labeler. MENTOR requires a labeler LLM to ground the natural-language entities mentioned in the task prompt and tool outputs into formal variables to be used by the shield. While we saw that this is a simple task for modern LLMs, even small finetuned open-weights models, it still introduces Agents: L3.1 = Llama 3.1, Q3 = Qwen3, Q3.6 = Qwen3.6, G4 = Gemma 4  Natural language. MENTOR acts only on the tool calls the agents generate, and cannot ensure correctness of their natural language outputs. As such, it is not applicable to settings requiring interaction with humans (for instance, <ref type="bibr" target="#b5">Barres et al. (2025)</ref>). Extending our shield to such settings is an interesting avenue for future work.</p><formula xml:id="formula_3">(a) MANTRA Operations (N =47) Sneaky Sasquatch (N =43) τ 2 -retail (N =57) τ 2 -airline (N =44) Guard L3.1 Q3 Q3.6 G4 L3.1 Q3 Q3.6 G4 L3.1 Q3 Q3.6 G4 L3.1 Q3 Q3.6 G4 None 6±4 45±7 60±7 51±7 21±6 33±7 53±8 23±7 5±3 11±4 21±5 16±5 20±6 36±7 52±8 34±7 AGENTSPEC 13±5 55±7 72±7 62±7 14±5 28±7 63±7 16±6 9±4 25±6 26±6 19±5 30±7 43±8 50±8 43±8 PROGENT 4±3 47±7 68±7 47±7 21±6 30±7 51±8 23±7 9±4 12±4 25±6 21±5 27±7 39±7 45±8 39±7 DYNAGUARD 11±5 21±6 40±7 28±7 19±6 30±7 49±8 19±6 12±4 23±6 19±5 19±5 34±7 34±7 39±7 27±7 Ours (prompt) 36±7 72±7 66±7 72±7 35±7 63±7 70±7 65±7 16±5 33±6 33±6 40±7 41±7 64±7 64±7 50±8 Ours (token) 38±7 55±7 66±7 57±7 42±8 37±7 58±8 65±7 30±6 40±7 18±5 25±6 57±8 61±7 55±8 50±8<label>(</label></formula><p>Token shield. The token shield must be reimplemented for different LLMs, tokenizers, or tool-call harnesses, as it relies on the specific tool calling format used during generation. Otherwise, it may harm performance by causing unexpected token generations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A EXTENDED RELATED WORK</head><p>A.1 COMPARISON OF SHIELDING FEATURES We summarize the discussion of related shielding approaches for LLM agents from Sec. 1 in Tab. 2 using the following criteria:</p><p>Auto-extracted: if an LLM produces the checked constraints without hand-written rules, LLM-assisted constraint creation, -if the shield checks no explicit constraints.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Deterministic:</head><p>if the compliance decisions are deterministic (without an LLM judge), if an LLM edits constraints during the run.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Temporal order, argument values:</head><p>if left to an LLM judge or hand-coded as general-purpose code.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Obligations: if the shield tracks open duties and does not let the agent end the task while one is</head><p>open, if open duties can only be detected at the end (by hand-coded checks or an error flag).</p><p>Free-text outputs: if the shield can decide based on natural-language tool results, if this needs hand-written string checks or only changes the policy indirectly.</p><p>Guidance: if a blocked call is answered with a compliant alternative or the action that unlocks it, if only the reason for the block is given.</p><p>Token-level: enforcement during decoding, for open-source models. Tab. 2 shows that MENTOR covers all criteria, while every existing technique lacks several of them. Furthermore, PolicyGuide and Agent-C have not yet released their code, so we cannot compare against them in our experiments. In the following, we show how the lack of these features results in non-compliant traces that slip through these shields, as observed in our experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head><p>A.2 FAILURE TRACES OF OTHER SHIELDING TECHNIQUES W.R.T. ⟨C1⟩-⟨C2⟩ This section describes how non-compliant traces in our experiments slip through existing shields, and why these shields often prevented the agent from completing its task at all. We group the observed failures by their cause.</p><p>No guidance, so the agent stalls (⟨C1⟩, guidance). The most common failure mode of other shields that we observed is stalling, which manifests when the shield blocks a call but does not offer any guidance to the agent. As a consequence, the agent repeats the blocked call, or tries other blocked calls until it exhausts its budget without completing the task.</p><p>As our example, consider the business class booking task from Figure <ref type="figure">1</ref>. Here, the user asks for a business class 1.5h flight within North America. This violates the manual because it forbids business class on flights shorter than 6h unless there is an urgent business need. Since the user does not state an urgent business need, the agent must instead book an economy flight.</p><p>AGENTSPEC blocks the request to book business class in 13 of 20 runs on this task, but does not tell the agent what to do instead, so 5 runs fail to book any flight at all.</p><p>DYNAGUARD's LLM judge explains why a call was blocked, but only sees prior executed calls on the history and not previously blocked ones. As a result, the agents often repeat the same (blocked) call multiple times and receive the same explanation from the judge. Further, the LLM judge itself often misrepresents the manual. We observed this kind of stalling behavior in multiple runs and tasks, and show a different flight booking example in Figure <ref type="figure" target="#fig_5">5</ref> on a task from the τ 2 -airline domain in MANTRA. Here, DYNAGUARD blocks 50 calls of Gemma 4 in a row, claiming that the agent must ask the user for confirmation before doing anything. However, on the manual, this is only required for specific tasks, so the judge's verdict is wrong and the agent has no way to bypass the blocks.</p><p>MENTOR, in contrast, suggests an exact tool call that would be allowed (either a prerequisite to the blocked call or a repaired version of the blocked call) so the agent always has access to a compliant call that makes progress. In the business class booking example, MENTOR suggests calling book flight with the argument travel class=economy.</p><p>No access to the history (⟨C1⟩, context-dependence). Whether a tool call complies may depend on the history of the task. To illustrate this, consider a testcase from the Operations domain of MANTRA, where the user asks the agent to install a software. The intended workflow according to the manual is to first call check software tier and call run vulnerability scan. Depending on the results of those calls it is determined whether it is safe to proceed with the call install software, and finally, before ending the task, the agent must call archive scan report. Since whether install software is allowed depends on results of earlier calls, a shield must take this history into account to allow or block the call accordingly during the task execution.</p><p>PROGENT fails because its rules check each call only against its own arguments and do not refer to earlier calls or their results. The only memory is an LLM that may rewrite the rules after each allowed call. However, in our experiments, we observed that these rewrites failed to capture this context-dependence. Over all runs and testcases in this domain, only once did the same call change from blocked to allowed, as install software should be here.</p><p>On the other hand, AGENTSPEC can use the history, since its rules read the earlier calls and their results. In this testcase, one rule correctly blocks install software until check software tier has returned a result for that software.</p><p>Lastly, DYNAGUARD uses an LLM judge that can read the history of executed calls before giving a verdict, but its reliability varies unpredictably. On this testcase, in one run it correctly blocked install software because no vulnerability scan was run and later allowed it after the agent ran the scan. However, in another run, it failed to recognize that the agent had successfully completed the workflow and had run archive scan report, and as a result kept blocking done and insisting that the archival is still pending.</p><p>In contrast, MENTOR's strategy template both keeps track of open duties and captures contextdependent constraints.</p><p>No argument constraints (⟨C2⟩). Many tasks require constraints on the arguments of a call, not only its order in the trace. We return to the business class flight example to illustrate this: economy Guard's reason at step 1: "The agent violated the rule by not listing the action details and obtaining explicit user confirmation before making a tool call. The rule states 'Before taking any actions that update the booking database (...) you must list the action details and obtain explicit user confirmation'." class is allowed and business is not because there is no urgent business need. If the agent attempts to book business class, the tool output itself returns a rejection and indicates that an urgent business need is required. Without any shield, the agents often subsequently invent fake such urgent business needs in attempt to book business class.</p><p>PROGENT's rules only check argument types and not exact arguments, e.g., travel class must be economy, business or first. As a consequence, PROGENT does not block the business class requests and does not catch the fake urgent business needs. DYNAGUARD's LLM judge is, again, inconsistent. In 12 runs, the initial business class request is blocked, but in 2 others it is allowed. The fake urgent business need is also blocked in 10 runs but allowed in 2 others.</p><p>AGENTSPEC successfully blocks the initial business request in 13 of 20 runs, but even then, as discussed above, does not guide towards booking economy. MENTOR, in contrast, blocks the initial business request and suggests the same call with travel class="economy", so the agent does not receive the suggestion to give an urgent business need. In the one run where the agent still happened to write an urgent business need, our shield blocks it, because this is allowed only if the user stated an urgent business need in their request.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B SPECIFICATION LANGUAGE</head><p>This section gives the syntax and semantics of the specification language introduced in Sec. 3.1. A specification contains temporal requirements and argument constraints, together with the declarations that connect them to tool calls and their outcomes. Figure <ref type="figure">6</ref> summarizes its structure.</p><p>Requirements are parameterized by concrete entities. An entity type specifies how tool arguments and outcomes identify entities and a call may identify several entities. Requirements concerning the same entity type are grouped into a module, which declares its propositions, temporal requirements, and argument constraints. Several modules may concern the same entity type. Within a module, the parameter v denotes the entity being considered. It may represent a tuple, such as the route (x, y) in Sec. 3.1. Requirements concerning the whole task use a common task identifier.</p><p>Each entity-identification rule associates a tool with an expression that computes an entity key from the tool's arguments and, when available, its outcome. The rule is evaluated on proposed arguments before the call is checked and again on the completed event after execution. A scalar result identifies one entity, a collection identifies each of its elements, and an undefined result identifies no entity. Entity keys are compared after conversion to strings, removal of surrounding whitespace, and case folding. Tuple-valued parameters are represented by a composite key whose components preserve the corresponding argument values.</p><p>The specification also declares the information to be extracted from natural language: schemas for pseudo tool calls representing requests, and label vocabularies for free-text tool outcomes. These declarations determine the labeler's inputs and outputs <ref type="bibr">(Sec. 3.3)</ref>. Each temporal requirement and argument constraint is associated with its source sentence in the manual, which can subsequently be included in the shield's feedback.</p><p>Temporal Requirements via LTL. A proposition declaration (p(v), t, e) associates p(v) with tool t and a Boolean predicate e. The proposition holds at an event precisely when the event calls t and e evaluates to true under the entity binding and an omitted predicate is interpreted as true. Matching the event to the entity must be expressed in e, as the parameter v alone does not restrict a proposition to calls concerning that entity. For example, a proposition for route (x, y) compares the call's origin and destination with x and y.</p><p>An action proposition can be evaluated from the proposed call, the entity binding, and recorded history. An observation proposition additionally depends on the current outcome. Earlier outcomes are available through the history, whereas the current outcome becomes available only after execution. This distinction determines which requirements can be checked before a tool call.</p><p>Fix a module and an entity binding, and let P be the resulting set of propositions. Each recorded event induces a letter ℓ i ⊆ P containing precisely the propositions that hold at that event. The resulting finite word is σ = ℓ 0 • • • ℓ n-1 ∈ (2 P ) + . Events at which no proposition holds retain their positions and contribute the empty letter. Formulas follow standard LTL syntax (see <ref type="bibr">Fig. 6(b)</ref>). Using finite-trace semantics <ref type="bibr" target="#b15">(Giacomo &amp; Vardi, 2013)</ref>, extended with the past operator O, satisfaction at position 0 ≤ i &lt; n is defined by</p><formula xml:id="formula_4">σ, i |= p ⇐⇒ p ∈ ℓ i , σ, i |= ¬φ ⇐⇒ σ, i ̸ |= φ, σ, i |= φ ∧ ψ ⇐⇒ (σ, i |= φ) ∧ (σ, i |= ψ), σ, i |= Xφ ⇐⇒ i + 1 &lt; n ∧ (σ, i + 1 |= φ), σ, i |= φ U ψ ⇐⇒ ∃j, i ≤ j &lt; n : (σ, j |= ψ) ∧ ∀k, i ≤ k &lt; j : σ, k |= φ , σ, i |= Op ⇐⇒ ∃j, 0 ≤ j ≤ i : p ∈ ℓ j .</formula><p>Here, the bound entity parameter is suppressed in proposition names. Boolean constants, disjunction, and implication have their usual meanings, and</p><formula xml:id="formula_5">Fφ ≡ ⊤ U φ, Gφ ≡ ¬F¬φ, φ W ψ ≡ (φ U ψ) ∨ Gφ.</formula><p>We write σ |= φ iff σ, 0 |= φ. In particular, Xφ is false at the final position as it requires a further event.   In (a), S is an entity type and κ its entity-identification rules; kind classifies a temporal requirement as a safety requirement or an obligation, and m is its source sentence. A request declaration gives a pseudo tool name Q, a typed argument schema Σ, defaults d, and extraction instructions I. An observation declaration identifies the free-text and label fields of an outcome and its label vocabulary Λ. In (c), c is a constant, π a field path, and b v the event introducing the entity. The function meanings are given in Table <ref type="table">3</ref>. Auxiliary string, list, and conversion helpers are omitted from the core expression grammar.</p><formula xml:id="formula_6">::= ⊤ | ⊥ | p(v) | Op(v) | ¬φ | (φ ∧ φ) | (φ ∨ φ) | (φ → φ) | Xφ | Fφ | Gφ | (φ U φ) | (φ W φ)<label>(</label></formula><p>The past operator O expresses that a proposition holds at the current event or held earlier. It permits prerequisites to be written directly without increasing the expressive power of LTL <ref type="bibr" target="#b13">(Gabbay et al., 1980;</ref><ref type="bibr" target="#b9">De Giacomo et al., 2020)</ref>.</p><p>For example, with p denoting a distance check and q a booking for the same route, G(q → Op) expresses the prerequisite in P1. Since checking and booking are distinct tool calls, the check must precede the booking. Obligations may instead require a successful outcome, for example a failed booking attempt does not satisfy F booked flight ok(x, y). An activated obligation that remains unfulfilled is an open duty, as in Sec. 3.1. If the manual permits the work to be waived under a condition r, that alternative must be explicit in the formula, for example F(q ∨ r). A failed tool call does not by itself discharge an obligation.</p><p>Argument Constraints via SMT. An argument constraint associates an action proposition p(v) with a Boolean expression e. Whenever a proposed call satisfies p(v), its arguments must satisfy e under the current entity binding and recorded history. The condition may use outcomes of earlier calls, but cannot depend on the unavailable outcome of the proposed call. This allows constraints to express, for example, that an identifier was returned by an earlier lookup, that a required argument is present, or that an argument value is permitted by previously established facts.</p><p>The DSL in Fig. <ref type="figure">6</ref>(c) provides field and list access, Boolean and arithmetic expressions, comparisons, conditionals, and operations on recorded history. Here, a and o denote the current call's arguments and outcome, v the bound entity, and b v the event that introduced it. Access to o is restricted to predicates evaluated after execution. History operations inspect earlier executed events recorded for the entity and module, excluding the current event, and are initialized by the labeler LLM. Table <ref type="table">3</ref> defines the functions shown in the grammar.</p><p>Expression evaluation accounts for incomplete tool outputs. A missing field or list element evaluates to null. When a rule requires an earlier lookup to exist,that prerequisite must be expressed explicitly, for example using exists(p(v)). If an applicable constraint evaluates to false, the proposed arguments do not satisfy it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint C ADDITIONAL EXPERIMENTAL RESULTS</head><p>C.1 ADDITIONAL IMPLEMENTATION DETAILS Model and shield parameters. For MANTRA, agents have a 40 tool call limit, and the shield stops blocking done after 25 tool calls regardless of if there still are open duties. For SOPBench, these limits are 200 and 60 respectively, and for AgentOrca they are both 200. The open-weights models are served by vLLM and the token shield is implemented via a logit processor. We use default temperature, reasoning effort and top-p, except on the token shield where we use top-p = 1 to avoid tokens being masked by the decoding. Moreover, on the token shield, we set the boost strength defined in Sec. 3 to η = 0.5. The full names of the open-weights LLM agents evaluated are Llama 3.1-8B-Instruct, Qwen-3-8B, Qwen3.6-27B and Gemma-4-E4B-Instruct. The proprietary agents used for labelling or for evaluation are accessed via the OpenAI and Anthropic APIs, whereas the ones used for autoformalization are accessed via Codex and Claude Code.</p><p>Metric definitions. For a benchmark suite with N tasks, we run each task n = 5 times independently and let α i ∈ {0, 1, . . . , n} denote the number of successful runs on task i. The tables below report three standard success rates:</p><p>• Pass@1the average single-attempt success rate, 1 N N i=1 αi n . This is the standard accuracy of one independent rollout.</p><p>• Pass@kthe probability that at least one of k independent attempts on a task succeeds, averaged over the suite, Pass@k = 1</p><formula xml:id="formula_7">N N i=1 1 -n-αi k n k</formula><p>for n ≥ k. We report Pass@5.</p><p>• Passˆkthe probability that all k independent attempts on a task succeed, averaged over the suite <ref type="bibr" target="#b5">(Barres et al., 2025)</ref>:</p><formula xml:id="formula_8">Passˆk= 1 N N i=1 αi k n k</formula><p>. This is a stricter consistency/reliability measure than Pass@k. We report Passˆ5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 EVALUATION ON SOP-BENCH</head><p>In addtion to the MANTRA and the AgentOrca benchmark reported on in Table <ref type="table" target="#tab_2">1</ref> in Sec. 4, we also ran both shields on two SOP-Bench domains, patient intake and customer service, with the same four open-weight agents and settings. While analysing the runs, we found that the benchmark's scorer does not read the arguments of tool calls and therefore accepts incorrect traces. We first document this flaw and then report the results in Table <ref type="table" target="#tab_4">6</ref>.</p><p>In the patient-intake domain, there are several tasks that require the agent to call some lookup tools, such as validateInsurance, and then call registerPatient with the results of these lookups as input. Registration is successful if, among other conditions, the insurance status is valid. However, the benchmark's provided mock implementation of the registerPatient tool ignores the input arguments it receives and always returns the (pre-stored in the database) correct output for the patient. Further, the benchmark's scorer only checks the tool outputs, and not their arguments. Together, these two issues can lead to incorrect traces being accepted as valid by the benchmark's scorer, when the agent provides incorrect inputs to the registerPatient tool (that were not the same as the results of the lookup tools), and then the mock implementation of registerPatient returns the correct output regardless of its inputs. This was a common occurence in our experiments. Agents often ignored the results of the lookups and provided incorrect inputs to the registerPatient tool, yet the benchmark's scorer still accepted these traces as valid due to the issues described above. In particular, over 5 iterations on the 35 tasks in this domain, 68% of "successful" runs by unshielded Qwen3, and 48% of "successful" runs by unshielded Llama 3.1, contained a registerPatient call whose inputs did not match the results of the lookup tools. These runs should be classified as non-compliant. In contrast, with the prompt shield, none of the "successful" runs has this problem, because one of the shield's rules blocks any registerPatient call whose statuses differ from the lookup results.</p><p>Table <ref type="table" target="#tab_4">6</ref> reports the results of our runs using SOP-Bench's flawed Task Success Rate (TSR) score. We also observed, similarly to MANTRA, that Llama 3.1 struggled to follow the prompt shield's advice and kept repeating blocked calls, but its performance improved under the token shield. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Overview of MENTOR. Manual and tool schema are formalized into an LTL-based template and an SMT-based solver (offline, top right), used to shield every tool call (online, left) by deterministically evaluating (bottom right) if tool calls are safe and progressing (violet, LTL), and use correct arguments (blue, SMT); unsafe and non-progressing calls receive advice (orange).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Preprint remains unfulfilled is called an open duty. Here, the requested booking is an open duty from the start, remains open after the distance check in step 3 and gets fulfilled by the confirmed booking in step 5.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Figure 3: Autoformalization.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Game graph and template (excerpt) for the example from Fig. 1.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>Task: for U-88104, book a one-way economy trip RDU -&gt; BOI on 2026-10-03; reuse passenger, bags and payment of reservation R-551208. [0] get reservation details(R-551208) BLOCKED [1] search direct flight(10-03,RDU,BOI) BLOCKED [2] search onestop flight(10-03,RDU,BOI) BLOCKED [3] search direct flight(...) BLOCKED [4] get reservation details(...) BLOCKED [5-44] the same three calls round-robin BLOCKED [45] search direct flight(...) BLOCKED [HARNESS] 45 tool calls made; call done now. [46-49] the same three calls round-robin BLOCKED Step cap reached: no book reservation, no done.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Agent stalling: DYNAGUARD on Gemma 4 executing a testcase from the τ 2 -airline domain in MANTRA. All 50 calls, including read-only lookups, are blocked with the same (sometimes incorrect) reason.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Preprint</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>structure ⟨spec⟩ ::= ({⟨type⟩}, {⟨module⟩}, {⟨request⟩}, {⟨observation⟩}) ⟨type⟩ ::= (S, κ) ⟨module⟩ ::= (S, {⟨proposition⟩}, {⟨requirement⟩}, {⟨constraint⟩}) ⟨proposition⟩ ::= (p(v), t, e) ⟨requirement⟩ ::= (kind, φ, m) ⟨constraint⟩ ::= (p(v), e, m) ⟨request⟩ ::= (Q, Σ, d, I) ⟨observation⟩ ::= (t, πtext, π label , Λ, I) (b) Temporal requirements via LTL φ</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>Figure6: Abstract structure and syntax of the specification language. Braces denote finite collections. In (a), S is an entity type and κ its entity-identification rules; kind classifies a temporal requirement as a safety requirement or an obligation, and m is its source sentence. A request declaration gives a pseudo tool name Q, a typed argument schema Σ, defaults d, and extraction instructions I. An observation declaration identifies the free-text and label fields of an outcome and its label vocabulary Λ. In (c), c is a constant, π a field path, and b v the event introducing the entity. The function meanings are given in Table3. Auxiliary string, list, and conversion helpers are omitted from the core expression grammar.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Table 2 in App. A in more detail.</figDesc><table><row><cell>Task</cell><cell></cell><cell></cell><cell cols="3">Tool schema T</cell><cell>Procedural manual D</cell></row><row><cell cols="2">natural-language request</cell><cell></cell><cell cols="4">structured tool descriptions</cell><cell>natural-language rules</cell></row><row><cell cols="2">Use MENTOR (online)</cell><cell>Build MENTOR (offline)</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>advice</cell><cell cols="2">Template computation</cell><cell cols="2">LTL</cell><cell>Autoformalization</cell></row><row><cell cols="2">LLM agent</cell><cell></cell><cell></cell><cell></cell><cell>SMT</cell></row><row><cell>i output o</cell><cell>tool call α i</cell><cell>Tool call evaluator (deterministic)</cell><cell>Template (LTL) tool from a</cell><cell></cell><cell></cell><cell>safe, progress arguments ok</cell><cell>Allowed</cell></row><row><cell cols="2">MENTOR Evaluator Labeler</cell><cell>book flight (class= tool call α i tool t</cell><cell cols="2">finite set safe? progress?</cell><cell>∧</cell><cell>arguments ok safe, no progress</cell><cell>Allowed advice: progressing call</cell></row><row><cell></cell><cell>forward</cell><cell>business)</cell><cell>Solver (SMT) arguments from</cell><cell></cell><cell></cell><cell>advice: enabling call or repaired argument</cell></row><row><cell cols="2">Environment</cell><cell>arguments a</cell><cell cols="2">an infinite domain arguments ok?</cell><cell></cell><cell>unsafe or arguments wrong</cell><cell>Blocked</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>Passˆ5 ± standard error (%) over the N test cases of a domain. (a) Open-weights agents on MANTRA against the baselines. (b) Proprietary agents on MANTRA domains. (c) Open-weights agents on AGENTORCA. None denotes no shield, and the highest value in each column is bolded.</figDesc><table /><note><p>a layer of variability to the shield. It would be interesting to explore how well deterministic labelling techniques can replace the labeler LLM.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Comparison of MENTOR with existing LLM guarding approaches: supported, partially supported, not supported, -not applicable.</figDesc><table><row><cell></cell><cell>Specification</cell><cell></cell><cell cols="2">Runtime check</cell><cell></cell><cell cols="2">Agent support</cell></row><row><cell></cell><cell>Auto-</cell><cell>Determ-</cell><cell>Temporal</cell><cell>Argument</cell><cell>Oblig-</cell><cell>Free-text</cell><cell>Token-</cell></row><row><cell>Shield</cell><cell>extracted</cell><cell>inistic</cell><cell>order</cell><cell>values</cell><cell>ations</cell><cell>outputs Guidance</cell><cell>level</cell></row><row><cell>LLM-based</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>GuardAgent (Xiang et al., 2024)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>DynaGuard (Hoover et al., 2026)</cell><cell>-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>PolicyGuide (Kang et al., 2026)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Rule-based</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>AgentSpec (Wang et al., 2026)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Progent (Shi et al., 2025)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Agent-C (Kamath et al., 2025)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>MENTOR (ours)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 6 :</head><label>6</label><figDesc>Task Success Rate (TSR), SOP-Bench's flawed benchmark score, of open-weights agents on two domains. Llama 3.1 0.10±0.07 0.19±0.08 0.18±0.03 Qwen3 0.46±0.06 0.63±0.03 0.59±0.04 Qwen3.6 0.90±0.08 0.91±0.05 0.90±0.05 Gemma 4 0.49±0.14 0.59±0.08 0.47±0.19</figDesc><table><row><cell>TSR</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 9 :</head><label>9</label><figDesc>Labeler ablation: Passˆ3 of the prompt shield on two MANTRA domains and two agents.</figDesc><table><row><cell></cell><cell>Passˆ3</cell><cell></cell></row><row><cell></cell><cell>Sneaky Sasquatch</cell><cell>τ 2 -retail</cell></row><row><cell>Labeler</cell><cell>Qwen3 Gemma 4</cell><cell>Qwen3 Gemma 4</cell></row><row><cell cols="3">gpt-4.1-mini 0.70±0.07 0.62±0.07 0.39±0.06 0.33±0.06</cell></row><row><cell cols="3">Qwen3-4B 0.68±0.07 0.60±0.07 0.44±0.06 0.28±0.05</cell></row><row><cell>Gemma 4</cell><cell cols="2">0.07±0.04 0.07±0.04 0.42±0.07 0.28±0.06</cell></row><row><cell>gpt-oss</cell><cell cols="2">0.02±0.02 0.07±0.04 0.35±0.06 0.26±0.06</cell></row><row><cell>Llama 3.1</cell><cell cols="2">0.02±0.02 0.05±0.03 0.44±0.07 0.28±0.06</cell></row><row><cell>Qwen3</cell><cell cols="2">0.05±0.03 0.07±0.04 0.35±0.06 0.26±0.06</cell></row><row><cell>Qwen3.6</cell><cell cols="2">0.02±0.02 0.09±0.04 0.40±0.07 0.25±0.06</cell></row><row><cell>gpt-4.1</cell><cell cols="2">0.80±0.06 0.79±0.06 0.35±0.06 0.31±0.06</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 10 :</head><label>10</label><figDesc>Labeler ablation: Passˆ5 on all MANTRA with the GPT-4.1 mini and the GPT-4.1 labeler.</figDesc><table><row><cell></cell><cell></cell><cell cols="3">Prompt shield Prompt shield Token shield</cell></row><row><cell></cell><cell></cell><cell>(gpt-4.1-mini)</cell><cell>(gpt-4.1)</cell><cell>(gpt-4.1)</cell></row><row><cell>Domain</cell><cell>Model</cell><cell>Passˆk5</cell><cell>Passˆk5</cell><cell>Passˆk5</cell></row><row><cell></cell><cell>Llama 3.1</cell><cell>0.28±0.07</cell><cell>0.21±0.06</cell><cell>0.38±0.07</cell></row><row><cell>Operations</cell><cell>Qwen3 Qwen3.6</cell><cell>0.62±0.07 0.72±0.07</cell><cell>0.64±0.07 0.70±0.07</cell><cell>0.55±0.07 0.66±0.07</cell></row><row><cell></cell><cell>Gemma 4</cell><cell>0.72±0.07</cell><cell>0.77±0.06</cell><cell>0.57±0.07</cell></row><row><cell></cell><cell>Llama 3.1</cell><cell>0.14±0.05</cell><cell>0.09±0.04</cell><cell>0.42±0.08</cell></row><row><cell>Sneaky Sasquatch</cell><cell>Qwen3 Qwen3.6</cell><cell>0.67±0.07 0.63±0.07</cell><cell>0.77±0.07 0.65±0.07</cell><cell>0.37±0.07 0.58±0.08</cell></row><row><cell></cell><cell>Gemma 4</cell><cell>0.58±0.08</cell><cell>0.79±0.06</cell><cell>0.65±0.07</cell></row><row><cell></cell><cell>Llama 3.1</cell><cell>0.21±0.05</cell><cell>0.18±0.05</cell><cell>0.30±0.06</cell></row><row><cell>τ 2 -retail</cell><cell>Qwen3 Qwen3.6</cell><cell>0.32±0.06 0.42±0.07</cell><cell>0.26±0.06 0.39±0.07</cell><cell>0.40±0.07 0.18±0.05</cell></row><row><cell></cell><cell>Gemma 4</cell><cell>0.26±0.06</cell><cell>0.25±0.06</cell><cell>0.25±0.06</cell></row><row><cell></cell><cell>Llama 3.1</cell><cell>0.41±0.07</cell><cell>0.36±0.07</cell><cell>0.57±0.08</cell></row><row><cell>τ 2 -airline</cell><cell>Qwen3 Qwen3.6</cell><cell>0.59±0.07 0.61±0.07</cell><cell>0.57±0.08 0.64±0.07</cell><cell>0.61±0.07 0.55±0.08</cell></row><row><cell></cell><cell>Gemma 4</cell><cell>0.64±0.07</cell><cell>0.66±0.07</cell><cell>0.50±0.08</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_0"><p>CONCLUSIONWe present MENTOR, a runtime shield for tool-using LLM agents to guide them through complex workflows described in procedural manuals. By combining strategy templates from temporal requirements with argument constraints encoded in SMT, MENTOR can act during inference to block unsafe tool calls that violate the manual and advise LLMs on how to make progress towards their assigned tasks. Using MENTOR on several open-weights and proprietary agents, we show that it effectively boosts their performance and makes them more reliable in compliance-critical settings.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head><p>Table <ref type="table">3</ref>: Functions in the core expression language. History operations use earlier recorded events with the entity parameter v bound. A field path π selects information from an event's tool arguments or outcome.</p><p>Expression Meaning</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>last(p(v))</head><p>The latest earlier event satisfying p(v); if none exists, its fields are undefined (null). exists(p(v)), count(p(v)) Whether an earlier event satisfies p(v), and the number of such events, respectively. hist(p(v), π)</p><p>The non-null values at path π from earlier events satisfying p(v), in chronological order.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>present(e)</head><p>Whether e is neither null, an empty string, nor an empty list. len(e)</p><p>The length of a string or list; zero for an unsuitable value. contains(e1, e2)</p><p>For a list e1, whether it contains an element equal to e2; for a string, a caseinsensitive substring test. startswith(e1, e2)</p><p>A case-insensitive string-prefix test. if <ref type="bibr">(e1, e2, e3)</ref> e2 when the Boolean condition e1 holds, and e3 otherwise.</p><p>Concrete proposed arguments are checked by evaluating these expressions. For symbolic argument search, the SMT encoding introduces variables for the arguments and evaluates history-dependent subexpressions to fixed values. String, numeric, and Boolean arguments are represented by string, real, and Boolean variables, respectively. The supported Boolean, arithmetic, and string operations are then encoded using the corresponding SMT operations. This representation is used by Z3 (de <ref type="bibr" target="#b10">Moura &amp; Bjørner, 2008)</ref> to find argument values satisfying the proposition predicates and applicable constraints at runtime.</p><p>For the running example, let B x,y = business allowed(h, x, y) be the history-dependent Boolean from Sec. 3.1. It records both an urgent reason and the absence of an economy seat for the route. For a flight booking, the symbolic conditions expressing the entity binding and P3 are</p><p>The route and B x,y are fixed by the current binding and history and the arguments are symbolic. For Toronto-Chicago in Fig. <ref type="figure">1</ref>, no urgent reason has been established, so B x,y is false. The resulting constraint excludes business class while preserving the route.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head><p>C.2 FULL RESULTS ON MANTRA Table <ref type="table">8</ref> varies the autoformalization technique used to generate the rules for the AGENTSPEC benchmark. AGENTSPEC provides their own language in which to write rules and suggests an in-context example generation approach. We compare three approaches. We use the suggested incontext example approach to write the rules in the provided language, using 4-5 testcases per domain as examples (AgentSpec, LLM-gen). Then, we use our own autoformalization loop to generate the rules in the same language (AgentSpec, our loop). Finally, we use our own autoformalization loop and specification (Ours). All three autoformalization techniques used Claude Opus 5, and are evaluated on the same set of testcases (after removing the examples for AgentSpec, LLM-gen) with the prompt-shield. Finally, Table <ref type="table">9</ref> modifies the LLM used for labeling, including our finetuned Qwen3-4B labeler decsribed in App. C.5. Table <ref type="table">10</ref> shows a more detailed comparison of GPT-4.1 and GPT-4.1-mini as labelers on MANTRA.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint C.5 LABELER FINETUNING DETAILS</head><p>We finetune Qwen3-4B-Instruct-2507 to act as a labeler, via distillation from labels produced by GPT-4.1.</p><p>Task and data. Each training example is one labeler call exactly as issued by the shield as described in Sec. 3.3. We use the same input that the GPT-4.1 labeler saw, and the target output is GPT-4.1's label. As training data, we used three sources. Firstly, we used existing GPT-4.1 labels from the runs in Sec. 4. Specifically, 239 examples from the Operations and Sneaky Sasquatch domains from MANTRA, 6408 from the τ 2 domains from MANTRA and 70 from SOP-Bench. Secondly, we paraphrased 3 times, using Codex, 160 examples from the real runs, asked GPT-4.1 to label the paraphrased examples, and kept 441 examples whose labels matched the original labels. Lastly, we generated 48 new synthetic domains using Codex, each with a specification, set of texts for labeling, and intended label. We used GPT-4.1 to label these texts and kept 3133 examples whose labels matched the intended labels.</p><p>Training and evaluation. We train using a leave-one-benchmark-family-out procedure over the the two non-τ 2 MANTRA domains, the two τ 2 MANTRA domains, and SOP-Bench. The left out family is used for the evaluation reported in Table <ref type="table">11</ref>, while the other two are used for training and validation (10%). We fine-tune using LoRA for 2 epochs with learning rate 10 -4 and effective batch size 16. The loss is computed only over target tokens and thinking mode is disabled. We select the checkpoint with lowest validation loss. For evaluation, we use the prompt shield over 5 runs with 4 agents as described in Sec. 4, and in Table <ref type="table">11</ref> show that our fine-tuned labeler is comparable with the original GPT-4.1 labeler. We report the seconds per tool call in Table <ref type="table">12</ref>, the number of proposed tool calls per case in Table <ref type="table">13</ref>, and the labeling cost in API calls in Table <ref type="table">14</ref> for the MANTRA benchmark. Llama 3.1 15.3 ± 2.6 6.7 ± 0.6 5.5 ± 0.9 4.0 ± 0.3 6.3 ± 0.7 27.9 ± 0.7 Qwen3 3.1 ± 0.5 2.5 ± 0.1 2.9 ± 0.3 1.8 ± 0.1 4.2 ± 0.3 14.2 ± 1.2 Qwen3.6 4.5 ± 0.4 3.9 ± 0.6 4.1 ± 0.3 4.9 ± 0.4 5.0 ± 0.7 8.7 ± 1.1 Gemma 4 1.8 ± 0.2 1.8 ± 0.2 1.8 ± 0.1 1.1 ± 0.1 2.2 ± 0.2 6.1 ± 0.7 Task and Checks. The task is to treat a patient with low magnesium. The intended treatment involves listening to the patient, checking the inventory for food items, and giving an appropriate food to the patient. Importantly, the checks for this testcase mandate that the call check inventory(item type="foods") must be made before the call give food with a suitable food argument (Milk, Relish or Cheese).</p><p>Prompt shield. Without a shield, the agent gives Milk without checking the inventory, which fails every time. On the other hand, the prompt shield intervenes and blocks the give food call, suggesting the prerequisite check inventory call:</p><p>[SHIELD] Blocked give food(patient id="PT-6620", food name="Milk").</p><p>-Policy rule for patient PT-6620: ... check what the inventory holds before you hand a food over. First: check inventory(item type="foods")</p><p>However, the agent does not follow this advice. Instead, it makes other calls such as listen to patient (allowed), talk to head doctor, (blocked), and repeats the blocked give food call. The run ends without checking the inventory or giving food to the patient, so the patient remains untreated.</p><p>Token shield. The token shield masks the tokens for the give food call so the agent never generates it. Instead, the token shield boosts the calls listen to patient and check inventory, which are both called by the agent. After the check inventory call, the environment reports that Cheese is available and the agent proceeds to give it to the patient, who is then treated successfully.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Specifying agent strategy spaces via ltl synthesis</title>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Aminof</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><forename type="middle">De</forename><surname>Giacomo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aniello</forename><surname>Murano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sasha</forename><surname>Rubin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Principles of Knowledge Representation and Reasoning</title>
+		<meeting>the 23rd International Conference on Principles of Knowledge Representation and Reasoning</meeting>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="36" to="45" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chenyang</forename><surname>An</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Bayless</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Buliani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Darion</forename><surname>Cassel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Byron</forename><surname>Cook</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duncan</forename><surname>Clough</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Delmas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nafi</forename><surname>Diallo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2511.09008</idno>
+		<title level="m">Ferhat Erata, Nick Feng, et al. A neurosymbolic approach to natural language formalization and verification</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Synthesizing permissive winning strategy templates for parity games</title>
+		<author>
+			<persName><forename type="first">Ashwani</forename><surname>Anand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satya</forename><surname>Prakash Nayak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anne-Kathrin</forename><surname>Schmuck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Computer Aided Verification</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="436" to="458" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Synthesizing smtvalidated compliance benchmarks for tool-using llm agents</title>
+		<author>
+			<persName><forename type="first">Ashwani</forename><surname>Anand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivi</forename><surname>Chatzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ritam</forename><surname>Raha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anne-Kathrin</forename><surname>Schmuck</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mantra</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.06334</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Follow the stars: Dynamic ω-regular shielding of learned probabilistic policies</title>
+		<author>
+			<persName><forename type="first">Ashwani</forename><surname>Anand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satya</forename><surname>Prakash Nayak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ritam</forename><surname>Raha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anne-Kathrin</forename><surname>Schmuck</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proc. of the 25th International Conference on Autonomous Agents and Multiagent Systems</title>
+		<meeting>of the 25th International Conference on Autonomous Agents and Multiagent Systems</meeting>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="2978" to="2986" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Barres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honghua</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soham</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xujie</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.07982</idno>
+		<title level="m">Evaluating conversational agents in a dual-control environment</title>
+		<meeting><address><addrLine>tau2-bench</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Nl2tl: Transforming natural languages to temporal logics using large language models</title>
+		<author>
+			<persName><forename type="first">Yongchao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rujul</forename><surname>Gandhi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuchu</forename><surname>Fan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="15880" to="15903" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">nl2spec: Interactively translating unstructured natural language to temporal logics with large language models</title>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Cosler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Mendoza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frederik</forename><surname>Schmitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caroline</forename><surname>Trippel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Computer Aided Verification</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="383" to="396" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Modeling compliance specifications in linear temporal logic, event processing language and property specification patterns: a controlled experiment on understandability. Software and Systems Modeling</title>
+		<author>
+			<persName><forename type="first">Christoph</forename><surname>Czepa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amirali</forename><surname>Amiri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evangelos</forename><surname>Ntentos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uwe</forename><surname>Zdun</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="3331" to="3371" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Pure-past linear temporal and dynamic logic on finite traces</title>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giacomo</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Di Stasio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Fuggitti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sasha</forename><surname>Rubin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="4959" to="4965" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Tools and Algorithms for the Construction and Analysis of Systems</title>
+		<author>
+			<persName><forename type="first">Leonardo</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moura</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaj</forename><surname>Bjørner</surname></persName>
+		</author>
+		<editor>C. R. Ramakrishnan and Jakob Rehof</editor>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="page" from="337" to="340" />
+			<pubPlace>Berlin, Heidelberg; Berlin Heidelberg</pubPlace>
+		</imprint>
+	</monogr>
+	<note>Z3: An efficient smt solver</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Artificial intelligence agents and agentic systems in hospitality and tourism: challenges, opportunities and research agenda</title>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Yogesh K Dwivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ibrahim</forename><surname>Youssef</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ibrahim</forename><forename type="middle">A</forename><surname>Helal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mousa</forename><surname>Elgendy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurie</forename><surname>Ahmed Albashrawi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mazen</forename><surname>Hughes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Shawosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Il</forename><surname>Dutot</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jeon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Contemporary Hospitality Management</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Nl2ltl-a python package for converting natural language (nl) instructions to linear temporal logic (ltl) formulas</title>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Fuggitti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tathagata</forename><surname>Chakraborti</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">AAAI</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="16428" to="16430" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">On the temporal analysis of fairness</title>
+		<author>
+			<persName><forename type="first">Dov</forename><surname>Gabbay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Pnueli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saharon</forename><surname>Shelah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Stavi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th ACM SIGPLAN-SIGACT symposium on Principles of programming languages</title>
+		<meeting>the 7th ACM SIGPLAN-SIGACT symposium on Principles of programming languages</meeting>
+		<imprint>
+			<date type="published" when="1980">1980</date>
+			<biblScope unit="page" from="163" to="173" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Pathfinder: A multi-modal multi-agent system for medical diagnostic decision-making applied to histopathology</title>
+		<author>
+			<persName><forename type="first">Fatemeh</forename><surname>Ghezloo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saygin</forename><surname>Mehmet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rustin</forename><surname>Seyfioglu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Soraki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Wisdom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beibin</forename><surname>Ikezogwo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tejoram</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joann</forename><forename type="middle">G</forename><surname>Vivekanandan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ranjay</forename><surname>Elmore</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linda</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shapiro</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF International Conference on Computer Vision</title>
+		<meeting>the IEEE/CVF International Conference on Computer Vision</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="23431" to="23441" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Linear temporal logic and linear dynamic logic on finite traces</title>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giacomo</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moshe</forename><forename type="middle">Y</forename><surname>Vardi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IJCAI/AAAI</title>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+			<biblScope unit="page" from="854" to="860" />
+		</imprint>
+	</monogr>
+	<note>IJCAI</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Little tricky logic: Misconceptions in the understanding of LTL</title>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Greenman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Saarinen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Nelson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shriram</forename><surname>Krishnamurthi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Art, Science, and Engineering of Programming</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="1" to="7" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Dynaguard: A dynamic guardian model with user-defined policies</title>
+		<author>
+			<persName><forename type="first">Monte</forename><surname>Hoover</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vatsal</forename><surname>Baherwani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neel</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khalid</forename><surname>Saifullah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">J</forename><surname>Vincent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chirag</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melissa</forename><surname>Rad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Bruss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwinee</forename><surname>Panda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Goldstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="87822" to="87859" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">The safety filter: A unified view of safetycritical control in autonomous systems</title>
+		<author>
+			<persName><forename type="first">Kai-Chieh</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haimin</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaime</forename><forename type="middle">F</forename><surname>Fisac</surname></persName>
+		</author>
+		<idno type="DOI">10.1146/annurev-control-071723-102940</idno>
+		<ptr target="https://doi.org/10.1146/annurev-control-071723-102940" />
+	</analytic>
+	<monogr>
+		<title level="j">Robotics, and Autonomous Systems</title>
+		<idno type="ISSN">2573-5144</idno>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="47" to="72" />
+			<date type="published" when="2024">2024. 2024</date>
+		</imprint>
+	</monogr>
+	<note>Annual Review of Control</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Enforcing temporal constraints for llm agents</title>
+		<author>
+			<persName><forename type="first">Adharsh</forename><surname>Kamath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sishen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Calvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shubham</forename><surname>Ugare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagandeep</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sasa</forename><surname>Misailovic</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2512.23738</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Seongjae</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taehyung</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sung</forename><forename type="middle">Ju</forename><surname>Hwang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.19861</idno>
+		<title level="m">Policyguide: From guarding one action to guiding the whole workflow for policy-compliant llm agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Correct-by-construction runtime enforcement in ai-a survey</title>
+		<author>
+			<persName><forename type="first">Bettina</forename><surname>Könighofer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roderick</forename><surname>Bloem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rüdiger</forename><surname>Ehlers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Pek</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Principles of Systems Design: Essays</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="650" to="663" />
+		</imprint>
+	</monogr>
+	<note>Dedicated to Thomas A. Henzinger on the Occasion of His 60th Birthday</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shinda</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangtian</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonis</forename><surname>Antoniades</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyue</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaijie</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Yang Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.08669</idno>
+		<title level="m">Evaluating language agents at following standard operating procedures and constraints</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Grounding complex natural language commands for temporal tasks in unseen environments</title>
+		<author>
+			<persName><forename type="first">Jason Xinyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ifrah</forename><surname>Idrees</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Schornstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefanie</forename><surname>Tellex</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankit</forename><surname>Shah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Conference on Robot Learning</title>
+		<imprint>
+			<publisher>Pmlr</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="1084" to="1110" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Bridging natural language and formal specification-automated translation of software requirements to ltl via hierarchical semantics decomposition using llms</title>
+		<author>
+			<persName><forename type="first">Zhi</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhexin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengchao</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengfei</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2025 40th IEEE/ACM International Conference on Automated Software Engineering (ASE)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="1208" to="1220" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Mondl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Maisel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">H</forename><surname>Brock</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2606.26649</idno>
+		<title level="m">Autoformalization of agent instructions into policy-as-code</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Sop-bench: Complex industrial sops for evaluating llm agents</title>
+		<author>
+			<persName><forename type="first">Subhrangshu</forename><surname>Nandi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arghya</forename><surname>Datta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rohith</forename><surname>Nama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Udita</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikhil</forename><surname>Vichare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Indranil</forename><surname>Bhattacharya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shivam</forename><surname>Asija</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arushi</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><surname>Carenini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="9604" to="9615" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Systematic literature review on the rise of agentic ai in enterprise operations</title>
+		<author>
+			<persName><forename type="first">Firoz</forename><surname>Mohammed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ozman</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Frontiers in Science and Technology Research</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="1" to="015" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Formal policy enforcement for real-world agentic systems</title>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Palumbo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarthak</forename><surname>Choudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jihye</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Amir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prasad</forename><surname>Chalasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Somesh</forename><surname>Jha</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.16708</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">On the synthesis of a reactive module</title>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Pnueli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roni</forename><surname>Rosner</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/75277.75293</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 16th ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)</title>
+		<meeting>the 16th ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)</meeting>
+		<imprint>
+			<date type="published" when="1989">1989</date>
+			<biblScope unit="page" from="179" to="190" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Reason less, verify more: Deterministic gates recover a silent policy-violation failure mode in tool-using llm agents</title>
+		<author>
+			<persName><forename type="first">Vikas</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sumanth</forename><surname>Reddy Challaram</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Basu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.07405</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tianneng</forename><surname>Preprint</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingxuan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhun</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongwei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbo</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Song</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.11703v3</idno>
+		<ptr target="https://arxiv.org/abs/2504.11703v3" />
+		<title level="m">Progent: Securing AI agents with privilege control</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Towards conversational diagnostic artificial intelligence</title>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Schaekermann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anil</forename><surname>Palepu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Khaled</forename><surname>Saab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Freyberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryutaro</forename><surname>Tanno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brenna</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohamed</forename><surname>Amin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Cheng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<biblScope unit="volume">642</biblScope>
+			<biblScope unit="issue">8067</biblScope>
+			<biblScope unit="page" from="442" to="450" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Agentspec: Customizable runtime enforcement for safe and reliable llm agents</title>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">M</forename><surname>Poskitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3744916.3764546</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2026 IEEE/ACM 48th International Conference on Software Engineering, ICSE &apos;26</title>
+		<meeting>the 2026 IEEE/ACM 48th International Conference on Software Engineering, ICSE &apos;26<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="2938" to="2950" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Conformalnl2ltl: Translating natural language instructions into temporal logic formulas with conformal correctness guarantees</title>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Smith Sundarsingh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jyotirmoy</forename><forename type="middle">V</forename><surname>Deshmukh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiannis</forename><surname>Kantaros</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.21022</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Solver-aided verification of policy compliance in tool-augmented llm agents</title>
+		<author>
+			<persName><forename type="first">Cailin</forename><surname>Winston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Claris</forename><surname>Winston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">René</forename><surname>Just</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.20449</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linzhi</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyuan</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinbin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zidi</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chulin</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carl</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.09187</idno>
+		<title level="m">Safeguard llm agents by a guard agent via knowledge-enabled reasoning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Ai-enabled enterprise information systems for manufacturing. Enterprise Information Systems</title>
+		<author>
+			<persName><forename type="first">Milan</forename><surname>Zdravković</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hervé</forename><surname>Panetto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georg</forename><surname>Weichhart</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="page" from="668" to="720" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

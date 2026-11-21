@@ -1,0 +1,161 @@
+{
+  "arxiv_id": "2601.15724",
+  "title": "VideoThinker: Building Agentic VideoLLMs with LLM-Guided Tool Reasoning",
+  "abstract": "Long-form video understanding remains a fundamental challenge for current Video Large Language Models (Vide-oLLMs). Most existing models rely on static reasoning over uniformly sampled frames, which weakens temporal localization and leads to substantial information loss in long videos. Agentic tools, such as temporal retrieval, spatial zoom, and temporal zoom, offer a natural way to overcome these limitations by enabling adaptive exploration of key moments. However, constructing agentic videounderstanding data requires models that already possess strong long-video comprehension, creating a circular dependency. We address this challenge with VideoThinker, an agentic VideoLLM trained entirely on synthetic toolinteraction trajectories. Our key idea is to convert videos into rich captions and employ a powerful agentic LLM to generate multi-step tool-use sequences in the caption space. These trajectories are subsequently grounded back to video by replacing captions with actual frames, yielding a largescale interleaved video-tool reasoning dataset without requiring any long-form understanding from the underlying VideoLLM. Training on this synthetic agentic dataset equips VideoThinker with dynamic reasoning capabilities, adaptive temporal exploration, and multi-step tool use. Remarkably, VideoThinker significantly outperforms both captiononly LLM agents and strong VideoLLM baselines across long-video benchmarks, demonstrating the effectiveness of tool-augmented synthetic data and adaptive retrieval-zoom reasoning for long-form video understanding.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Video understanding is a fundamental task that requires reasoning over both spatial and temporal dimensions of videos [3,11,16,19,21,25,44,47,61]. Recent advances in Video Large Language Models (VideoLLMs) have achieved remarkable progress in this area [1,15,18,22,51,56]. Despite these advances, existing models still struggle with long-form videos [9,35,40], where relevant visual evidence is sparse, distributed across time. Static reasoning over uniformly sampled frames often causes major information loss and poor temporal localization, while also being computationally costly for long videos with hundreds of frames.\n\nA promising avenue for improving long-video understanding lies in the concept of interleaved multimodal reasoning, which involves combining visual perception with language reasoning in a dynamic and adaptive manner [14,38,59]. Inspired by successful techniques in the image domain, such as those seen in OpenAI's o3 model [26], concurrent work attempts to extend such interleaved reasoning to videos, proposing the notion of thinking with videos [10,24,52]. However, these approaches face key limitations: (1) they often rely on proprietary models such as Gemini-Pro [5] to construct agentic video-understanding data, which requires extensive prompt engineering and multi-stage filtering; Moreover, although Gemini-Pro can produce interleaved video-reasoning traces, it still lacks the emergent video-interleaved reasoning capability observed in o3's image reasoning [26]; and (2) they primarily perform single temporal zoom operations without a temporal retrieval mechanism, making them inefficient at identifying key temporal intervals. In contrast, open-source LLMs such as Qwen3 [43] and DeepSeek [23] exhibit strong toolaugmented reasoning capabilities as language agents for long-form video understanding. They employ various tools, with VideoLLMs generating intermediate frame captions as tools to support video reasoning [7,36,39,49]. However, in such frameworks, the VideoLLM serves merely as a passive captioning module, while the LLM itself cannot directly perceive visual information.\n\nMotivated by these insights, we propose VideoThinker, an agentic VideoLLM trained entirely on synthetic toolinteraction trajectories. The core idea is to first convert videos into rich textual captions and then leverage a powerful agentic LLM to generate multi-step tool-use sequences within this caption space. To enable effective long-video reasoning, we design two complementary agentic tools: (1) Temporal Retrieval, which identifies candidate temporal intervals that may contain relevant information by leveraging audio transcripts (as subtitles), scene descriptions, and subtitle-based summaries; and (2) Temporal Zoom, which inspects intervals at a finer granularity through more detailed subtitles or frames. By leveraging these tools together with the LLM's tool-augmented reasoning capability, we construct multi-turn tool-interaction trajectories. When the LLM invokes the temporal-zoom tool, the VideoLLM generates intermediate textual captions, which are subsequently replaced with actual video frames to form fully video-interleaved reasoning data. These trajectories are then used to fine-tune the VideoLLM, enabling it to actively retrieve and perceive key frames during reasoning, effectively bridging the gap from text-and image-based reasoning to true video reasoning. Furthermore, VideoThinker incorporates a confidence-gated tool controller, achieving strong performance gains: +6.8% on MLVU and +10.6% on LVBench over vanilla VideoLLMs, and +3.9% and +3.5% over caption-only LLM agents equipped with our tools. Our main contributions are summarized as follows:\n\n• We construct a high-quality agentic video-tool reasoning dataset guided by LLM-based tool reasoning. This synthetic data captures diverse temporal reasoning and tooluse behaviors essential for long video understanding.",
+      "n_words": 522
+    },
+    {
+      "heading": "Agentic LLMs for Video Understanding",
+      "section_type": "method",
+      "text": "Recent advances in large language models (LLMs), particularly their reasoning and planning capabilities, have spurred the development of agents [12,46]. By leveraging external tools [27,50], LLMs can acquire information, plan, and execute actions in complex environments, bridging the gap between general-purpose language models and real-world applications. Extending this paradigm to video understanding, recent works integrate LLM reasoning with agentic tools to tackle complex video tasks without costly training. However, applying such agents to video understanding poses challenges, as many existing tools do not generalize well across temporal sequences. Several works have proposed video-specific adaptations of the LLM-agent paradigm [7,17,36,49]. LifeLong-Memory [37] constructs a text-based episodic memory from video narrations, enabling LLMs to reason and retrieve relevant information for downstream tasks. Dorae-monGPT [45] introduces a MCTS-based prompting strategy, combining tool use with structured memory for video reasoning. VideoAgent [36] frames video understanding as a sequential decision-making process, where the agent decides whether to gather more information or produce an answer, mimicking human video interpretation strategies. Answer with confidence VideoTree [39] enhances efficiency and interpretability by adaptively extracting key visual information in a coarse-tofine manner and organizing it in a human-readable tree for LLM reasoning. Related approaches, such as DVD [55] and VideoExplorer [48], employ agentic search strategies over segmented video clips to tackle long-form VideoQA. Together, these works demonstrate the potential of agentic LLMs for structured, tool-augmented reasoning in complex video understanding tasks. A key limitation of these approaches is that they rely on a strong LLM as the core reasoning engine, while VideoLLMs serve only as auxiliary tools (e.g., generating captions). In contrast, our method elevates the VideoLLM itself to the reasoning core, effectively simplifying the agent architecture. By combining the capabilities of a VideoLLM with the agentic planning paradigm, our framework achieves better performance and reduces reliance on LLMs, improves efficiency, and streamlines the integration of multimodal reasoning for long-form video understanding.",
+      "n_words": 313
+    },
+    {
+      "heading": "Multimodal reasoning with MLLMs",
+      "section_type": "method",
+      "text": "Multimodal reasoning differs from pure text reasoning in that it enables models to directly manipulate visual content, such as zooming into specific image regions [6,14,30,33,34,38,57,59]. Leveraging this capability, our work focuses on deciding which video clips to zoom in on, enabling efficient processing of long videos. Recent concurrent works, such as Open-o3-Video [24] and Video-MTR [42], also adopt dynamic processing strategies using chain-of-thought reasoning (CoT) over video content. These approaches generate multimodal tool data for training advanced Vide-oLLMs with Gemini-2.5-pro. On one hand, Gemini-pro it-self has not demonstrated \"thinking with videos\" capabilities via multimodal tools (contrary to O3, which shows \"thinking with images\" on image tasks). On the other hand, synthesizing high-quality multi-turn video reasoning data typically requires data validation and extensive data engineering, making direct generation costly. Differently, we construct the tool-augmented reasoning ability from the language agents and use video frames captions as textual proxies for multimodal tool outputs. This approach allows efficient data synthesis while leveraging open-source models such as Qwen3 to produce high-quality video-interleaved CoT. In this way, our framework efficiently equips Vide-oLLMs with the capability to \"think with videos\" through tool-augmented reasoning, without heavy computational or annotation costs.",
+      "n_words": 193
+    },
+    {
+      "heading": "Long-form VideoQA and Video-LLMs",
+      "section_type": "method",
+      "text": "Long-form VideoQA requires reasoning over extended temporal contexts and capturing causal dependencies across events [9,35,40,41,61]. Recent Video-LLMs extend temporal encoders for joint spatio-temporal reasoning [1,18], but still face memory and computation bottlenecks when processing long videos. To alleviate this, several methods convert videos into textual captions or keyframe summarization, allowing LLMs to perform text-based reasoning [36,39]. While effective for scalability, these approaches lose fine-grained temporal details [53,54]. Motivated by these limitations, we propose VideoThinker, which focuses on key segments and performs frame-level videointerleaved reasoning, enabling efficient long-form video understanding.",
+      "n_words": 89
+    },
+    {
+      "heading": "Method",
+      "section_type": "method",
+      "text": "In this section, we present VideoThinker, an agentic Vide-oLLM for long-form video understanding through dynamic, tool-augmented reasoning. To tackle temporal sparsity and information loss, we design two complementary tools-Temporal Retrieval and Temporal Zoom-that enable adaptive exploration of key moments. We then construct a synthetic training dataset based on tool-interaction trajectories from LLM, allowing the VideoLLM to learn multi-step reasoning and video-frame perception.\n\nDescribe any visual evidence in the video that directly helps answer the question. If there is no relevant evidence, provide an objective summary of the video content. Question: <question>",
+      "n_words": 91
+    },
+    {
+      "heading": "Tools Design",
+      "section_type": "method",
+      "text": "We design two complementary agentic tools for efficient retrieval and reasoning over long-form videos. It includes functional groups: Temporal Retrieval tools (Clip Retrieval, Subtitle Retrieval, Subtitle Summary) for multimodal content access, and Temporal Zoom tools (Frame Zoom, Subtitle Zoom) for fine-grained inspection of some intervals. This modular design enables adaptive focus on key segments while preserving global context. Under an agentic search paradigm, the agent decomposes queries, composes tool calls, and iteratively gathers evidence to refine understanding and localize relevant information within long videos.",
+      "n_words": 84
+    },
+    {
+      "heading": "Temporal Retrieval",
+      "section_type": "method",
+      "text": "ClipRetrieval This tool provides coarse-grained access to semantically relevant temporal regions in long videos. Given a video path and a text query, the video is first segmented into 10-second clips, each encoded using LanguageBind-Video [62] to obtain clip-level embeddings. The tool then retrieves the top-ranked clips with the highest semantic similarity to the input query and returns their corresponding temporal intervals. By iteratively invoking ClipRetrieval with refined queries informed by intermediate reasoning results, the agent can progressively zoom in on the most relevant video segments, efficiently narrowing the search space for subsequent analysis. cvpr SubtitleRetrieval This tool enables fine-grained text-level retrieval over automatically transcribed subtitles. Given a video path and a text query, Whisper [28] is employed to transcribe the video audio stream, after which the tool retrieves subtitle segments most semantically relevant to the query, along with their timestamps. Through iterative refinement, SubtitleRetrieval allows the agent to align textual evidence with visual cues, thereby precisely localizing key temporal intervals.\n\nSubtitleSummary This tool generates concise, queryfocused summaries to support global video understanding. Built upon Qwen3-30B [43], it processes the complete subtitle transcript to extract information most relevant to the input query. The resulting summaries enable the agent to efficiently grasp the overall narrative flow and contextual dependencies of long-form videos, serving as high-level semantic guidance for downstream reasoning.",
+      "n_words": 218
+    },
+    {
+      "heading": "Temporal Zoom",
+      "section_type": "method",
+      "text": "FrameZoom This tool supports fine-grained visual inspection by extracting raw frames within a specified temporal interval. Given start and end timestamps, it retrieves the corresponding frames for detailed analysis. For example, if a video contains 32 frames in total but only 2 fall within the interval [0, 10] seconds, invoking FrameZoom(0,10) resamples this interval to return 8 frames, thereby increasing visual density and improving perceptual detail for localized reasoning.\n\nSubtitleZoom This tool extracts subtitle segments corresponding to a specified temporal interval. By providing start and end timestamps, the agent obtains localized subtitle text aligned with the chosen segment, enabling finegrained multimodal reasoning within temporally bounded contexts.\n\nCaptionZoom This tool acts as a semantic bridge between visual frames and text-based reasoning. It first invokes FrameZoom to extract frames from a given interval, then employs a VideoLLM to generate natural-language captions summarizing key visual events, objects, and interactions. During tool-reasoning data synthesis, the LLM agent queries CaptionZoom for localized visual semantics using textual descriptions rather than raw frames, effectively simulating perceptual grounding through tool-based interaction. In the final training stage, these generated captions are replaced by visual frame tokens, enabling the Vide-oLLM to internalize structured reasoning patterns grounded directly in visual representations.",
+      "n_words": 200
+    },
+    {
+      "heading": "Data Synthesis with Agentic LLMs",
+      "section_type": "method",
+      "text": ", where v i denotes a video, x i is the corresponding question, and y i is the ground-truth answer, we construct structured tool system prompts to elicit tool-based reasoning from the LLM. For each query x i , a video caption c i of v i is generated using the VideoLLM. The query x i , caption c i , and tool system prompt template p are then combined to form the model input. The LLM P processes this input to produce both the reasoning trajectory ri and a predicted answer ŷi . Each trajectory ri represents a multi-turn reasoning path, where each step corresponds to a reasoning decision and a tool invocation. During data synthesis, CaptionZoom is the only visual access point: it converts frames from a chosen interval into temporally grounded captions, which the LLM then reasons over. Instead of using raw frames via FrameZoom, the LLM interacts with CaptionZoom, enabling stronger, text-based visual reasoning. To enhance reasoning diversity, we set the LLM's sampling temperature to 0.7 and generate 5 distinct reasoning trajectories for each input. The LLM iteratively performs reasoning and tool invocations until it reaches a final answer or the predefined step limit T . We retain only the trajectories whose predicted answer ŷi matches the ground-truth y i ; if no trajectory satisfies this condition, we randomly select one trajectory from the candidates. Through this process, we obtain diverse, interpretable, and temporally grounded reasoning traces that facilitate robust video reasoning performance.",
+      "n_words": 247
+    },
+    {
+      "heading": "Multimodal Tool-Reasoning Training",
+      "section_type": "method",
+      "text": "Based on the tool-augmented reasoning data generated by the LLM, we construct the video-interleaved CoTs dataset\n\n. Each reasoning trajectory ri consists of a sequence of reasoning steps and corresponding tool invocations. Among these, the FrameZoom tool replaces the CaptionZoom tool and plays a central role, as it is the only component capable of accessing the video content directly. It retrieves temporally localized visual evidence, providing the LLM with perceptual grounding essential for (ŷ, γ) ← p θ ({fi}, Q) ▷ Direct reasoning 6: else 7: reasoning. During dataset construction, the textual outputs of Caption Zoom are replaced by corresponding video segments represented as special <video> tokens. This conversion transforms the reasoning traces into multimodal interaction sequences, enabling direct visual-textual supervision for the VideoLLM. The multimodal student VideoLLM f θ is trained to reproduce both the reasoning process and the final answer by minimizing the combined objective:\n\nwhere ℓ(•) denotes the token-level cross-entropy loss.",
+      "n_words": 154
+    },
+    {
+      "heading": "Adaptive Video Reasoning",
+      "section_type": "method",
+      "text": "As shown in Figure 4, model confidence exhibits a strong correlation with prediction accuracy. Approximately 90% of the samples with confidence scores between 0.9 and 1.0 are correct, whereas more than half of those with confidence below 0.5 are incorrect. Motivated by this observation, we use confidence as a control signal to trigger multi-round tool-based reasoning. Given an input video and a query, VideoThinker first samples n frames if the video duration is shorter than 600 seconds; otherwise, it retrieves k relevant clips. The reasoning model V ideoT hinker (p θ ) then produces an initial answer along with a confidence score γ.\n\nIf γ > τ , the answer is directly returned; otherwise, VideoThinker initiates a tool-augmented reasoning process to refine the response using the tool-reasoning prompt. This adaptive two-stage design effectively balances efficiency and accuracy by combining direct reasoning with deeper, tool-guided reasoning under uncertainty.",
+      "n_words": 147
+    },
+    {
+      "heading": "Experimental Setup",
+      "section_type": "experiments",
+      "text": "Benchmarks To evaluate the performance of our model, we tested it on four distinct long video benchmarks: LongVideoBench [40], VideoMME [9], LVBench [35], and MLVU [60]. These benchmarks cover a variety of tasks to assess the model's video comprehension and multimodal reasoning capabilities. LongVideoBench [40] is a benchmark for long video understanding, consisting of 3,763 videos (up to 1 hour) with subtitles and 6,678 humanannotated multiple-choice QA pairs across 17 categories. We use the validation dataset for evaluation. VideoMME [9] contains 900 videos (totaling 254 hours) with 2,700 humancurated QA pairs across six domains and 30 subcategories. The videos range from 11 seconds to 1 hour and include frames, subtitles, and audio, enabling multimodal reasoning. We mainly evaluate using the subset of long videos (over 600 seconds). LVBench [35] focuses on extreme long video comprehension, with videos ranging from 70 seconds to 4 hours. It includes single-scene, multi-scene, and full-scene settings, covering diverse reasoning types such as temporal, spatial, causal, hypothetical, and external knowledge. MLVU [60] is a benchmark for multi-task long video understanding, featuring a diverse set of videos from genres like movies, surveillance, egocentric videos, and cartoons. We use the test set for evaluation.",
+      "n_words": 196
+    },
+    {
+      "heading": "Implementation Details",
+      "section_type": "experiments",
+      "text": "We construct the multimodal video-interleaved tool reasoning CoTs based on CG-Bench [2], which includes 10k multiple-choice QA instances. The LLM agent uses Qwen3-235B-A22B-MoE [43] deployed on 4 NVIDIA H200 GPUs, while the VideoLLM is Qwen2.5-VL-7B [1]. The VideoLLM is fine-tuned on 10k video-interleaved samples for 3 epochs, utilizing up to 4 NVIDIA H200 GPUs. Training and inference are carried out using MS-Swift [58]. For efficient reasoning, Video- Thinker uses 32 frames to directly generate the answer and its confidence, with each frame having a maximum resolution of 32,768 pixels. During the two-stage reasoning process, the total number of frames involved does not exceed 64. We evaluate VideoThinker against several baseline models, including closed-source and open-source models:\n\n• Closed-source models: GPT-4o [13], Gemini-1.5 Pro [32], and Seed 1.5VL-Pro [31]. • Open-source models: Qwen2.5VL-72B [1], LongVILA-7B [4], Video-XL-7B [29], Video-R1-7B [8], and Qwen2.5VL-7B [1]. • Agentic LLMs: VideoAgent (with GPT-4) [36], VideoAgent (with GPT-4) [7], VideoTree (with Qwen-plus) [39], and VideoExplorer (Qwen2.5-7B-tuning + Qwen2.5-VL-32B) [48].\n\nFor the LVBench and MLVU benchmarks, audio subtitles are generated using FFmpeg and Whisper [28]. All decoding follows the official configurations, with the confidence threshold set to 0.7 by default.",
+      "n_words": 193
+    },
+    {
+      "heading": "Main results",
+      "section_type": "results",
+      "text": "As shown in Table 1, VideoThinker consistently outperforms open-source models and remains competitive with both closed-source systems and LLM-based agents. Specifically, VideoThinker achieves 54.8% on MLVU, surpassing Qwen2.5VL-7B (48.0%) and Qwen2.5VL-72B (53.8%), and performing on par with GPT-4o (54.9%). On LVBench, it reaches 48.9%, outperforming Qwen2.5VL-7B (38.3%) and Seed1.5VL-Pro (46.1%), and matching GPT-4o. For VideoMME, VideoThinker achieves 53.7%, exceeding Qwen2.5VL-7B (50.0%). On LongVideoBench, it obtains 59.7%, surpassing Qwen2.5VL-7B (56.7%) and closely approaching Qwen2.5VL-72B (60.3%). VideoExplorer achieves 58.6% on MLVU and 51.4% on LVBench, whereas VideoThinker obtains 54.8% and 48.9% with a single 7B model. In contrast, VideoExplorer is implemented as a language-agent pipeline that couples a separate large-scale LLM with an external Video-LLM, while VideoThinker is a single end-to-end 7B VideoLLM, highlighting the effi-ciency of our approach. Notably, in the LLM-based agent setting, we compare against the language agents used in our data synthesis process. Compared with this redundant architecture-where VideoLLM acts as the tool, Video-Thinker achieves an overall improvement of about 3%, including a +3.9% gain on MLVU. Overall, these results highlight VideoThinker's strong performance across benchmarks, showing that our \"Thinking with Videos\" framework enables competitive long-form video reasoning while maintaining a lightweight design.",
+      "n_words": 195
+    },
+    {
+      "heading": "Ablation studies",
+      "section_type": "results",
+      "text": "Effect of Video Duration As shown in Figure 5, Video-Thinker performs on par with Qwen2.5-VL when handling short videos (under 2 minutes). However, its advantage becomes evident as the video length increases. For medium videos (between 2 and 15 minutes), VideoThinker achieves consistently higher accuracy on both VideoMME and LongVideoBench, showing stronger capability in modeling longer temporal dependencies. The improvement is even more significant on long videos (exceeding 15 minutes), where VideoThinker surpasses Qwen2.5-VL by 3.7 percentage points on VideoMME and 5.6 percentage points on LongVideoBench. These results demonstrate that Video-Thinker maintains stable reasoning and robust understanding in extended temporal contexts, effectively addressing the information loss and temporal drift commonly encountered in long-form video understanding.",
+      "n_words": 115
+    },
+    {
+      "heading": "Impact of n and τ on Performance",
+      "section_type": "results",
+      "text": "We analyze the effects of the number of frames (n) and the confidence threshold (τ ) on model performance. As shown in Figure 6, increasing n from 8 to 64 significantly improves accuracy-from 56.5% to 59.7% on LongVideoBench and from 57.7% to 62.6% on VideoMME-indicating that denser sampling provides richer visual context for reasoning. For the confidence threshold τ , which controls the switch between fast and tool-based reasoning, performance improves as τ increases from 0.0 to 0.8 (from 55.3% to 59.0% on LongVideoBench and from 57.8% to 60.8% on VideoMME), but drops when τ = 1.0 (56.5% and 58.3%, respectively). A low τ causes overreliance on direct reasoning, while a high τ triggers excessive tool reasoning. These results suggest that adaptive confidence-gated reasoning, combined with more frame samples, yields the best overall performance.",
+      "n_words": 134
+    },
+    {
+      "heading": "Ablation on Retrieval Tools",
+      "section_type": "results",
+      "text": "We analyze the effect of retrieval by varying the number of retrieved clips and subtitles (Top-k). As shown in Table 2, Top-1 is generally suboptimal, indicating that a single retrieved item provides limited context. Increasing k typically improves performance as the model benefits from richer and more diverse information. On LongVideoBench, the best results appear at Top-3 for clips (59.8) and subtitles (58.4), showing a good balance between relevance and noise. VideoMME (L) favors broader context, peaking at Top-10 for clips (54.7) and Top-5 for subtitles (53.1). Top-1 is often slightly worse or comparable to larger k, though on LVBench subtitle retrieval, Top--1 performs best, indicating that the optimal k can be datasetdependent.",
+      "n_words": 113
+    },
+    {
+      "heading": "Case Study",
+      "section_type": "results",
+      "text": "To further illustrate the multi-step reasoning process of VideoThinker, we present a representative case in Figure 7. The model is asked the question: \"When the subtitle mentions 'the old people that can't work anymore,' what is the woman with the pink hat wearing?\" VideoThinker first invokes the Subtitle Retrieval tool to locate the temporal position of the mentioned subtitle. The system accurately identifies the corresponding timestamp at 357.11s, which serves as a temporal anchor for subsequent reasoning. Based on the retrieved timestamp, VideoThinker employs the frame zoom tools to examine the visual context within a narrow temporal window (350-360s). It focuses on frames depicting the woman with the pink hat and analyzes her appearance in detail. Through this fine-grained inspection, the model correctly determines that the woman is wearing a red short-sleeve shirt. The zoom into the interval [0, 10] revealed the start of the video with \"A NETFLIX SERIES\" and some animated fire effects, but no visible year in the caption. However, opening captions sometimes appear slightly after the initial logo or animation.",
+      "n_words": 174
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "Step 2: Expand the analysis slightly to cover a broader opening segment, just after the Netflix branding, to ensure we don't miss any text that might appear next. I will now zoom into the interval [10,20] to check for any subsequent captions. <tool_call> {\"name\": \"Frame_Zoom\", \"arguments\": {\"interval\": [10, 20]}} </tool_call>'} 1633\n\nThe zoom into the interval [10,20]",
+      "n_words": 57
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "1.Reasoning 2.Action 3. Observation (Video frames) VideoThinker Tool Pool",
+      "captions": "",
+      "content": " |  | Replace\n |  | caption_zoom\n |  | With frame_zoom\nClip | Subtitle Retrieval | Subtitle\nRetrieval | (For all) | Summarization(For all)\n(For all) |  | \nSubtitle | Caption | Frame\nZoom | Zoom | Zoom\n(For all) | (For LLM) | (For VideoLLM)\n |  | 2"
+    },
+    {
+      "kind": "table",
+      "label": ") Adaptive Video Reasoning",
+      "captions": "",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Algorithm 1 Tool-Reasoning Data Synthesis Require: Training sample (v i , x i ), max steps T , LLM P , VideoLLM, tool set M, action space A = M ∪ {Answer} 1: Generate video caption: c i ← VideoLLM(v i ) 2: Construct initial input prompt: p i ← p(x i , c i ) 3: Initialize reasoning history: H 0 ← {p i , A} 4: for t = 1 to T do (α t , ρt ) ← P.call(r t , H t-1 ) Update history: H t ← H t-1 ∪ {(r t , α t , ωt )} Produce final answer: ŷi ← P.answer(H t )",
+      "content": "5: | Generate reasoning step: rt ← P.reason(H t-1 )\n6: Select action: 7: if α t = Answer then\n8: | break\n9: | end if\n10: | Invoke tool: ωt ← α t (ρ t )\n11: | \n12: | if t = T then\n13: | \n14: | end if\n15: end for\n16: return ŷi , H"
+    },
+    {
+      "kind": "table",
+      "label": "Table 1 .",
+      "captions": "Evaluation results on MLVU, LVBench, VideoMME (L), and LongVideoBench. VideoThinker outperforms open-source models and demonstrates competitive performance with both closed-source models and LLM-based language agents.",
+      "content": "Model | #Frames | MLVU | LVBench | VideoMME (L) LongVideoBench\nClosed-source Models |  |  |  |  | \nGPT-4o [13] | 384 | 54.9 | 48.9 | 72.1 | 66.7\nGemini-1.5-pro [32] | 256 | - | 33.1 | 77.4 | 64.0\nSeed1.5VL-pro [31] | 32 | 54.9 | 46.1 | 63.3 | 63.7\nOpen-source Models |  |  |  |  | \nQwen2.5VL-72B [1] | 128 | 53.8 | 47.4 | 64.6 | 60.3\nLongVILA-7B [4] | 256 | 49.0 | - | 52.1 | 57.7\nVideo-XL-7B [29] | 256 | 45.5 | - | 54.9 | 50.7\nVideo-R1-7B [8] | 64 | - | - | 52.2 | -\nQwen2.5VL-7B [1] | 64 | 48.0 | 38.3 | 50.0 | 56.7\nAgentic LLMs |  |  |  |  | \nVideoAgent [36] (GPT-4) |  | 52.2 | - | 46.2 | -\nVideoAgent [7] (GPT-4) |  | 55.4 | - | 48.1 | -\nVideoTree [39] (Qwen-plus) |  | 51.6 | - | 39.3 | -\nVideoExplorer [48] (Qwen2.5-7B-tuning + Qwen2.5-VL-32B) |  | 58.6 | 51.4 | - | -\nLanguage Agent (Qwen-235B w/ our tools) |  | 50.9 | 45.4 | - | 58.2\nVideoThinker (Qwen2.5VL-7B w Think with videos) | 64 | 54.8 (+6.8) 48.9 (+10.6) | 53.7 (+3.7) | 59.7 (+3.0)"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 .",
+      "captions": "LongVideoBench 59.7 59.8 58.8 58.6 57.4 58.4 58.0 57.1 VideoMME (L) 53.7 52.3 54.2 54.7 51.2 50.2 53.1 52.3 LVBench 48.9 49.1 47.2 49.0 50.6 50.5 49.0 49.3 Ablation of Retrieval clips and Retrieval subtitles with varying Top-k values (1, 3, 5, 10) on three datasets.",
+      "content": "Dataset | Retrieval clips (Top-k) | Retrieval subtitles (Top-k)\n | 1 | 3 | 5 | 10 | 1 | 3 | 5 | 10"
+    },
+    {
+      "kind": "table",
+      "label": "[(357.11, 357.12)]",
+      "captions": "",
+      "content": ""
+    }
+  ],
+  "n_words": 3435,
+  "quality_flags": []
+}

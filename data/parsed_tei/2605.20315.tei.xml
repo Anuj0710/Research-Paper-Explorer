@@ -1,0 +1,1801 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Mix-Quant: Quantized Prefilling, Precise Decoding for Agentic LLMs</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-05-19">19 May 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Haiquan</forename><surname>Lu</surname></persName>
+							<email>haiquanlu@u.nus.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zigeng</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Gongfan</forename><surname>Fang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xinyin</forename><surname>Ma</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xinchao</forename><surname>Wang</surname></persName>
+							<email>xinchao@nus.edu.sg</email>
+							<affiliation key="aff0">
+								<orgName type="institution">National University of Singapore</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Mix-Quant: Quantized Prefilling, Precise Decoding for Agentic LLMs</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-05-19">19 May 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">1545C93CB389197BD2A55D763D7DFC78</idno>
+					<idno type="arXiv">arXiv:2605.20315v1[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:03+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>LLM agents have recently emerged as a powerful paradigm for solving complex tasks through planning, tool use, memory retrieval, and multi-step interaction. However, these agentic workflows often introduce substantial input-side overhead, making the compute-intensive prefilling stage a key bottleneck in long-context, multi-turn inference. In this work, we propose Mix-Quant, a simple and effective phase-aware quantization framework for fast agentic inference. We first investigate FP4 quantization in agentic LLM workflows and observe that quantizing the entire inference process can incur significant performance degradation. In contrast, the prefilling stage exhibits substantial quantization redundancy and can therefore be quantized with minimal accuracy loss, despite being the dominant source of computation. Based on this insight, we apply high-throughput NVFP4 quantization to the prefilling phase while preserving BF16 precision for decoding. By decoupling prefilling acceleration from decoding quality, Mix-Quant combines phase-aware algorithmic quantization with hardware-efficient NVFP4 execution to alleviate the inference bottleneck in LLM agents. Extensive experiments across longcontext and agentic benchmarks demonstrate that Mix-Quant largely preserves task performance while delivering significant efficiency improvements, achieving up to a 3× speedup during prefilling. Code is available at: <ref type="url" target="https://github.com/haiquanlu/Mix-Quant">https://github.com/ haiquanlu/Mix-Quant</ref> </p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large language model (LLM) agents have emerged as a powerful paradigm for solving complex realworld tasks involving tool use, memory retrieval, code generation, and multi-step interaction <ref type="bibr" target="#b42">[43,</ref><ref type="bibr" target="#b32">33,</ref><ref type="bibr" target="#b40">41,</ref><ref type="bibr" target="#b37">38]</ref>. They have shown strong potential across coding agents, personal assistants, web agents, and general-purpose autonomous systems <ref type="bibr" target="#b20">[21]</ref>. However, agentic workflows typically require repeated inference steps and multi-call interaction loops, leading to substantial context-processing overhead. In many cases, the input context can be tens to hundreds of times longer than the generated output, making the compute-intensive prefilling phase a major efficiency bottleneck in terms of both latency and throughput.</p><p>To alleviate the inference overhead, prior work has explored various model-efficiency strategies <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b21">22,</ref><ref type="bibr" target="#b19">20,</ref><ref type="bibr" target="#b10">11]</ref>. While these methods are promising for improving deployment efficiency, different strategies address distinct inference bottlenecks, and applying aggressive compression uniformly across inference phases can lead to non-negligible performance degradation. For example, posttraining quantization (PTQ) is widely used due to its practicality. Weight-only PTQ <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b18">19]</ref> lowers memory footprint by representing model weights in low-bit formats such as INT4, improving throughput in memory-bound autoregressive decoding. However, it provides limited acceleration for Figure <ref type="figure">1</ref>: Agentic workflows are highly input-heavy, introducing substantial prefilling overhead. NVFP4 quantization can greatly accelerate computation, but applying it to both prefilling and decoding causes notable accuracy degradation. Mix-Quant instead uses NVFP4 for prefilling and precise BF16 for decoding, achieving substantial speedup while largely preserving agentic performance.</p><p>the compute-bound prefill phase because activations remain in high precision. In contrast, weight-andactivation quantization enables <ref type="bibr" target="#b36">[37]</ref> low-bit matrix multiplications, directly reducing computational cost, but it can degrade performance, especially on complex long-trajectory tasks, because errors accumulate at each decoding step <ref type="bibr" target="#b16">[17,</ref><ref type="bibr" target="#b44">45]</ref>.</p><p>Applying a uniform quantization strategy to both prefilling and decoding often leads to an unfavorable efficiency-performance trade-off. Prefilling and decoding serve different roles in LLM inference and exhibit distinct efficiency bottlenecks <ref type="bibr" target="#b46">[47,</ref><ref type="bibr" target="#b27">28]</ref>. More specifically, prefilling processes a fixed input context and is compute-intensive, while decoding generates tokens autoregressively and is more sensitive to accumulated numerical errors. This distinction raises an important question: Can we decouple prefilling and decoding, and optimize the model for each phase according to its distinct characteristics?</p><p>Motivated by this, we propose Mix-Quant, a phase-aware quantization framework for efficient long-context LLM agentic inference. Mix-Quant applies high-throughput NVFP4 weight-andactivation quantization to the compute-intensive prefilling phase, while preserving BF16 precision for autoregressive decoding. NVFP4 precision <ref type="bibr" target="#b23">[24]</ref> is a microscaling FP4 format introduced with NVIDIA Blackwell, which uses fine-grained scaling to improve numerical accuracy at ultra-low bitwidths and provides native hardware support for efficient low-precision computation. The design of our method rests on two key observations: (1) Long-context, multi-turn agentic workflows introduce substantial context-processing overhead, making the compute-intensive prefilling phase a major efficiency bottleneck. Therefore, optimizing the prefilling phase is critical for efficient agentic inference; (2) Prefilling and decoding exhibit distinct computational bottlenecks and quantization redundancy behaviors. Prefilling processes a fixed input sequence in parallel and is suited to aggressive quantization: quantization errors do not recursively affect future inputs within the same prefill pass, and long agentic contexts often contain substantial redundancy. In contrast, decoding is much more error-sensitive, as each sampled token affects the generation process. Quantization errors can thus propagate and accumulate over long trajectories, ultimately degrading final task performance. By integrating high-throughput NVFP4 computation into prefilling while keeping decoding in precise BF16, Mix-Quant combines algorithm-level phase awareness with hardware-level acceleration, addressing the long-context processing bottleneck in agentic inference while preserving overall task performance.</p><p>We evaluate Mix-Quant on a comprehensive suite of long-context and agentic benchmarks, including two widely used long-context benchmarks <ref type="bibr" target="#b1">[2,</ref><ref type="bibr" target="#b0">1]</ref> and three multi-turn agentic benchmarks <ref type="bibr" target="#b28">[29,</ref><ref type="bibr" target="#b34">35,</ref><ref type="bibr" target="#b2">3]</ref>, with state-of-the-art agentic base models <ref type="bibr" target="#b9">[10,</ref><ref type="bibr" target="#b31">32,</ref><ref type="bibr" target="#b38">39]</ref>. The results show that Mix-Quant can largely preserve task performance across diverse long-context and agentic scenarios compared with uniform NVFP4 quantization, while achieving a 2-3× prefill speedup across varying sequence lengths and batch sizes. These findings demonstrate that phase-aware quantization provides a favorable efficiency-performance trade-off for input-heavy LLM agentic inference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Contributions.</head><p>To summarize, our main contributions include: <ref type="bibr" target="#b0">(1)</ref> We reveal that LLM agentic workflows are highly input-heavy due to multi-step interactions with environments, making the compute-intensive prefilling phase a major efficiency bottleneck in long-context agentic inference. Meanwhile, naive model-efficiency methods can hurt task performance, highlighting the need for phase-aware optimization. <ref type="bibr" target="#b1">(2)</ref> We propose Mix-Quant, a phase-aware quantization framework that applies NVFP4 quantization to prefilling while retaining BF16 precision for autoregressive decoding, thereby improving efficiency without introducing severe error accumulation during generation. <ref type="bibr" target="#b2">(3)</ref> We empirically show that Mix-Quant largely preserves agentic task performance while significantly improving inference efficiency, achieving up to a 3× prefill speedup over BF16 and demonstrating the potential of phase-aware model quantization for efficient and reliable LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Long-Context Agentic Workflows. LLM agents extend language models with action interfaces, external tools, memory, and feedback from interactive environments. ReAct introduced the pattern of interleaving reasoning traces with environment actions <ref type="bibr" target="#b43">[44]</ref>, while Toolformer showed that language models can learn to invoke external APIs and condition on tool outputs <ref type="bibr" target="#b32">[33]</ref>. WebGPT demonstrated browser-assisted question answering <ref type="bibr" target="#b22">[23]</ref>, MemGPT explored memory management for long-lived interactions <ref type="bibr" target="#b25">[26]</ref>, and SWE-agents <ref type="bibr" target="#b13">[14,</ref><ref type="bibr" target="#b41">42]</ref> showed the importance of agent-computer interfaces for software engineering. These systems repeatedly call an LLM with prompts that include instructions, tool schemas, retrieved evidence, execution traces, and memory states. Recent work on agentic inference further emphasize substantial input-token overhead, repeated-context redundancy, and high serving cost <ref type="bibr" target="#b33">[34,</ref><ref type="bibr" target="#b35">36]</ref>. Mix-Quant is motivated by this workload shift: for long-context agents, accelerating context processing is often as important as improving token generation throughput.</p><p>Prefill-Decode Disaggregation. Prefill and decode have different computational profiles. Prefill processes all prompt tokens in parallel and is dominated by large matrix multiplications, whereas decode advances autoregressively and repeatedly streams model weights and KV-cache entries.</p><p>Serving systems have exploited this distinction by separating prompt processing from token generation. Splitwise maps prefill and decode to different machine configurations <ref type="bibr" target="#b26">[27]</ref>; DistServe disaggregates the phases across GPU pools to reduce interference between time-to-first-token and time-per-outputtoken objectives <ref type="bibr" target="#b46">[47]</ref>; and other algorithmic approaches optimize long-context prompt processing through model transformations <ref type="bibr" target="#b30">[31]</ref> and dynamic sparse attention <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b6">7]</ref> for faster prefill. These works show that prefill should be treated as a distinct system-level workload. Mix-Quant is naturally compatible with prefill-decode disaggregated serving: the quantized prefill path can be deployed on prefill workers, while the high-precision decoding path remains on decode workers. Moreover, Mix-Quant is complementary to sparse-attention optimization methods and can be combined with them to further reduce long-context prefilling cost.</p><p>Quantization for LLM Inference. Quantization is widely used to reduce LLM inference cost <ref type="bibr" target="#b47">[48]</ref>.</p><p>Weight-only methods such as GPTQ <ref type="bibr" target="#b8">[9]</ref> and AWQ <ref type="bibr" target="#b18">[19]</ref> lower memory traffic and are effective for bandwidth-bound decoding, but provide limited speedup for long-context prefill because activations remain high precision and computation is not fully executed in low bit-widths. Weight-and-activation quantization can accelerate compute-bound prefilling, but applying aggressive W4A4 quantization to the full autoregressive process is brittle, as activation errors may perturb token choices and accumulate over generation <ref type="bibr" target="#b4">[5,</ref><ref type="bibr" target="#b36">37,</ref><ref type="bibr" target="#b45">46]</ref>. Mix-Quant therefore quantizes only context encoding while keeping decoding on the original high-precision path. To do so efficiently, it leverages NVFP4, a Blackwellsupported microscaling FP4 format that improves 4-bit fidelity through fine-grained local scaling and native hardware execution. Following recent observations that scale treatment is critical for FP4 quality <ref type="bibr" target="#b5">[6]</ref>, Mix-Quant uses a simple hardware-aligned W4A4 prefill path with scale optimization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>LLM agentic workflows can effectively solve various complex real-world tasks through multi-round interactions with external environments, tools, and memory. However, such interaction-intensive workflows substantially increase the input context that must be processed at each inference step, leading to heavy inference costs. A naive application of model-efficiency techniques to accelerate inference often compromises overall task quality and destabilizes the generation process, especially in long agentic trajectories. To address this dilemma, we introduce a decoupled model-efficiency framework that applies FP4 quantization exclusively to high-throughput context prefilling while preserving high-precision decoding for stable and effective agentic generation.  In the remainder of this section, we first characterize the behaviour of long-context agentic workflows and identify their key efficiency bottlenecks. Next, we investigate FP4-quantized inference for both prefilling and decoding, with a particular focus on the error accumulation risks for long agentic trajectories. Finally, we detail our phase-aware quantization framework, which enables efficient and effective long-context agentic inference.</p><formula xml:id="formula_0">𝒆 𝟏 𝒆 𝟐 𝒆 𝟑 𝒆 𝒕 𝒙 𝟏 𝒙 𝟐 𝒙 𝟑 𝒙 𝒕 . . . . . . . . BF16 Q,K,V Layers 𝑊 ! ,𝑊 # ,𝑊 $ . . . . 𝒉 𝒕 𝒙 𝒕 𝒉 𝒕)𝟏 𝒙 𝒕)𝟏 𝒉 𝒕)𝒏 𝒙 𝒕)𝒏 𝒙 𝒕)𝟏 𝒙 𝒕)𝟐 𝒙 𝒕)𝒏)𝟏</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Efficiency Bottlenecks in Long-Context Agentic Workflows.</head><p>LLM-based agentic workflows typically solve a task through multiple rounds of model calls, tool invocations, environment observations, and memory updates. At each round, the model input may include the original user instruction, system prompt, tool descriptions, retrieved documents, previous actions, execution results, and intermediate reasoning states. As the interaction proceeds, these components are repeatedly carried over and appended to the prompt, causing the input context to grow rapidly. As shown in fig. <ref type="figure">1</ref>, the number of input tokens can be tens of times larger than that of generated output tokens.</p><p>This input-heavy characteristic makes agentic inference fundamentally different from standard singleturn generation. In conventional generation workloads, the dominant cost often comes from decoding a long output sequence. In contrast, agentic workflows usually generate only a small number of tokens at each step, such as a tool call, a short reasoning segment, or an action command, while repeatedly processing a much longer context. As a result, the overall inference cost is dominated not only by autoregressive decoding, but also, and often more critically, by repeated context prefilling.</p><p>The distinction between prefilling and decoding is illustrated in fig. <ref type="figure" target="#fig_2">2</ref>. During prefilling, the model encodes a long fixed input context and constructs the corresponding key-value cache. This stage is highly parallelizable but involves large-scale matrix multiplications across the entire context, making it compute-intensive and placing substantial pressure on accelerator compute resources. By contrast, decoding generates new tokens autoregressively, typically one token at a time. Its efficiency is often constrained by memory access and key-value cache I/O rather than by dense computation alone.</p><p>This phase-level difference also explains why many existing LLM quantization methods are insufficient for long-context agentic workflows. Prior weight-only quantization approaches <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b18">19]</ref> primarily reduce model weight storage and memory bandwidth, thereby improving decoding efficiency. However, because prefilling remains dominated by dense matrix computation over long contexts and dequantization overhead, weight-only quantization provides limited acceleration for the prefill stage as illustrated in fig. <ref type="figure">1</ref>. Consequently, these methods are less effective when the main bottleneck comes from repeatedly processing long input contexts, as in agentic workflows.</p><p>Rather than applying a single model-efficiency strategy uniformly to both prefilling and decoding, an effective system should adopt a phase-aware design that tailors optimization strategies to the distinct computational characteristics, task requirements, and efficiency bottlenecks of each inference stage.</p><p>In this work, we take a first step toward phase-aware model efficiency by studying quantization for long-context agentic inference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Error Accumulation Risks of Quantized Generation.</head><p>Model quantization is attractive for accelerating LLM inference because it can reduce memory usage and enable low-bit computation. In particular, applying weight and activation FP4 quantization to prefilling can reduce the cost of processing long input contexts, since the prefill phase is dominated by large matrix multiplications. However, naively applying FP4 quantization to the entire inference pipeline, including autoregressive decoding, can introduce significant quality degradation.</p><p>The key issue is that prefilling and decoding propagate quantization errors in different ways. During prefilling, the input context is fixed. Quantization errors may affect the hidden states and the constructed KV cache, but they do not change the input tokens being processed. Therefore, the error introduced in prefilling is mainly a representation-level perturbation on a fixed context.  This suggests that long-context attention is highly concentrated on a small subset of tokens.</p><p>Moreover, long-context inputs often contain substantial redundancy <ref type="bibr" target="#b12">[13]</ref>. As shown in fig. <ref type="figure" target="#fig_4">3</ref>, only a small set of heavy-hitter tokens dominates the attention mass at each decoding step. In the 128K-context setting, the top-4096 tokens, corresponding to only 3.125% of the full context, retain 95.8% of the total attention mass on average across layers and heads. This suggests that subsequent decoding is mainly influenced by a small subset of context tokens, while most tokens receive negligible attention and have limited impact on the next-token representation. The attention mass concentration further implies that prefill-stage KV errors are not simply accumulated over all context tokens. Since the attention output is a normalized weighted aggregation over cached values, quantization errors on low-attention tokens are attenuated by their small attention weights. Therefore, prefill quantization errors do not simply grow linearly or explosively with the context prefilling length, which helps explain the robustness of aggressive quantization during prefilling.</p><p>In contrast, decoding is a sequential decision process. At each step, the model predicts the next token based on all previous tokens:</p><formula xml:id="formula_1">y t ∼ p(y t | x 1:L , y &lt;t ). (<label>1</label></formula><formula xml:id="formula_2">)</formula><p>When decoding is performed under a quantized model, numerical perturbations can change the output distribution. Even a small change in the token distribution may lead to a different sampled or selected token. Once this happens, the generated sequence diverges from the high-precision trajectory, and all future predictions are conditioned on a different history. As a result, decoding errors can accumulate over time rather than remaining local. Previous work <ref type="bibr" target="#b44">[45,</ref><ref type="bibr" target="#b16">17]</ref> also observes that token prediction changes can trigger a snowball effect.</p><p>This risk is amplified in long agentic trajectories. A single erroneous token may produce an invalid tool call, select a wrong action, corrupt a code edit, or introduce an incorrect intermediate state.</p><p>Such mistakes can then affect later observations and decisions, causing the agent to move further away from the correct solution path. Therefore, while aggressive FP4 quantization is well suited for accelerating the compute-intensive prefill phase, applying it to the whole inference process can destabilize agentic generation.</p><p>These observations motivate our phase-aware framework: apply FP4 quantization to the computeintensive prefill phase to gain efficiency, while retaining high-precision decoding for stable autoregressive generation.</p><p>3.3 Mix-Quant: Quantized Prefilling, Precise Decoding NVFP4 Microscaling Quantization for Prefilling. We adopt NVFP4 weight-and-activation quantization as our quantization method. NVFP4 is a 4-bit microscaling floating-point format <ref type="bibr" target="#b23">[24]</ref> introduced for Blackwell-generation low-precision tensor-core execution. Each numerical value is represented by an E2M1 FP4 value, while groups of consecutive elements share a local scale. Unlike coarser microscaling formats such as MXFP4, which typically use larger groups and power-of-two scales, NVFP4 adopts smaller groups of 16 elements with FP8 E4M3 block scales, together with an additional tensor-level scale that controls the global dynamic range <ref type="bibr" target="#b5">[6]</ref>. This two-level scaling is crucial: the tensor-level scale prevents global saturation, while the local block scale adapts to finegrained variations within the tensor. Moreover, due to its small group size and fine-grained scaling design, NVFP4 already achieves strong quantization performance with simple round-to-nearest (RTN) quantization, while more complex quantization techniques such as rotation provide little additional benefit and introduce extra runtime overhead <ref type="bibr" target="#b5">[6]</ref>. Therefore, we directly adopt RTN quantization in our implementation.</p><p>Let x ∈ R n be a vectorized activation or weight tensor, and let B be a partition of its elements into blocks of size g = 16. For an element x i in block b(i), NVFP4 quantization can be written as</p><formula xml:id="formula_3">q i = Π FP4 x i α x σ b(i) , xi = α x σ b(i) q i ,<label>(2)</label></formula><p>where Π FP4 (•) projects a scaled value to the nearest representable FP4 value with clipping, σ b is the FP8 block scale for block b, and α x is the tensor-level scale. A standard amax-based choice sets the block scale according to the largest magnitude in the block,</p><formula xml:id="formula_4">σ b = Π E4M3 max i∈b |x i | α x q max ,<label>(3)</label></formula><p>where q max is the largest finite FP4 magnitude and Π E4M3 (•) rounds the scale to the FP8 E4M3 grid. In practice, activations and weights use layouts aligned with the GEMM dimension so that quantization, dequantization, and matrix multiplication can be fused efficiently by the backend.</p><p>Prefill-Decode Disaggregation Deployment. At inference time, Mix-Quant maintains two execution paths for the same base model: an NVFP4 W4A4 prefill path and the original high-precision decode path. We deploy these two paths using a prefill-decode disaggregation framework, where prefill workers process the input prompt and transfer the resulting KV cache to decode workers through a NIXL-based KV-cache transfer mechanism <ref type="bibr" target="#b14">[15]</ref>. Given a prompt, the quantized prefill path processes all input tokens and writes the initial KV cache in the precision expected by the high-precision decode engine. The decode path then consumes this cache and generates output tokens autoregressively, while KV entries for newly generated tokens are produced by the high-precision decode path as usual, as shown in fig. <ref type="figure" target="#fig_2">2</ref>. This system-level design avoids the extra low-level kernel switching, conversion overhead, and KV-cache misalignment that can arise in mixed-precision quantization pipelines, while preserving the deployment benefits of prefill-decode disaggregation <ref type="bibr" target="#b46">[47,</ref><ref type="bibr" target="#b26">27]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experiment Setup</head><p>Benchmarks. We evaluate Mix-Quant on a diverse suite of input-intensive benchmarks covering long-context reasoning and agentic inference. For long-context evaluation, we use LongBench-V2 <ref type="bibr" target="#b1">[2]</ref> and AA-LCR <ref type="bibr" target="#b0">[1]</ref>, which test understanding, synthesis, and reasoning over long documents. For agentic evaluation, we consider BFCL v4 <ref type="bibr" target="#b28">[29]</ref> for tool use and function calling, LongMemEval <ref type="bibr" target="#b34">[35]</ref>  for long-term interactive memory, τ 2 -bench <ref type="bibr" target="#b2">[3]</ref> for stateful interactive conversations as general agents. To provide a more comprehensive assessment, we further evaluate Mix-Quant on challenging reasoning benchmarks, including Math500 <ref type="bibr" target="#b17">[18]</ref>, AIME24 and AIME25 <ref type="bibr" target="#b3">[4]</ref>.</p><p>Models. We evaluate recent strong open-weight models for agentic workloads, spanning multiple model families and scales: Qwen3-8B <ref type="bibr" target="#b39">[40]</ref>, Gemma-4-26B-A4B-it and Gemma-4-31B-it <ref type="bibr" target="#b9">[10]</ref>, and Qwen3.5-9B <ref type="bibr" target="#b31">[32]</ref>. These models are selected because they support long-context and agent-oriented use cases and cover both compact and larger-capacity deployment regimes. For each model, we compare three variants: the original BF16 model, a uniform NVFP4 W4A4 quantized model, and Mix-Quant.</p><p>Evaluation Setup. We serve models on RTX 5090 and B200 GPUs to use Blackwell-generation FP4 hardware acceleration. The serving stack is based on vLLM <ref type="bibr" target="#b15">[16]</ref>. For disaggregated execution, we use NIXL-based KV-cache transfer between prefill and decode workers, following the standard disaggregated-prefill serving pattern in which compute-intensive prefill and memory-bandwidthintensive decode can be placed on separate workers <ref type="bibr" target="#b24">[25]</ref>. Each benchmark is run independently three times and we report the mean score. We use the default long-context setting of each model family: 256K tokens for Gemma-4 models and 262K tokens for Qwen3.5 models. Since Qwen3-8B natively supports 32K context, we apply YaRN <ref type="bibr" target="#b29">[30]</ref> with scaling factor 4 to extend its context window to 131K tokens for long-context agentic workflows.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Main Results</head><p>Long-Context Agentic Benchmark Results. This trend is consistent with the phase-aware motivation of Mix-Quant: long-memory and tool-use workloads require efficient processing of large input contexts, while their autoregressive decisions remain highly sensitive to quantization-induced perturbations during decoding.  Reasoning and Long-Context Benchmark Results. To complement the agentic evaluation, we further evaluate Mix-Quant on reasoning and long-context benchmarks. These benchmarks assess whether the benefits of Mix-Quant generalize beyond agentic workloads to tasks involving multi-step reasoning and long-context understanding. As shown in Table <ref type="table" target="#tab_2">2</ref>, Mix-Quant consistently recovers a large portion of the accuracy loss introduced by uniform NVFP4 quantization across these tasks. For example, the average score of Qwen3.5-9B drops from 72.04 to 63.26 under uniform NVFP4, while Mix-Quant recovers it to 70.59; for Gemma-4-26B-A4B-it, Mix-Quant nearly matches the BF16 baseline, achieving 71.93 compared with 71.94 under BF16 and 66.31 under uniform NVFP4. This shows that phase-aware quantization is not only beneficial for agentic serving, but also effective for workloads involving multi-step reasoning and long-context understanding. This further supports our phase-aware design: aggressive NVFP4 W4A4 quantization is effective for the compute-intensive prefill phase, which primarily encodes the input context and builds the KV cache, while applying the same low-bit policy throughout autoregressive generation process can perturb token decisions and degrade reasoning or long-context generation quality.</p><p>Prefilling Stage Speedup. We evaluate the end-to-end prefill latency speedup of Mix-Quant over the BF16 baseline on NVIDIA RTX 5090 GPUs. All latency measurements are performed in vLLM, using FlashInfer for attention computation and Blackwell NVFP4 W4A4 GEMM kernels for linear layers. For fair comparison, we keep the batch size, prompt length, KV-cache dtype, and backend configuration identical across methods. As shown in fig. <ref type="figure" target="#fig_5">4</ref>, Mix-Quant consistently accelerates prefill across both Qwen3.5-9B and Qwen3-8B under varying sequence lengths and batch sizes, achieving nearly 3× average speedup over BF16. The gains are especially pronounced for Qwen3-8B, while remaining stable for Qwen3.5-9B. These results show that aggressive NVFP4 weight-and-activation quantization can substantially reduce the computation cost of input-intensive prefill workloads, highlighting Mix-Quant's potential for efficient agentic LLM serving.</p><p>Phase-wise Quantization Ablation. In table <ref type="table" target="#tab_3">3</ref>, we compare different phase-wise quantization strategies to isolate the effect of quantizing prefilling and decoding. Mix-Quant applies FP4 quantization only to prefilling while keeping decoding in BF16, whereas P16D4 keeps prefilling in BF16 but performs decoding in FP4. Uniform NVFP4 quantizes both stages.</p><p>The results show that prefill-only quantization substantially mitigates the degradation caused by uniform NVFP4. For Qwen3-8B, the average score drops from 40.42 to 33.59 under uniform NVFP4, while Mix-Quant recovers it to 38.32. For Gemma-4-26B-A4B-it, uniform NVFP4 reduces the average score from 63.81 to 53.34, whereas Mix-Quant improves it to 60.18. Compared with decode-only quantization, Mix-Quant also performs better, although the margin is more moderate: it improves the average score over P16D4 from 36.74 to 38.32 on Qwen3-8B, and from 59.85 to 60.18 on Gemma-4-26B-A4B-it. These results suggest that both phase-wise strategies are less harmful than uniform quantization, but quantizing prefilling is generally preferable to quantizing decoding. The advantage is not uniformly large across all benchmarks, since prefill quantization can still perturb hidden states and the KV cache. Nevertheless, decoding remains more sensitive because token-level errors can propagate through subsequent autoregressive steps.</p><p>Overall, these results support the phase-aware design of Mix-Quant: apply aggressive FP4 computation to the compute-intensive prefill stage, while preserving higher precision during decoding for fast and stable generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this work, we identified a critical efficiency-performance dilemma in long-context agentic LLM inference: agentic workflows require repeated processing of long input contexts, making the computeintensive prefilling phase a major bottleneck, while naively applying low-bit quantization to the full inference pipeline can degrade performance due to error accumulation during autoregressive decoding. To address this challenge, we proposed Mix-Quant, a phase-aware quantization framework that applies high-throughput NVFP4 weight-and-activation quantization to the prefilling phase while preserving BF16 precision for decoding. By decoupling prefilling acceleration from decoding precision, Mix-Quant aligns quantization with the distinct computational characteristics and error sensitivities of different inference stages, thereby improving efficiency without sacrificing generation stability. Extensive experiments on long-context and agentic benchmarks show that Mix-Quant largely preserves task performance while achieving significant throughput gains. These findings demonstrate the promise of phase-aware algorithm-hardware co-design for building efficient and reliable LLM agents.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>FP4</head><label></label><figDesc></figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Overview of Mix-Quant for efficient agentic LLM inference. Agentic workflows repeatedly incorporate tool outputs, memory retrievals, and intermediate results into the input context, making the prefilling stage increasingly compute-intensive. Mix-Quant adopts a phase-aware quantization strategy: the context prefilling phase is accelerated with high-throughput NVFP4 computation, while autoregressive token-by-token decoding remains in BF16 to avoid error accumulation and preserve generation quality.</figDesc><graphic coords="4,122.19,180.41,367.28,151.06" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Attention mass concentration in a 128K-token context. The top 4,096 tokens, representing only 3.125% of the full 128K-token context, account for an average of 95.8% of the total attention mass.This suggests that long-context attention is highly concentrated on a small subset of tokens.</figDesc><graphic coords="5,383.54,404.23,97.24,97.24" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: End-to-end prefill latency speedup of Mix-Quant over the BF16 baseline on NVIDIA RTX 5090 GPUs. Left: speedup across different sequence lengths with batch size fixed to 1. Right: speedup across different batch sizes with sequence length fixed to 2K.</figDesc><graphic coords="8,119.29,307.79,175.09,126.04" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Agentic benchmark performance of Mix-Quant across general, long-term memory, and stateful interaction benchmarks. Results are averaged over three independent runs. Best and secondbest results within each model group are shown in bold and underlined, respectively.</figDesc><table><row><cell>Model</cell><cell cols="4">BFCL v4 LongMemEval τ 2 -bench Avg.</cell></row><row><cell>Qwen3-8B</cell><cell>40.50</cell><cell>57.00</cell><cell>31.06</cell><cell>42.85</cell></row><row><cell>Qwen3-8B-NVFP4</cell><cell>38.77</cell><cell>49.82</cell><cell>27.34</cell><cell>38.64</cell></row><row><cell>Mix-Quant</cell><cell>40.63</cell><cell>54.85</cell><cell>28.86</cell><cell>41.45</cell></row><row><cell>Qwen3.5-9B</cell><cell>58.96</cell><cell>86.27</cell><cell>86.69</cell><cell>77.31</cell></row><row><cell>Qwen3.5-9B-NVFP4</cell><cell>56.86</cell><cell>78.00</cell><cell>76.26</cell><cell>70.37</cell></row><row><cell>Mix-Quant</cell><cell>57.89</cell><cell>84.27</cell><cell>81.89</cell><cell>74.68</cell></row><row><cell>Gemma-4-26B-A4B-it</cell><cell>53.07</cell><cell>80.50</cell><cell>64.63</cell><cell>66.07</cell></row><row><cell>Gemma-4-26B-A4B-it-NVFP4</cell><cell>48.13</cell><cell>62.42</cell><cell>57.31</cell><cell>55.95</cell></row><row><cell>Mix-Quant</cell><cell>51.94</cell><cell>72.45</cell><cell>60.62</cell><cell>61.67</cell></row><row><cell>Gemma-4-31B-it</cell><cell>68.60</cell><cell>90.80</cell><cell>73.50</cell><cell>77.63</cell></row><row><cell>Gemma-4-31B-it-NVFP4</cell><cell>68.69</cell><cell>89.20</cell><cell>70.74</cell><cell>76.21</cell></row><row><cell>Mix-Quant</cell><cell>68.19</cell><cell>90.40</cell><cell>72.84</cell><cell>77.14</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1</head><label>1</label><figDesc></figDesc><table><row><cell>reports the results on long-context agentic</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Reasoning and long-context performance of Mix-Quant on mathematical reasoning and long-context benchmarks. Results are averaged over three independent runs.</figDesc><table><row><cell>Model</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Reasoning</cell><cell></cell><cell cols="3">Long Context</cell><cell>Avg.</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="8">MATH500 AIME24 AIME25 LongBench-V2 AA-LCR</cell></row><row><cell>Qwen3-8B</cell><cell></cell><cell></cell><cell cols="2">93.73</cell><cell>75.54</cell><cell>67.77</cell><cell cols="2">39.86</cell><cell>33.67</cell><cell>62.11</cell></row><row><cell cols="2">Qwen3-8B-NVFP4</cell><cell></cell><cell cols="2">94.12</cell><cell>66.53</cell><cell>55.33</cell><cell cols="2">35.46</cell><cell>24.67</cell><cell>55.22</cell></row><row><cell>Mix-Quant</cell><cell></cell><cell></cell><cell cols="2">94.40</cell><cell>76.66</cell><cell>66.66</cell><cell cols="2">38.60</cell><cell>28.67</cell><cell>61.00</cell></row><row><cell>Qwen3.5-9B</cell><cell></cell><cell></cell><cell cols="2">94.85</cell><cell>68.89</cell><cell>60.00</cell><cell cols="2">55.47</cell><cell>81.00</cell><cell>72.04</cell></row><row><cell cols="2">Qwen3.5-9B-NVFP4</cell><cell></cell><cell cols="2">93.46</cell><cell>54.44</cell><cell>40.00</cell><cell cols="2">50.40</cell><cell>78.00</cell><cell>63.26</cell></row><row><cell>Mix-Quant</cell><cell></cell><cell></cell><cell cols="2">94.32</cell><cell>70.33</cell><cell>56.67</cell><cell cols="2">52.29</cell><cell>79.33</cell><cell>70.59</cell></row><row><cell cols="2">Gemma-4-26B-A4B-it</cell><cell></cell><cell cols="2">95.86</cell><cell>77.67</cell><cell>65.33</cell><cell cols="2">53.83</cell><cell>67.00</cell><cell>71.94</cell></row><row><cell cols="3">Gemma-4-26B-A4B-it-NVFP4</cell><cell cols="2">95.20</cell><cell>75.33</cell><cell>62.22</cell><cell cols="2">48.15</cell><cell>50.67</cell><cell>66.31</cell></row><row><cell>Mix-Quant</cell><cell></cell><cell></cell><cell cols="2">95.40</cell><cell>78.67</cell><cell>69.67</cell><cell cols="2">51.57</cell><cell>64.33</cell><cell>71.93</cell></row><row><cell cols="2">Gemma-4-31B-it</cell><cell></cell><cell cols="2">97.33</cell><cell>92.22</cell><cell>82.22</cell><cell cols="2">63.35</cell><cell>76.67</cell><cell>82.36</cell></row><row><cell cols="3">Gemma-4-31B-it-NVFP4</cell><cell cols="2">97.75</cell><cell>83.33</cell><cell>80.00</cell><cell cols="2">58.55</cell><cell>71.67</cell><cell>78.26</cell></row><row><cell>Mix-Quant</cell><cell></cell><cell></cell><cell cols="2">97.20</cell><cell>93.33</cell><cell>81.11</cell><cell cols="2">61.64</cell><cell>73.67</cell><cell>81.39</cell></row><row><cell>3.51x</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>3.65x</cell><cell>3.71x</cell><cell>3.74x</cell></row><row><cell></cell><cell>3.20x</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>3.42x</cell><cell>3.41x</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell>2.80x</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>2.42x</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>2.21x</cell><cell>2.16x</cell><cell>2.10x</cell><cell>2.08x</cell><cell>1.98x</cell><cell>1.96x</cell><cell>2.15x</cell><cell>2.17x</cell><cell>2.21x</cell><cell>2.23x</cell><cell>2.20x</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Phase-wise quantization ablation comparing the impact of quantizing different inference stages on long-context and multi-turn agentic benchmarks.</figDesc><table><row><cell>Model</cell><cell cols="2">Long Context</cell><cell></cell><cell>Agentic</cell><cell></cell><cell>Avg.</cell></row><row><cell></cell><cell cols="5">LongBench-V2 AA-LCR BFCL v4 LongMemEval τ 2 -bench</cell><cell></cell></row><row><cell>Qwen3-8B</cell><cell>39.86</cell><cell>33.67</cell><cell>40.50</cell><cell>57.00</cell><cell>31.06</cell><cell>40.42</cell></row><row><cell>Qwen3-8B-NVFP4</cell><cell>35.46</cell><cell>24.67</cell><cell>30.70</cell><cell>49.82</cell><cell>27.34</cell><cell>33.59</cell></row><row><cell>Qwen3-8B-P16D4</cell><cell>37.38</cell><cell>29.33</cell><cell>36.40</cell><cell>52.47</cell><cell>28.13</cell><cell>36.74</cell></row><row><cell>Mix-Quant</cell><cell>38.60</cell><cell>28.67</cell><cell>40.63</cell><cell>54.85</cell><cell>28.86</cell><cell>38.32</cell></row><row><cell>Gemma-4-26B-A4B-it</cell><cell>53.83</cell><cell>67.00</cell><cell>53.07</cell><cell>80.50</cell><cell>64.63</cell><cell>63.81</cell></row><row><cell>Gemma-4-26B-A4B-it-NVFP4</cell><cell>48.15</cell><cell>50.67</cell><cell>48.13</cell><cell>62.42</cell><cell>57.31</cell><cell>53.34</cell></row><row><cell>Gemma-4-26B-A4B-it-P16D4</cell><cell>50.72</cell><cell>63.33</cell><cell>52.32</cell><cell>71.62</cell><cell>61.27</cell><cell>59.85</cell></row><row><cell>Mix-Quant</cell><cell>51.57</cell><cell>64.33</cell><cell>51.94</cell><cell>72.45</cell><cell>60.62</cell><cell>60.18</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<ptr target="https://artificialanalysis.ai/" />
+		<title level="m">Artificial Analysis Team. Artificial Analysis Long Context Reasoning Benchmark (LCR)</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="2026" to="2031" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Longbench v2: Towards deeper understanding and reasoning on realistic long-context multitasks</title>
+		<author>
+			<persName><forename type="first">Yushi</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shangqing</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaozhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shulin</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiazheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiao</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juanzi</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.15204</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Barres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honghua</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soham</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xujie</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.07982</idno>
+		<title level="m">2 -Bench: Evaluating conversational agents in a dual-control environment</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Beyond benchmarks: Matharena as an evaluation platform for mathematics with llms</title>
+		<author>
+			<persName><forename type="first">Jasper</forename><surname>Dekoninck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikola</forename><surname>Jovanović</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Gehrunger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kári</forename><surname>Rögnvalddson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivo</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenhao</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Vechev</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2605.00674" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">8-bit matrix multiplication for transformers at scale</title>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Dettmers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Younes</forename><surname>Belkada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<title level="s">LLM.int</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">8</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Bridging the gap between promise and performance for microscaling fp4 quantization</title>
+		<author>
+			<persName><forename type="first">Roberto</forename><forename type="middle">L</forename><surname>Vage Egiazarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denis</forename><surname>Castro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Kuznedelev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eldar</forename><surname>Panferov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shubhra</forename><surname>Kurtic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Pandit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Marques</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saleh</forename><surname>Kurtz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Torsten</forename><surname>Ashkboos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hoefler</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Alistarh</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2509.23202" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Flashprefill: Instantaneous pattern discovery and thresholding for ultra-fast long-context prefilling</title>
+		<author>
+			<persName><forename type="first">Qihang</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huaibo</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiying</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juqiu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingning</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ran</forename><surname>He</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.06199</idno>
+		<ptr target="https://arxiv.org/abs/2603.06199" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Gptq: Accurate post-training quantization for generative pre-trained transformers</title>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Frantar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Torsten</forename><surname>Saleh Ashkboos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hoefler</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Alistarh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.17323</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Gptq: Accurate post-training quantization for generative pre-trained transformers</title>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Frantar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Torsten</forename><surname>Saleh Ashkboos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hoefler</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Alistarh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.17323</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Google</forename><surname>Deepmind</surname></persName>
+		</author>
+		<ptr target="https://ai.google.dev/gemma/docs/core/model_card_4" />
+		<title level="m">Gemma 4 model card</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="2026" to="2031" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Knowledge distillation of large language models</title>
+		<author>
+			<persName><forename type="first">Yuxian</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Minillm</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The twelfth international conference on learning representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Minference 1.0: Accelerating pre-filling for long-context llms via dynamic sparse attention</title>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yucheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengruidong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xufang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Surin</forename><surname>Ahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenhua</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Amir H Abdi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="52481" to="52515" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Longllmlingua: Accelerating and enhancing llms in long context scenarios via prompt compression</title>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xufang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Qiu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1658" to="1677" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.06770</idno>
+		<title level="m">Swe-bench: Can language models resolve real-world github issues? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Efficient memory management for large language model serving with pagedattention</title>
+		<author>
+			<persName><forename type="first">Woosuk</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuohan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianmin</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cody</forename><forename type="middle">Hao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles</title>
+		<meeting>the ACM SIGOPS 29th Symposium on Operating Systems Principles</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Efficient memory management for large language model serving with pagedattention</title>
+		<author>
+			<persName><forename type="first">Woosuk</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuohan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianmin</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cody</forename><forename type="middle">Hao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles</title>
+		<meeting>the ACM SIGOPS 29th Symposium on Operating Systems Principles</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Quantization meets reasoning: Exploring llm low-bit quantization degradation for mathematical reasoning</title>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yupeng</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Congkai</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongwei</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ngai</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongxia</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.03035</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Let&apos;s verify step by step</title>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Hunter Lightman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harrison</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teddy</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cobbe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Awq: Activation-aware weight quantization for on-device llm compression and acceleration</title>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shang</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Ming</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Chen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guangxuan</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingyu</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuang</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of machine learning and systems</title>
+		<meeting>machine learning and systems</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="87" to="100" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Haiquan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gongfan</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyin</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinchao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mixreasoning</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.06052</idno>
+		<title level="m">Switching modes to think</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Junyu</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusheng</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junwei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiyang</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bohan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyue</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingqing</forename><surname>Long</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.21460</idno>
+		<title level="m">Large language model agent: A survey on methodology, applications and challenges</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Llm-pruner: On the structural pruning of large language models</title>
+		<author>
+			<persName><forename type="first">Xinyin</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gongfan</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinchao</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="21702" to="21720" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Reiichiro</forename><surname>Nakano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suchir</forename><surname>Balaji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shantanu</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Saunders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tyna</forename><surname>Eloundou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Button</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Knight</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2112.09332</idno>
+		<title level="m">Benjamin Chess, and John Schulman. Webgpt: Browser-assisted question-answering with human feedback</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Introducing nvfp4 for efficient and accurate lowprecision inference</title>
+		<author>
+			<persName><surname>Nvidia</surname></persName>
+		</author>
+		<ptr target="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Enhancing distributed inference performance with the nvidia inference transfer library</title>
+		<author>
+			<persName><surname>Nvidia</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2026-05-03">2026. 2026-05-03</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Packer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wooders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivian</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Memgpt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.08560</idno>
+		<title level="m">Towards llms as operating systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Pratyush</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esha</forename><surname>Choukse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaojie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aashaka</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Inigo</forename><surname>Goiri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saeed</forename><surname>Maleki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Bianchini</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Splitwise</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.18677</idno>
+		<title level="m">Efficient generative llm inference using phase splitting</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Splitwise: Efficient generative llm inference using phase splitting</title>
+		<author>
+			<persName><forename type="first">Pratyush</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esha</forename><surname>Choukse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaojie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aashaka</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Íñigo</forename><surname>Goiri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saeed</forename><surname>Maleki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Bianchini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2024 ACM/IEEE 51st Annual International Symposium on Computer Architecture (ISCA)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="118" to="132" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">The berkeley function calling leaderboard (bfcl): From tool use to agentic evaluation of large language models</title>
+		<author>
+			<persName><forename type="first">Huanzhi</forename><surname>Shishir G Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanjia</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cheng-Jie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishnu</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-second International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Yarn: Efficient context window extension of large language models</title>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Quesnelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglu</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enrico</forename><surname>Shippole</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Swiftkv: Fast prefilloptimized inference with knowledge-preserving model transformation</title>
+		<author>
+			<persName><forename type="first">Aurick</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhewei</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samyam</forename><surname>Rajbhandari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiong</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="25745" to="25764" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Qwen3.5: Towards native multimodal agents</title>
+		<author>
+			<persName><forename type="first">Qwen</forename><surname>Team</surname></persName>
+		</author>
+		<ptr target="https://qwen.ai/blog?id=qwen3.5" />
+		<imprint>
+			<date type="published" when="2026-02">February 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Toolformer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.04761</idno>
+		<title level="m">Language models can teach themselves to use tools</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Efficient llm serving for agentic workflows: A data systems perspective</title>
+		<author>
+			<persName><forename type="first">Noppanat</forename><surname>Wadlom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyi</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Lu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.16104</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Longmemeval: Benchmarking chat assistants on long-term interactive memory</title>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongwei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Combating the memory walls: Optimization pathways for long-context agentic llm inference</title>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Can</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binglei</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey Th</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwen</forename><surname>Mo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Przemyslaw</forename><surname>Forys</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengyang</forename><surname>Ai</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2509.09505</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Smoothquant: Accurate and efficient post-training quantization for large language models</title>
+		<author>
+			<persName><forename type="first">Guangxuan</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mickael</forename><surname>Seznec</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julien</forename><surname>Demouth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">A-mem: Agentic memory for llm agents</title>
+		<author>
+			<persName><forename type="first">Wujiang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zujie</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongfeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.12110</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anfeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenxu</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chujie</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialong</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianhong</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianxin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingren</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keqin</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianghao</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingfeng</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingze</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruize</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shixuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbiao</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingzhang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuancheng</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinger</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqiong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenru</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhipeng</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Qiu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.09388</idno>
+		<title level="m">Qwen3 technical report</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anfeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenxu</forename><surname>Lv</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.09388</idno>
+		<title level="m">Qwen3 technical report</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Swe-agent: Agent-computer interfaces enable automated software engineering</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="50528" to="50652" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.15793</idno>
+		<title level="m">Swe-agent: Agent-computer interfaces enable automated software engineering</title>
+		<imprint>
+			<publisher>Karthik Narasimhan, and Ofir Press</publisher>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Qspec: Speculative decoding with complementary quantization schemes</title>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="4779" to="4795" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Atom: Low-bit quantization for efficient and accurate llm serving</title>
+		<author>
+			<persName><forename type="first">Yilong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chien-Yu</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kan</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lequn</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Size</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luis</forename><surname>Ceze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Krishnamurthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baris</forename><surname>Kasikci</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.19102</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Distserve: Disaggregating prefill and decoding for goodput-optimized large language model serving</title>
+		<author>
+			<persName><forename type="first">Yinmin</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianbo</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yibo</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanzhe</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">18th USENIX Symposium on Operating Systems Design and Implementation</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">A survey on efficient inference for large language models</title>
+		<author>
+			<persName><forename type="first">Zixuan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuefei</forename><surname>Ning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuming</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luning</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihang</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiuhong</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2404.14294</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

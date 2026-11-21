@@ -1,0 +1,3282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Natural Language Actor-Critic: Scalable Off-Policy Learning in Language Space</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-30">30 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Joey</forename><surname>Hong</surname></persName>
+							<email>joey_hong@berkeley.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Kang</forename><surname>Liu</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Zhan</forename><surname>Ling</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Jiecao</forename><surname>Chen</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+						</author>
+						<author>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<affiliation key="aff1">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Natural Language Actor-Critic: Scalable Off-Policy Learning in Language Space</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-30">30 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">FB95653C7C0264534FA9616E9929180C</idno>
+					<idno type="arXiv">arXiv:2512.04601v3[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language model (LLM) agents-LLMs that dynamically interact with an environment over long horizons-have become an increasingly important area of research, enabling automation in complex tasks involving tool-use, web browsing, and dialogue with people. In these settings, traditional policy gradient methods may suffer from unstable learning and poor sample-complexity due to poor credit assignment. Meanwhile, actor-critic methods address long horizons by learning a critic that provides more granular feedback and enables off-policy (and potentially offline) learning, but are heavily dependent on the fidelity of the critic. In this paper, we propose Natural Language Actor-Critic (NLAC), a novel actor-critic algorithm that trains LLM policies using a generative LLM critic that produces values in natural language space. While natural language values have been leveraged in the past to provide a more flexible and actionable training signal, our work is the first to perform general and scalable value learning without relying on in-context aggregation of information from on-policy rollouts. This means our approach can be trained off-policy without policy gradients, offering a more sample-efficient alternative to existing methods. We present results on a mixture of reasoning, web browsing, and tool-use with dialogue tasks, demonstrating that NLAC shows promise in outperforming existing training approaches and offers a more scalable and stable training paradigm for LLM agents.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>While LLMs excel at natural language tasks like question-answering <ref type="bibr" target="#b19">[Pyatkin et al., 2022]</ref> and problem-solving <ref type="bibr" target="#b8">[Hendrycks et al., 2021</ref><ref type="bibr" target="#b11">, Jimenez et al., 2024]</ref>, which can be solved with a single response, LLM agent tasks require multi-turn interactions. Such tasks include autonomous reasoning <ref type="bibr">[OpenAI, 2025]</ref>, tool-use <ref type="bibr">[Nakano et al., 2022]</ref>, and dialogue with users <ref type="bibr" target="#b9">[Hong et al., 2023</ref><ref type="bibr">, Yu et al., 2023]</ref>. These tasks require agents to dynamically plan and respond to environmental stimuli, which base LLMs struggle to do without additional fine-tuning <ref type="bibr" target="#b1">[Bachmann and Nagarajan, 2024]</ref>. To train effective LLM agents, we will need algorithms that can fine-tune LLMs to pursue temporally extended goals within multi-turn interactions. However, in long-horizon settings where sparse rewards offer poor credit assignment, training LLM policies naively can be unstable and inefficient.</p><p>Actor-critic methods tackle long-horizon tasks by learning a critic that evaluates actions and provides a denser training signal, improving sample efficiency and enabling off-policy or offline learning. However, such methods are highly dependent on the quality of the critic, and prior attempts at actor-critic methods for LLM policies have not demonstrated convincing improvement over standard fine-tuning techniques <ref type="bibr" target="#b29">[Sodhi et al., 2023</ref><ref type="bibr" target="#b0">, Abdulhai et al., 2023]</ref>. We posit that this is because 2 Related Work LLM agents. LLM agents can be used to tackle a variety of complex real-world tasks, including dialogue <ref type="bibr" target="#b9">[Hong et al., 2023</ref><ref type="bibr">, Yu et al., 2023]</ref>, tool-use <ref type="bibr">[Nakano et al., 2022</ref><ref type="bibr" target="#b22">, Schick et al., 2023]</ref>, and embodied decision-making <ref type="bibr" target="#b33">[Wang et al., 2023]</ref>. The primary challenge in the design of effective LLM agents is enabling LLMs, which traditionally excel at generating single-step responses, to interact sequentially with an environment to accomplish a long-term objective. ReAct prompting is a popular method to leverage chain-of-thought reasoning of LLMs for long-horizon planning, by instructing LLMs to explicitly articulate their high-level plans <ref type="bibr" target="#b37">[Yao et al., 2022]</ref>. More recent approaches have explored the capability of LLM agents to self-correct their initial attempts at planning using more sophisticated prompting techniques <ref type="bibr" target="#b27">[Shinn et al., 2023</ref><ref type="bibr" target="#b17">, Madaan et al., 2023</ref><ref type="bibr">, Zhou et al., 2024a]</ref>. For example, Reflexion prompting adds a step of self-reflection on top of ReAct to allow LLM agents to refine their initial reasoning after some environment feedback <ref type="bibr" target="#b27">[Shinn et al., 2023]</ref>. However, self-correction methods rely the ability to "backtrack," or undo previous actions, whereas we measure the capability of LLM agents with one chance to solve a task. Process reward models. One of the primary challenges in learning LLM agents is the reliance on a single, sparse reward for long-horizon interactions. This makes credit assignment, or distinguishing between good and bad actions in a long rollout, difficult. Process reward models (PRMs) aim to address this, particularly by providing action-level feedback using either human annotations <ref type="bibr" target="#b15">[Lightman et al., 2023]</ref>, or an estimated value function in the absence of human intervention <ref type="bibr" target="#b34">[Wang et al., 2024</ref><ref type="bibr">, Setlur et al., 2025]</ref>. Our learned natural language critic can be considered an instance of an PRM, but unlike traditional PRMs that provide scalar feedback over actions, our critic outputs feedback in language space. We believe such feedback is more useful for LLM policies that can understand and articulate their decisions in natural language.</p><p>Reinforcement learning for LLM agents. More recently, multiple works have attempted to explicitly fine-tune LLMs as agents using RL <ref type="bibr" target="#b4">[Carta et al., 2024</ref><ref type="bibr">, Zhou et al., 2024b]</ref>. The primary way this was done was naively adapting traditional RL fine-tuning used to align LLM responses to multi-turn tasks with environment interaction <ref type="bibr" target="#b31">[Stiennon et al., 2020</ref><ref type="bibr">, Ouyang et al., 2022</ref><ref type="bibr" target="#b20">, Ramamurthy et al., 2023]</ref>. These methods used PPO <ref type="bibr" target="#b23">[Schulman et al., 2017]</ref> to finetune LLMs using the environment reward. However, traditional policy optimization for long-horizon tasks exacerbates the instabilities of RL training, particularly due to reliance on exploration and proper credit assignment. In this work, we hypothesize that training in natural language over scalar space improves stability and sample efficiency.</p><p>RL from textual feedback. The closest work to ours that does this is NLRL <ref type="bibr" target="#b5">[Feng et al., 2025]</ref>, which also proposes learning value functions that output text. However, in NLRL, these values are obtained via repeated sampling of on-policy trajectories and aggregating them in-context. In addition, policy improvement is achieved by enumerating over possible actions and their evaluations. We believe such enumeration and aggregation in-context is intractable for tasks with complex dynamics and large action spaces. Our method circumvents these drawbacks by training the critic to probabilistically generate compact summaries of rollouts via a novel language Bellman backup, then updating a policy through distillation from a refinement policy that conditions on the critic output. Recently, self-distillation methods have gained popularity as a sample-efficient method to learn from textual critiques <ref type="bibr" target="#b10">[Hubotter et al., 2026</ref><ref type="bibr" target="#b41">, Zhao et al., 2026]</ref>. However, such methods typically require groundtruth privileged information and work best in single-turn settings such as mathematical reasoning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Preliminaries</head><p>Markov decision processes. We adopt the formalism of a Markov decision process (MDP) given by M = (S, A, P, r, ρ, γ), where S is the state space, A is the action space, P is the transition function, r is the reward function, ρ is the initial state distribution, and γ is the discount factor. When action a ∈ A is executed at state s ∈ S, the next state is sampled s ′ ∼ P (•|s, a), and the agent receives reward r(s, a) ∈ R.</p><p>LLM agents in MDPs. Tasks considered by LLM agents can be defined under the MDP formalism as follows. Here, the state and action space are finite-length sequences of tokens in vocabulary V, or S, A ⊆ V * , where V * denotes all finite sequences comprised of tokens in vocabulary V. We also define the space of environment observations O ⊂ V * ; those could consist of results of API calls in tool-use applications, or responses by other interlocutors in dialogue. The agent corresponds to a policy π that starts by observing a task description along with any initial observations s 1 = (q, o 0 ). At timestep t, the agent state s t of the MDP consists of the history of interaction thus far s t = (q, a 1 , o 1 , . . . , a t-1 , o t ) consisting of agent actions and environment observations. ReAct prompting. LLM agents are commonly implemented using ReAct prompting to better leverage the base reasoning capabilities of LLMs <ref type="bibr" target="#b37">[Yao et al., 2022]</ref>. ReAct prompting instructs LLM agents to output actions a t ∼ π(•|s t ) that are actually composite, consisting of a thought a tht t where the agent performs a reasoning step, followed by the actual environment action a env t . For example, in dialogue, the thought could be the high-level strategy or plan the agent aims to execute, whereas the environment action is the actual utterance by the agent. Then, the transition function appends to s t the environment action a env t as well as any new observations by the environment o t+1 , to form the next state s t+1 . Note that the thought does not affect the transition dynamics.</p><p>Reinforcement learning. The objective of RL is to find a policy π that maximizes the expected discounted return J(π) = E τ ∼p π T -1 t=0 γ t r(s t , a t ) in an MDP, where τ = (s 0 , a 0 , s 1 , a 1 , . . . , s T ) and p π (τ ) = ρ(s 0 )</p><p>T -1 t=0 π(a t |s t )P (s t+1 |s t , a t ). Standard policy gradient approaches directly train policy π using the gradient of ∇ π J(π), while more sophisticated algorithms such as PPO and GRPO additionally clip the updates to improve stability <ref type="bibr" target="#b23">[Schulman et al., 2017</ref><ref type="bibr">, Shao et al., 2024]</ref>. Actor-critic algorithms additionally learn a state-action value function, or Q-function, defined as</p><formula xml:id="formula_0">Q π (s t , a t ) = E (s,a)t+1:∞∼p π T -1 t ′ =t γ t ′ -t r(s t ′ , a t ′ ) . Such Q-functions are learned by regressing to their Bellman backup: BQ π (s t , a t ) = r(s t , a t ) + E st+1,at+1∼P π [Q π (s t+1 , a t+1 )],</formula><p>where P π (s ′ , a ′ |s, a) = P (s ′ |s, a)π(a ′ |s ′ ). Then, an improved policy π ′ can be derived using the Q-function via greedy or maximum-entropy optimization.</p><p>Successor features and distributional RL. Two classical ideas inspire our critic. Successor features <ref type="bibr" target="#b2">[Barreto et al., 2017]</ref> represent a state-action pair by the expected discounted sum of future state features Ψ π (s, a), so that Q π (s, a) = Ψ π (s, a) • w whenever the reward is linear, r(s, a) = ϕ(s) • w; distributional RL <ref type="bibr" target="#b3">[Bellemare et al., 2017]</ref> learns the full distribution of returns rather than its expectation. Both are learned by bootstrapping from one-step transitions, as is our critic, which generates samples from a distribution over textual descriptions of the future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Natural Language Actor-Critic</head><p>In this section, we present Natural Language Actor-Critic (NLAC), our new method for training LLM agents that adopts the actor-critic paradigm. Unlike traditional methods that rely on simple policy gradients, NLAC leverages a natural language critic that outputs textual critiques of actions to Dialogue state • a game of 20 Questions, seen by the guesser We are playing 20 questions! You are playing as the role of a guesser. Give a short question to ask next…</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>… earlier turns</head><p>Is it a plant?</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Yes</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Policy Evaluation</head><p>Train a critic that describes, in words, how the dialogue will unfold.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Policy Improvement</head><p>Refine actions with the critique, then distill.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Language Bellman backup</head><p>Build a training target from one real step.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Language critic</head><p>Imagine futures, then judge the action.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>logged action (off-policy data)</head><p>Is it a tree?</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Environment observed reply</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>No</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Successor model</head><p>predicts the rest of the dialogue</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>PREDICTED FUTURE AFTER THE REPLY</head><p>The agent will determine if the plant is a herb or vegetable, or a flower. If the agent figures out the type quickly, then the agent can focus on finding defining characteristics and identify the correct plant.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>+ combine TRAINING TARGET</head><p>The user responds with 'No,' meaning the agent must continue search over plant types such as vegetables or flowers. After finding the type, the agent can focus on defining characteristics in order to identify the correct plant.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Successor model imagines how the dialogue continues</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>SEVERAL SAMPLED FUTURES</head><p>The user responds with 'Yes,' allowing the agent to focus on properties such as geographic location or leaf type. The agent will be able to separate the object from common trees and arrive at the correct answer.  During policy evaluation, the critic is trained using a language Bellman backup that operates in textual space. During policy improvement, the policy is distilled from a refinement policy. provide a rich, interpretable, and more stable training signal. Our framework is inspired by classical actor-critic methods where each step consists of (1) policy evaluation, where a critic is trained to assess actions by a policy, and (2) policy improvement, where the policy is updated using evaluations by the critic, but is adapted to leverage the implicit reasoning capabilities of LLMs over text space. In our approach, both the LLM policy and the natural language critic are instantiated by the same underlying LLM, with their distinct functionalities realized through different prompts. We go over both components in detail below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Policy Evaluation</head><p>In traditional actor-critic approaches, a critic is trained to estimate scalar state-action values, or Q-values, typically denoted as Q π (s, a) ∈ R, which represents the expected return by policy π from state s after taking action a. While learning such Q-values can be similarly done with LLM critics, LLMs are better suited to process and generate natural language over scalars. Therefore, we believe evaluation that is in natural language space leverages prior text-based reasoning capabilities of LLMs, and thus will largely improve sample efficiency. Hence, our natural language critic is an LLM that generates textual critiques, denoted as Q π L (s, a) ∈ V * , that not only comments on how good an action is, but also explains why.</p><p>Predicting the future using language. The key addition that is not captured by scalar Q-values is an explanation of why a particular action is optimal or not. As we will discuss later, this information is valuable for LLM policies to understand how to refine their actions during policy improvement, avoiding the reliance on random exploration to discover better actions. We believe that the key for a critic to derive these explanations is the prediction and analysis of future outcomes. However, full trajectories can be prohibitively complex to model, so we instead predict compact summaries of futures. In order to do so, we must train our natural language critic to additionally act as a successor function, defined as follows: Definition 4.1. A language successor model M π for policy π takes a state s t and action a t as input, and probabilistically generates a textual summary of rollout (s, a) t+1:T , or what will happen to policy π in the future, and reward r(s T ). We denote by M π (• | s t , a t ) the distribution from which such descriptions are sampled. Our language successor model shares similarities with successor features <ref type="bibr" target="#b2">[Barreto et al., 2017]</ref> in that both can predict a distribution over future rollouts, and-as we show later-be trained using temporal difference learning. The main difference lies in that traditional successor features are used to compute Q-values via a linear product, whereas ours is used to generate state-action values in natural language via output by an LLM.</p><p>To train our language successor model, we draw inspiration from distributional value learning <ref type="bibr" target="#b3">[Bellemare et al., 2017]</ref>, which introduces a distributional Bellman backup to train a distribution over returns rather than just their scalar expectation. Notably, the distributional Bellman backup used one-step samples of the future and thus could be computed off-policy. Similarly, we propose a language Bellman backup B L that bears some semblance to the distributional Bellman backup, but makes key adaptations to account for samples that are textual descriptions of rollouts. Definition 4.2. A language Bellman backup B L takes a language successor model M π , along with state s t and action a t as input, and computes distribution B L M π (•|s t , a t ) such that the probability of description d t ∈ V * is given by:</p><formula xml:id="formula_1">B L M π (d t | s t , a t ) = Pr d t = B r(s t , a t ), s t+1 , a t+1 , d t+1 s t+1 , a t+1 , d t+1 , s t+1 , a t+1 ∼ P π (• | s t , a t ), d t+1 ∼ M π (• | s t+1 , a t+1 ) . (<label>1</label></formula><formula xml:id="formula_2">)</formula><p>where B is a function that combines immediate next state and action s t+1 , a t+1 with description d t+1 of rollout (s, a) t+2:T into one concatenated description of (s, a) t+1:T . Beyond simple concatenation, the B function "discounts" the future rollout description from M π in the concatenated rollout so the immediate next state is given more emphasis in the description.</p><p>Then, we can train our language successor model M π by minimizing the divergence between distributions M π (•|s t , a t ) and target distributions created by the language Bellman backup:</p><formula xml:id="formula_3">M π = M π = arg min M E (st,at,st+1)∼D D f M (• | s t , a t ) ∥ B L M (• | s t , a t ) .<label>(2)</label></formula><p>Note that our training objective is an instance of temporal-difference learning and thus does not require on-policy Monte Carlo trajectories.</p><p>Generating critiques. Finally, the natural language critic should analyze all possible futures in order to evaluate how good an action is in expectation, then explain its reasoning by referencing possible future outcomes. To perform this evaluation, we define the following: Definition 4.3. A language evaluator E takes as input state s t and action a t , along with a sequence of descriptions of possible rollouts (s, a) t+1:T and their rewards r(s T ), and outputs a textual critique that comments on whether a t was optimal, with justification using possible future outcomes. Then, we can approximate Q π L (s t , a t ) as:</p><formula xml:id="formula_4">Q π L (s t , a t ) ≈ E s t , a t , d<label>(1)</label></formula><p>t , . . . , d</p><formula xml:id="formula_5">(k) t , d (i) t ∼ M π (• | s t , a t ) ∀i ∈ [k].<label>(3)</label></formula><p>Note that E essentially aggregates and summarizes multiple descriptions of different rollouts that are all fit in-context, which LLMs have demonstrated a priori efficacy in without additional training <ref type="bibr" target="#b5">[Feng et al., 2025]</ref>. This means that the only training required to perform evaluation of policy π in language space is learning the language successor model M π (see Figure <ref type="figure" target="#fig_1">1</ref> for illustration).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Policy Improvement</head><p>Thus far, we showed how to train the natural language critic to evaluate a fixed policy π. We now show how an improved policy can be learned using textual critiques Q π L (s, a) obtained by a critic using Equation <ref type="formula" target="#formula_5">3</ref>. Naturally, such policy is a greedy policy where a ∼ π(•|s) satisfies a = arg max a ′ Q π L (s, a ′ ). Note that we assume: Assumption 4.4. For any policy π, the set {Q π L (s, a ′ )} a ′ ∈A computed using Equation 3 for any state s forms a totally-ordered set with binary relation ≥.</p><p>We believe that this is not a strong assumption, as each critique Q π L (s, a) can be mapped to a scalar that quantifies its sentiment, which can be used to compare with other critiques. Then,</p><formula xml:id="formula_6">Q π L (s, a ′ ) ≥ Q π L (s, a) if the underlying sentiment of the text in Q π L (s, a ′ ) is more positive.</formula><p>However, computing the greedy policy is intractable for LLM agent tasks, where the action spaces A ⊆ V * are combinatorial in the token vocabulary, making it impossible to enumerate all possible actions to find the optimal one. While prior works have proposed sampling a subset of actions and reweighting <ref type="bibr" target="#b13">[Li et al., 2024]</ref>, we find empirically that for tractable sample sizes, this approach does not sufficiently explore the space of possible actions.</p><p>Our approach sidesteps this issue by leveraging the descriptive power of the natural language values using a self-refinement paradigm. Our insight is that the natural language value Q π L (s, a) not only comments on how good an action is, but also contains intuition on how a suboptimal action can be improved. Hence, a policy that is an LLM with strong base reasoning capabilities can process this evaluation and understand how to refine its initial action.</p><p>To this end, we define a refinement policy π r that takes an action a t ∼ π(•|s t ) by the base policy, and generates a refined action</p><formula xml:id="formula_7">a r t ∼ π r (•|s t , a t , Q π L (s t , a t )) that is better according to the natural language critic, i.e., Q π L (s t , a r t ) ≥ Q π L (s t , a t ).</formula><p>As with the policy and critic, the refinement policy can use the same underlying LLM but with a different prompt. Note that refinement can also be performed iteratively by maintaining and appending to a history of all previous action attempts and their evaluations</p><formula xml:id="formula_8">a r t ∼ π r • | s t , a 1 t , Q π L (s t , a 1 t ), . . . , Q π L (s t , a m t ) .</formula><p>(4) where we can control for a parameter m that denotes number of rounds of refinement. As m → ∞, we expect the refined action a r t to be the greedily optimal one a r t = arg max a Q π L (s t , a). Finally, we propose a policy improvement objective from π to π ′ that projects the refinement policy back to the base policy, similar to the policy updates in SAC <ref type="bibr" target="#b6">[Haarnoja et al., 2018]</ref>. However, rather than parameterizing a target policy using the learned values, which requires enumeration over actions and is intractable in our setting, we let the target policy be the refinement policy:</p><formula xml:id="formula_9">π ′ = arg max π E st∼D D f π(• | s t ) ∥ π r (• | . . . , Q π L (s t , a m t )) .<label>(5)</label></formula><p>In practice, we found that a single round of refinement m = 1 was sufficient. Again, this objective does not require any on-policy rollouts, and can therefore be trained off-policy.</p><p>Why distill from a refinement policy? Our policy update is supervised fine-tuning on critiqueconditioned refined actions rather than a policy-gradient update. This still follows the actor-critic template of alternating policy evaluation and improvement: like SAC <ref type="bibr" target="#b6">[Haarnoja et al., 2018]</ref>, we improve the policy by projecting it onto a better target policy via KL minimization. Conditioning on the critique also aids exploration, as the refinement policy can propose actions that are unlikely under the base policy (see examples in Appendix B).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Theoretical Results</head><p>Due to space, we provide a theoretical analysis of NLAC in Appendix C. At a high level, our analysis connects the representations used by our learned critic to successor features, which allows us to recover standard scalar value-learning guarantees even though the critic outputs text.</p><p>Our main results state that, under realizability assumptions on the reward and on how the language Bellman backup composes representations, we show that the learned language critic can be used to recover the true Q-function: Theorem 4.5. Consider policy evaluation via Equation 2 and let Q π L be the natural language critic at convergence. For any state s and action a, there exists monotonic mapping g such that</p><formula xml:id="formula_10">Q π (s, a) = g(Q π L (s, a))</formula><p>, where Q π denotes the true scalar Q-function.</p><p>While it is true that such assumptions are difficult to ensure in practice, the main contribution of this analysis is connecting prediction of future in text space with learning better value functions. Note that convergence to the optimal policy (Theorem C.4 in Appendix C) additionally requires the refinement policy to act as an oracle policy-improvement operator, which is admittedly a strong assumption.</p><p>The main message of our analysis is thus that, under these assumptions, the fixed point of our critic objective encodes successor features and preserves the ordering of scalar Q-values.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Practical Implementation</head><p>In this section, we describe how both the critic and policy are trained in practice. We defer specific details such as exact prompts used to Appendix D. Though our method involves many different components such as a language successor model and evaluator, we can leverage the general capabilities of LLMs to reason over and generate language to reuse one model to implement all the described components. Hence, our algorithm only involves training one LLM M with parameter θ. For a prompt p ∈ V * , we denote by M θ (p) the distribution over responses by the LLM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Training Components</head><p>Policy. Many prior works have parameterized policies as LLMs. One of the greatest advantages of doing so is the ability to leverage the strong reasoning capabilities of LLMs from chain-of-thought prompting <ref type="bibr" target="#b35">Wei et al. [2023]</ref>, <ref type="bibr" target="#b37">Yao et al. [2022]</ref>. By choosing a proper prompt p react , an LLM policy can be instructed to describe their underlying thoughts for choosing a particular action in addition to generating the action itself a t ∼ M θ (p react (s t )).</p><p>Language successor model. LLMs have demonstrated efficacy at predicting realistic future rollouts in a variety of environments <ref type="bibr" target="#b16">[Lin et al., 2024]</ref>. These futures are generated by simply processing the state-action in a prediction prompt p pred that also instructs the LLM to summarize rollouts into concise textual descriptions, then sampling from the LLM output</p><formula xml:id="formula_11">M θ (• | s t , a t ) = M θ (p pred (s t , a t )).</formula><p>Language Bellman backup. The backup B L also outputs a distribution over descriptions of rollouts, but uses one-step samples of next state along with a "bootstrapped" description of rollout generated by M θ . We give the LLM instruction p tpred to predict a "target" future by combining the immediate next state with the bootstrapped future description into one description, discounting the future description as necessary by placing more emphasis on the immediate next state.</p><formula xml:id="formula_12">B L M θ (• | s t , a t ) = M θ p tpred (r t , s t+1 , d t+1 ) , where d t+1 ∼ M θ p pred (s t+1 ) .</formula><p>Note that we do not explicitly sample a t+1 from the policy, but implicitly via the language successor model that is conditioned on the policy.</p><p>Language evaluator. The evaluations by E, which ultimately become the outputs of the natural language critic that estimate Q θ L (s t , a t ) can similarly be derived by fitting multiple generated futures d</p><formula xml:id="formula_13">(1) t , . . . d (k) t</formula><p>in-context within an evaluation prompt p eval that asks the LLM to aggregate the futures and summarize into an overall evaluation of an action as</p><formula xml:id="formula_14">Q θ L (s t , a t ) ∼ M θ (p eval (d<label>(1)</label></formula><p>t , . . . , d</p><p>t )). Refinement policy. Finally, the refinement policy π r can also be obtained by an LLM instructed to refine its latest action given an evaluation similar to prior self-refinement approaches <ref type="bibr" target="#b17">[Madaan et al., 2023]</ref>. The refined action is obtained via prompt p refine as a r t ∼ M θ p refine (s t , a 1 t , . . . , Q θ L (s t , a m t )) .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Training Algorithm</head><p>Formally, the parameters θ are trained using two objectives for policy evaluation and improvement. For policy evaluation, for a transition (s t , a t , s t+1 ), the natural language critic is trained using cross entropy component of the objective:</p><formula xml:id="formula_16">L 1 (s t , a t , s t+1 ) = D KL (B L Mθ(• | s t , a t ) ∥ M θ (• | s t , a t )) .</formula><p>where θ are reference parameters that are an exponentially moving average of the trained parameters, in order to prevent generative collapse <ref type="bibr" target="#b28">[Shumailov et al., 2024]</ref>. We choose the reverse direction of KL-divergence to capture the full diversity over possible futures. Then, for policy improvement, we train the policy on the log-likelihood loss:</p><formula xml:id="formula_17">L 2 (s t , k) = -log π θ (a r t | s t ), a t ∼ π θ (• | s t ), a r t ∼ π r θ (• | . . . , Q θ L (s t , a t ))</formula><p>. This objective can be interpreted as distillation, but using generations by the refinement policy as the teacher policy. Note that the loss depends on k via Q θ L (s t , a t ) given by Equation <ref type="formula" target="#formula_5">3</ref>. We provide pseudocode for NLAC in Appendix A. Note that by default, our refinement policy relies on the base reasoning capabilities of the pretrained LLM. In Appendix D.5, we discuss how the refinement policy can be explicitly trained. We also discuss effective methods for mitigating catastrophic forgetting to enable training over longer timescales in Appendix D.6.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>To demonstrate the effectiveness of NLAC, we evaluate our method on a variety of LLM agent tasks: mathematical reasoning <ref type="bibr" target="#b8">[Hendrycks et al., 2021]</ref>, strategic dialogue <ref type="bibr" target="#b18">[Pu, 2023]</ref>, and customer service using mixed dialogue and tool-use <ref type="bibr" target="#b38">[Yao et al., 2024]</ref>. Though mathematical reasoning does not involve interaction with an environment, it is currently the most popular benchmark to evaluate different RL fine-tuning algorithms. To make comparisons fair, each of the fine-tuning methods train for 30, 720 gradient steps in batches of size 1, 024, and we average performance across three independent runs. Across the board, NLAC outperforms other RL methods for both small-and medium-sized LLMs, and even beats frontier models on long-horizon tasks. Note that because mathematical reasoning is a single-step task, we have to adapt the language generative model to only predict reward.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Task Descriptions</head><p>Mathematical reasoning. We evaluate on mathematical problem-solving using the MATH dataset <ref type="bibr" target="#b8">[Hendrycks et al., 2021]</ref>, which consists of different competition math problems of varying level of difficulty. A score of 1 is achieved if the agent solves the problem and outputs an answer that is correct and properly formatted. We evaluate on a subset of 500 problems from the test dataset of the highest difficulty level, which we call MATH500-Hard. The remaining 12, 000 problems are used as the training set for RL fine-tuning.</p><p>Dialogue game. We use the popular game of 20 Questions (20Q) as a representative strategic dialogue task, where the LLM agent acts as the guesser to uncover the hidden word by an oracle. 20Q was chosen because it was non-adversarial (so we can evaluate against a fixed LLM as the oracle), and requires the LLM agent to generate a cohesive sequence of actions over multiple steps. Though many implementations exist <ref type="bibr" target="#b30">[Srivastava et al., 2023</ref><ref type="bibr" target="#b0">, Abdulhai et al., 2023]</ref>, we follow the one by <ref type="bibr" target="#b18">Pu [2023]</ref> where the set of hidden words can be any in a set of 1, 823 objects from the THINGS dataset <ref type="bibr" target="#b7">[Hebart et al., 2019]</ref>. A reward of 1 is achieved if the guesser correctly identifies the hidden object within 20 turns, or questions, where correctness if determined by using the oracle LLM as a judge. We use GPT5 <ref type="bibr">[Singh et al., 2025]</ref> as the oracle. We construct a training set of 1, 000 objects and a test set of 500 different objects through random sampling.</p><p>Customer service. We consider τ -bench as a representative LLM agent task that requires a mixture of dialogue and tool-use to solve <ref type="bibr" target="#b38">[Yao et al., 2024]</ref>. The LLM agent must act as a customer service representative in various scenarios such as modifying items in an user's order, and follow a rigid set of policy guidelines. At every step, the LLM agent can either communicate with the user, or make an API call that interacts with a backend database. At the end, the agent receives a score of 1 if the database entries match ground-truth values, and the agent did not violate any policy guidelines via their actions. Users are simulated using a GPT5 <ref type="bibr">[Singh et al., 2025]</ref> model prompted with both an initial request (such as modifying or cancelling an order) as well an identity that can be verified using the database. There are two categories of scenarios: (1) in retail, the LLM agent must modify pending orders of items, return or exchange delivered orders, or update user information, and (2) in airline, the LLM agent must book, modify, or cancel flight reservations. To test generalization, we compile a training dataset of 2, 500 user scenarios in the retail category, and evaluate on a test set of 500 different retail scenarios, as well as 500 airline scenarios.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Results</head><p>We compare NLAC with k = 1 and m = 1 against both prompting and fine-tuning baselines. We found those settings of hyperparameters was sufficient to achieve good performance, though more stochastic environments may warrant higher k. For baselines that involve fine-tuning, we consider two LLMs: Qwen2.5-7B-Instruct <ref type="bibr" target="#b36">[Yang et al., 2024]</ref>, and QwQ-32B <ref type="bibr" target="#b32">[Team, 2025]</ref>, which is also trained on reasoning traces. We choose these two LLMs to measure the effect of increasing size and pre-training on reasoning traces on the performance of the RL methods. Our baselines can be categorized into the following (training details can be found in Appendix D.4):</p><p>Prompting. We perform ReAct prompting <ref type="bibr" target="#b37">[Yao et al., 2022]</ref> of a state-of-the-art frontier model GPT5 <ref type="bibr">[OpenAI et al., 2024]</ref>. Because such models do not expose weights for RL fine-tuning, we rely on the zero-shot capabilities of the LLM without any additional training on the tasks.</p><p>Rejection fine-tuning. We perform RFT where at every iteration, the base LLM policy collects a set of on-policy rollouts, of which successful ones are used to train the LLM via SFT.</p><p>Traditional RL. The most standard way to perform RL fine-tuning is to train the LLM to optimize score using a policy gradient algorithm on on-policy rollouts. We consider both PPO <ref type="bibr" target="#b23">[Schulman et al., 2017]</ref> and GRPO <ref type="bibr" target="#b25">[Shao et al., 2024]</ref> as the algorithm, the difference being that PPO additionally learns a token-level value function on Monte-Carlo rollouts as a baseline to stabilize reward, whereas GRPO computes the average reward across 8 different rollouts.</p><p>RL with textual feedback. We consider recently proposed algorithms that leverage rich feedback in text space. Since we do not assume any ground-truth privileged information, the feedback simply consists of 4 independent, on-policy rollouts. First, we compare against a variation of SDPO <ref type="bibr" target="#b10">[Hubotter et al., 2026]</ref> that we call Self-Distill, where the rollouts are directly fed to the refinement policy in-context, similar to as in <ref type="bibr" target="#b27">Shinn et al. [2023]</ref>. Finally, we also compare against NLRL <ref type="bibr" target="#b5">[Feng et al., 2025]</ref>. NLRL additionally aggregates these rollouts to generate a summary evaluation as value without any training, then enumerates over multiple actions and distills the action with highest value. Note that these approaches require 5× more rollouts per gradient step.</p><p>Ablations. The main algorithmic contributions of NLAC involve learning a language successor function to tractably extract values in language space, then distilling from a refinement policy that conditions on the learned values. Self-Distillation and NLRL already act as ablations that directly sample additional on-policy rollouts instead of learning a successor function. As another ablation, we compare against NLQL (Q-learning), where instead of distilling from a refinement policy, we sample actions and distill the one that achieves the highest value. NLQL can also be considered an instance of NLRL due also employing value learning in language space. Together, these comparisons isolate each component of NLAC: Self-Distill replaces critiques with raw environment feedback, NLRL replaces the trained critic with critiques generated by aggregating rollouts in-context, and NLRL and NLQL replace the refinement policy with sampling several actions from the base policy and distilling the best one. Results. The results of our evaluation are presented in Table <ref type="table" target="#tab_0">1</ref>. We see that for both LLM models, NLAC outperforms other fine-tuning approaches, and even prompting of a significantly stronger LLM, particularly on longhorizon tasks. The only task where NLAC does not outperform other methods is mathematical reasoning, which is a single-step task, in which NLAC reduces to performing self-distillation using a generative reward model <ref type="bibr" target="#b17">[Madaan et al., 2023]</ref>; this is because in singlestep tasks, our natural language critic is only trained to predict reward. Though math involves many internal reasoning steps, only one action is taken in the environment, so the critic cannot provide action-level credit assignment, and NLAC behaves like self-refinement methods such as STaR <ref type="bibr" target="#b40">[Zelikman et al., 2022]</ref>. Meanwhile, on tasks requiring multi-step interaction, which our method is tailored for, NLAC greatly outperforms all baselines, achieving a 30% improvement in 20Q and τ -retail over standard RL fine-tuning. Even when compared against methods that leverage additional on-policy samples, NLAC performed noticeably better, particularly on τ -bench, which is the most difficult task we train on. Overall, this serves as evidence that NLAC is more suitable to complex tasks. Additional qualitative examples demonstrating this are provided in Appendix B. Furthermore, as shown in Figure <ref type="figure" target="#fig_2">2</ref>, NLAC also requires fewer training iterations to achieve maximum performance.</p><p>We evaluate two versions of NLAC-online and replay. In the online version, we adopt the typical RLVR setting where on-policy samples are generated for each train-step and not reused. This is the setting all other methods are implemented in. Since our method can also work in the off-policy regime, in the replay version, we preserve training samples in a replay buffer and use an equal mix of fresh on-policy samples and stale ones from the buffer for each training batch. This means the replay version requires 2× fewer samples than other approaches. The fact that replay performs on par with online demonstrates a compelling advantage of NLAC, as most RLVR training pipelines are bottlenecked by the generation of training samples. This efficiency gain is even further boosted by the fact that many existing RL algorithms reject groups of rollouts containing too much negative signal. Since our method can learn equally well from negative samples, we actually require up to 9× fewer samples than methods as GRPO and PPO for the same number of gradient steps when training on τ -bench, where a vast majority of trajectories initially are failing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Further Analysis</head><p>Beyond final task performance, we evaluate the learned critic in isolation. Because there are no ground-truth critiques, we convert each critique into a scalar by asking a separate LLM to predict the probability of success, and measure the explained variance (EV) of observed returns. On τ -bench with QwQ-32B as the base model, we compare an untrained language critic obtained by prompting, the NLAC critic trained on 1, 280 retail trajectories, and an action-level scalar Q-function trained by Monte-Carlo (MC) regression on rewards from the same trajectories. As shown in Table <ref type="table" target="#tab_1">2</ref>, training with our language Bellman backup nearly doubles EV over the untrained critic, both on the retail scenarios it was trained on and on unseen airline scenarios, indicating that textual bootstrapping preserves useful value information. The scalar critic achieves higher EV, but it is trained to optimize exactly this objective, whereas our critic is trained in text space. The purpose of a textual critic is a richer signal for policy improvement, and the comparison to NLQL in Table <ref type="table" target="#tab_0">1</ref> shows that it leads to a better policy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>In this paper, we propose NLAC, a new actor-critic algorithm for training LLM agents under the paradigm of learning values in natural language space. In our work, the natural language values not only comment on the optimality of an action, but also articulate why by predicting and analyzing future outcomes. The key innovation we propose to enable this is a novel language Bellman backup that trains language successor function to generate summaries of future rollouts using only one-step samples obtained off-policy. Then, an LLM policy can be improved by refining its own suboptimal actions. Empirically, we show that NLAC greatly outperforms other prompting and fine-tuning baselines on long-horizon tasks involving dialogue and tool-use. One apparent limitation of our approach is the reliance on the base LLM's ability to both generate plausible futures and refine its own actions through carefully tuned prompts, which can break when tasks become prohibitively complex. An important direction for future research is the removal of this dependency, potentially by adding the ability to decompose complex tasks hierarchically into manageable components. While our policy improvement approach can be considered an instance of self-distillation, we explicitly train a critic to provide the necessary textual feedback, rather than relying on ground-truth information.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Pseudocode</head><p>Algorithm 1 Natural Language Actor-Critic (NLAC) for each environment step do Sample action a t ∼ π θ (• | s t ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>5:</head><p>Step the environment: s t+1 ∼ P (• | s t , a t ) and observe reward r t .</p><p>6:</p><p>Add (s t , a t , r t , s t+1 ) to replay buffer D.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>7:</head><p>end for 8:</p><p>for each sampled transition (s t , a t , r t , s t+1 ) ∼ D do 9:</p><p>Sample bootstrapped future d t+1 ∼ Mθ(• | s t+1 , a t+1 ).</p><p>10:</p><p>Form target description distribution 11:</p><formula xml:id="formula_18">B L Mθ(• | s t , a t ) = Mθ p tpred (r t , s t+1 , d t+1 ) .</formula><p>12:</p><p>Compute critic loss 13:</p><formula xml:id="formula_19">L 1 = D KL (B L Mθ(• | s t , a t ) ∥ M θ (• | s t , a t )).</formula><p>14:</p><p>Sample evaluation Q θ L (s t , a t ) from p eval using k futures.</p><p>15:</p><p>Sample refined action a r t ∼ π r θ (• | s t , a t , Q θ L (s t , a t )).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>16:</head><p>Compute policy loss 17:</p><formula xml:id="formula_20">L 2 = -log π θ (a r t | s t ).</formula><p>18:</p><p>Update critic and policy parameters 19:</p><formula xml:id="formula_21">θ ← θ -λ 1 ∇ θ L 1 -λ 2 ∇ θ L 2 . 20:</formula><p>Update target parameters θ ← τ θ + (1 -τ ) θ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>21:</head><p>end for 22: end for</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Qualitative Examples</head><p>In this section, we provide qualitative examples from mathematical reasoning, 20Q, and τ -bench that illustrate how the natural language critic supports policy improvement. In the mathematical reasoning example, the critic acts like a process reward model (PRM) that pinpoints an incorrect intermediate step, enabling the refinement policy to repair a subtle mistake in a long reasoning chain. In the 20Q example, the critic explicitly encourages exploration of more informative discriminators. In the τ -bench example, the agent partially resolves a request in a way that would violate policy constraints; here, the critic identifies the exact guideline at risk and gives feedback that the LLM can directly use to revise its action.  LLM agent has narrowed down the object to a non-red fruit found in salads, but proceeds to search over the color. However, color is often not the most defining characteristic, so it is more optimal to search over other discriminators such as taste or size.</p><p>Figure <ref type="figure">5</ref>: Sample timestep on τ -bench where a base LLM agent fails by modifying the database (which can only be done once according to the guidelines) when more exchanges are likely needed. The natural language critic correctly identifies why the action is suboptimal, and explains it in language so that the same LLM can process the critique and correct its action.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Theoretical Analysis</head><p>The goal of this section is to show that policy iteration using our proposed NLAC method converges to the optimal policy. For traditional actor-critic algorithms, this involves showing (1) convergence of learned Q-values via the Bellman backup, and (2) monotonic improvement of the trained policy. However, such analysis does not apply because the Q-values we learn are textual rather than scalar.</p><p>Instead of analyzing the textual values, we consider the underlying representations that the LLM decodes in order to generate such values. First, we define ϕ(s) ∈ R d as features extracted from any state s. We assume the following: Assumption C.1. The expected reward r(s, a) for any state s and action a can be linearly represented by the features as r(s, a) = ϕ(s) • w for some fixed w ∈ R d .</p><p>Next, we define representations Φ π (s, a) ∈ R d such that we can write the output of our language successor model as</p><formula xml:id="formula_22">M π (•|s, a) = f M (Φ π (s, a)), and similarly Q π L (s, a) = f Q (Φ π (s, a)</formula><p>), for some functions f M , f Q denoting decoding by the LLM. We make the following assumption about the effect of our proposed language Bellman backup on such representations: Assumption C.2. For any state s and action a , the language Bellman backup satisfies</p><formula xml:id="formula_23">B L M π (•|s, a) = f M (ϕ(s) + γE s ′ ,a ′ ∼P π Φ π (s ′ , a ′ )) .</formula><p>While this may initially seem like a strong assumption, note that our language Bellman backup is already instructed to combine the immediate observation with the future description in language space; the assumption only states that the combination also corresponds to a discounted sum in the representation space. Using the above two assumptions, our first main result is the following: Theorem C.3. Consider policy evaluation via Equation 2 and let Q π L be the natural language critic at convergence. For any state s and action a, there exists monotonic mapping g such that</p><formula xml:id="formula_24">Q π (s, a) = g(Q π L (s, a))</formula><p>, where Q π denotes the true scalar Q-function.</p><p>Our main result makes a precise connection between our learned critic and the true Q-function. The crux of our proof involves showing that our training objective results in a fixed point where Φ π (s, a) are successor features of the underlying MDP <ref type="bibr" target="#b2">[Barreto et al., 2017]</ref>.</p><p>During policy improvement, we update the policy towards a refinement policy π r . By definition, the refinement policy is an oracle that for any state s and action a, generates a r such that Q L (s, a r ) ≥ Q L (s, a). Combining this with the result of Theorem C.3, we arrive at our second main result: Theorem C.4. Repeated application of policy evaluation via Equation 2 and policy improvement via Equation 5 from a policy π 0 converges to policy π * such that Q π * (s, a) ≥ Q π (s, a) for any state s and action a, and other policy π.</p><p>Hence, we are able to show that under the aforementioned assumptions, our approach NLAC can provably find the optimal policy for an underlying MDP.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Proof of Theorem C.3</head><p>The crux of our proof is establishing that the learned representations Φ π (s, a) converges to the true successor features Ψ π (s, a), and then using properties of successor features to link to the scalar Q-function Q π . Let R be the metric space of R d with the ℓ ∞ norm. As shorthand, we also define the iterative operator</p><formula xml:id="formula_25">T π Φ Φ π (s, a) = ϕ(s) + γE s ′ ,a ′ ∼P π Φ π (s ′ , a ′</formula><p>). First, we verify that T π Φ is a γ-contraction mapping on R. For any two functions Φ 1 , Φ 2 , we have:</p><formula xml:id="formula_26">∥T π Φ Φ 1 -T π Φ Φ 2 ∥ ∞ = sup s,a ∥T π Φ Φ 1 (s, a) -T π Φ Φ 2 (s, a)∥ ∞ = sup s,a ∥(ϕ(s) + γE[Φ 1 (s ′ , a ′ )]) -(ϕ(s) + γE[Φ 2 (s ′ , a ′ )])∥ ∞ = γ sup s,a ∥E P π [Φ 1 (s ′ , a ′ ) -Φ 2 (s ′ , a ′ )]∥ ∞ ≤ γ sup s,a E P π [∥Φ 1 (s ′ , a ′ ) -Φ 2 (s ′ , a ′ )∥ ∞ ] ≤ γ∥Φ 1 -Φ 2 ∥ ∞ .</formula><p>Since T π Φ is contraction, the Banach Fixed-Point Theorem with Assumption C.2 guarantees that minimization of our training objective in Equation 2 results in the unique fixed point</p><formula xml:id="formula_27">Φ π (s, a) = ϕ(s) + γE s ′ ,a ′ ∼P π Φ π (s ′ , a ′ ) ,</formula><p>which are exatly the successor features by definition.</p><p>Next, we want to establish a monotonic mapping from representations Φ π (s, a) to true Q-values</p><formula xml:id="formula_28">Q π (s, a). The true Q-function is defined as Q π (s t , a t ) = E π [ ∞ τ =t γ τ -t r(s τ , a τ )].</formula><p>Using Assumption C.1, and substituting the fixed-point result from earlier, we have:</p><formula xml:id="formula_29">Q π (s, a) = E π ∞ τ =t γ τ -t (ϕ(s τ ) • w) = E π ∞ τ =t γ τ -t ϕ(s τ ) • w = Φ π (s, a) • w .</formula><p>Since the natural language values at convergence are given by</p><formula xml:id="formula_30">Q π L (s, a) = f Q (Φ π (s, a)), the monotonic mapping g is defined by g(Q π L (s, a)) = f -1 Q (Q π L (s, a)) • w.</formula><p>C.2 Proof of Theorem C.4</p><p>First, we show monotonic policy improvement in each iteration of our algorithm. Recall that the refinement policy π r is defined as the oracle that generates a r such that <ref type="bibr">a)</ref>. By Theorem C.3, a monotonic mapping g exists between Q π L and Q π , and ensures that the ordering established in the language space holds in the true scalar space: <ref type="bibr">a)</ref> . Note that the policy improvement objective in Equation <ref type="formula" target="#formula_9">5</ref>updates π to π ′ , which is an approximation of the refinement policy π r . By definition of refinement policy, this guarantees that the new policy π ′ is monotonically better than π in terms of expected return: Q π ′ (s, a) ≥ Q π (s, a) for all s, a.</p><formula xml:id="formula_31">Q π L (s, a r ) ≥ Q π L (s,</formula><formula xml:id="formula_32">Q π L (s, a r ) ≥ Q π L (s, a) =⇒ Q π (s, a r ) ≥ Q π (s,</formula><p>Next, we want to show convergence to optimal policy π * . This naturally follows from the fact that in a finite MDP, policy iteration that guarantees monotonic improvement at every step must converge to the unique optimal policy π * in a finite number of iterations. Hence, at convergence, the policy satisfies Q π * (s, a) ≥ Q π (s, a) for all other policy π.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Implementation Details</head><p>In this section, we provide details of implementation of NLAC across the various benchmarks we evaluate. Details include the prompts used to mimic the different components of our algorithm, as well as hyperparameters configured during RL training.</p><p>Recall from Section 5 that our algorithm consists of the following novel components:</p><p>(1) language successor model: probabilistically generates a text prediction of what will happen to policy π after taking an action. (2) language Bellman backup: uses one-step sample of the immediate next state to also probabilistically generate a target text prediction of the future after taking an action. ( <ref type="formula" target="#formula_5">3</ref>) language evaluator: processes textual futures to generate a critique of an action, commenting on optimality and an explanation why by referencing potential future outcomes. ( <ref type="formula">4</ref>) refinement policy: uses the critique of an action to propose an improved action.</p><p>In practice, since number of futures is k = 1 in our experiments, we combine the successor model and evaluator into one generation by the language critic.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1 Language Critic Implementation</head><p>The language critic is implemented by prompting the base LLM with instruction p eval (s t , a t ). In the τ -bench benchmark, this is done by appending the following prompt to the history of messages comprising s t and a t :</p><p>Evaluate your last action, first predicting one possible future and then comment on whether or not your action was optimal, and if not, how it can be improved. Output should be exactly in the format: Future: &lt;Predict one possible scenario of what will happen next, up to whether or not you succeed at the long-term task. Be concise and keep to a few sentences at most.&gt; Optimality: &lt;"Yes" or "No". If "No", explain how it can be improved in one sentence using the predicted future to justify your explanation.&gt; Do not generate anything after the evaluation.</p><p>For a single-step task such as mathematical reasoning, the appended prompt is instead:</p><p>For your attempted solution, please perform the following evaluation and output the result exactly in the format: Correctness: &lt;"Yes or No". If "No", identify where any errors occurred. Remember the solution could be incorrect simply because the answer is not formatted correctly with the answer in the format \boxed{answer}.&gt;</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Language Bellman Backup Implementation</head><p>The language Bellman backup is also implemented by prompting the base LLM with instruction p eval (s t , a t , s t+1 ). This is done by first appending the following prompt to the history of messages comprising s t and a t to get a bootstrapped future prediction:</p><p>The response to your latest action is (could be a tool API output or text utterance from the customer): {next observation} From this state, describe one possible scenario of what will happen next, up to whether or not you succeed at the long-term task. Be concise and keep to a few sentences at most.</p><p>Then, the target evaluation is obtained by appending the following prompt afterwards Evaluate your latest action. Remember your output should be in exactly the following format: Future: &lt;Combine the observed response to your latest action with the predicted future from there, up to whether or not you succeed at the long-term task.&gt; Optimality: &lt;"Yes" or "No". If "No", explain how it can be improved in one sentence using the predicted future to justify your explanation.&gt; Notes: 1. Do not call tools in the evaluation. They will be **ignored**. 2. If the action is optimal, just say "Yes" after the "Optimality:" tag and do not explain why. 3. Do not generate anything after the evaluation.</p><p>Another important detail when training reasoning models (that output chain-of-thought thinking by default before every generation) is that its chain-of-thought output will reference the next state s t . This makes it an unsuitable training target because it references information not provided to the critic. Hence, we add an additional postprocessing step to generate a corrected chain-of-though thinking that removes references to such ground-truth information:</p><p>In the above evaluation, the chain-of-thought thinking between &lt;think&gt;and &lt;\think&gt;tags likely referenced the response to your action and future, or the final score if provided.</p><p>Fix the chain-of-thought thinking so that it does not refer to those quantities as a reference, but rather infers them. So instead of saying an event will happen in the future, or that the final score is 0, say that you believe it will happen.</p><p>Your corrected chain-of-thought should be similar to the original in style and prose, but simply remove references to future or the final score as ground-truth information, and instead reason about how you might be able to infer future events from only the observations thus far, up to your latest action. Your output should be in to format: &lt;corrected_think&gt;Revised chain-of-thought thinking goes here...&lt;\corrected_think&gt; It is important that you enclose the corrected chain-of-thought thinking between &lt;corrected_think&gt;and &lt;\corrected_think&gt;tags, as your response will get automatically parsed by a computer. The part after the chain-of-thought thinking should be the evaluation exactly in the format described earlier.</p><p>There should be exactly one &lt;corrected_think&gt;...&lt;\corrected_think&gt;block in your response. Do not include any &lt;think&gt;or &lt;\think&gt;tags within this block. Do not generate anything after the &lt;\corrected_think&gt;tag.</p><p>Then, we extract the corrected chain-of-thought thinking from the output and co-opt the original chain-of-thought-thinking in the target evaluation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3 Refinement Policy Implementation</head><p>The refinement policy is implemented by appending an additional prompt after Q π L (s t , a t ) that is the output of the language critic: Use the evaluation of the latest action to assess whether the latest action was optimal, and generate a revised action that fixes any problems with the latest action (can simply copy latest action if it is optimal). Output should be exactly in the format: Thought: &lt;A single line of reasoning to process the context and inform the decision making. Do not include extra lines.&gt; Action: {"name": &lt;Name of action&gt;, "arguments": &lt;Arguments to the action in json format&gt;} Note that you are outputting an action that will replace the latest one. Do not output an action that is meant to come afterwards.</p><p>Do not reference the previous action or its evaluation.</p><p>Again, for LLM policies that are reasoning models, we must correct the chain-of-thought thinking that will likely reference the critique (which is not seen by the base policy). We append the following postprocessing prompt afterwards:</p><p>In the above revised action, the chain-of-thought thinking likely used the previous action and its evaluation to guide your thinking.</p><p>I want you to fix the chain-of-thought thinking so that it does not use the previous action and its evaluation as reference, but rather infers those quantites. So instead of referring to an action and its evaluation, say that if this action was chosen, then you believe the following evaluation would happen.</p><p>Your revised chain-of-thought should be similar to the original in style and prose, but motivate the revised action directly from just the last observed tool or customer response, as if the revised action were your first attempt. Your output should be in to format: &lt;corrected_think&gt;Revised chain-of-thought thinking goes here...&lt;\corrected_think&gt; It is important that you enclose the corrected chain-of-thought thinking between &lt;corrected_think&gt;and &lt;\corrected_think&gt;tags, as your response will get automatically parsed by a computer. The part after the chain-of-thought thinking should be the evaluation exactly in the format described earlier.</p><p>There should be exactly one &lt;corrected_think&gt;...&lt;\corrected_think&gt;block in your response. Do not include any &lt;think&gt;or &lt;\think&gt;tags within this block. Do not generate anything after the &lt;\corrected_think&gt;tag.</p><p>Like before, we parse the corrected chain-of-thought thinking and replace the original thinking in the output of the refinement policy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.4 Training Details</head><p>Our fine-tuning baselines were implemented using the Volcano Engine Reinforcement Learning (verl) library <ref type="bibr" target="#b26">[Sheng et al., 2024]</ref>. We train on 8 H20 GPU nodes, resulting in 64 GPUs total, for a total of 30, 720 gradient steps. Training took &lt; 48 hours for each benchmark. We used the following hyperparameter configuration for each benchmark, after some minimal amount of tuning: In practice, we found it helpful to implement a prioritized replay buffer weighted by L 1 (s t , a t , s t+1 ) with sampling parameter α <ref type="bibr" target="#b21">[Schaul et al., 2016]</ref>. This is because in many tasks, though a base LLM policy may achieve low reward in a large proportion of rollouts, many actions in these unsuccessful rollouts are still optimal. Therefore, to improve learning efficiency, we prioritize training on samples where the agent is likely to take a suboptimal action, using critic loss as a proxy for the likelihood.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.5 Training the Refinement Policy</head><p>Currently, our method relies on base reasoning capabilities for the refinement policy to generate a r t ∼ π r θ (•|s t , a t , Q θ L (s t , a t )) such that Q θ L (s t , a r t ) ≥ Q θ L (s t , a t ). In situations where pretrained LLMs cannot refine actions through in-context learning, we describe how to explicitly train the refinement policy.</p><p>To train the refinement policy, we adopt a similar approach as <ref type="bibr" target="#b12">Kumar et al. [2024]</ref> did to train policies to self-correct, but generalized to multi-step MDPs. Namely, for some on-policy sample s t , a t , a r t from the refinement policy, we additionally train on the loss: L r (s t , a t , a r t ) = -log π θ (a r t | s t ) A π r θ (s t , a r t ) + α A π r θ (s t , a r t ) -A π θ (s t , a t ) .</p><p>Here, A is the estimated advantage function, which is either learned (as in PPO), or obtained from averaging (as in GRPO), using Monte-Carlo rewards. We also include a bonus that is the improvement in advantage of refined a r t over base a t , where α &gt; 0 is a tunable parameter. Our findings indicated that this approach resulted in only marginal performance gains compared to the simpler, implicit distillation method already employed by NLAC. Furthermore, the explicit RL objective substantially increased training cost, requiring on-policy samples. Therefore, in the experiments we consider, we do not employ such training. However, in more complex tasks, this may be necessary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.6 Mitigating Catastrophic Forgetting</head><p>Several components of our method, such as the language Bellman backup and refinement policy, are never explicitly trained but merely prompted to behave according to instruction. However, a key challenge that arises is as our LLM model is trained, it becomes increasingly less competent at following such instructions. We eventually observe catastrophic forgetting across all our training runs, resulting in the score during training collapsing to 0.</p><p>In our experiments, we choose to stop training before catastrophic forgetting became a noticeable issue. However, we also considered methods to minimize forgetting, notably by incorporating learning without forgetting into our training objective <ref type="bibr" target="#b14">[Li and Hoiem, 2016]</ref>. The way we do so is by introducing auxiliary loss functions that penalizes divergence from the initial, pre-trained LLM. We introduce two additional losses for the language Bellman backup and refinement policy, respectively: Ultimately, we found that such objectives were able to prevent collapse, allowing our LLM model to be trained for more iterations. However, training for more iterations did not prove significantly advantageous in improving final performance. Therefore, we did not include such objectives in our default algorithm.</p><formula xml:id="formula_34">L lwf,</formula></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>. Rather than linear search over plant types, the guesser should aim to divide the plant kingdom more broadly. trained to produce the refined action directly, distilling the critic's feedback.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Overview of NLAC. During policy evaluation, the critic is trained using a language Bellman backup</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Learning curves for NLAC and PPO across three independent runs. NLAC converges in fewer samples.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Sample timestep on mathematical reasoning. Our learned critic acts as a process reward model, identifying incorrect steps in long reasoning traces. This enables the refinement policy to correct hard-to-find mistakes in just one refinement.</figDesc><graphic coords="19,108.00,213.56,395.98,237.59" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Sample timestep on 20Q, where the LLM agent attempts to guess the hidden object "raisin." The base</figDesc><graphic coords="19,108.00,487.92,396.00,198.31" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="20,108.00,72.00,396.01,197.51" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Performance on evaluation set of each benchmark.</figDesc><table><row><cell>MATH500-Hard</cell><cell>20Q</cell><cell>τ -Bench</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>EV</figDesc><table><row><cell></cell><cell cols="2">τ -Bench EV ↑</cell></row><row><cell>Value estimator</cell><cell cols="2">Retail Airline</cell></row><row><cell cols="2">Scalar critic (MC) 0.41</cell><cell>0.28</cell></row><row><cell>Constant (mean)</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell>Untrained critic</cell><cell>0.18</cell><cell>0.14</cell></row><row><cell>NLAC (ours)</cell><cell>0.33</cell><cell>0.26</cell></row></table><note><p>of values extracted from each critic on 100 held-out trajectories.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>1 (s t , a t , r t , s t+1 ) = D KL (B L M θ (• | s t , a t ) || B L M init (• | s t , a t )) (7) L lwf,2 (s t , a t , Q L (s t , a t )) = D KL (π r</figDesc><table /><note><p>θ (• | s t , a t , Q L (s t , a t )) || π r init (• | s t , a t , Q L (s t , a t )))</p></note></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0" />			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Lmrl gym: Benchmarks for multi-turn reinforcement learning with language models</title>
+		<author>
+			<persName><forename type="first">Marwa</forename><surname>Abdulhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isadora</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Snell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joey</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuexiang</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">The pitfalls of next-token prediction</title>
+		<author>
+			<persName><forename type="first">Gregor</forename><surname>Bachmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vaishnavh</forename><surname>Nagarajan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Successor features for transfer in reinforcement learning</title>
+		<author>
+			<persName><forename type="first">André</forename><surname>Barreto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Will</forename><surname>Dabney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Munos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><forename type="middle">J</forename><surname>Hunt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Schaul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hado</forename><surname>Van Hasselt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">A distributional perspective on reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Will</forename><surname>Marc G Bellemare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Dabney</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Munos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Machine Learning</title>
+		<meeting>the 34th International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">70</biblScope>
+			<biblScope unit="page" from="449" to="458" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Grounding large language models in interactive environments with online reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Carta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clément</forename><surname>Romac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Lamprier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Sigaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre-Yves</forename><surname>Oudeyer</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2302.02662" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Natural language reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Xidong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyu</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><forename type="middle">A</forename><surname>Koushik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyue</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Wang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2411.14251" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Soft actor-critic: Off-policy maximum entropy deep reinforcement learning with a stochastic actor</title>
+		<author>
+			<persName><forename type="first">Tuomas</forename><surname>Haarnoja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurick</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pieter</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1801.01290</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Things: A database of 1,854 object concepts and more than 26,000 naturalistic object images</title>
+		<author>
+			<persName><forename type="first">Martin</forename><forename type="middle">N</forename><surname>Hebart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><forename type="middle">H</forename><surname>Dickter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Kidder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Kwok</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlotte</forename><surname>Corriveau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><forename type="middle">I</forename><surname>Van Wicklin</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Baker</surname></persName>
+		</author>
+		<idno type="DOI">https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0223792</idno>
+		<ptr target="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0223792" />
+	</analytic>
+	<monogr>
+		<title level="j">PLOS ONE</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Measuring mathematical problem solving with the math dataset</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Collin</forename><surname>Burns</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurav</forename><surname>Kadavath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akul</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Basart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Steinhardt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Zero-shot goal-directed dialogue via rl on imagined conversations</title>
+		<author>
+			<persName><forename type="first">Joey</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anca</forename><surname>Dragan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Reinforcement learning via self-distillation</title>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Hubotter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frederike</forename><surname>Lubeck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deen</forename><surname>Lejs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anton</forename><surname>Behric</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Baumann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Bagatella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Marta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Idan</forename><surname>Hakimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><forename type="middle">Kleine</forename><surname>Shenfeld</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Buening</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Guestrin</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Krause</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">SWE-bench: Can language models resolve real-world github issues?</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Karthik R Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=VTF8yNQM66" />
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Training language models to self-correct via reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishabh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">D</forename><surname>Co-Reyes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avi</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kate</forename><surname>Baumli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shariq</forename><surname>Iqbal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colton</forename><surname>Bishop</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rebecca</forename><surname>Roelofs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kay</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Disha</forename><surname>Mckinney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cosmin</forename><surname>Shrivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Paduraru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doina</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feryal</forename><surname>Precup</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Behbahani</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Faust</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2409.12917" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Q-probe: A lightweight approach to reward maximization for language models</title>
+		<author>
+			<persName><forename type="first">Kenneth</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samy</forename><surname>Jelassi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugh</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Kakade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Wattenberg</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Brandfonbrener</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning</title>
+		<meeting>the 41st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Learning without forgetting</title>
+		<author>
+			<persName><forename type="first">Zhizhong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Hoiem</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">European Conference on Computer Vision</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Let&apos;s verify step by step</title>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Hunter Lightman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yura</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harri</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teddy</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cobbe</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.20050" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Learning to model the world with language</title>
+		<author>
+			<persName><forename type="first">Jessy</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivia</forename><surname>Watkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danijar</forename><surname>Hafner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pieter</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anca</forename><surname>Dragan</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2308.01399" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Self-refine: Iterative refinement with self-feedback</title>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niket</forename><surname>Tandon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prakhar</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Skyler</forename><surname>Hallinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wiegreffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uri</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nouha</forename><surname>Dziri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shrimai</forename><surname>Prabhumoye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bodhisattwa</forename><surname>Prasad Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Hermann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sean</forename><surname>Welleck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Yazdanbakhsh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2303.17651" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Llm self-play on 20 questions</title>
+		<author>
+			<persName><forename type="first">Evan</forename><surname>Pu</surname></persName>
+		</author>
+		<ptr target="https://evanthebouncy.medium.com/llm-self-play-on-20-questions-dee" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page">63377</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Reinforced clarification question generation with defeasibility rewards for disambiguating social and moral situations</title>
+		<author>
+			<persName><forename type="first">Valentina</forename><surname>Pyatkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jena</forename><forename type="middle">D</forename><surname>Hwang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivek</forename><surname>Srikumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ximing</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liwei</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandra</forename><surname>Bhagavatula</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Is reinforcement learning (not) for natural language processing: Benchmarks, baselines, and building blocks for natural language policy optimization</title>
+		<author>
+			<persName><forename type="first">Rajkumar</forename><surname>Ramamurthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prithviraj</forename><surname>Ammanabrolu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kianté</forename><surname>Brantley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Hessel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rafet</forename><surname>Sifa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Bauckhage</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=8aHzds2uUyB" />
+	</analytic>
+	<monogr>
+		<title level="m">The Eleventh International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Schaul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Quan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioannis</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/1511.05952" />
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note>Prioritized experience replay</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2302.04761" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Filip</forename><surname>Wolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oleg</forename><surname>Klimov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.06347</idno>
+		<title level="m">Proximal policy optimization algorithms</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Rewarding progress: Scaling automated process verifiers for llm reasoning</title>
+		<author>
+			<persName><forename type="first">Amrith</forename><surname>Setlur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chirag</forename><surname>Nagpal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyang</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Eisenstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishabh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alekh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<biblScope unit="page">2025</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Deepseekmath: Pushing the limits of mathematical reasoning in open language models</title>
+		<author>
+			<persName><forename type="first">Zhihong</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runxin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">K</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Guo</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2402.03300" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Guangming</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zilingfeng</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xibin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ru</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanghua</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.19256</idno>
+		<title level="m">Hybridflow: A flexible and efficient rlhf framework</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Reflexion: Language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Berman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2303.11366" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Ai models collapse when trained on recursively generated data</title>
+		<author>
+			<persName><forename type="first">Ilia</forename><surname>Shumailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zakhar</forename><surname>Shumaylov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiren</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Papernot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ross</forename><surname>Anderson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<idno type="DOI">10.1038/s41586-024-07566-y</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<biblScope unit="volume">631</biblScope>
+			<biblScope unit="page" from="755" to="759" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">On the effectiveness of offline rl for dialogue response generation</title>
+		<author>
+			<persName><forename type="first">Aaditya</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Perelman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Tart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adi</forename><surname>Ganesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>El-Kishky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><surname>Mclaughlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aiden</forename><surname>Low</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akhila</forename><surname>Ostrow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akshay</forename><surname>Ananthram</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Nathan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksander</forename><surname>Helyar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandr</forename><surname>Madry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Efremov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Spyra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Baker-Whitcomb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Beutel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Karpenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Makelov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Neitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Barr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexey</forename><surname>Kirchmeyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexi</forename><surname>Ivanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alistair</forename><surname>Christakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Allison</forename><surname>Gillespie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ally</forename><surname>Tam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alvin</forename><surname>Bennett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alyssa</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><forename type="middle">Mcdonald</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Sandjideh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ananya</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andre</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Saraiva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><surname>Vallone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andres</forename><forename type="middle">Garcia</forename><surname>Gheorghe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Braunstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrey</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrey</forename><surname>Mereskin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Mishchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Applebaum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ann</forename><surname>Rogerson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Annie</forename><surname>Rajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anoop</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anubha</forename><surname>Kotha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anushree</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arun</forename><surname>Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashley</forename><surname>Vijayvergiya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashvin</forename><surname>Tyra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avi</forename><surname>Nair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Nayak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bessie</forename><surname>Eggers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beth</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Hoover</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blair</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boaz</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Borys</forename><surname>Barak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Botao</forename><surname>Minaiev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brad</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brandon</forename><surname>Lightcap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brandon</forename><surname>Mckinzie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brendan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Quinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Fioca</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brittany</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Callie</forename><forename type="middle">Riggins</forename><surname>Brenner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cameron</forename><surname>Zetino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Camillo</forename><surname>Raymond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carolina</forename><surname>Lugaresi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cary</forename><surname>Paz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cedric</forename><surname>Hudson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chak</forename><surname>Whitney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlotte</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Cole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengdu</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Colby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hallacy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Koch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christina</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kim ; Declan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Grabb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dibya</forename><surname>Salama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitris</forename><surname>Bhattacharjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paloma</forename><surname>Tsipras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Sodhi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><forename type="middle">R</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><forename type="middle">Q</forename><surname>Elenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Weinberger</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mcdonald</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 40th International Conference on Machine Learning</title>
+		<editor>
+			<persName><forename type="first">Cliff</forename><surname>Frey</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Cody</forename><surname>Yu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Coley</forename><surname>Czarnecki</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Colin</forename><surname>Reid</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Colin</forename><surname>Wei</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Cory</forename><surname>Decareaux</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Cristina</forename><surname>Scheau</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Cyril</forename><surname>Zhang</surname></persName>
+		</editor>
+		<meeting>the 40th International Conference on Machine Learning<address><addrLine>Cyrus Forbes, Da Tang, Dakota Goldberg, Dan Roberts, Dana Palmie, Daniel Kappler, Daniel Levine, Daniel Wright, Dave Leo, David Lin, David Robinson</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<author>
+			<persName><forename type="first">Aarohi</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Rastogi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abu</forename><surname>Awal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Md</forename><surname>Shoeb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abubakar</forename><surname>Abid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fisch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><forename type="middle">R</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Santoro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrià</forename><surname>Garriga-Alonso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Agnieszka</forename><surname>Kluska</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aitor</forename><surname>Lewkowycz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akshat</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alethea</forename><surname>Power</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Warstadt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><forename type="middle">W</forename><surname>Kocurek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Safaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Tazarv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alice</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alicia</forename><surname>Parrish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Allen</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Hussain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Dsouza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ambrose</forename><surname>Slone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ameet</forename><surname>Rahane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anantharaman</forename><forename type="middle">S</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anders</forename><surname>Andreassen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Santilli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Stuhlmüller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>La</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Lampinen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angelica</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anh</forename><surname>Vuong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Animesh</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Gottardi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Norelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anu</forename><surname>Venkatesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arash</forename><surname>Gholamidavoodi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arfa</forename><surname>Tabassum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arul</forename><surname>Menezes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arun</forename><surname>Kirubarajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asher</forename><surname>Mullokandov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Austin</forename><surname>Herrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avia</forename><surname>Efrat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aykut</forename><surname>Erdem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ayla</forename><surname>Karakaş</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">Ryan</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bao</forename><forename type="middle">Sheng</forename><surname>Loe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bartłomiej</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Batuhan</forename><surname>Özyurt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Behnam</forename><surname>Hedayatnia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Behnam</forename><surname>Neyshabur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Inden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benno</forename><surname>Stein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Berk</forename><surname>Ekmekci</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Yuchen Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Blake</forename><surname>Howald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Orinion</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cameron</forename><surname>Diao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cameron</forename><surname>Dour</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Catherine</forename><surname>Stinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cedrick</forename><surname>Argueta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">César</forename><surname>Ferri Ramírez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandan</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Rathkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenlin</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chitta</forename><surname>Baral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chiyu</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Waites</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><surname>Voigt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Potts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cindy</forename><surname>Ramirez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clara</forename><forename type="middle">E</forename><surname>Rivera</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemencia</forename><surname>Siro ; Dilyar Buzan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dimitri</forename><forename type="middle">Coelho</forename><surname>Mollo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong-Ho</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dylan</forename><surname>Schrader</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ekaterina</forename><surname>Shutova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ekin</forename><surname>Dogus Cubuk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elad</forename><surname>Segal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eleanor</forename><surname>Hagerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elizabeth</forename><surname>Barnes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elizabeth</forename><surname>Donoway</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellie</forename><surname>Pavlick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emanuele</forename><surname>Rodola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emma</forename><surname>Lam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erkut</forename><surname>Erdem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ernie</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><forename type="middle">A</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Dyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Jerzak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunice</forename><forename type="middle">Engefu</forename><surname>Manyasi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evgenii</forename><surname>Zheltonozhskii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanyue</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fatemeh</forename><surname>Siar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fernando</forename><surname>Martínez-Plumed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesca</forename><surname>Happé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francois</forename><surname>Chollet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frieda</forename><surname>Rong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gaurav</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Genta</forename><surname>Indra Winata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerard</forename><surname>De Melo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Germán</forename><surname>Kruszewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giambattista</forename><surname>Parascandolo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giorgio</forename><surname>Mariani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gloria</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gonzalo</forename><surname>Jaimovitch-López</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregor</forename><surname>Betz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Gur-Ari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hana</forename><surname>Galijasevic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannah</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannah</forename><surname>Rashkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Mehta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hayden</forename><surname>Bogar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henry</forename><surname>Shevlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hinrich</forename><surname>Schütze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hiromu</forename><surname>Yakura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugh</forename><forename type="middle">Mee</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isaac</forename><surname>Noble</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaap</forename><surname>Jumelet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Geissinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jackson</forename><surname>Kernion</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaehoon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaime</forename><forename type="middle">Fernández</forename><surname>Fisac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><forename type="middle">B</forename><surname>Simon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Koppel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Kocoń</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jana</forename><surname>Thompson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janelle</forename><surname>Wingfield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jarema</forename><surname>Radom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jascha</forename><surname>Sohl-Dickstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Phang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Yosinski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jekaterina</forename><surname>Novikova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jelle</forename><surname>Bosscher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennifer</forename><surname>Marsh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeremy</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeroen</forename><surname>Taal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Engel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesujoba</forename><surname>Alabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jillian</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joan</forename><surname>Waweru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Burden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">U</forename><surname>Balis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Batchelder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jörg</forename><surname>Frohberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jos</forename><surname>Rozen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jose</forename><surname>Hernandez-Orallo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Boudeman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Guerr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><forename type="middle">B</forename><surname>Tenenbaum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><forename type="middle">S</forename><surname>Rule</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joyce</forename><surname>Chua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kamil</forename><surname>Kanclerz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Livescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Krauth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Gopalakrishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katerina</forename><surname>Ignatyeva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katja</forename><surname>Markert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kaustubh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Dhole</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Gimpel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kory</forename><surname>Omondi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristen</forename><surname>Mathewson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ksenia</forename><surname>Chiafullo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kumar</forename><surname>Shkaruta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Shridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyle</forename><surname>Mcdonell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laria</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leo</forename><surname>Reynolds</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liam</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianhui</forename><surname>Dugan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lidia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Louis-Philippe</forename><surname>Contreras-Ochando</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Morency</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Moschella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucy</forename><surname>Lam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Noble</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luheng</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luis</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Oliveros Colón</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Metz ; Maheen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manaal</forename><surname>Farooqi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mantas</forename><surname>Faruqui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Mazeika</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Baturan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Marelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Maru</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jose Ramírez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie</forename><surname>Quintana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Tolkiehn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martha</forename><surname>Giulianelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><forename type="middle">L</forename><surname>Potthast</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Leavitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mátyás</forename><surname>Hagen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Medina</forename><surname>Schubert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melody</forename><surname>Orduna Baitemirova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melvin</forename><surname>Arnaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">A</forename><surname>Mcelrath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Yee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Ivanitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Starritt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michal</forename><surname>Strube</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Swędrowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michihiro</forename><surname>Bevilacqua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Yasunaga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mimee</forename><surname>Cain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirac</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mitch</forename><surname>Suzgun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mo</forename><surname>Walker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Tiwari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moin</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mor</forename><surname>Aminnaseri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mozhdeh</forename><surname>Geva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mukund</forename><surname>Gheini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Varma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nanyun</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><forename type="middle">A</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nayeon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neta</forename><surname>Gur-</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Krakover</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><surname>Niveditha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Iyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Constant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Fiedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nuan</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oliver</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Agha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Elbaghdadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Owain</forename><surname>Evans ; Yasaman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Bahri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichi</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiding</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifu</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Belinkov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufang</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuntao</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuoye</forename><surname>Seid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijian</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijie</forename><forename type="middle">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zirui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wu</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=uyTL5Bvosj" />
+	</analytic>
+	<monogr>
+		<title level="m">Lütfi Kerem Şenel, Maarten Bosma, Maarten Sap, Maartje ter Hoeve</title>
+		<editor>
+			<persName><forename type="first">Parth</forename><surname>Doshi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Pascale</forename><surname>Fung</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Paul</forename><forename type="middle">Pu</forename><surname>Liang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Paul</forename><surname>Vicol</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Pegah</forename><surname>Alipoormolabashi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Peiyuan</forename><surname>Liao</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Peter</forename><surname>Chang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Peter</forename><surname>Eckersley</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Mon</forename><surname>Phu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Pinyu</forename><surname>Htut</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Piotr</forename><surname>Hwang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Piyush</forename><surname>Miłkowski</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Pouya</forename><surname>Patil</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Priti</forename><surname>Pezeshkpour</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Qiaozhu</forename><surname>Oli</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Qing</forename><surname>Mei</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Qinlang</forename><surname>Lyu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rabin</forename><surname>Chen</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rachel</forename><forename type="middle">Etta</forename><surname>Banjade</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Raefer</forename><surname>Rudolph</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rahel</forename><surname>Gabriel</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ramon</forename><surname>Habacker</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Raphaël</forename><surname>Risco</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rhythm</forename><surname>Millière</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Richard</forename><surname>Garg</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rif</forename><forename type="middle">A</forename><surname>Barnes</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Riku</forename><surname>Saurous</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Robbe</forename><surname>Arakawa</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Robert</forename><surname>Raymaekers</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rohan</forename><surname>Frank</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Roman</forename><surname>Sikand</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Roman</forename><surname>Novak</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ronan</forename><surname>Sitelew</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rosanne</forename><surname>Lebras</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rowan</forename><surname>Liu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rui</forename><surname>Jacobs</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ruslan</forename><surname>Zhang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ryan</forename><surname>Salakhutdinov</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ryan</forename><surname>Chi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ryan</forename><surname>Lee</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ryan</forename><surname>Stovall</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rylan</forename><surname>Teehan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sahib</forename><surname>Yang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Saif</forename><forename type="middle">M</forename><surname>Singh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sajant</forename><surname>Mohammad</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sam</forename><surname>Anand</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sam</forename><surname>Dillavou</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sam</forename><surname>Shleifer</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Samuel</forename><surname>Wiseman</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Gruetter</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Samuel</forename><forename type="middle">S</forename><surname>Bowman</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sanghyun</forename><surname>Schoenholz</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sanjeev</forename><surname>Han</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sarah</forename><forename type="middle">A</forename><surname>Kwatra</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sarik</forename><surname>Rous</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sayan</forename><surname>Ghazarian</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sean</forename><surname>Ghosh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sebastian</forename><surname>Casey</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sebastian</forename><surname>Bischoff</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sebastian</forename><surname>Gehrmann</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sepideh</forename><surname>Schuster</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shadi</forename><surname>Sadeghi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sharon</forename><surname>Hamdan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shashank</forename><surname>Zhou</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sherry</forename><surname>Srivastava</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shikhar</forename><surname>Shi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shima</forename><surname>Singh</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Asaadi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shane</forename><surname>Shixiang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shubh</forename><surname>Gu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shubham</forename><surname>Pachchigar</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shyam</forename><surname>Toshniwal</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Upadhyay</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Shyamolima</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Siamak</forename><surname>Debnath</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Simon</forename><surname>Shakeri</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Simone</forename><surname>Thormeyer</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Siva</forename><surname>Melzi</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Reddy</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Priscilla</forename><surname>Sneha</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Soo-Hwan</forename><surname>Makini</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Spencer</forename><surname>Lee</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Sriharsha</forename><surname>Torene</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Stanislas</forename><surname>Hatwar</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Stefan</forename><surname>Dehaene</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Stefano</forename><surname>Divic</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Stella</forename><surname>Ermon</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Stephanie</forename><surname>Biderman</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Stephen</forename><surname>Lin</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Steven</forename><forename type="middle">T</forename><surname>Prasad</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Stuart</forename><forename type="middle">M</forename><surname>Piantadosi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Summer</forename><surname>Shieber</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Svetlana</forename><surname>Misherghi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Swaroop</forename><surname>Kiritchenko</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tal</forename><surname>Mishra</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tal</forename><surname>Linzen</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tao</forename><surname>Schuster</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tao</forename><surname>Li</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tariq</forename><surname>Yu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tatsu</forename><surname>Ali</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Te-Lin</forename><surname>Hashimoto</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Théo</forename><surname>Wu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Theodore</forename><surname>Desbordes</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Thomas</forename><surname>Rothschild</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tianle</forename><surname>Phan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tiberius</forename><surname>Wang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Timo</forename><surname>Nkinyili</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Timofei</forename><surname>Schick</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Titus</forename><surname>Kornev</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tobias</forename><surname>Tunduny</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Trenton</forename><surname>Gerstenberg</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Trishala</forename><surname>Chang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tushar</forename><surname>Neeraj</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tyler</forename><surname>Khot</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Uri</forename><surname>Shultz</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Vedant</forename><surname>Shaham</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Vera</forename><surname>Misra</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Victoria</forename><surname>Demberg</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Vikas</forename><surname>Nyamai</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Vinay</forename><surname>Raunak</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Ramasesh</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Uday</forename><surname>Vinay</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Vishakh</forename><surname>Prabhu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Vivek</forename><surname>Padmakumar</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">William</forename><surname>Srikumar</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">William</forename><surname>Fedus</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">William</forename><surname>Saunders</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Zhang</surname></persName>
+		</editor>
+		<meeting><address><addrLine>Nicholas Cameron, Nicholas Roberts, Nick Doiron, Nicole Martinez, Nikita Nangia, Niklas Deckers, Niklas Muennighoff; Pablo Antonio Moreno Casares</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note>Nitish Shirish Keskar</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning to summarize with human feedback</title>
+		<author>
+			<persName><forename type="first">Nisan</forename><surname>Stiennon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">F</forename><surname>Christiano</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="3008" to="3021" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Qwq-32b: Embracing the power of reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Qwen</forename><surname>Team</surname></persName>
+		</author>
+		<ptr target="https://qwenlm.github.io/blog/qwq-32b/" />
+		<imprint>
+			<date type="published" when="2025-03">March 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Voyager: An open-ended embodied agent with large language models</title>
+		<author>
+			<persName><forename type="first">Guanzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linxi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<idno>arXiv: Arxiv-2305.16291</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihong</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">X</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Damai</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deli</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhifang</forename><surname>Sui</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2312.08935" />
+		<title level="m">Math-shepherd: Verify and reinforce llms step-by-step without human annotations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengyuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianhong</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianxin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingren</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keming</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keqin</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingfeng</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runji</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tingyu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingzhang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuancheng</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqiong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenru</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.15115</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>and Zihan Qiu. Qwen2.5 technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pedram</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2406.12045" />
+		<title level="m">A benchmark for toolagent-user interaction in real-world domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Prompt-based monte-carlo tree search for goal-oriented dialogue policy planning</title>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maximillian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhou</forename><surname>Yu</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.13660" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">STaR: Bootstrapping reasoning with reasoning</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Zelikman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhuai</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Mu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">D</forename><surname>Goodman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Self-distilled reasoner: On-policy self-distillation for large language models</title>
+		<author>
+			<persName><forename type="first">Siyan</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihui</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengchen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guan</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feiyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Grover</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.18734</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Language agent tree search unifies reasoning acting and planning in language models</title>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michal</forename><surname>Shlapentokh-Rothman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haohan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Xiong</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning (ICML)</title>
+		<meeting>the 41st International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Training language model agents via hierarchical multi-turn rl</title>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Zanette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aviral</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Archer</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2402.19446" />
+	</analytic>
+	<monogr>
+		<title level="s">NeurIPS Paper Checklist</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title level="m" type="main">Yes] The paper states its main claims in the abstract and introduction, and revisits them in the discussion</title>
+		<author>
+			<persName><surname>Claims</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Theory Assumptions and Proofs [Yes] Assumptions are stated in the theoretical analysis appendix, and proofs are provided there as well</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Experimental Reproducibility [Yes] The paper describes the algorithm, provides appendix pseudocode, and includes implementation/training details in the appendix</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">We do not include a public code or data release in this submission. Our implementation leverages open-source RLVR pipelines, and we plan to release the training code for our newly proposed</title>
+	</analytic>
+	<monogr>
+		<title level="m">Open Access to Data and Code</title>
+		<imprint/>
+	</monogr>
+	<note>algorithm in a public release of the paper</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">Experimental Setting and Details [Yes] The paper specifies benchmarks, models, baselines, training budgets, and key hyperparameters</title>
+		<imprint/>
+	</monogr>
+	<note>with additional details in the appendix</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Statistical Significance [Yes] Reported results are averaged across three independent runs where applicable, and the learning-curve figure includes error bars</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<title level="m" type="main">Compute Resources [Yes] The appendix documents the hardware setup, training duration, and overall training budget</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">Code of Ethics [Yes] We affirm that we have read and will adhere to the NeurIPS Code of Ethics</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<title level="m" type="main">Our work proposes a new method of training LLM agents with a mix of theoretical and empirical evidence. We do not anticipate any concerns on societal impact beyond any other research in developing better RL algorithms</title>
+		<author>
+			<persName><forename type="first">Broader</forename><surname>Impacts</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>We do not include a dedicated broader impacts section</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<title level="m" type="main">Safeguards and Risk Mitigation [NA] This submission does not release a new model, dataset, or system artifact for deployment</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">The paper uses existing benchmarks and models, but it does not yet include a dedicated summary of licenses and terms of use</title>
+	</analytic>
+	<monogr>
+		<title level="m">Licenses for Existing Assets</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">New Assets [NA] The submission does not introduce a new dataset, model, or other redistributed asset</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<title level="m" type="main">Human Subjects or Crowdsourcing [NA] The experiments do not involve crowdsourcing or research with human subjects</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

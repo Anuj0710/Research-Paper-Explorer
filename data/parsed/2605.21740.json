@@ -1,0 +1,665 @@
+{
+  "arxiv_id": "2605.21740",
+  "title": "SMDD-Bench: Can LLMs Solve Real-World Small Molecule Drug Design Tasks?",
+  "abstract": "LLM agents have incredible potential for scientific discovery applications. However, the performance of LLM agents on real-world, small molecule drug design (SMDD) tasks across diverse chemistries and targets is unclear. Current evaluation methods are either ad hoc, too simple for real-world discovery, limited in scale, or restricted to single-turn question answering. In effort to standardize the evaluation of LLM agents on small molecule design, we introduce SMDD-Bench, a challenging, multi-turn, long-horizon agentic benchmark consisting of 502 guaranteed-solvable task instances spanning 5 task types: 2D Pharmacophore Identification, Interaction Point Discovery, Scaffold Hopping, Lead Optimization, and Fragment Assembly. SMDD-Bench tasks span a wide region of chemical space and involve 102 unique protein targets. Completely solving the benchmark would require having strong chemical and biological reasoning and 3D intuition, understanding specialized tool use, and displaying planning expertise over a limited number of oracle calls. We benchmark 7 frontier open and closed source LLMs and find even the most performant LLM, GPT5.4, solves only 40.2% of tasks. We hope SMDD-Bench provides a standardized testbed to invigorate the field towards training and evaluating LLM agents for fully autonomous computational drug design. We host a public leaderboard at smddbench.com.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "LLMs have seen considerable success in many scientific discovery tasks such as synthesizing scientific literature, orchestrating chemistry experiments, and even performing end to end applied machine learning research [Boiko et al., 2023, Lu et al., 2026, Asai et al., 2026]. Within the drug discovery and medicinal chemistry space, LLMs have been benchmarked on tasks including single step retrosynthesis prediction, molecular description, de novo molecular generation, and property prediction [Yu et al., 2024, Mirza et al., 2025, Huang et al., 2021, Bartmann et al., 2026]. However, these benchmarks are either restricted to single-turn question answering, are rudimentary and unrealistic when compared to the complexity of real-world computational drug discovery, or are limited to only a small non-diverse handful of tasks and protein targets. Although such benchmarks are useful in understanding an LLM's ability to understand basic chemistry principles, they are not as Let me construct a focused analog set around the reference scaffold, calculate similarity/descriptors/SA, and apply RDKit PAINS/Brenk/NIH filters to prioritize candidates that are valid and satisfy hard constraints before using prediction budgets… I need to design additional distal aryl polar replacements for the nitrile that may reduce CYP3A4 while preserving BBB better than a primary amide, and assess similarity and constraints…\n\nOne analog clearly stands out from the full ADMET budget: the distal nitrile-todimethylamide analog. It achieves the required CYP3A4 reduction and stays inside the hERG and BBB windows, while also passing the similarity and chemistry filters in RDKit. useful for understanding and improving an LLM agent's ability to handle the geometric and chemical complexity and diversity of drug discovery tasks facing expert human medicinal chemists.\n\nIn this work, we present SMDD-Bench, an agentic benchmark designed to evaluate LLM agents, multi-agent systems, and agentic workflows on complex and realistic small molecule drug design (SMDD) tasks facing human medicinal chemists. SMDD-Bench is comprised of 5 task types with a total of 502 task instances. The task types are 2D Pharmacophore Identification, Interaction Point Discovery, Scaffold Hopping, Lead Optimization, and Fragment Assembly. Each task is deeply embedded into real-world drug discovery workflows and requires deep chemical intuition, biological reasoning ability, expertise in selecting and running specialized cheminformatics tools, hypothesis generation and validation, and understanding 3D geometries in 3D space. We also introduce the notion of witness-aware task generation, allowing us to generate a large number of chemically valid and guaranteed-solvable task instances procedurally and without a human in the loop.\n\nReal world small molecule drug discovery requires the LLM to be able to write RDKit code, analyze protein-ligand interactions in 3D space, propose targeted molecular edits, understand how those molecular edits affect predicted properties, binding affinities, and 3D conformations, and run specialized cheminformatics tools. These skills go far beyond the simple single-turn question answering tasks that previous benchmarks study and require the development of a new and challenging agentic benchmark consisting of a diverse spread of chemistries and protein targets.\n\nHowever, creating real-world drug discovery tasks can be difficult due to the requirement for there to be at least one known solution to the task. For example, in lead optimization, while it is tempting to create a task instance by sampling a protein-ligand pair before sampling a set of properties to optimize as well as a set of properties to hold constant, there is no guarantee there exists a solution that adheres to the set of provided objectives and constraints. As a result, when creating task instances, in SMDD-Bench, we create a witness-aware task generation pipeline, allowing us to generate difficult, chemically valid, and guaranteed-solvable task instances while simultaneously generating an example solution molecule -all without requiring a human expert in the loop.\n\nWe evaluate 7 frontier open and closed source LLMs using a minimalist agent scaffold on SMDD-Bench and find that, although LLMs achieve up to 50% on simple lead optimization tasks, more challenging lead optimization tasks as well as other task types have near 0% success rates -highlighting significant room for growth for LLM applications as autonomous medicinal chemists. We also introduce SMDD-Bench Diversity, a subset of SMDD-Bench along with a principled framework for studying the diversity of SMDD agents' outputs.\n\nWe hope that the release of SMDD-Bench standardizes and invigorates research into training and evaluating LLMs for real-world autonomous drug discovery.\n\ncampaigns, serve as guardrails during lead optimization, or used as 3D pharmacophores during pharmacophore-based virtual screening.",
+      "n_words": 719
+    },
+    {
+      "heading": "Scaffold hopping",
+      "section_type": "other",
+      "text": "Task: Given a Boltz2-folded protein and reference ligand complex, propose a new SMILES with a distinct scaffold that reproduces the reference ligand's binding interactions with the protein pocket.\n\nEvaluation: The submitted SMILES string must have a low Tanimoto similarity with the reference molecule. The Murcko scaffolds of the submitted and reference molecules must also have a maximum common substructure which is only a portion of the overall heavy atom count of the Murcko scaffold of the reference molecule. Both of these checks ensure that a proper scaffold hop has been performed.\n\nIn order to check if the submitted molecule adheres to the same binding mode as the reference molecule, Boltz2 is used to co-fold the submitted SMILES string against the target using the same pocket contacts as the reference molecule. Potential stochasticity within the Boltz2 co-folded structure is mitigated by matching binding interactions via an ensemble of 10 Boltz2 co-folded structures.\n\nWitness-Aware Generation: We first mine experimentally known actives for a specific pocket. Afterwards, we consider all potential pairs of actives. Every pair which the two ligands satisfy the Tanimoto distance and scaffold substructure constraint is co-folded via Boltz to the shared target.\n\nIf both members of the pair share the same interaction fingerprint with the protein pocket and have high predicted binding probability, the pair and target are created into a task instance. One molecule within the pair is labeled as the reference while the other molecule is labeled as the witness. The witness molecule ensures the existence of at least one solution and guarantees the solvability of the task instance.\n\nThis task assesses the agent's ability to understand bioisosterisms as well as internally reason through binding poses before committing to making limited, computationally heavy oracle calls. In real world applications, scaffold hopping is used for rescuing lead molecules with problematic scaffolds, mitigating off-target binding effects, enabling the extension of SAR exploration beyond a depleted search, and avoiding IP infringement.",
+      "n_words": 321
+    },
+    {
+      "heading": "Lead optimization",
+      "section_type": "other",
+      "text": "Task: Given a reference molecule that is Boltz2 co-folded with a target protein, optimize the reference molecule into a new molecule that improves a set of ADMET and binding affinity objectives while holding other properties constant, satisfying drug-likeness constraints, maintaining high binding probability, and maintaining close Tanimoto similarity to the reference molecule (due to this being a lead optimization task).",
+      "n_words": 60
+    },
+    {
+      "heading": "Evaluation:",
+      "section_type": "experiments",
+      "text": "The submitted molecule must satisfy the set of specified ADMET and binding affinity objectives. RDKit is used to measure drug-likeness, ADMET properties are calculated using the ADMET-AI library, and Boltz2 is used for binding probability and binding affinity prediction.\n\nWitness-Aware Generation: For each selected protein target, we build a pool of pocket-compatible molecules that pass drug-likeness filters and a Boltz2 binding probability gate. We consider all pairs of molecules from this pool that are similar via Tanimoto similarity. From these pairs, if there exists a molecule whose ADMET/binding affinity profile dominates the other molecule on some subset of the 8 properties in SMDD-Bench (found in Table 7), the task's optimization objectives and hold-constant constraints are derived from the measured property differences between the two molecules. The dominating molecule becomes the witness while the dominated molecule becomes reference to provide to the agent to start lead optimization. The task instance is only instantiated if the witness's profile satisfies every objective and constraint. As a result, the witness solves the task instance by construction and the task becomes guaranteed solvable. More details on this can be found in Appendix B.4.\n\nThis task assesses the agent's ability to reason through how certain edits may affect complicated, intertwined relationships between molecular properties. In real world applications, multi-property optimization with optimization objectives and hold-constant constraints define the core loop of any lead optimization campaign. Lead optimization is also where the bulk of time is spent in most drug discovery programs. We envision a setting where hundreds of thousands or millions of highperforming agents are instantiated in parallel with the task of discovering a diverse array of optimized molecules given a single starting reference molecule.",
+      "n_words": 279
+    },
+    {
+      "heading": "Fragment Assembly",
+      "section_type": "other",
+      "text": "Task: Given either one or two 3D molecule fragments placed in a protein pocket, design a single drug-like molecule that contains each fragment as a substructure, covalently links the fragments when more than one fragment is provided, achieves high binding probability and affinity, and preserves the input fragment poses when the submitted molecule is re-docked.",
+      "n_words": 55
+    },
+    {
+      "heading": "Evaluation:",
+      "section_type": "experiments",
+      "text": "The submitted molecule must incorporate each of the provided fragments as distinct substructures as well as pass drug-likeness checks. The submitted molecule is also co-folded with the protein via Boltz2 and must have a high predicted binding probability and binding affinity with respect to the witness molecule. Finally, the fragment substructures within the submitted molecule must be similar to the provided 3D coordinates of the input fragments after pocket alignment is performed. This is to ensure a molecule of the same binding mode as the input fragments was designed. Otherwise, it would be possible for a submitted molecule to contain the input fragments but have the fragments be in nonessential locations for binding. More details can be found in Appendix B.5.\n\nWitness-Aware Generation: We co-fold known actives via Boltz2 and keep the co-folded structures which pass a binding probability gate. We perform BRICS decomposition [Degen et al., 2008] on the molecule to separate the molecule into its synthesizable fragments. Each input fragment must be large enough to be a meaningful pharmacophore, have at least one direct interaction with the protein pocket, and be in close proximity to the protein itself. Fragments are then sampled from the same molecule to create the task instance. As a result, the co-folded active molecule in which fragments are sampled from becomes the witness molecule by construction -ensuring the guaranteed solvability of the task instance. Task instances with 2 fragments have the additional constraint for fragments to be sufficiently far and not directly linked together.\n\nThis task assesses the agent's ability to reason through 3D geometry and fragment-pocket complementarity. In real world applications, fragment assembly is the central step of fragment-based drug discovery campaigns, where weakly-binding fragments identified via crystallographic or biophysical screening must be elaborated or linked into a single high-affinity lead molecule.",
+      "n_words": 299
+    },
+    {
+      "heading": "Benchmark Setup and Variations",
+      "section_type": "experiments",
+      "text": "SMDD-Bench Agent Setup. To evaluate the agent's innate medicinal chemistry reasoning ability, internet access is strictly prohibited, and agents have no access to academic literature, patent filings, textbooks, or any other source of non-parametric knowledge. We benchmark current frontier LLMs using a minimalist ReAct agent [Yao et al., 2022] with a minimal harness, providing access to an isolated filesystem, a python interpreter with relevant biology and chemistry packages installed, and a limited number of Boltz2 and ADMET-AI oracle calls (the same oracles used to evaluate agent submissions). To minimize memorization, all identifying information such as PDB codes, ligand codes, Uniprot IDs, and target names are obfuscated or removed. More details on the minimalist agent can be found in Appendix C.\n\nBenchmark Statistics. Across 502 task instances, SMDD-Bench contains 102 unique protein targets and 855 unique small molecules. Figure 2 shows the distribution of task types and protein targets across the benchmark. Figure 3(a) and (b) report, respectively, the frequencies with which each of the 9 properties appears in Lead Optimization tasks and the joint distribution of task complexity. Additional details on benchmark diversity are provided in Appendix A.\n\nSMDD-Bench Lite. Due to the heavy computational overhead of running an agent on all 502 tasks, we release SMDD-Bench Lite, a performance-representative subset of 100 task instances designed to encourage broader adoption of the benchmark. SMDD-Bench Lite serves as a testbed for iterating on agent development against a difficulty-diverse and representative sample of the full benchmark. Details on how the SMDD-Bench Lite instances are selected can be found in Appendix E.",
+      "n_words": 259
+    },
+    {
+      "heading": "Results",
+      "section_type": "results",
+      "text": "LLMs do not perform well on real-world small molecule drug discovery tasks. We evaluated 7 frontier LLMs on SMDD-Bench using the minimalist agent harness described in Section 2.2 and present results in Table significantly outperform leading open source models such as Kimi K2.5 Thinking, Deepseek V3.2, and Qwen 3.5-397B-A17B with GPT5.4 setting the state of the art at 40.2% overall success rate.\n\nHowever, most of the successes across all models are a result of performing well on the Lead Optimization task. Particularly, current LLMs perform poorly on tasks that require a heavy intuition and understanding of 3D geometries and interactions such as the Interaction Point Discovery, Scaffold Hopping and Fragment Assembly tasks. Considering the overwhelming challenges of multi-property, multi-constraint lead optimization, frontier LLMs perform surprisingly well at the Lead Optimization task. More specific results on LLM performance, such as cost breakdown and tool usage can be found in Appendix D.\n\nThe chemical novelty of the submissions of each agent, broken down into task type, are found in Table 2. Chemical novelty is defined as the % of total agent submissions which are not found in the ChEMBL36, SureChEMBL, PubChem, of BindingDB databases [Mendez et al., 2019, Papadatos et al., 2016, Kim et al., 2023, Liu et al., 2007, 2025b]. These databases are chosen due to their potential inclusion of bioactivity data for small molecules with respect to protein targets. The novelty check we prescribe is a conservative measure of the agent's ability to design a molecule in the context of a protein target for which there doesn't exist pre-existing training data on.\n\nLLMs are not diverse in their outputs. In real world applications, during lead optimization campaigns, researchers may want to instantiate many agents or agentic systems in parallel on the same task instance. The goal would be for the agents to propose a diverse and novel spread of successful solutions rather than converging on a single solution, allowing for a more robust exploration and discovery of lead molecules. In order to test for this behavior, we propose SMDD-Bench Diversity, a strict subset of 20 SMDD-Bench task instances for the Lead Optimization task type. The task instances represent the most challenging lead optimization tasks that are still solvable by current frontier LLMs. See Appendix F for more details on selecting SMDD-Bench Diversity.\n\nFor each task on SMDD-Bench Diversity, we run each agent 10 times and report the distribution of novel and diverse molecules which pass the evaluation requirements. In order to measure diversity, we measure the average number of unique successful solutions per task instance, the average pairwise tanimoto similarity of successful solutions, the percentage of successful solutions which are novel (using the same criteria as in Table 2), and the average number of successful solutions of each LLM on the subset. Results are found in Table 3. Although Claude Sonnet 4.6 consistently achieves the highest number of successful submissions, the model converges to the same set of molecules over half the time. Surprisingly, Minimax M2.7 submits the most unique spread of successful molecules on SMDD-Diversity while maintaining strong % novelty across successful submissions. SMDD agents deployed in the wild must consistently achieve a high number of both unique and novel successful solutions when provided the same task instance.\n\nEnumeration vs. Selection. Throughout the solve process, each LLM enumerates many potential candidates, reasons through those candidates, and then runs the most promising of the candidates through an oracle tool call. We investigate whether or not LLMs are capable of enumerating passing molecules but fail at the reasoning and selection step. In order to do so, we use GPT5.4 mini to extract every SMILES string mentioned in each of the agent's traces for the Scaffold Hopping, Lead Optimization, and Fragment Assembly tasks. We then, using the task instance's evaluation pipeline, evaluate all of the molecules that the agent did not perform an oracle call on -this set of molecules represents the molecules which the agent hypothesized could be strong candidates, but considered to be inferior. We then calculate the overall recovered success rate on SMDD-Bench had the LLM selected the best candidate from its enumeration and report the values in Table 4. More details on how we performed this experiment can be found in Appendix G. Scaffold hopping sees a significant increase in recovered rate for Claude Sonnet 4.6, Gemini 3.1 Pro, and GPT5.4 -indicating that the agents are not as capable at reasoning through binding interactions of chemically different analogues without first performing oracle calls. On the other hand, fragment assembly, a task requiring a deep understanding of how the binding pocket and surrounding chemistry affects the 3D geometry of the small molecule binding pose, sees very minimal overall improvement. Interestingly, MiniMax M2.7 nearly doubles its success rate for the Lead Optimization task, indicating its ability to enumerate solutions and inability to select from the enumerations.\n\nSMDD-Bench Lite performance. The performance of each agent on the SMDD-Bench Lite subset are reported in Table 5. We also report the performance of Gemini 3.1 pro on high thinking mode. Incoherent planning across multiple turns. We notice that a common failure mode involves candidate-generation turns being treated independently rather than as part of an iterative, sequential process. This results in the agent generating new molecules instead of selecting from candidates that passed earlier-stage criteria. Furthermore, the same molecule may be proposed multiple times across turns even though it had already been tested in a previous turn and did not meet proper thresholds.\n\nRefer to a representative trace in Appendix I.2.\n\nCode Execution Errors. Agents also exhibit tool-specific coding mistakes. These include malformed calls to structure-prediction tools (e.g., incorrect argument types or missing required fields for Boltz binding predictions, cheminformatics rountines (e.g., MolToSmiles conversion), and interactionanalysis pipelines (e.g., PLIP).",
+      "n_words": 955
+    },
+    {
+      "heading": "Related Work",
+      "section_type": "related_word",
+      "text": "SMDD-Bench evaluates LLM agents on challenging, real-world small molecule drug design tasks.\n\nExisting chemistry and molecular benchmarks -ChemBench [Mirza et al., 2025], MolecularIQ [Bartmann et al., 2026], SmolInstruct [Yu et al., 2024], QCBench [Xie et al., 2025], and MuMOInstruct [Dey et al., 2025] -are restricted to single-turn question answering on relatively simple chemistry tasks and do not evaluate complex agentic systems on real-world problems. Prior work on multi-turn iterative molecular optimization [Chennakesavalu et al., 2026, Wang et al., 2024] Beyond single-turn QA, prior LLM agents for drug design and discovery [Ock et al., 2026, Li et al., 2026a,b, Zhang et al., 2024, Wang et al., 2024] either report results on a few hand-selected successes or use ad hoc, non-standardized evaluation setups, often retrofitting datasets built for de novo molecular generation such as ZINC, Therapeutics Data Commons, GuacaMol, PMO, and MOSES [Tingle et al., 2023, Huang et al., 2021, Brown et al., 2019, Gao et al., 2022, Polykovskiy et al., 2020]. Adjacent domains like computational biology have produced agentic benchmarks such as DeepResearch Bench [Du et al., 2025], BioProBench [Liu et al., 2025c], BioLP-Bench [Ivanov, 2024], ABC-Bench [Liu et al., 2025a], Lab-Bench [Laurent et al., 2024], BixBench [Mitchener et al., 2025], and CompBioBench [Nair et al., 2026], but no prior work evaluates LLMs on agentic small molecule drug design.\n\nThe primary contributions of SMDD-Bench compared to previous work are as follows: (1) the first standardized benchmark for evaluating long-horizon, multi-turn, small molecule drug design agents on a chemically diverse array of challenging drug discovery tasks;\n\n(2) support for five relevant, realworld task types: 2D Pharmacophore Identification, Interaction Point Discovery, Scaffold Hopping, Lead Optimization, and Fragment Assembly; and (3) guaranteed solvability for all tasks, including the Scaffold Hopping, Lead Optimization, and Fragment Assembly tasks via the existence of a held-out witness molecule which passes all evaluation requirements.",
+      "n_words": 305
+    },
+    {
+      "heading": "Discussion and Conclusion",
+      "section_type": "conclusion",
+      "text": "We present SMDD-Bench, the first agentic benchmark evaluating LLM agents on challenging, longhorizon, real-world small molecule drug design. SMDD-Bench tests scientific and chemical reasoning across diverse chemistries, task types, and protein targets, alongside domain-specific tool-calling capabilities, with every task instance generated to be guaranteed-solvable. Our hope is that SMDD-Bench unifies and standardizes the design, training, and evaluation of LLMs for small molecule drug design. The dominant approach to small molecule drug design today is conditional generative diffusion and flow models [Sun et al., 2025, Zeng et al., 2026, Zhang et al., 2025, Morehead et al., 2026, Klein et al., 2023, Hoogeboom et al., 2022], but LLM-based SMDD agents offer distinct advantages in flexibility and generality. An agent can perform lead optimization on properties unseen at training time, understand the failure modes of specific oracles, selecting the right tool for a given task, and adhere to constraints (such as maintaining protein-protein contacts when designing a PROTAC) that were never specified during training. Communicating objectives in natural language further frees the agent from the rigid train-time settings that bind diffusion and flow models.\n\nReliance on Boltz2 and ADMET-AI. Boltz2 and ADMET-AI are imperfect oracles. However, in SMDD-Bench we treat these oracles as the ground truth within the \"world\" of the benchmark, analogous to an agent requesting wet lab assays. As a result, we deliberately provide a limited number of oracle calls to reflect the sparsity of real-world wet lab experiments. To enforce that the Boltz2 and ADMET-AI predicted distributions are the operative ground truth, all PDB-sourced complexes are re-folded via Boltz2 and re-scored by ADMET-AI during task generation, so the agent only sees structure-activity relationships and property distributions produced by these oracles. SMDD-Bench is intended as a testbed for developing training frameworks calibrated to the Boltz2 and ADMET-AI distributions. The same frameworks can later be interfaced with an autonomous laboratory, where the oracle becomes a real wet lab that synthesizes, characterizes, and tests candidates, allowing agents to be re-trained under the true distribution of real-world structure-activity relationships.",
+      "n_words": 335
+    },
+    {
+      "heading": "A Detailed Benchmark Diversity",
+      "section_type": "experiments",
+      "text": "The complete list of the 102 unique protein targets broken down into task types can be found in Figure 4. In Figure 5, we plot each of the reference molecule baseline property values for optimization properties and hold-constant properties in the Lead Optimization task. Blood brain barrier penetration can either be optimized to enhance penetration or to decrease penetration depending on the real world application. Both directions of optimization are included in SMDD-Bench.\n\nIn Figure 6, we plot the pairwise Tanimoto similarity between all pairs of reference molecules in the Scaffold Hopping and Lead Optimization tasks. The low distribution of Tanimoto similarity indicates that the bulk of the reference molecules aren't collapsed to similar points in chemical space -highlighting the small molecule diversity of SMDD-Bench.\n\nFigure 7 shows the breakdown of the protein targets within each task instance into their respective families, highlighting the protein diversity of SMDD-Bench. For an agent to be successful, it must be able to generalize and reason across diverse chemistries, pockets, and biological targets.",
+      "n_words": 169
+    },
+    {
+      "heading": "B Details on Task Type Generation",
+      "section_type": "other",
+      "text": "In the following section, we provide the specific details for generating the task instances for each task type.",
+      "n_words": 18
+    },
+    {
+      "heading": "B.1 2D Pharmacophore Identification",
+      "section_type": "other",
+      "text": "Each instance of this task type asks the agent to identify a 2D pharmacophore that distinguishes a set of active molecules from a set of inactive molecules for a given protein target. Tasks are generated procedurally from ChEMBL.\n\nActivity data extraction We restrict to direct binding assays by requiring standard_type ∈ {IC 50 , K i }, standard_units = nM, standard_relation = '=', and confidence_score ≥ 8.\n\nOnly targets with target_type = 'SINGLE PROTEIN' are considered.\n\nCompound normalization and deduplication. SMILES are canonicalized via RDKit. We discard multi-component salts/mixtures, molecules with exact molecular weight greater than 900 Da, and entries that fail RDKit parsing. Multiple measurements of the same canonical compound are collapsed by taking the per-compound median activity in nM.\n\nActive/inactive labeling Compounds with median activity below 1,000 nM (IC 50 /K i < 1 µM) are labeled active; compounds with median activity above 10,000 nM (> 10 µM) are labeled inactive. Compounds in the 1-10 µM ambiguous zone are discarded, providing a 10× potency gap between the two classes that excludes borderline molecules. Targets with fewer than 30 actives or fewer than 30 inactives after filtering are not eligible.\n\nDiverse subset selection For each class, ten visible exemplars are selected via the MaxMin algorithm operating on Morgan fingerprints (radius = 2, 2048 bits, seed = 42) [Ashton et al., 2002]. The remaining compounds form a held-out evaluation set that the agent never sees. MaxMin selection forces the visible exemplars to span chemical space, allowing the agent to see the most chemically diverse spread of actives as possible.\n\nAgent inputs and outputs Each generated task directory contains: actives.smi and inactives.smi (the 10 visible exemplars per class, given to the agent), protein.fasta (the target sequence). The agent is required to emit solution.py defining check_pharmacophore(smiles: str) -> bool, which is run on every molecule of the held-out evaluation set during scoring.\n\nDesign rationale Using ChEMBL-measured inactives rather than synthetically constructed decoys (e.g. DUD-E) ensures that negatives are experimentally verified non-binders that may share scaffolds with the actives, ruling out solutions that rely on coarse topological dissimilarity. Providing both classes to the agent and requiring generalization to a held-out set forces extraction of a genuine substructural pattern rather than memorization of the visible exemplars.",
+      "n_words": 372
+    },
+    {
+      "heading": "B.2 Interaction Point Discovery",
+      "section_type": "other",
+      "text": "Each instance of this task type asks the agent to predict, given a single apo-like protein structure and a pocket center, the 3D coordinates and pharmacophoric type of the three interaction points most likely to be conserved across diverse binders of that pocket. Tasks are generated procedurally from the RCSB PDB [Berman et al., 2000].\n\nEnsemble construction For each specified target from the PDB, we fetch up to 500 unique X-ray crystal structures with resolution better than 2.5 Å. The first structure containing a drug-like ligand is taken as the reference; common crystallization additives (glycerol, PEG, DMSO, sulfate, and similar) are explicitly blacklisted. Within that reference structure, the largest non-blacklisted ligand by heavy-atom count is selected as the reference ligand. The reference receptor is stripped of all heteroatoms, waters, and ions to produce receptor.pdb, and the centroid of the reference ligand defines the pocket center provided to the agent.\n\nLocal structural alignment All ensemble members are superimposed onto the reference using only the C α atoms of residues within 12 Å of the pocket center. Restricting the alignment to the local pocket suppresses contributions from global protein motion and induced fit -minimizing potential global variance in the 3D reference frame.\n\nPharmacophore feature extraction For each aligned structure, we select the ligand whose centroid lies closest to the reference pocket center (within 12 Å); waters, the same blacklist of crystallization additives and common ions used during reference selection, and small fragments (fewer than six heavy atoms) are excluded from candidacy. RDKit is then used to assign each atom or functional group of the chosen ligand to one of six pharmacophoric families: hydrogen-bond donor, hydrogen-bond acceptor, aromatic, hydrophobic, cation, or anion. Features further than 12 Å from the pocket center are discarded to exclude allosteric binders and crystallographic artifacts.\n\nConsensus clustering Clustering proceeds in two stages. First, DBSCAN [Ester et al., 1996] is run independently per pharmacophore family at ε = 1.0 Å on the 3D points of that family alone, so that, e.g., donor and acceptor densities never collapse into a single cluster regardless of spatial proximity.\n\nA cluster is retained only if it is supported by at least 15% of the unique structures contributing to the ensemble; the conservation score of a cluster is the fraction of unique PDB entries supporting it. Cross-family relationships between surviving clusters are handled separately during ground-truth point selection.\n\nGround-truth point selection Surviving clusters are post-processed to yield a physically valid, non-redundant ground-truth set: (i) clusters within 2 Å of any heavy atom of the reference receptor are discarded as sterically clashing with the reference protein conformation given to the agent; (ii) clusters of different types (e.g. donor and cation arising from a basic amine, or donor and acceptor from a hydroxyl) whose centroids lie within 2 Å are merged into a single point with a set-valued type label, reflecting and allowing for chemical ambiguity in the agent output. The full set of N ≥ 3 surviving consensus points constitutes the ground truth.",
+      "n_words": 498
+    },
+    {
+      "heading": "Agent inputs and outputs",
+      "section_type": "method",
+      "text": "The agent is provided receptor.pdb (the reference protein with all ligands and solvent removed) the pocket center coordinates and the 12 Å pocket radius where all interaction points are within. The agent must emit solution.csv with exactly three rows of the form x, y, z, type, where type is drawn from {Donor, Acceptor, Aromatic, Hydrophobic, Cation, Anion}.\n\nEvaluation Predicted points are matched against the N ground-truth points by optimal bipartite assignment [Kuhn, 1955] on Euclidean distance, restricted to type-compatible pairs: a prediction is type-compatible with a ground-truth point if its label is in the ground-truth label set, with an additional aromatic/hydrophobic equivalence at scoring time, reflecting that aromatic ring features and hydrophobic features are partially co-tagged by RDKit and that the ground-truth construction may assign only one of the two labels at a position where both are chemically reasonable. This choice was made out of evaluation leniency. A match is counted if the assigned distance is below 2.5 Å. The task score is (number of matched predictions) / 3, and the task is considered solved only when all three predictions match (score = 1.0).",
+      "n_words": 184
+    },
+    {
+      "heading": "Design rationale",
+      "section_type": "method",
+      "text": "The local-pocket alignment, conservation threshold, and steric clash filter were designed to ensure that the targets are simultaneously experimentally grounded, chemotype-agnostic, empirically solvable, and medicinally useful in the specific receptor conformation handed to the agent.",
+      "n_words": 35
+    },
+    {
+      "heading": "B.3 Scaffold Hopping",
+      "section_type": "other",
+      "text": "Each instance of this task type asks the agent to propose a novel small molecule that binds the same protein pocket as a given reference ligand and reproduces its protein-ligand interaction pattern, while presenting a chemically distinct scaffold. Tasks are generated procedurally from the RCSB PDB and ChEMBL, and every task is constructed around an explicit witness molecule that is known and evaluated a priori to satisfy the evaluation criteria -thus guaranteeing the solvability of the task instance.\n\nTarget and canonical structure selection Targets are sourced from a curated pool of ∼300 (UniProt, PDB, ligand) triplets spanning diverse protein families, grouped by UniProt identifier.\n\nFor each UniProt, the PDB entry with the best X-ray resolution is chosen as the canonical receptor; its FASTA sequence and a single fixed pocket definition are reused throughout downstream steps.",
+      "n_words": 135
+    },
+    {
+      "heading": "Pocket definition",
+      "section_type": "other",
+      "text": "The binding pocket is defined as the set of residues with any heavy atom within 6 Å of the canonical ligand. This pocket, expressed as (chain, SEQRES position) pairs, is held fixed for all downstream Boltz2 cofolding runs and is also handed to the agent as part of the task specification.",
+      "n_words": 51
+    },
+    {
+      "heading": "Candidate ligand collection",
+      "section_type": "other",
+      "text": "For each target we assemble a candidate ligand pool from two sources: (i) all ligands co-crystallized with the same UniProt across the PDB, with bond orders corrected via Chemical Component Dictionary (CCD) templates and deduplicated by canonical SMILES; and (ii) ChEMBL actives against the target with reported IC 50 /K i /K d below 10 µM, pre-filtered to remove unparseable structures, molecules above 1,000 Da, and metal-containing species.\n\nScaffold-diversity pre-filter Bemis-Murcko scaffolds are extracted for every candidate, and for each unordered ligand pair we compute the Maximum Common Substructure (MCS) of the two scaffolds [Bemis and Murcko, 1996]. A pair is retained only if the MCS covers less than 65% of the heavy atoms of the larger scaffold; the symmetric denominator ensures the filter does not depend on the eventual reference/witness role assignment.\n\nCrystal-PLIP pre-ranking For pairs in which both members appear as PDB co-crystals, each source structure is superimposed onto the canonical receptor using C α atoms of pocket residues within 12 Å, and a protein-ligand interaction fingerprint is extracted with PLIP [Salentin et al., 2015]. Pairs are then ordered by descending crystal interaction-fingerprint similarity, with PDB-PDB pairs prioritized over pairs involving ChEMBL-only ligands. This ranking concentrates downstream compute on pairs that are most likely to clear the interaction-similarity gate during the co-folding screen.\n\nCo-folding screen For each target, the top-ranked unique candidate ligands are co-folded with the canonical receptor using Boltz2 [Passaro et al., 2025], constrained to the fixed pocket definition with 10 diffusion samples per ligand. From the resulting ensemble of 10 conformations, we extract: (i) the Boltz2-predicted binding probability across samples; (ii) per-sample PLIP interaction finger-prints, where each interaction is coarsened to a (chain, residue, broad type) tuple over six interaction families (HBond, Aromatic, Ionic, Halogen, Metal, Hydrophobic); and (iii) a consensus interaction fingerprint defined as the set of tuples present in at least 60% of the diffusion samples. Any ligand whose predicted binding probability falls below 0.75 is discarded. The consensus interaction fingerprint is required during evaluation to offset variance induced by Boltz2-predicted binding poses.\n\nWitness validation and role assignment A pair is promoted to a task only if both members survive the binding gate and the set Tanimoto between their consensus interaction fingerprints exceeds 0.75. Within a surviving pair, the ligand with the higher predicted binding probability is assigned as the reference (the molecule provided to the agent to hop away from) and the other becomes the witness (the hidden molecule whose existence guarantees the solvability of the task instance). We retain at most three tasks per UniProt target and require distinct reference molecules across tasks of the same target, preventing one well-behaved reference from dominating the benchmark.\n\nAgent inputs and outputs The agent is given: complex.pdb (the Boltz2-predicted reference complex, with the ligand on chain L), reference.sdf (the reference ligand conformer extracted from the Boltz2 complex), protein.fasta (the canonical protein sequence), and the target ligand identifier and pocket contact residue list used during the task generation process. The agent is required to emit solution.smi containing a single SMILES string. The witness molecule is never exposed to the agent.\n\nEvaluation A submission must clear five gates: (1) the SMILES is parseable by RDKit;\n\n(2) the Morgan fingerprint Tanimoto (radius = 2, 2048 bits) between the agent's molecule and the reference is below 0.5; (3) the Bemis-Murcko scaffold MCS, normalized by the heavy-atom count of the larger of the two scaffolds, is below 0.65; (4) the agent's molecule, co-folded under the same Boltz protocol used during generation (10 diffusion samples, identical pocket constraint), produces a consensus interaction fingerprint whose set Tanimoto with the reference's consensus fingerprint exceeds 0.75; and (5) the predicted binding probability of the agent's molecule across the same diffusion samples exceeds 0.7. Gates 1, 2, and 3 enforce 2D novelty; gates 4 and 5 enforce 3D mimicry, ensuring the scaffold hopped molecule adheres to the same pharmacophore, and binding competence.\n\nDesign rationale Every task is anchored to a concrete witness molecule that has already cleared the same evaluation pipeline the agent will be scored against, ensuring the existence of at least one solution for the task instance. The 2D-dissimilarity and 3D-interaction-similarity criteria rule evaluates for a true scaffold hopped molecule and that the submitted molecule matches the binding mode of the original reference molecule. High predicted binding probability of the submitted molecule is also enforced. We score interaction similarity against a consensus fingerprint over the 10-sample diffusion ensemble rather than against the single most confident pose to ensure robustness against variance in the Boltz2 poses. Requiring a tuple to appear in at least 60% of samples discards interactions that are artifacts of any one diffusion draw and retains only those the model is confident enough to recover under structural perturbation.",
+      "n_words": 788
+    },
+    {
+      "heading": "B.4 Lead Optimization",
+      "section_type": "other",
+      "text": "Each instance of this task type asks the agent to modify a known active molecule so that it improves a specified set of pharmacological optimization objectives, holds a separate set of properties within tolerance, and clears a fixed panel of hard drug-likeness constraints. As in the Scaffold Hopping task type, every task instance is constructed around an explicit witness molecule that has already been verified to satisfy every gate the agent will be scored against, guaranteeing the solvability of the task instance.\n\nTarget and pocket selection Targets are drawn from a curated set of UniProt entries with highresolution co-crystal coverage. For each target, a single representative PDB is chosen; its FASTA sequence and the residues within 6 Å of the crystal ligand define a fixed pocket that is reused for all candidate co-folding within the target.",
+      "n_words": 136
+    },
+    {
+      "heading": "Candidate pool collection",
+      "section_type": "other",
+      "text": "For each target we aggregate experimentally reported actives from ChEMBL, BindingDB, and PubChem, deduplicated by canonical SMILES. The pool is then filtered through the same hard-constraint panel that will be applied to the agent's submission at evaluation time. The hard-constraint panel is found in Table 6. No PAINS [Baell, 2016] or Brenk/NIH alerts [Brenk et al., 2008, Limban et al., 2018] Table 7: List of ADMET properties used as optimization objectives and hold-constant constraints. ADMET annotation Every surviving molecule is scored on eight ADMET properties (hERG inhibition, blood-brain-barrier permeability, aqueous solubility, CYP3A4 inhibition, hepatocyte clearance, Caco-2 permeability, plasma protein binding, Ames mutagenicity) via the ADMET-AI ensemble [Swanson et al., 2024] trained on the corresponding TDC datasets [Huang et al., 2021].\n\nCo-folding screen Each filtered candidate is co-folded against the canonical receptor with Boltz2 [Passaro et al., 2025], constrained to the fixed pocket via fixed pocket contacts with 10 diffusion samples. We retain the predicted binding probability and predicted log 10 (IC 50 ) across samples, and discard any molecule whose predicted binding probability falls below 0.75. The pool of molecules surviving every filter constitutes the per-target validated pool from which both reference and witness are drawn.\n\nPair finding and task generation Within each target's validated pool, we compute pairwise Morgan fingerprint Tanimoto (radius = 2, 2048 bits) and consider only pairs with similarity ≥ 0.7.\n\nFor each filtered pair of molecules within the validated pool, we derive the optimization objectives and hold-constant set directly from the measured property differences between the two molecules. A property is eligible to be an optimization objective if the witness improves over the reference by at least a property-specific threshold. A property is eligible to be a hold-constant constraint only if the witness's value already lies within the property's tolerance band relative to the reference.\n\nUp to five objectives and four hold-constant properties are selected greedily. The direction of BBB optimization is inferred from the witness properties rather than imposed externally. Furthermore, for the task instances without binding affinity as optimization objectives or hold-constant constraints (only a handful in SMDD-Bench), Boltz2 calculated binding probability is enforced as a hard constraint for the agent's submitted molecule to prevent the agent from throwing away binding in the pursuit of optimizing ADMET properties.",
+      "n_words": 375
+    },
+    {
+      "heading": "Agent inputs and outputs",
+      "section_type": "method",
+      "text": "The agent is given: complex.pdb (the Boltz2-predicted reference complex, with the ligand on chain L), reference.sdf (the reference ligand conformer extracted from the complex), protein.fasta (the canonical sequence), and the pocket residue list, the target ligand identifier, the list of optimization objectives with directions and thresholds, the list of holdconstant properties with tolerance bands, the full hard-constraint panel, the BBB direction, and the baseline property values measured on the reference. The agent is required to emit solution.smi containing a single SMILES string. The witness molecule is never exposed to the agent.\n\nEvaluation A submission must clear five gates: (1) the SMILES is valid and sanitizable; (2) every hard constraint in the panel is satisfied, including a Tanimoto similarity to the reference ≥ 0.7 that anchors the submission to the same lead series;\n\n(3) every hold-constant property lies within its tolerance band relative to the reference baseline; (4) every optimization objective improves over the reference by at least its required threshold; and (5) Boltz2 co-folding of the agent's molecule under the same protocol used during generation produces a predicted binding probability above 0.7 together with the affinity checks implied by the binding-affinity objective or hold-constant constraint. ADMET properties are recomputed from the agent's SMILES with the same ADMET-AI ensemble used in generation.\n\nDesign rationale Deriving objectives and hold-constant sets from the actual reference-witness property delta, rather than imposing a fixed objective list per target, produces tasks that provably solvable. The high-Tanimoto pairing constraint enforces that the task captures local lead-series chemistry rather than de novo design, which is the regime in which the multi-objective trade-offs are most relevant. Because the entire hard-constraint panel and the ADMET model are applied identically at generation and at evaluation, the agent is scored under the exact filter that defined task feasibility, and any submission that clears the gates is at least as good as a known real molecule on every property the task names.\n\nWe investigate the indicators of the difficulty of the Lead Optimization tasks in Section D.1.",
+      "n_words": 334
+    },
+    {
+      "heading": "B.5 Fragment Assembly",
+      "section_type": "other",
+      "text": "Each instance of this task type asks the agent to design a single drug-like molecule that incorporates one or two given 3D molecular fragments at their specified poses inside a protein binding pocket, covalently links them when more than one is provided, and binds the target well. As in the previous two task types, every task instance is constructed around an explicit witness molecule -here, the known active from which the fragments were carved -that has already been verified to satisfy every gate the agent will be scored against, guaranteeing the solvability of the task instance.\n\nTarget and active selection Targets are sourced from UniProt entries that have at least two PDB entries containing distinct, non-buffer ligands of at least 10 heavy atoms, after filtering crystallization additives. For each (UniProt, PDB, ligand) triplet, the ligand SMILES is reconstructed via Chemical Component Dictionary templates and the binding pocket is defined as the protein residues with any heavy atom within 6 Å of the ligand.\n\nWitness co-folding Each candidate active is co-folded against its source protein with Boltz2 [Passaro et al., 2025] under pocket constraints derived from the crystal pose, with the affinity head enabled and 10 diffusion samples. Only chains that participate in pocket contacts are retained for the co-fold; coligands and unrelated chains are excluded. Actives are kept only if their predicted binding probability exceeds 0.75. The resulting predicted log 10 (IC 50 ) is recorded as the witness affinity baseline against which the agent's submission will be scored.\n\nFragment generation Surviving actives are decomposed via BRICS [Degen et al., 2008] into chemically reasonable fragments at retrosynthetically meaningful bonds. Each fragment is retained only if it (i) contains at least 6 heavy atoms after dummy-atom removal, (ii) makes at least one PLIP [Salentin et al., 2015] protein-ligand interaction with the receptor when scored on the witness's docked pose, and (iii) lies within 4 Å of the protein. The first criterion ensures the fragment is large enough to be a meaningful pharmacophore rather than a methyl-scale stub; the second and third together guarantee that the fragment is genuinely engaged with the pocket rather than solvent-exposed.\n\nPair sampling for two-fragment tasks When a task instance is to contain two fragments, the pair is drawn from a single source active and is required to have a closest-heavy-atom distance of at least 6 Å, this prevents the fragments from being spatially close enough to admit a short or simple linker.",
+      "n_words": 406
+    },
+    {
+      "heading": "Agent inputs and outputs",
+      "section_type": "method",
+      "text": "The agent is given: pocket.pdb (the witness's Boltz2-predicted protein structure with the witness ligand stripped), one fragment_i.sdf per fragment (the 3D pose of each fragment as it sat in the witness's Boltz2 docked complex), the binding affinity baseline target for the submited molecule, and the full hard-constraint panel also used in the Lead Optimization task (see Table 6). The agent is required to emit solution.smi containing a single SMILES string. The witness is never exposed to the agent.\n\nEvaluation A submission must clear five gates: (1) the SMILES is valid; (2) every fragment SMARTS pattern is a substructure of the agent's molecule; (3) the fragments admit a disjoint substructure assignment (no shared atoms across fragments) and are pairwise connected by a covalent path in the agent's molecule; (4) the agent's molecule clears the same hard-constraint panel specified in Table 6; and (5) Boltz2 co-folding of the agent's molecule against the source receptor under the same pocket constraint and 10 diffusion samples produces (a) a predicted binding probability above 0.7, (b) a predicted log 10 (IC 50 ) no more than 0.1 log units worse than the witness baseline, and (c) a per-fragment 3D pose RMSD below 2.0 Å. RMSD is computed by SMARTS-matching each fragment against the docked agent ligand, extracting the 3D coordinates of the matched atoms, aligning the docked complex to pocket.pdb by Kabsch superposition on the C α atoms of the pocket residues, and selecting the best-aligned diffusion sample for the comparison.\n\nDesign rationale The single-active witness construction guarantees that for every task there exists at least one molecule -the original active itself -that contains all fragments at exactly the required poses, links them through known chemistry, and already satisfies the binding and drug-likeness panels under the same Boltz2 protocol used at evaluation time. The 3D pose RMSD threshold enforces the docked geometry to recapitulate the fragment poses given as input, which forces the linker chemistry to be physically compatible with the relative orientation of the fragments rather than just being topologically valid or bind well.",
+      "n_words": 339
+    },
+    {
+      "heading": "C Minimalist Agent Setup",
+      "section_type": "experiments",
+      "text": "To isolate model capability from harness engineering, all baseline runs use a deliberately minimalist ReAct loop. The agent sees only the obfuscated task description and the tool schemas. All tools run in an isolate docker container with an isolated filesystem. The standard agent configuration can be found in Table 8.\n\nTools. The agent is provided four tools: (i) python(code): executes Python in the sandbox with RDKit, OpenBabel, PLIP, BioPython, NumPy, SciPy, and scikit-learn preinstalled;\n\n(ii) predict_boltz(smiles, protein_sequences, ...): runs Boltz-2 co-folding with affinity prediction; (iii) predict_admet(smiles): runs ADMET-AI property predictors and returns all the values of all properties of the molecule in a single call; The Boltz/ADMET oracles live in an isolated venv that the agent's python tool cannot import, forcing all oracle calls through the budgeted interface.\n\nSandbox. Each task runs in a fresh smdd-agent container on an internal Docker network with no external routing; the only reachable endpoint is api.colabfold.com:443 via an nginx TCP-passthrough sidecar (required by Boltz's MSA server). Task files (e.g. complex.pdb, reference.sdf) are obfuscated to remove target names, PDB codes, and ligand three letter codes to suppress data-leakage shortcuts via memorized identifiers.",
+      "n_words": 187
+    },
+    {
+      "heading": "C.1 Selecting Oracle Calls",
+      "section_type": "other",
+      "text": "By default, across all evaluations, we set the total number of available Boltz2 calls to 8 and the number of ADMET-AI calls to 15. Note that a single ADMET-AI call returns all 8 ADMET properties for the inputted SMILES string. The complete reasoning behind only providing the LLM with a limited number of oracle calls is outlined in Section 6. In short, our goal is to treat the oracle calls as though they were ground truth, real-world wet lab experiments, hence the limited number of oracle calls.\n\nUltimately, SMDD-Bench can be considered a testbed for developing the right training strategies and agent harnesses for SMDD agents -even though agents trained on SMDD-Bench adhere to the Boltz2/ADMET-AI distribution of binding affinities, structures, and properties. Afterwards, the agents can be trained using those same strategies with a wet-lab-in-the-loop -where the oracle calls are directly made to an automated wet lab, performing the synthesis and then the pertinent assays completely autonomously.\n\nThe amount of Boltz2 and ADMET-AI calls must be tight enough to reward oracle-efficient reasoning instead of brute-force enumeration but generous enough such that a competent agent is not bottlenecked by oracle access.\n\nIn order to determine a standard number of oracle calls, we performed a sweep across oracle budget choices using a small calibration subset. We constructed the calibration split of 25 tasks drawn proportionally from each task type, with a minimum of one task per type (each task yielding max(1, ⌊25 • n t /N ⌋), where n t is the number of tasks of type t and N the total benchmark size). The Lead Optimization task instances were sampled stratified by problem complexity, defined as the sum of the number of optimization objectives and the number of hold-constant constraint, such that the calibration set spans the full difficulty range of the task type.\n\nWe swept each oracle independently while pinning the other to a generous ceiling:\n\n• Boltz sweep: ADMET budget fixed at 35; Boltz budget varied over {5, 8, 12}.\n\n• ADMET sweep: Boltz budget fixed at 12; ADMET budget varied over {15, 25, 35}.\n\nThe shared end-point (boltz = 12, admet = 35) was reused, giving five distinct (B, A) configurations in total. All other agent-harness settings were held at their defaults; the agent model used for calibration was GPT5.4.\n\nFor each sweep, we computed the per-type pass rate at every budget level and selected the \"knee\" of the plot, where the increase in performance began to saturate as the number of oracle calls increased.",
+      "n_words": 418
+    },
+    {
+      "heading": "D Additional Agent Results",
+      "section_type": "results",
+      "text": "Table 9 shows the cost breakdown of each of the LLMs evaluated on the full SMDD-Bench benchmark while Table 10 shows the average amount of wall-clock time required for task and model. Each task instance was run on either an A800 or A6000 GPU. Table 11 investigates the rate at which each LLM agent was able to recover exactly the witness that was found during task generatio out of all successful instances. Figure 8 and Figure 9 depict the number of task instances each LLM can uniquely get correct as well as the number of task instances all LLMs get correct for both SMDD-Bench and SMDD-Bench Lite respectively. Table 12 shows the number of Interaction Point Discovery task instances correctly discovering 0, 1, 2, or 3 of the most conserved interaction points. Table 13 depicts",
+      "n_words": 135
+    },
+    {
+      "heading": "D.1 Indicators of the Difficulty for Lead Optimization Tasks",
+      "section_type": "other",
+      "text": "We find that the number of optimization objectives and hold constant constraints are not indicative of the difficulty of a Lead Optimization task instance, as seen in Figure 10, where the difficulty of a task instance is defined by the average success rate of the 7 evaluated frontier LLM agents. This may be a byproduct of the greedy task generation algorithm used to generate Lead Optimization task instances -for every pair of molecules, all conserved and optimized properties of a molecule within the pair are used to create the task instance. Therefore, properties with synergistic effects can be simultaneously co-optimized via the same local molecular edit.\n\nRather than the number of optimization objectives and hold-constant constraints, we find that tasks with a large number of properties with clashing effects to be the greatest indicator for task difficulty. The incompatible, clashing property pairs can be found in Table 14 [Waring, 2010, Gleeson, 2008, Leeson and Springthorpe, 2007, Varma et al., 2009]. These properties are chemically anti-correlatedstandard local modifications intended to optimize for one property result in the degradation of the other. As a result, molecular modifications are typically multi-step and more complex in nature compared to task instances with fewer incompatible property pairs.",
+      "n_words": 202
+    },
+    {
+      "heading": "D.2 Analysis on inter-agent submission diversity",
+      "section_type": "results",
+      "text": "As seen in Figure 12, we find, perhaps intuitively, that an increase in the number of turns an LLM takes to solve a task is correlated with the increasing difficulty of the task (as indicated by success rate). We also observe that, as the LLM agents require more turns for more challenging tasks, the pairwise Tanimoto similarity between successful submissions of different LLMs for the same task increases while the fraction of unique molecules also increases. This is a surprising result, indicating that, for challenging tasks, the successful agents are converging onto the same narrow region in chemical space but via different approaches -leading to successful submissions with high Tanimoto similarity but also high unique fraction.\n\nConversely, simpler tasks lead to a low fraction of unique molecules; most likely resulting from the agents identifying and attempting the same set of straightforward strategies which passed the oracle calls on an early turn count.",
+      "n_words": 152
+    },
+    {
+      "heading": "E Selecting SMDD-Bench Lite",
+      "section_type": "other",
+      "text": "Running the full 502-task benchmark is expensive in wall clock time and GPU compute requirement (see Table 10). As a result, we introduce the SMDD-Bench Lite subset, a 100 task instance representative subset of SMDD-Bench, making faster model and harness iteration faster and more unified.\n\nLite preserves the per-type mix of the full benchmark as seen in Table 15. The mean success rate across all agents plotted against the specific incompatible pair. There is no relationship between the difficulty of the task and the specific pairing. Selection proceeds independently within each task type, and combines stratified sampling with a greedy representativeness/diversity objective. For each task we define a stratum used as a difficulty/discrimination proxy:\n\n• Lead optimization: the tuple (n opt , n hold ) of the number of optimisation objectives and hold-constant properties. • 2D Pharmacophore ID, Interaction Point Discovery, Scaffold Hopping, Fragment\n\nAssembly: the integer success rate of the task across the seven evaluated models, Stratum allocation. Given a per-type budget k and stratum sizes {n s }, we allocate k slots across strata in proportion to n s using the largest-remainder (Hamilton) rule: each stratum gets ⌊k • n s /N ⌋ slots, and the remaining slots are awarded to the strata with the largest fractional parts, breaking ties by stratum key.\n\nWithin-stratum greedy pick. Within each stratum we pick tasks one at a time. Let r full ∈ [0, 1] 6 be the per-model pass-rate vector of the full type, and let r S be the mean pass-rate vector of the currently-selected Lite tasks. At each step we pick the candidate t minimizing where c(•) counts how many already-selected Lite tasks share the same protein/target as t, and λ = 0.15. The target field is parsed from the task id. The protein-reuse term acts as a tie-breaker between near-equivalently representative candidates rather than overriding the representativeness objective; ties are broken deterministically by sorted task_id. Strata are processed in order of decreasing size so that the largest contributors to r full shape the selection first.",
+      "n_words": 338
+    },
+    {
+      "heading": "F Selecting SMDD-Bench Diversity",
+      "section_type": "other",
+      "text": "During a lead optimization campaign, one potential use case involves running many SMDD agents on the same task in parallel in order to achieve a diverse spread of successful molecules. In order to test this, we develop the SMDD-Bench Diversity subset, a standardized 20 instance subset of SMDD-Bench meant for each task instance to be run multiple times.\n\nIn order to select the SMDD-Bench Diversity subset, we seek to find the most challenging consistently solvable instances. Task instances that are too simple are trivially solvable with minimal molecular edits. Task instances which are too challenging may be out of reach for the current frontier LLMs.\n\nWe first rank all Lead Optimization task instances solvable by 5/7 LLMs and rank them by turn count. We use turn count as a proxy for ranking the difficulty and chemical solution space of a task instance, following insight from Appendix D.2. We then hand-select the 20 instances with the highest average turn counts across the 7 LLMs while ensuring target diversity (no single target dominates the subset). This selection strategy ensures the tasks are at the edge of the realm of solvable tasks for current frontier LLM agents. Note that, across the SMDD-Bench Diversity runs outlined in Table 3, none of the LLMs failed a task instance all 10 times the task instance was run.",
+      "n_words": 221
+    },
+    {
+      "heading": "G Enumeration vs. Selection Details",
+      "section_type": "other",
+      "text": "A failure on SMDD-Bench can come from two qualitatively different shortcomings of the agent: (i) the agent never enumerated a passing molecule at all, or (ii) the agent enumerated a passing molecule somewhere in its trajectory but never selected it to be tested by an oracle call. The enumeration vs. selection experiments are designed to disentangle these shortcomings: for every failed task, we extract and evaluate every SMILES string enumerated by the agent but not selected for an oracle call. We define a \"recovered\" task to be one whose original submission fails evaluation but where at least one trajectory-resident SMILES would have passed the full evaluator.\n\nWe run the experiment for all seven evaluated models and the three generation-style task types: Scaffold Hopping, Lead Optimization, and Fragment Assembly. 2D Pharmacophore Identification and Interaction Point Discovery are excluded because their outputs are not molecules. In order to extract the SMILES string, we compact each trajectory to only the reasoning trace, LLM output, and python interpreter input before feeding the compacted trajectory to GPT5.4-mini-high.",
+      "n_words": 172
+    },
+    {
+      "heading": "Extraction Prompt",
+      "section_type": "other",
+      "text": "The system prompt sent to GPT-5.4-mini is reproduced verbatim below:\n\nYou are a careful chemical-structure extractor.\n\nYou will receive a JSON list of trajectory events from an LLM agent that was working on a small-molecule drug-discovery task. Each event has a `turn`number, a `source`in {assistant_text, reasoning_content, python_code}, and the raw text for that event.\n\nYour job: extract EVERY SMILES string that appears in those events. For each occurrence, return:\n\n-\"turn\": the turn number (integer) -\"source\": one of \"assistant_text\", \"reasoning_content\", \"python_code\" -\"smiles\": the raw SMILES string as it appears in the text -\"note\": a short (<=120 char) free-text note describing the context (e.g. \"proposed as analog A\", \"printed in a Python list of candidates\", \"mentioned while analyzing reference ligand\").",
+      "n_words": 118
+    },
+    {
+      "heading": "Rules:",
+      "section_type": "other",
+      "text": "-Do NOT invent or canonicalize SMILES. Copy them verbatim from the text.\n\n-Report duplicates across turns / sources as separate occurrences.\n\n-Include SMILES that appear inside Python source code as string literals.\n\n-If a code snippet builds a SMILES via string concatenation and you can statically determine the final value, include it with a note that says so. Otherwise, skip it. -Skip protein sequences, fragment placeholders like `[*]`, and reaction SMARTS. -If you are unsure whether a token is a real SMILES, include it --downstream RDKit validation will filter invalid ones.\n\nReturn a JSON object of the form:\n\n{\"occurrences\": [{\"turn\": int, \"source\": str, \"smiles\": str, \"note\": str}, ...]} Return an empty list if no SMILES are present. Do not include any other keys.",
+      "n_words": 123
+    },
+    {
+      "heading": "H Example Task Instances, Trajectories, and Analysis",
+      "section_type": "results",
+      "text": "In this section, we show one successful LLM agent trajectory for each task type. Due to space considerations, each trajectory is limited to only the first 5 and last 5 turns. For all trajectories across all LLM runs, please refer to the official GitHub repository.\n\nH.1 2D Pharmacophore Identification H.1.1 Passing run: GPT-5.4 (medium reasoning)\n\nTask ID: smdd_001_Q99873_0 Model: GPT-5.4 (medium reasoning) Run: gpt_54_med_full\n\nEvaluation result: PASSED.",
+      "n_words": 67
+    },
+    {
+      "heading": "Metric Status Result Condition",
+      "section_type": "results",
+      "text": "Recall on Actives passed 0.9880952380952381 {\"gte\": 0.8} Specificity on Inactives passed 0.8702290076335878 {\"gte\": 0.8}",
+      "n_words": 14
+    },
+    {
+      "heading": "Trajectory.",
+      "section_type": "other",
+      "text": "Showing the first 5 and last 5 of 12 agent turns; 2 intermediate turns are elided for space.",
+      "n_words": 18
+    },
+    {
+      "heading": "System Prompt",
+      "section_type": "method",
+      "text": "You are a computational medicinal chemist assistant. You are given a drug discovery task and must use your tools to solve it.",
+      "n_words": 22
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "When ready, call submit() with the path to your solution file (relative to /workspace).\n\nUser (turn 0)",
+      "n_words": 17
+    },
+    {
+      "heading": "## Task",
+      "section_type": "other",
+      "text": "You are provided with a set of active molecules and a set of inactive molecules for a protein target (Protein arginine N-methyltransferase 1) in 'actives.smi' and 'inactives.smi', along with the target protein sequence in 'protein.fasta'.",
+      "n_words": 35
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Your task is to identify a 2D pharmacophore pattern that distinguishes actives from inactives.\n\nWrite a Python script 'solution.py' that defines a function `check_pharmacophore(smiles: str) -> bool`. This function should return True if the input SMILES matches your pharmacophore pattern, and False otherwise. You should rely primarily on RDKit in your solution.",
+      "n_words": 52
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Your workspace at /workspace contains the task files. Start by examining them.",
+      "n_words": 12
+    },
+    {
+      "heading": "Assistant (turn 1)",
+      "section_type": "other",
+      "text": "I'll first inspect the provided active/inactive sets and protein file, then analyze common substructures and simple 2D features in RDKit to identify a distinguishing pharmacophore pattern.\n\nAfter that, I'll implement `check_pharmacophore`in `solution.py`and validate it against the datasets before submitting.",
+      "n_words": 39
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "Tool Call: python (turn 1, 0.14s)\n\nReasoning:\n\nInspect the workspace files and get a quick sense of the active/inactive molecule sets, including counts and example entries, to guide pharmacophore analysis. Tool Output (turn 1)\n\nFiles: ['inactives.smi', 'actives.smi', '.tmp_script_0ec86da1.py', 'protein.fasta",
+      "n_words": 39
+    },
+    {
+      "heading": " [21 more lines elided]",
+      "section_type": "other",
+      "text": "Assistant (turn 2)\n\nNext I'll compute basic RDKit descriptors and look for recurring scaffolds and substructures in the actives versus inactives. That should help me formulate a simple but selective 2D rule rather than overfitting to exact structures.",
+      "n_words": 38
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Tool Call: python (turn 2, 0.48s)\n\nReasoning:\n\nAnalyze active and inactive molecules with RDKit: parse molecules, compute descriptors, Murcko scaffolds, and inspect recurring functional motifs to identify a discriminative pharmacophore. Assistant (turn 3)\n\nThe actives appear to include a dominant chemotype with an aminoethyl/diamino side chain attached to an N-containing 5-membered heteroaromatic ring, plus a few distinct substrate/cofactor-like mimics. I'll now quantify candidate SMARTS motifs across both classes to see which combinations are most discriminative.",
+      "n_words": 75
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "Tool Call: python (turn 3, 0.29s)\n\nReasoning:\n\nTest candidate SMARTS motifs and motif combinations across actives and inactives to identify a discriminative pharmacophore-style rule. Assistant (turn 4) (no assistant text emitted; tool call only)\n\nformula C14H20N6O5S rings 3 HBD 5 HBA 10 TPSA 182.62999999999997 ring info ((1, 6, 5, 4, 3, 2), (7, 6, 5, 9, 8), (11, 10, 24, 22, 12)) ACTIVE 3 CNC(=N)NCCCNC(=O)Nc1ccc2cc(C(=O)OC)cc(O)c2c1 formula C18H23N5O4 rings 2 HBD 6 HBA 5 TPSA 135.57000000000002 ring info ((12, 26, 25, 15, 14, 13), (16, 17, 22, 23, 25, 15))\n\nformula C24H42N2O4 rings 2 HBD 2 HBA 6 TPSA 63.19 ring info ((4, 29, 28, 11, 10, 9), (14, 15, 16, 17, 18, 13))",
+      "n_words": 113
+    },
+    {
+      "heading": "Elision",
+      "section_type": "other",
+      "text": "Turns 6-7 (2 agent turns) omitted.\n\nAssistant (turn 8)\n\n(no assistant text emitted; tool call only)\n\nTool Call: python (turn 8, 0.26s)\n\nReasoning:\n\nRefine a generic ribose-like SMARTS that captures the nucleoside-like actives while allowing me to combine it with other features to exclude the SAM-like inactive. Tool Output (turn 8) Tool Output (turn 9)\n\nact 10 [True,True,True,True,True,True,True,True,True,True] act\n\ninact 0 [False, False, False, False, False, False, False, False, False, False]\n\nAssistant (turn 10)\n\nI found a compact rule set that cleanly separates the provided actives from inactives. I'm now writing `solution.py`with a single `check_pharmacophore(smiles)`function implemented in RDKit using a small number of SMARTS-based pharmacophore branches and a sulfonium exclusion for the SAM-like inactive.",
+      "n_words": 114
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "Tool Call: python (turn 10, 0.15s)\n\nReasoning:\n\nWrite solution.py implementing the pharmacophore classifier as RDKit SMARTS-based logic, with comments and a simple optional self-test block.",
+      "n_words": 25
+    },
+    {
+      "heading": "Metric",
+      "section_type": "other",
+      "text": "Status Result Condition 3D Pharmacophore Match passed 1.0 {\"eq\": 1.0}\n\nTrajectory.",
+      "n_words": 11
+    },
+    {
+      "heading": "System Prompt",
+      "section_type": "method",
+      "text": "You are a computational medicinal chemist assistant. You are given a drug discovery task and must use your tools to solve it. You have no internet access. Work only with the files provided in /workspace. Outline your thought process before making tool calls.",
+      "n_words": 43
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "When ready, call submit() with the path to your solution file (relative to /workspace).\n\nUser (turn 0)\n\nYou are given a protein receptor structure (receptor.pdb). The binding pocket center is located at coordinates (0.266524, 31.234953, 4.470429) in Angstroms with a pocket radius of 12 Angstroms. Your task is to identify the 3 most conserved pharmacophoric interaction points within this binding pocket. Each point should be specified by its 3D coordinates (x, y, z) and one interaction type. The valid interaction types are: Donor, Acceptor, Aromatic, Hydrophobic, Cation, Anion. Output a CSV file titled 'solution.csv' with columns x,y,z,type containing exactly 3 rows (no header).\n\nYour workspace at /workspace contains the task files. Start by examining them.\n\nAssistant (turn 1)\n\n(no assistant text emitted; tool call only)\n\nTool Call: python (turn 1, 0.30s)\n\nReasoning:\n\nIdentify residues within 12 Angstroms of the pocket center.",
+      "n_words": 141
+    },
+    {
+      "heading": "Code:",
+      "section_type": "other",
+      "text": "import numpy as np from Bio.PDB import PDBParser center = np.array ([0.266524, 31.234953, 4.470429 Tool Output (turn 1)\n\nFound 66 pocket residues. VAL (' ', 685, ' ') ALA (' ', 687, ' ') PHE (' ', 697, ' ') ALA (' ', 699, ' ') LEU (' ', 700, ' ') LEU (' ', 701, ' ') SER (' ', 702, ' ') SER (' ', 703, ' ') LEU (' ', 704, ' ') ASN (' ', 705, ' ') GLU (' ', 706, ' ') LEU (' ', 707, ' ') GLY (' ', 708, ' ') GLU (' ', 709, ' ') ... [52 more lines elided] Assistant (turn 2) (no assistant text emitted; tool call only)\n\nTool Call: python (turn 2, 17.01s)",
+      "n_words": 127
+    },
+    {
+      "heading": "Reasoning:",
+      "section_type": "other",
+      "text": "Generate pharmacophore features for the pocket using RDKit.",
+      "n_words": 8
+    },
+    {
+      "heading": "Code:",
+      "section_type": "other",
+      "text": "import numpy as np from rdkit import Chem from rdkit.Chem import ChemicalFeatures from rdkit import RDConfig import os fdefName = os.path.join(RDConfig.RDDataDir, 'BaseFeatures.fdef') factory = ChemicalFeatures.BuildFeatureFactory(fdefName) mol = Chem.MolFromPDBFile('receptor.pdb') features = factory.GetFeaturesForMol(mol) center = np.array ([0.266524, 31.234953, 4. Alright, looking at the features found in the pocket and the residue list, the puzzle pieces are starting to fit together. ARG 752, GLN 711, ASN 705, THR 877 -this is a classic signature. This isn't just any receptor; it's the Androgen Receptor (AR).",
+      "n_words": 81
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Now, knowing it's AR, the \"conserved\" part of the prompt makes perfect sense. We're talking about the fundamental interactions that define AR agonists. The three most critical and highly conserved interactions typically are:\n\n1. **C3 Ketone Interaction:** The ligand's C3 ketone acts as a hydrogen bond acceptor, interacting with the hydrogen bond donors on the protein: Arg752 (NH1/NH2) and Gln711 (NE2). I'll write a Python script to pinpoint the coordinates of these specific key atoms on the protein.\n\nThis will give me a solid foundation to calculate the ideal pharmacophoric interaction points for the ligand.",
+      "n_words": 95
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Tool Call: python (turn 3, 0.30s)\n\nReasoning:\n\nGet the coordinates of key interacting atoms in AR (Arg752, Gln711, Asn705, Thr877) to define the ideal ligand pharmacophore positions. Tool Output (turn 3)\n\nArg752: [array ([ 5.382, 21.773, 2.483], dtype=float32), array ([ 5.131, 22.175, 4.764], dtype=float32), array ([ 4.536, 23.785, 3.223], dtype=float32)] → Gln711: [array ([ 1.321, 23.988, 6.567], dtype=float32), array ([ 0.828, 23.305, 4.496], dtype=float32)] → Asn705: [array( [-5.197, 32.992, 3.47 ], dtype=float32), array ([-7.176, 33.726, 2.694], dtype=float32)] → Thr877: [array( [-3.364, 36.117, 6.886], dtype=float32)]\n\nAssistant (turn 4) -5.20, 32.99, 3.47]`, ` [-7.18, 33.73, 2.69]* **Thr877 (OG1):** ` [-3.36, 36.12, 6.89]T he AR binding pocket is essentially a tunnel between these two main interaction \"poles\".\n\n**Pole 1 (The Acceptor):** This is where the ligand's C3 ketone interacts with Arg752 and Gln711. The ideal position for the ligand's C3 carbonyl oxygen (the Acceptor) is roughly 2.8 to 3.0 Angstroms away from the donor atoms. Specifically, the C3 ketone oxygen typically forms hydrogen bonds with Arg752 NH2 and Gln711 NE2.",
+      "n_words": 167
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "To find the ideal coordinate, I'll calculate the geometric center of these donors and project a point towards the center of the pocket. This pole corresponds to the ligand's C17 hydroxyl interacting with Asn705 and Thr877. The C17 OH can act as both a Donor (to Asn705 OD1/Thr877) and an Acceptor (from Asn705 ND2). For the sake of simplicity and adhering to the allowed types, I'll designate this point as a \"Donor\".\n\n→ → **The Third Point (Hydrophobic):** The AR binding pocket is characterized by a significant hydrophobic core, which interacts with the steroid backbone. I'll define this third point as \"Hydrophobic\". The center of the pocket is given as ` [0.266524, 31.234953, 4.470429]`, so I'll place this point near the center, potentially with a slight offset based on the surrounding hydrophobic residues.",
+      "n_words": 133
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "I'll write a script to calculate these exact 3D coordinates based on these geometric relationships.\n\nTool Call: python (turn 4, 0.21s)\n\nReasoning:\n\nCalculate 3D coordinates for the 3 pharmacophore points.",
+      "n_words": 30
+    },
+    {
+      "heading": "Code:",
+      "section_type": "other",
+      "text": "import numpy as np # Coordinates arg752_nh2 = np.array ([5.131, 22.175, 4.764]) gln711_ne2 = np.array ([1.321, 23.988, 6.567]) # OE1 or NE2? Gln711 usually H-bonds with C3. Let's use NE2 as donor, OE1 as acceptor.\n\n→ gln711_oe1 = np.array ([0.828, 23.305, 4.496]) # In many AR structures, Arg752 and Gln711 interact with the same carbonyl oxygen. # Let's find a point ~2.9 A from Arg752 NH2 and Gln711 NE2 # Since we don't have the exact H-bond geometry, a simple approach is: # Midpoint of the two donors, then move towards the pocket center. center = np.array ([0.266524, 31.234953, 4.470429 To pinpoint the exact coordinates for our three key pharmacophore points, I'll need to do some vector math. I have the locations of the key protein residues (Arg752, Gln711, Asn705, and Thr877) and the center of the binding pocket.",
+      "n_words": 139
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Here's my plan:\n\n1. **Pole 1 (Acceptor):** I'll find the midpoint between the hydrogen bond donors on Arg752 (NH2) and Gln711 (NE2). Then, I'll project a vector from this midpoint towards the center of the pocket. I'll place my Acceptor point roughly 2.5 Angstroms along this vector, representing an ideal hydrogen bond distance. Tool Call: python (turn 5, 0.21s)\n\nReasoning:\n\nRefine the coordinates by projecting along the axis between the two poles, which better represents the typical rigid structure of a steroid. Write the result to solution.csv.",
+      "n_words": 87
+    },
+    {
+      "heading": "Code:",
+      "section_type": "other",
+      "text": "import numpy as np arg752_nh2 = np.array ([5.131, 22.175, 4.764]) gln711_ne2 = np.array ([1.321, 23.988, 6.567]) asn705_nd2 = np.array ([-5.197, 32.992, 3.47]) thr877_og1 = np.array ([-3.364, 36.117, 6.886 The distance between Point 1 and Point 2 is approximately 8.1 Angstroms. But wait, DHT (a common AR ligand) has a C3=O to C17-OH distance of about 10.9 Angstroms. That's a significant difference.",
+      "n_words": 61
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Let's rethink this using the distance between the midpoints (13.7 Angstroms) and the target DHT distance (10.9 Angstroms). This suggests an adjustment of (13.7 -10.9) / 2 = 1.4 Angstroms from each side.",
+      "n_words": 33
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "But is 1.4 Angstroms a realistic hydrogen bond distance? Typically, heavy atom to heavy atom hydrogen bond distances are between 2.8 and 3.2 Angstroms. If `mid_pole1`is the geometric center of two donors, the actual distance from the Acceptor to each donor could be longer than the distance to the midpoint.",
+      "n_words": 50
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "Let's do a quick geometric check. Arg752 NH2 and Gln711 NE2 are roughly 4.58 Angstroms apart. If we want an Acceptor distance (d) of 2.9 Angstroms from both donors, and 'h' is the distance from the midpoint, we can use the Pythagorean theorem: d^2 = h^2 + (4.58/2)^2. This gives us h ~= 1.8 Angstroms.",
+      "n_words": 55
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "This is a much more logical approach! The distance from the midpoint should be closer to 1.8 Angstroms. I'll recalculate the coordinates based on this more physically realistic model.",
+      "n_words": 29
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Tool Call: python (turn 6, 0.27s)\n\nReasoning:\n\nRecalculate coordinates using h=1.8A and write the new solution to the file.",
+      "n_words": 19
+    },
+    {
+      "heading": "Code:",
+      "section_type": "other",
+      "text": "import numpy as np arg752_nh2 = np.array ([5.131, 22.175, 4.764]) gln711_ne2 = np.array ([1.321, 23.988, 6.567]) asn705_nd2 = np.array ([-5.197, 32.992, 3.47]) thr877_og1 = np.array ([-3.364, 36.117, 6.886 Tool Output (turn 6)\n\n2. 241,24.587,5.602,33.049,5.242,28.818,5.422,Hydrophobic Assistant (turn 7) This 10.1 Angstrom distance is much closer to the expected ~10.9 Angstrom for the C3 to C17 distance in a typical steroid like DHT. The slight difference is totally acceptable, as ligands might be slightly tilted within the pocket, or the protein might undergo slight induced fit upon binding.",
+      "n_words": 86
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "The hydrophobic point is perfectly situated in the middle of these two poles, right in the center of the pocket, which perfectly models the location of the hydrophobic steroid core.",
+      "n_words": 30
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "When ready, call submit() with the path to your solution file (relative to /workspace).\n\nUser (turn 0)\n\nYou are given a protein-ligand complex (complex.pdb). The target ligand is on chain L. A 3D reference structure of this ligand is provided in reference.sdf. Your task is to design a new molecule with a significantly different scaffold (the MCS atom count between the Bemis-Murcko scaffolds of your molecule and the reference, divided by the larger scaffold heavy atom count, must be < 0.65; additionally, overall Morgan fingerprint Tanimoto similarity must be < 0.5) to the ligand that maintains the same binding interactions and has binding probability > 0.7 as calculated by Boltz. The pocket is defined by residues (chain, 1-indexed SEQRES position): A:47, A:50, A:51, A:52, A:53, A:54, A:55, A:57, A:88, A:112, A:113, A:114, A:115. Output a single SMILES string to a file titled `solution.smi`.\n\nYour workspace at /workspace contains the task files. Start by examining them.",
+      "n_words": 155
+    },
+    {
+      "heading": "Assistant (turn 1)",
+      "section_type": "other",
+      "text": "I'll start by examining the provided files to understand the protein-ligand complex and the reference ligand structure.",
+      "n_words": 17
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Tool Call: python (turn 1, 0.44s)\n\nReasoning:\n\nFirst, I need to examine the provided files: complex.pdb and reference.sdf. I'll load them to understand the protein structure, the ligand, and analyze the reference ligand scaffold. Tool Call: python (turn 2, 0.66s)",
+      "n_words": 40
+    },
+    {
+      "heading": "Reasoning:",
+      "section_type": "other",
+      "text": "Remove the IPython import and continue analyzing the files. I need to understand the protein structure and extract the ligand from the complex. Assistant (turn 5)\n\nGood! The simple test molecule already meets the scaffold difference criteria (ratio 0.182 < 0.65, similarity 0.056 < 0.5). But I need to design something that maintains binding interactions. Let me think about the pocket residues and what interactions the reference ligand likely makes.",
+      "n_words": 70
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Looking at the pocket residues: A:47-THR, A:50-MET, A:51-ALA, A:52-CYS, A:53-SER, A:54-GLY, A:55-LEU, A:57-TYR, A:88-PHE, A:112-GLN, A:113-MET, A:114-GLU, A:115-HIS.",
+      "n_words": 18
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "These suggest potential interactions:\n\n-Aromatic residues (TYR57, PHE88, HIS115) could have pi-pi stacking or hydrophobic interactions -Polar residues (THR47, SER53, GLN112, GLU114, HIS115) could form hydrogen bonds -CYS52 could form disulfide or hydrophobic interactions\n\nThe reference ligand has 3 H-bond donors and 8 acceptors with TPSA of 136.68 Angstrom^2, suggesting significant polar interactions. Tool Output (turn 9)\n\n{ \"call_number\": 3, \"budget_remaining\": 5, \"cif_dir\": \"boltz_results/call_3/boltz_results_boltz_call_3/predictions/boltz_call_3\", \"affinity_data\": { \"affinity_pred_value\": -0.5056207180023193, \"affinity_probability_binary\": 0.7028120756149292, \"affinity_pred_value1\": -0.7198585867881775, \"affinity_probability_binary1\": 0.8170371055603027, \"affinity_pred_value2\": -0.2913827896118164, \"affinity_probability_binary2\": 0.5885871052742004 }, \"binding_probability\": 0.7028120756149292, \"affinity_pred_value\": -0. Tool Call: python (turn 5, 0.39s)\n\nReasoning:\n\nLet me extract the ligand from the complex PDB file and get the full protein sequence.\n\nCode: , 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50]...",
+      "n_words": 156
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Last residues: [424,425,426,427,428,429,430,431,432,433,434,435,436,437,438,439,440,441,442,443,444,445,446,447,448,449,450,451,452,453,454,455,456,457,458,459,460,461,462,463,464,465,466,467,468,469,470,471,472,473] → →",
+      "n_words": 5
+    },
+    {
+      "heading": "Elision",
+      "section_type": "other",
+      "text": "Turns 6-14 (9 agent turns) omitted.",
+      "n_words": 6
+    },
+    {
+      "heading": "Assistant (turn 15)",
+      "section_type": "other",
+      "text": "(no assistant text emitted; tool call only)\n\nTool Call: predict_boltz (turn 15, 266.93s)\n\nArguments:\n\n{ \"reasoning\": \"Testing the binding probability of candidate Mod 3 (shortened side chain). Need to provide the protein sequence and pocket residues.\",\n\nTool Output (turn 15) { \"call_number\": 1, \"budget_remaining\": 7, \"cif_dir\": \"boltz_results/call_1/boltz_results_boltz_call_1/predictions/boltz_call_1\", \"affinity_data\": { \"affinity_pred_value\": -1.272486686706543, \"affinity_probability_binary\": 0.889390766620636, \"affinity_pred_value1\": -1.1789921522140503, \"affinity_probability_binary1\": 0.9195749163627625, \"affinity_pred_value2\": -1.365981101989746, \"affinity_probability_binary2\": 0.8592066168785095 }, \"binding_probability\": 0.889390766620636, \"affinity_pred_value\": -1.272486686706543 } Assistant (turn 16) (no assistant text emitted; tool call only)\n\nTool Call: python (turn 16, 0.41s)",
+      "n_words": 83
+    },
+    {
+      "heading": "Reasoning:",
+      "section_type": "other",
+      "text": "The binding probability is 0.889 > 0.7, which meets the constraint. Now let me check PAINS filter and structural alerts before writing the solution. A budget-aware agent would have recognized after two data points that any free phenol on the aryl ring is a metabolic soft-spot and stopped proposing para-OH variants. Three of fifteen ADMET calls are spent confirming the same structural liability.\n\nIt is also worth noting that the witness molecule's SMILES string is O=C(O)CN1C(=O)[C@@H](N[C@@H](CSc2ccccc2)C(=O)O)CCc2ccccc21, which does not contain any para-OH functional groups to start with.",
+      "n_words": 87
+    },
+    {
+      "heading": "Trajectory.",
+      "section_type": "other",
+      "text": "Showing 5 of 51 agent turns; turns 1-16 and 19-29 are elided for space.",
+      "n_words": 14
+    },
+    {
+      "heading": "System Prompt",
+      "section_type": "method",
+      "text": "You are a computational medicinal chemist assistant. You are given a drug discovery task and must use your tools to solve it. User (turn 0)\n\nYou are given a co-folded protein-ligand complex (complex.pdb) and a reference ligand (reference.sdf).\n\nModify the reference ligand to optimize the following properties: Output a single SMILES string to solution.smi.\n\nYour workspace at /workspace contains the task files. Start by examining them.",
+      "n_words": 66
+    },
+    {
+      "heading": "Elision",
+      "section_type": "other",
+      "text": "Turns 1-14 and 16 (workspace inspection, reference ligand analysis, baseline ADMET properties prediction, baseline binding affinity computation using Boltz calls, protein sequence reconstruction, initial candidate generation) omitted.\n\nAssistant (turn 15) Tool Call: predict_admet (turn 15)\n\nReasoning:\n\nLet me propose some modified structures and test their ADMET properties. I'll start by trying to reduce lipophilicity and clearance by modifying the ester group and the phenyl ring. • Examples of negative societal impacts include potential malicious or unintended uses (e.g., disinformation, generating fake profiles, surveillance), fairness considerations (e.g., deployment of technologies that could make decisions that unfairly impact specific groups), privacy considerations, and security considerations. • The conference expects that many papers will be foundational research and not tied to particular applications, let alone deployments. However, if there is a direct path to any negative applications, the authors should point it out. For example, it is legitimate to point out that an improvement in the quality of generative models could be used to generate Deepfakes for disinformation. On the other hand, it is not needed to point out that a generic algorithm for optimizing neural networks could enable people to train models that generate Deepfakes faster. • The authors should consider possible harms that could arise when the technology is being used as intended and functioning correctly, harms that could arise when the technology is being used as intended but gives incorrect results, and harms following from (intentional or unintentional) misuse of the technology. • If there are negative societal impacts, the authors could also discuss possible mitigation strategies (e.g., gated release of models, providing defenses in addition to attacks, mechanisms for monitoring misuse, mechanisms to monitor how a system learns from feedback over time, improving the efficiency and accessibility of ML).",
+      "n_words": 290
+    },
+    {
+      "heading": "Safeguards",
+      "section_type": "other",
+      "text": "Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse (e.g., pre-trained language models, image generators, or scraped datasets)?\n\nAnswer: [Yes] Justification: We include details on task generation and usage of the benchmark in the Github repository.\n\nGuidelines:\n\n• The answer [N/A] means that the paper poses no such risks.\n\n• Released models that have a high risk for misuse or dual-use should be released with necessary safeguards to allow for controlled use of the model, for example by requiring that users adhere to usage guidelines or restrictions to access the model or implementing safety filters. • Datasets that have been scraped from the Internet could pose safety risks. The authors should describe how they avoided releasing unsafe images. • We recognize that providing effective safeguards is challenging, and many papers do not require this, but we encourage authors to take this into account and make a best faith effort.\n\n12. Licenses for existing assets Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected?\n\nAnswer: [Yes] Justification: All data sources are mentioned and credited explicitly.\n\nGuidelines:\n\n• The answer [N/A] means that the paper does not use existing assets.\n\n• The authors should cite the original paper that produced the code package or dataset.\n\n• The authors should state which version of the asset is used and, if possible, include a URL. • The name of the license (e.g., CC-BY 4.0) should be included for each asset.\n\n• For scraped data from a particular source (e.g., website), the copyright and terms of service of that source should be provided.\n\n• If assets are released, the license, copyright information, and terms of use in the package should be provided. For popular datasets, paperswithcode.com/datasets has curated licenses for some datasets. Their licensing guide can help determine the license of a dataset. • For existing datasets that are re-packaged, both the original license and the license of the derived asset (if it has changed) should be provided. • If this information is not available online, the authors are encouraged to reach out to the asset's creators.",
+      "n_words": 382
+    },
+    {
+      "heading": "New assets",
+      "section_type": "other",
+      "text": "Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?\n\nAnswer: [Yes] Justification: The benchmark is well documented in construction and in use.\n\nGuidelines:\n\n• The answer [N/A] means that the paper does not release new assets.\n\n• Researchers should communicate the details of the dataset/code/model as part of their submissions via structured templates. This includes details about training, license, limitations, etc. • The paper should discuss whether and how consent was obtained from people whose asset is used. • At submission time, remember to anonymize your assets (if applicable). You can either create an anonymized URL or include an anonymized zip file.",
+      "n_words": 111
+    },
+    {
+      "heading": "Crowdsourcing and research with human subjects",
+      "section_type": "other",
+      "text": "Question: For crowdsourcing experiments and research with human subjects, does the paper include the full text of instructions given to participants and screenshots, if applicable, as well as details about compensation (if any)?\n\nAnswer: [N/A] Justification: Our work does not involve human subjects.\n\nGuidelines:\n\n• The answer [N/A] means that the paper does not involve crowdsourcing nor research with human subjects. • Including this information in the supplemental material is fine, but if the main contribution of the paper involves human subjects, then as much detail as possible should be included in the main paper. • According to the NeurIPS Code of Ethics, workers involved in data collection, curation, or other labor should be paid at least the minimum wage in the country of the data collector.",
+      "n_words": 127
+    },
+    {
+      "heading": "Institutional review board (Iapprovals or equivalent for research with human subjects",
+      "section_type": "other",
+      "text": "Question: Does the paper describe potential risks incurred by study participants, whether such risks were disclosed to the subjects, and whether Institutional Review Board (IRB) approvals (or an equivalent approval/review based on the requirements of your country or institution) were obtained?\n\nAnswer: [N/A] Justification: Our work does not involve human subjects.\n\nGuidelines:\n\n• The answer [N/A] means that the paper does not involve crowdsourcing nor research with human subjects. • Depending on the country in which research is conducted, IRB approval (or equivalent) may be required for any human subjects research. If you obtained IRB approval, you should clearly state this in the paper.\n\n• We recognize that the procedures for this may vary significantly between institutions and locations, and we expect authors to adhere to the NeurIPS Code of Ethics and the guidelines for their institution. • For initial submissions, do not include any information that would break anonymity (if applicable), such as the institution conducting the review. 16. Declaration of LLM usage Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research? Note that if the LLM is used only for writing, editing, or formatting purposes and does not impact the core methodology, scientific rigor, or originality of the research, declaration is not required.\n\nAnswer: [Yes] Justification: LLMs were not used in ways that impact core methodology, scientific rigor, or originality of the work. Guidelines:\n\n• The answer [N/A] means that the core method development in this research does not involve LLMs as any important, original, or non-standard components. • Please refer to our LLM policy in the NeurIPS handbook for what should or should not be described.",
+      "n_words": 285
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Table 1 :",
+      "captions": "Success rate of 7 frontier closed and open source LLMs on SMDD-Bench, broken down by task type. Each LLM is evaluated using the minimalist agent harness outlined in Section 2.2 and Appendix C with a limited number of oracle calls.",
+      "content": "Success Rate (%)"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 :",
+      "captions": "Novelty of agent submissions, defined by % of submitted molecules not found in ChEMBL, PubChem, SureChEMBL, or BindingDB.",
+      "content": "Model | Scaffold Hopping | Lead Optimization | Fragment Assembly\nClaude Sonnet 4.6 | 88.5 | 77.9 | 82.8\nGPT-5.4 | 94.2 | 75.3 | 68.3\nGemini 3.1 Pro | 71.2 | 76.5 | 83.3\nKimi K2.5 Thinking | 80.8 | 77.6 | 65.0\nDeepSeek V3.2 | 94.2 | 83.2 | 69.1\nMiniMax M2.7 | 82.7 | 86.5 | 67.2\nQwen3.5 397B A17B | 82.7 | 77.9 | 61.7"
+    },
+    {
+      "kind": "table",
+      "label": "Table 3 :",
+      "captions": "",
+      "content": "Model | Avg. Successful | Avg. Unique and Successful | Novel and Successful (%) | Pairwise Tanimoto Similarity\nClaude Sonnet 4.6 | 8.40 | 3.70 | 74.0 | 0.823\nGPT-5.4 | 7.90 | 2.75 | 64.6 | 0.863\nGemini 3.1 Pro | 8.00 | 4.00 | 67.6 | 0.809\nKimi K2.5 Thinking | 6.00 | 3.85 | 65.0 | 0.786\nDeepSeek V3.2 | 5.35 | 3.85 | 68.4 | 0.763\nMiniMax M2.7 | 6.00 | 4.05 | 73.1 | 0.763\nQwen3.5 397B A17B | 7.25 | 3.55 | 67.2 | 0.814"
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 :",
+      "captions": "Original vs recovered success rates (%) and total number of enumerated molecules (#Mols) for all agents on SMDD-Bench. The recovered success rate is the rate the agent would have if it had selected to submit the ground truth best molecule that it enumerated during the reasoning process.",
+      "content": " |  | Scaffold Hopping |  |  | Lead Optimization |  |  | Fragment Assembly |  |  | Overall | \nModel | Orig. (%) Recov. (%) #Mols Orig. (%) Recov. (%) #Mols Orig. (%) Recov. (%) #Mols Orig. (%) Recov. (%) #Mols\nClaude Sonnet 4.6 | 3.8 | 32.7 | 2657 | 53.5 | 64.1 | 5872 | 0.0 | 3.3 | 4982 | 40.7 | 52.4 | 13 511\nDeepSeek V3.2 | 3.8 | 11.5 | 1052 | 34.7 | 39.4 | 3413 | 0.0 | 0.0 | 1358 | 26.5 | 31.0 | 5823\nGemini 3.1 Pro | 0.0 | 19.2 | 735 | 55.6 | 62.9 | 3328 | 1.7 | 3.3 | 1855 | 42.0 | 50.0 | 5918\nGPT-5.4 | 3.8 | 15.4 | 850 | 57.6 | 61.2 | 4486 | 1.7 | 1.7 | 1945 | 44.0 | 48.0 | 7281\nKimi K2.5 Thinking | 1.9 | 3.8 | 986 | 43.5 | 53.8 | 4940 | 0.0 | 1.7 | 2528 | 33.0 | 41.2 | 8454\nMiniMax M2.7 | 1.9 | 5.8 | 1203 | 27.1 | 47.1 | 7231 | 0.0 | 0.0 | 2372 | 20.6 | 36.1 | 10 806\nQwen3.5 397B | 1.9 | 3.8 | 1055 | 40.0 | 53.8 | 4367 | 0.0 | 0.0 | 1915 | 30.3 | 40.9 | 7337"
+    },
+    {
+      "kind": "table",
+      "label": "Table 5 :",
+      "captions": "Success rate (%) by task type and overall cost per instance of 8 frontier LLMs on the SMDD-Bench Lite subset.Beyond the issues regarding the novelty rate, diversity rate, and enumeration vs. selection performance gap, we investigated individual traces searching for other common failure modes in the frontier LLMs.",
+      "content": "Success Rate (%) | Cost"
+    },
+    {
+      "kind": "table",
+      "label": "Table 6 :",
+      "captions": "List of hard-constraints for molecules evaluated in Lead Optimization and Fragment Assembly tasks.",
+      "content": "Category | Constraint\nSMILES validity | Valid SMILES only\nMolecular weight | MW < 600 Da\nLipophilicity | log P ∈ [-1, 5]\nTopological polar surface area TPSA < 140 Å 2\nH-bond donors | ≤ 5\nH-bond acceptors | ≤ 10\nRotatable bonds | ≤ 10\nFormal charge | ∈ [-2, +2]\nSynthetic accessibility | SA score < 4.5 [Ertl and Schuffenhauer, 2009]\nStructural alerts | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 8 :",
+      "captions": "Baseline agent harness configuration. All harness values are constants across tasks and models. Boltz diffusion samples was set to 10 to mitigate stochasticity in Boltz outputs. We find empirically find settings above 3 diffusion samples to sufficiently reduce stochasticity across multiple runs.",
+      "content": "Parameter | Value | Notes\nSampling |  | \nTemperature | 1.0 | -\nSampling seed | 42 | -\nMax ReAct turns | 100 | one LLM call per turn\nMax cumulative tokens | 10,000,000 input + output, summed across turns\nMax consecutive refusals 15 | terminates run if exceeded\nOracle budgets (per task) |  | \nBoltz-2 calls | 8 | shared across rollout\nADMET-AI calls | 15 | shared across rollout\nBoltz diffusion samples | 10 | matches evaluator setting"
+    },
+    {
+      "kind": "table",
+      "label": "Table 9 :",
+      "captions": "Cost breakdown per instance for Task Types 1 through 5 and Overall averages across 7 frontier LLMs.",
+      "content": " |  | Average Cost ($/task instance) |  | \nModel | 2D Pharma-cophore ID | Interaction Point Discovery | Scaffold Hopping | Lead Optimization | Fragment Assembly | Overall\nClaude Sonnet 4.6 | 1.09 | 0.30 | 0.92 | 1.01 | 3.85 | 1.31\nGPT-5.4 | 0.61 | 0.72 | 0.62 | 0.72 | 1.31 | 0.78\nGemini 3.1 Pro | 0.39 | 0.16 | 0.31 | 0.62 | 1.24 | 0.63\nKimi K2.5 Thinking | 0.41 | 0.09 | 0.18 | 0.43 | 0.53 | 0.40\nDeepSeek V3.2 | 0.21 | 0.09 | 0.29 | 0.47 | 0.57 | 0.43\nMiniMax M2.7 | 0.41 | 0.07 | 0.31 | 0.36 | 0.46 | 0.36\nQwen3.5 397B A17B | 1.09 | 0.15 | 0.63 | 0.78 | 0.81 | 0.75"
+    },
+    {
+      "kind": "table",
+      "label": "Table 10 :",
+      "captions": "Average wall-clock time (minutes) per task, split by success status.",
+      "content": "Average Time (minutes)"
+    },
+    {
+      "kind": "table",
+      "label": "Table 11 :",
+      "captions": "Rate (%) at which the LLM agents were able to recover the witness molecule exactly. The denominator is the number of successful instances for the LLM on the specific task type.",
+      "content": "Model | Scaffold Hopping | Lead Optimization | Fragment Assembly\nClaude Sonnet 4.6 | 0.0% | 16.5% | -\nGPT-5.4 | 0.0% | 21.9% | 0.0%\nGemini 3.1 Pro | - | 21.7% | 0.0%\nKimi K2.5 Thinking | 0.0% | 16.9% | -\nDeepSeek V3.2 | 0.0% | 16.1% | -\nMiniMax M2.7 | 0.0% | 14.1% | -\nQwen3.5 397B A17B | 0.0% | 19.1% | -"
+    },
+    {
+      "kind": "table",
+      "label": "Table 12 :",
+      "captions": "The number of task instances in the Interaction Point Discovery task type that each LLM was able to successfully pinpoint 0, 1, 2, or 3 interaction points for. Only instances where the LLM was able to find 3 points were considered a success. Note that there may be more than 3 ground truth points the LLM-discovered points are able to match to.",
+      "content": "Model | 0/3 1/3 2/3 3/3\nClaude Sonnet 4.6 | 21 | 4 | 0 | 0\nGPT-5.4 | 11 | 11 | 3 | 0\nGemini 3.1 Pro | 14 | 9 | 1 | 1\nKimi K2.5 Thinking | 23 | 2 | 0 | 0\nDeepSeek V3.2 | 25 | 0 | 0 | 0\nMiniMax M2.7 | 24 | 1 | 0 | 0\nQwen3.5 397B A17B | 20 | 5 | 0 | 0"
+    },
+    {
+      "kind": "table",
+      "label": "Table 13 :",
+      "captions": "The total number of turns and tool calls, broken down by task type for the SMDD-Bench full runs. The Boltz2 oracle budget was 8 calls while the ADMET-AI oracle budget was 15 calls. Most of the turns were spent on visualization, analysis, and simulation using the python tool.",
+      "content": "Model | Metric | 2D Pharma-cophore ID | Interaction Point Discovery | Scaffold Hopping | Lead Optimization | Fragment Assembly | Overall\nClaude Sonnet 4.6 | Total Turns | 29.4 | 11.6 | 27.1 | 28.0 | 57.6 | 30.7\n | python | 28.4 | 10.6 | 23.4 | 20.0 | 50.6 | 23.9\n | predict_boltz | 0.0 | 0.0 | 3.8 | 3.0 | 7.8 | 3.3\n | predict_admet | 0.0 | 0.0 | 0.8 | 10.8 | 0.8 | 7.5\n | other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0\nGPT-5.4 | Total Turns | 13.8 | 13.8 | 15.0 | 14.6 | 21.4 | 15.4\n | python | 12.6 | 12.8 | 12.2 | 9.7 | 18.3 | 11.3\n | predict_boltz | 0.0 | 0.0 | 5.5 | 4.3 | 7.9 | 4.4\n | predict_admet | 0.0 | 0.0 | 0.8 | 12.7 | 0.5 | 8.7\n | other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0\nGemini 3.1 Pro | Total Turns | 14.2 | 7.4 | 11.1 | 19.3 | 31.4 | 19.1\n | python | 13.2 | 6.4 | 7.8 | 9.3 | 23.5 | 10.9\n | predict_boltz | 0.0 | 0.0 | 2.7 | 2.9 | 7.3 | 3.1\n | predict_admet | 0.0 | 0.0 | 0.1 | 10.7 | 0.8 | 7.4\n | other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0\nKimi K2.5 Thinking Total Turns | 29.2 | 11.6 | 20.8 | 35.8 | 35.9 | 32.7\n | python | 28.2 | 10.6 | 13.9 | 17.8 | 24.8 | 18.4\n | predict_boltz | 0.0 | 0.0 | 5.2 | 5.2 | 7.7 | 5.0\n | predict_admet | 0.0 | 0.0 | 0.8 | 12.0 | 2.6 | 8.5\n | other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0\nDeepSeek V3.2 | Total Turns | 18.0 | 10.8 | 24.0 | 36.0 | 31.7 | 32.1\n | python | 17.0 | 9.8 | 13.6 | 15.7 | 19.5 | 15.7\n | predict_boltz | 0.0 | 0.0 | 6.8 | 5.3 | 7.3 | 5.2\n | predict_admet | 0.0 | 0.0 | 2.3 | 12.6 | 1.9 | 9.0\n | other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0\nMiniMax M2.7 | Total Turns | 40.0 | 14.0 | 39.2 | 43.4 | 48.8 | 42.0\n | python | 38.9 | 12.9 | 30.9 | 27.4 | 39.1 | 29.0\n | predict_boltz | 0.0 | 0.0 | 6.7 | 5.9 | 7.7 | 5.6\n | predict_admet | 0.0 | 0.0 | 0.3 | 12.8 | 0.5 | 8.8\n | other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0\nQwen3.5 397B A17B Total Turns | 42.0 | 13.4 | 40.3 | 48.5 | 46.2 | 45.3\n | python | 37.2 | 11.0 | 31.7 | 26.8 | 36.0 | 28.2\n | predict_boltz | 0.0 | 0.0 | 6.8 | 5.7 | 7.7 | 5.5\n | predict_admet | 0.0 | 0.0 | 0.4 | 11.7 | 1.0 | 8.0\n | other | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0"
+    },
+    {
+      "kind": "table",
+      "label": "Table 14 :",
+      "captions": "The incompatible property pairs defined in SMDD-Bench. These are pairs of properties which are not sampled for co-optimization targets but can be found in hold-constant constraints or have one property as an optimization objective and the other as a hold-constant constraint.",
+      "content": "Property A (direction) | Property B (direction) | Rationale\nAqueous solubility (↑) | BBB penetration (↑) | Solubility favors polar/hydrophilic compounds; BBB\n |  | penetration favors lipophilic compounds.\nPlasma protein binding (↓) BBB penetration (↑) | Low PPB requires reduced lipophilicity; BBB penetra-\n |  | tion is driven by lipophilicity.\nCaco-2 permeability (↑) | Plasma protein binding (↓) Caco-2 permeability tracks lipophilicity, which also\n |  | drives plasma protein binding.\nAqueous solubility (↑) | Hepatic clearance (↓) | Increasing polarity to improve solubility tends to expose\n |  | substrates to renal/metabolic clearance.\nAqueous solubility (↑) | Caco-2 permeability (↑) | Solubility favors polarity; Caco-2 permeability favors\n |  | lipophilicity.\nCaco-2 permeability (↑) | BBB penetration (↓) | Both are passive permeability measures; maximizing one\n |  | while minimizing the other is contradictory."
+    },
+    {
+      "kind": "table",
+      "label": "Table 15 :",
+      "captions": "The task breakdown for SMDD-Bench Lite compared to SMDD-Bench.",
+      "content": "Task type | Full Lite\n2D Pharmacophore Identification | 25 | 5\nInteraction Point Discovery | 25 | 5\nScaffold Hopping | 52 | 10\nLead Optimisation | 340 | 68\nFragment Assembly | 60 | 12\nTotal | 502 | 100"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "5 more lines elided]Evaluate a combined multi-branch pharmacophore logic based on the dominant heteroaryl-diamine motif plus auxiliary branches for nucleoside-like, guanidinoamide, and aminoalomatic-aminoalcohol chemotypes.",
+      "content": "Tool Call: python (turn 9, 0.27s)\nReasoning:\n→\n→\nCode:\nfrom rdkit import Chem\nfrom pathlib import Path\nbase=Path('/workspace')\nactives=[line.strip().split()[0] for line in open(base/'actives.smi') if line.strip()]\ninactives=[line.strip().split()[0] for line in open(base/'inactives.smi') if line.strip()]\nAssistant (turn 9)\n(no assistant text emitted; tool call only)"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Now that I have the coordinates for the key protein atoms, I can start calculating the ideal positions for the ligand's pharmacophore features.",
+      "content": "→ | \nHere's the breakdown of the coordinates I found:\n* | **Arg752 (NH1, NH2, NE):** `[5.38, 21.77, 2.48]`, `[5.13, 22.17, 4.76]`, `[4.54, 23.78, 3.22]*\n | **Gln711 (OE1, NE2):** `[1.32, 23.99, 6.57]`, `[0.83, 23.30, 4.50]*\n | **Asn705 (ND2, OD1):** `["
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Showing the first 5 and last 5 of 13 agent turns; 3 intermediate turns are elided for space. Execute Python code. Available packages: rdkit, numpy, pandas, scipy, scikit-learn, biopython, biotite, openbabel, plip. To compute synthetic accessibility (SA) scores: `from rdkit.Chem import RDConfig; import sys, os; sys.path.append(os.path.join(RDConfig.RDContribDir, 'SA_Score')); import sascorer; sascorer.calculateScore(mol)` Predict ADMET properties. Returns hERG, BBB, solubility, CYP3A4, clearance, Caco2, PPB, AMES. Budget: 15 calls.",
+      "content": "H.3 Scaffold Hopping |  | \nH.3.1 Passing run: DeepSeek V3.2 | \nTask ID: smdd_003_7OKM_1 Model: DeepSeek V3.2 Run: deepseek_v32_full\nEvaluation result: PASSED. |  | \nMetric | Status Result | Condition\nValidity | passed True | {\"eq\": true}\nTanimoto Similarity | passed 0.10714285714285714 {\"lt\": 0.5}\nScaffold MCS | passed 0.45454545454545453 {\"lt\": 0.65}\nBoltz Interaction Similarity passed 1.0 | {\"gt\": 0.75}\nBoltz Binding Probability | passed 0.7260922789573669 | {\"gt\": 0.7}\nTrajectory. |  | \nSystem Prompt |  | \nYou are a computational medicinal chemist assistant. You are given a drug discovery task and must use\nyour tools to solve it. |  | \n→ |  | \n→ |  | \n→ |  | \n-predict_boltz(smiles, protein_sequences, pocket_residues, co_ligand_smiles, num_samples): Run Boltz\nstructure prediction. Returns binding probability and affinity. Budget: 8 calls.\n→ |  | \n-submit(file_path): Submit your solution file. | \nYou have no internet access. Work only with the files provided in /workspace. Outline your thought\nprocess before making tool calls. | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Let me fix the import error and continue:",
+      "content": "import os\nfrom rdkit import Chem\nfrom rdkit.Chem import AllChem, Draw, rdFMCS, rdMolDescriptors\nfrom rdkit.Chem.Draw import IPythonConsole\nimport pandas as pd\nimport numpy as np\n# List files in workspace\nprint(\"Files in workspace:\")\nprint(os.listdir('/workspace'))\n# Load the reference ligand SDF\nref_path = '/workspace/reference.sdf'\nprint(f\"\\nLoading reference SDF from {ref_path}\")\nsuppl = Chem.SDMolSupplier(ref_path)\n... [27 more lines elided]\nTool Output (turn 1)\nTraceback (most recent call last):\nFile \"/workspace/.tmp_script_7278e82f.py\", line 4, in <module>\n | from rdkit.Chem.Draw import IPythonConsole\nFile \"/opt/conda/lib/python3.10/site-packages/rdkit/Chem/Draw/IPythonConsole.py\", line 16, in\n→ | <module>\n | import IPython\nModuleNotFoundError: No module named 'IPython'\nAssistant (turn 2)"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Let me fix the descriptor imports and continue:Fix the imports and continue analyzing. I need to understand the protein sequence and pocket residues to use Boltz prediction.",
+      "content": "Assistant (turn 3) # Load reference molecule\nref_path = '/workspace/reference.sdf'\nsuppl = Chem.SDMolSupplier(ref_path)\nref_mol = [mol for mol in suppl if mol is not None][0]\nprint(\"=== REFERENCE LIGAND ANALYSIS ===\") Tool Call: python (turn 3, 0.60s) print(f\"SMILES: {Chem.MolToSmiles(ref_mol)}\")\nprint(f\"Heavy atoms: {ref_mol.GetNumHeavyAtoms()}\") Reasoning: ... [61 more lines elided]\n→\nTool Output (turn 4)\nCode:\n=== REFERENCE LIGAND ANALYSIS === import os SMILES: N#Cc1cnn2c3cc(nc12)N1CCC[C@@H]1CC(=O)NCCOc1cc(cc2c1NC(=O)CC2)N3 from rdkit import Chem from rdkit.Chem import AllChem, rdFMCS, rdMolDescriptors, PandasTools Heavy atoms: 35\nfrom rdkit.Chem import Descriptors Reference Bemis-Murcko scaffold: import pandas as pd SMILES: O=C1C[C@H]2CCCN2c2cc(n3nccc3n2)Nc2cc3c(c(c2)OCCN1)NC(=O)CC3 import numpy as np Heavy atoms: 33\n# Load the reference ligand SDF\nref_path = '/workspace/reference.sdf'\nprint(f\"Loading reference SDF from {ref_path}\")\nsuppl = Chem.SDMolSupplier(ref_path) === FUNCTIONAL GROUP ANALYSIS === ref_mols = [mol for mol in suppl if mol is not None] Contains nitrile (C#N): False\nContains amide (C(=O)N): True if ref_mols: Contains aromatic N: 3 ref_mol = ref_mols[0] ... [99 more lines elided] ... [21 more lines elided]\nTool Output (turn 3)\nLoading reference SDF from /workspace/reference.sdf\nReference SMILES: N#Cc1cnn2c3cc(nc12)N1CCC[C@@H]1CC(=O)NCCOc1cc(cc2c1NC(=O)CC2)N3\nReference scaffold SMILES: O=C1C[C@H]2CCCN2c2cc(n3nccc3n2)Nc2cc3c(c(c2)OCCN1)NC(=O)CC3\nReference scaffold heavy atom count: 33\nMolecular weight: 472.20\nLogP: 2.10 → Num H-bond donors: 3\nNum H-bond acceptors: 8\nNum rotatable bonds: 0 Code: TPSA: 136.68\nimport os\nfrom rdkit import Chem\nfrom rdkit.Chem import AllChem, rdFMCS, rdMolDescriptors, PandasTools Analyzing protein complex from /workspace/complex.pdb import pandas as pd Chain A sequence length: 128 import numpy as np Chain A sequence (first 100 residues): GPGADSCIQFTRHASDVLLNLNRLRSRDILTDVVIVVSREQFRAHKTVLMACSGLFYSIFTD ⌋\nQLKCNLSVINLDPEINPEGFCILLDFMYTSRLNLREGN # List files in workspace → print(\"Files in workspace:\") ... [22 more lines elided]\nprint(os.listdir('/workspace'))\n# Load the reference ligand SDF ref_path = '/workspace/reference.sdf' Assistant (turn 4)\nprint(f\"\\nLoading reference SDF from {ref_path}\") Great! Now I have the reference ligand and protein information. Let me analyze the reference ligand\nsuppl = Chem.SDMolSupplier(ref_path) more carefully and understand its scaffold. I need to design a molecule with significantly →\nref_mols = [mol for mol in suppl if mol is not None] → different scaffold (MCS atom count ratio < 0.65) and Morgan fingerprint Tanimoto similarity < 0.5, ... [80 more lines elided] but still binds with probability > 0.7. →\nFirst, let me check the reference ligand structure more carefully and think about scaffold\nTool Output (turn 2) modifications: →\nFiles in workspace:\n['reference.sdf', '.tmp_script_637aee5d.py', 'complex.pdb'] Tool Call: python (turn 4, 0.78s)\nLoading reference SDF from /workspace/reference.sdf Reasoning: Number of molecules in reference.sdf: 1 Analyze the reference ligand scaffold and think about potential modifications. I need to understand Reference molecule has 35 atoms Reference SMILES: N#Cc1cnn2c3cc(nc12)N1CCC[C@@H]1CC(=O)NCCOc1cc(cc2c1NC(=O)CC2)N3 the key interactions this ligand makes with the pocket residues.\nReference scaffold SMILES: O=C1C[C@H]2CCCN2c2cc(n3nccc3n2)Nc2cc3c(c(c2)OCCN1)NC(=O)CC3\nReference scaffold heavy atom count: 33\nReference Morgan fingerprint generated\n[08:41:51] DEPRECATION WARNING: please use MorganGenerator import os\nTraceback (most recent call last): from rdkit import Chem\nFile \"/workspace/.tmp_script_637aee5d.py\", line 33, in <module> from rdkit.Chem import AllChem, rdFMCS, rdMolDescriptors, Draw\nprint(f\"Molecular weight: {Chem.Descriptors.ExactMolWt(ref_mol):.2f}\") from rdkit.Chem import Descriptors\nAttributeError: module 'rdkit.Chem' has no attribute 'Descriptors'. Did you mean: 'rdMolDescriptors'? from rdkit.Chem.Scaffolds import MurckoScaffold\nimport matplotlib.pyplot as plt"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Let me design a new scaffold that maintains similar pharmacophores but with different core structure.I'll start by designing a molecule, then test it with Boltz.",
+      "content": "→ | \nTool Call: python (turn 5, 0.49s)\nReasoning:\nDesign a new molecule with different scaffold but similar pharmacophore properties. I'll create a\n→ | molecule with aromatic rings, amide groups, and similar H-bond donors/acceptors, but with a\n→ | completely different ring system.\nCode:\nfrom rdkit import Chem\nfrom rdkit.Chem import AllChem, rdFMCS, rdMolDescriptors\nfrom rdkit.Chem import Descriptors\nfrom rdkit.Chem.Scaffolds import MurckoScaffold\nimport numpy as np\n# Load reference\nref_path = '/workspace/reference.sdf'\nsuppl = Chem.SDMolSupplier(ref_path)\nref_mol = [mol for mol in suppl if mol is not None][0]\nref_scaffold = MurckoScaffold.GetScaffoldForMol(ref_mol)\nref_fp = AllChem.GetMorganFingerprint(ref_mol, 2)"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Better at 0.555, but still below 0.7. Let me analyze the reference ligand more carefully and try to design something closer to its properties. The reference has TPSA 136.7, HBD=3, HBA=8. Let me check Design4 which has TPSA 122.3, HBD=4, HBA=6.",
+      "content": "Tool Output (turn 5)\n=== MOLECULE DESIGNS ===\nDesign1: | \nSMILES: CC(=O)Nc1ccc(cc1)C1=NC(=O)NC(=O)C1c1ccc(NC(=O)C)cc1\nMW: 378.1, LogP: 2.43, TPSA: 116.7\nHBD: 3, HBA: 4\nScaffold atoms: 20\nMCS ratio: 0.333 (GOOD)\nFP similarity: 0.118 (GOOD)\n[ok] Meets scaffold difference criteria!\nDesign2: | \nSMILES: CC(=O)Nc1ccc(cc1)C1=NC2=CC=CC=C2C(=O)N1c1ccc(NC(=O)C)cc1\nMW: 412.2, LogP: 3.97, TPSA: 93.1\nHBD: 2, HBA: 4\n... [31 more lines elided]\nElision | \nTurns 6-8 (3 agent turns) omitted.\nAssistant (turn 9)\n→ | \n→ | \nTool Call: predict_boltz (turn 9, 135.56s)\n→ | \n→ | \n\"smiles\": \"O=C(Nc1ccc(cc1)c1nc2ccc(cc2o1)Nc1ccc(cc1)C(=O)N)C1CCNCC1\",\n\"protein_sequences\": [\n{ | \n\"id\": \"A\",\n\"sequence\": \"GPGADSCIQFTRHASDVLLNLNRLRSRDILTDVVIVVSREQFRAHKTVLMACSGLFYSIFTDQLKCNLSVINLDPEINPEGF ⌋\n→ | CILLDFMYTSRLNLREGNIMAVMATAMYLQMEHVVDTCRKFIKASE\"\n} | \n], | \n\"pocket_residues\": [\n[ | \n\"A\", | \n47 | \n], | \n[ | \n... [49 more lines elided]"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Showing the first 5 and last 5 of 19 agent turns; 9 intermediate turns are elided for space.",
+      "content": "H.4 Lead Optimization print(f\"{i}: {line.rstrip()}\") | \nH.4.1 Passing run: MiniMax M2.7 | \nTool Output (turn 4) |  |  | \nTask ID: smdd_004_CYP19A1_8 Model: MiniMax M2.7 Run: minimax_m27 First 200 lines of PDB:\n0: ATOM | 1 N | MET A | 1 | 10.329 51.314 11.107 1.00 0.00 | N\n1: ATOM Evaluation result: PASSED. 2 CA MET A 1 2: ATOM 3 C MET A 1 | 10.138 49.975 10.539 1.00 0.00 10.169 50.023 9.013 1.00 0.00 | C C\n3: ATOM | 4 O | MET A | 1 | 9.598 50.924 | 8.406 1.00 0.00 | O\nMetric 4: ATOM 5: ATOM | 5 CB MET A 6 CG MET A | 1 1 | 8.816 49.353 11.010 1.00 0.00 Status Result Condition 8.685 47.857 10.741 1.00 0.00 | C C\nValidity 6: ATOM Hard Constraints 7 SD MET A 7: ATOM 8 CE MET A 8: ATOM 9 N ALA A | 1 1 2 | passed True 7.043 47.336 10.234 1.00 0.00 {\"eq\": true} passed True 6.102 47.552 11.740 1.00 0.00 {\"eq\": true} 10.848 49.055 8.417 1.00 0.00 | S C N\nHold-Constant Properties passed True 9: ATOM 10 CA ALA A 2 10.945 48.961 Optimization Objectives passed True 10: ATOM 11 C ALA A 2 9.642 48.435 Boltz Binding & Affinity passed True 11: ATOM 12 O ALA A 2 8.875 47.736 | 6.965 1.00 0.00 {\"eq\": true} 6.361 1.00 0.00 {\"eq\": true} {\"eq\": true} 7.023 1.00 0.00 | C C\n... [middle truncated] ... |  |  | \n... [13 more lines elided] |  |  | \nTrajectory. |  |  |  |  | \nAssistant (turn 5) |  |  |  | \nSystem Prompt |  |  |  | \nYou are a computational medicinal chemist assistant. You are given a drug discovery task and must use\n | your tools to solve it. |  |  | \nUser (turn 0) |  |  |  |  | \n## Task |  |  |  |  | \nYou are given a co-folded protein-ligand complex (complex.pdb) and a reference ligand (reference.sdf).\n→ | Modify the reference ligand to optimize the following properties:\n-cyp3a4: decrease by at least 0.1 from baseline 0.4468\n-bbb: decrease by at least 0.1 from baseline 0.9828\nWhile holding these properties approximately constant:\n-binding_affinity: keep within 0.3 of baseline (-1.3447) (increase tolerance)\n-herg: keep within 0.1 of baseline (0.2067) (increase tolerance)\n-solubility: keep within 0.5 of baseline (-4.7943) (decrease tolerance)\nThe output molecule must satisfy ALL of the following hard constraints:\n-SMILES validity: must be parseable and sanitizable by RDKit (no radicals, no disconnected fragments,\n→ | no unreasonable valences) |  | \n-Molecular weight: < 600 Da |  | \n-LogP: between -1 and 5 |  |  | \n-TPSA: < 140 A^2 |  |  |  | \n-H-bond donors: <= 5 |  |  | \n-H-bond acceptors: <= 10 |  |  | \n-Rotatable bonds: <= 10 |  |  | \n-Net formal charge: between -2 and +2 | \n-Synthetic accessibility: SA score < 4.5 | \n-PAINS filter: must pass (no pan-assay interference substructures)\n-Structural alerts: must pass Brenk/NIH reactive group filters 5056207180023193 -Tanimoto similarity to reference: >= 0.7 (Morgan fingerprint, radius=2, 2048 bits) } -Boltz binding probability: affinity_probability_binary > 0.7"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Summary of error. The agent records individual molecule failures but never extracts the structural generalization that a free para-OH on the phenyl ring is incompatible with the clearance and Caco-2 constraints of this task. After Turn 17 it knows that para-OH on phenyl drives clearance too high (e.g., candidate: 87.95, target < 72.12) and Caco-2 too low (e.g., candidate: -5.74, target > -5.58). After Turn 18 it knows that methyl ester + para-OH reproduces the same failure, but it still proposes a molecule made up of methyl ester + para-OH in Turn 30 that fails the same constraint requirements.",
+      "content": "I Failure Mode Analysis | \nI.1 Absence of Cross-Turn SAR Synthesis: Repeated Testing of a Disqualified Structure\nTask ID: smdd_004_ACE_8 Model: Claude Sonnet 4.6 Run: claude_sonnet_46_med_eval\nEvaluation result: FAILED. |  | \nMetric | Status Result Condition\nValidity | passed True | {\"eq\": true}\nHard Constraints | passed True | {\"eq\": true}\nHold-Constant Properties failed | False | {\"eq\": true}\nOptimization Objectives | passed True | {\"eq\": true}\nBoltz Binding & Affinity failed | False | {\"eq\": true}\n |  |  | C=CC(=O)C=C12\"\nmol = Chem.MolFromSmiles(smi) |  | \n# Check PAINS filter |  | \ntry: |  | \n# Try to use FilterCatalog |  | \nfrom rdkit.Chem import rdfilterlibs | "
+    }
+  ],
+  "n_words": 13510,
+  "quality_flags": []
+}

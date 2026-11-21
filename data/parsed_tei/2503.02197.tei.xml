@@ -1,0 +1,2335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">ATLAS: Agent Tuning via Learning Critical Steps</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2025-06-05">5 Jun 2025</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Zhixun</forename><surname>Chen</surname></persName>
+							<email>zhixun.chen@student.uts.edu.au</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Technology Sydney</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+							<email>minglii@umd.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Maryland</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuxuan</forename><surname>Huang</surname></persName>
+							<email>yuxuan.huang@liverpool.ac.uk</email>
+							<affiliation key="aff2">
+								<orgName type="institution">University of Liverpool</orgName>
+								<address>
+									<addrLine>4 King&apos;s</addrLine>
+									<settlement>College London</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yali</forename><surname>Du</surname></persName>
+							<email>yali.du@kcl.ac.uk</email>
+						</author>
+						<author>
+							<persName><forename type="first">Meng</forename><surname>Fang</surname></persName>
+							<email>meng.fang@liverpool.ac.uk</email>
+							<affiliation key="aff2">
+								<orgName type="institution">University of Liverpool</orgName>
+								<address>
+									<addrLine>4 King&apos;s</addrLine>
+									<settlement>College London</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Tianyi</forename><surname>Zhou</surname></persName>
+							<email>tianyi@umd.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Maryland</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">ATLAS: Agent Tuning via Learning Critical Steps</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2025-06-05">5 Jun 2025</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">12ADCDC86B975C42558BB43A1E66AEF6</idno>
+					<idno type="arXiv">arXiv:2503.02197v2[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large Language Model (LLM) agents have demonstrated remarkable generalization capabilities across multi-domain tasks. Existing agent tuning approaches typically employ supervised finetuning on entire expert trajectories. However, behavior-cloning of full trajectories can introduce expert bias and weaken generalization to states not covered by the expert data. Additionally, critical steps-such as planning, complex reasoning for intermediate subtasks, and strategic decision-making-are essential to success in agent tasks, so learning these steps is the key to improving LLM agents. For more effective and efficient agent tuning, we propose ATLAS that identifies the critical steps in expert trajectories and finetunes LLMs solely on these steps with reduced costs. By steering the training's focus to a few critical steps, our method mitigates the risk of overfitting entire trajectories and promotes generalization across different environments and tasks. In extensive experiments, an LLM finetuned on only ∼30% critical steps selected by ATLAS outperforms the LLM finetuned on all steps and recent open-source LLM agents. ATLAS maintains and improves base LLM skills as generalist agents interacting with diverse environments.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>An intelligent agent can perceive its environment, process information, and take actions to achieve specific goals or objectives <ref type="bibr" target="#b22">(Maes, 1995;</ref><ref type="bibr" target="#b45">Wooldridge and Jennings, 1995)</ref>. Traditional AI agents, especially empowered by Monte Carlo Tree Search (MCTS) or Reinforcement learning, have shown great potential in complex and difficult tasks <ref type="bibr" target="#b31">(Silver et al., 2017;</ref><ref type="bibr" target="#b40">Vinyals et al., 2019)</ref>. However, these methods are task-specific and suffer from weak generalization across different task domains or environments. On the other hand, the recent rise of Large Language Models (LLMs) <ref type="bibr" target="#b3">(Brown et al., 2020;</ref><ref type="bibr">Team, 2024a;</ref><ref type="bibr" target="#b39">Touvron et al.,</ref>   The proposed ATLAS identifies the critical steps in expert trajectories collected from diverse interactive environments and finetunes the agent on these steps only, where a i represents the expert action in stepi. ATLAS alleviates the potential overfitting to experts' every-step behaviors and achieves better generalizability by training on much fewer steps ("less is better").</p><p>2023a,b; <ref type="bibr">Jiang et al., 2023)</ref> provide powerful foundation models with rich prior knowledge and reasoning capabilities, leading to remarkable generalization performance across various downstream applications <ref type="bibr" target="#b54">(Zhao et al., 2023;</ref><ref type="bibr" target="#b48">Xu et al., 2024)</ref>. Their unprecedented performance in different domains, including instruction following, reasoning, planning, and tool usage, makes LLMs ideal agents in multi-task settings <ref type="bibr" target="#b44">(Wei et al., 2022;</ref><ref type="bibr" target="#b14">Kojima et al., 2022;</ref><ref type="bibr" target="#b29">Qin et al., 2023;</ref><ref type="bibr" target="#b25">Patil et al., 2023;</ref><ref type="bibr" target="#b16">Li et al., 2023</ref><ref type="bibr">Li et al., , 2024a,b;,b;</ref><ref type="bibr">Wang et al., 2024a)</ref>. Despite their effectiveness, transferring capabilities across tasks remains challenging due to overfitting to expert trajectories and training inefficiency. Most existing agent tuning methods rely on imitation of every step of expert trajectories <ref type="bibr">(Chen et al., 2023;</ref><ref type="bibr" target="#b52">Zeng et al., 2023;</ref><ref type="bibr" target="#b4">Chen et al., 2024;</ref><ref type="bibr" target="#b53">Zhang et al., 2024;</ref><ref type="bibr" target="#b46">Xi et al., 2024;</ref><ref type="bibr" target="#b33">Song et al., 2024)</ref>. For instance, FireAct <ref type="bibr">(Chen et al., 2023)</ref> generates diverse expert trajectories to fine-tune LLMs with enhanced planning abilities, while AgentTuning <ref type="bibr" target="#b52">(Zeng et al., 2023)</ref> combines expert trajectories from various interactive environments with general instruction datasets to improve agents' generalization capability.</p><p>However, fine-tuning on the entire expert trajectories can introduce expert bias, causing the model to overfit to specific behaviors and diminishing its ability to generalize to unseen environments <ref type="bibr">(Ghosh et al., 2024)</ref>. While experts in a few critical steps indeed provide key supervised information to improve the agent, the agent may already excel in other non-critical steps. Additionally, fitting the full trajectories of one task may lead to declines in others due to the potential distribution gap and negative transfer between tasks <ref type="bibr" target="#b33">(Song et al., 2024)</ref>. Moreover, imitating expert trajectories on redundant steps or sub-optimal/replaceable actions incurs excessive training costs.</p><p>To address the above challenges, we propose AT-LAS, Agent Tuning via Learning Critical Steps, a novel approach that identifies the critical steps within expert trajectories and only finetunes LLMs on those selected steps, which is illustrated in Figure <ref type="figure" target="#fig_1">1</ref>. By steering the training's focus to a few critical steps, we not only reduce the backpropagation cost for training but also lower the overfitting risk to whole trajectories. Moreover, imitation on partial trajectories mitigates the expert bias, and encourages generalization across environments and tasks.</p><p>In ATLAS, an oracle LLM (GPT4o by default) is utilized as the selector to identify the critical steps semantically based on four criteria: key observations, plan formulation, recalling prior information, and pivotal actions. These critical steps are essential to the success of downstream tasks, but they are usually challenging to be generated by the base LLMs. Our training focuses on finetuning base models on these selected steps. Our experiments provide extensive comparisons between ATLAS and other agent-tuning strategies or LLM agents. As indicated by the results in Figure <ref type="figure" target="#fig_2">2</ref>, ATLAS-finetuned agent maintains and improves the generalization capabilities of base LLMs in diverse environments, excelling on both held-in and held-out tasks. Our main contributions can be summarized as:</p><p>• We introduce a novel method ATLAS reducing the tokens for agent tuning to 30%, by selecting the critical steps in expert trajectories.</p><p>• Agents finetuned on 30% critical steps outperforms the baseline agents finetuned on 100% steps, especially in the multi-task learning scenario, mitigating the expert bias and negative transfer across tasks.</p><p>• ATLAS-finetuned agent achieves a better generalization capability than baseline agents on not only held-in but also held-out tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Preliminaries</head><p>As a multi-task learning framework, we define a set of N environments as E. For any particular environment E ∈ E and a task prompt space I, the agent's dynamics is formalized as a Partially Observable Markov Decision Process (POMDP) (Sutton, 2018) M E,I ≜ (S, A, O, T, r). In this formalization, S denotes the state space, A denotes the action space, O denotes the observation space, T : S × A → S represents the state transition function, and r : S × A → R defines the reward function.</p><p>Upon receiving an instruction i ∈ I in environment E, the agent takes action a t ∼ π θ (•|o t ; E, i) according to its policy π θ , where θ represents the policy parameters. For LLM agents, π θ is an LLM, and its output is not limited to actions and depends on the prompt. The environment then transitions to a new state s t+1 ∈ S based on the action, and the agent receives a new observation o t+1 ∈ O. This interaction continues as the agent engages with the environment until the task is completed or the maximum step limit is reached. We adopt the ReAct framework <ref type="bibr">(Yao et al., 2022b)</ref> for the LLM agent: at each step t, the agent first generates reasoning thought h t with a think prompt prompt h . Define the trajectory up to step-t as</p><formula xml:id="formula_0">τ 1:t ≜ (h 1 , a 1 , o 1 , . . . , h t , a t , o t ),<label>(1)</label></formula><p>The thought h t is sampled by</p><formula xml:id="formula_1">h t ∼ π θ (•|τ 1:t-1 ; prompt h , E, i). (<label>2</label></formula><formula xml:id="formula_2">)</formula><p>The action is then drawn from the same model with another prompt prompt a , i.e.,</p><formula xml:id="formula_3">a t ∼ π θ (•|τ 1:t-1 , h t ; prompt a , E, i).<label>(3)</label></formula><p>The return of trajectory τ = τ 1:T , G(τ ) = T t=1 γ t r t with a discounting factor γ, reflects the agent's performance in task i within environment E. We collect a dataset D of expert trajectories for all environments in E and tasks in I.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methodology</head><p>In this section, we introduce our ATLAS, which identifies critical steps of the expert trajectories and finetunes LLM agents solely on them.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Definition of Critical Steps</head><p>Critical steps are key actions or states within an agent's trajectory that have a substantial impact on the return G(τ ). As depicted in Figure <ref type="figure" target="#fig_3">3</ref>, these steps are essential for ensuring the success of the trajectory. We characterize critical steps as those requiring precise decision-making and flawless execution by the agent. In contrast, non-critical steps are more flexible, allowing for adjustments or rearrangements without compromising the overall trajectory. Typically, critical steps are challenging for the base model's policy to generate, whereas non-critical steps are relatively easy for the base model. To identify these steps, we sample expert trajectories with dense rewards in available environments. We then empirically categorize four types of critical steps: Plan Creation, Critical Observation, Critical Action, and Self Correction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Selection of Critical Steps</head><p>Properly identifying and extracting critical steps from a trajectory is essential for ensuring effective analysis and learning. However, unlike instancelevel data selection for LLMs, which has been explored <ref type="bibr">(Li et al., 2024d,c)</ref>, step-level selection is challenging since the task-related critical steps can differ dramatically by their semantic meaning. To address this issue, we leverage the selector to identify critical steps based on the critical step identification prompt, prompt c . This approach ensures a more nuanced and context-aware assessment, helping to accurately identify the most influential steps for optimal performance.</p><p>The prompt initially defines the critical steps with the four categories introduced above:</p><p>• Plan Creation: Steps where the LLM agent formulates sub-goals by analyzing previous observations and considering the final objective, breaking down the larger goal into manageable tasks that guide the agent's actions toward the overall outcome.</p><p>• Critical Observation: Steps where the LLM agent identifies and analyzes key information from the environment, which helps the agent understand the objective or state and refine its strategy and decision-making toward more effective outcomes.</p><p>• Critical Action: Steps where the LLM agent takes decisive and impactful actions based on prior observations, significantly advancing the process toward the final objectives. These actions are crucial in shaping the direction of the agent's strategy and are often pivotal moments that determine progress or failure, ensuring that the agent remains on track to achieve the desired outcome.</p><p>• Self Correction: Steps where the LLM agent carefully recalls and assesses its previous actions or decisions, especially after encountering failure or suboptimal outcomes. During this process, the agent reflects on what went wrong, identifies areas for improvement, and adjusts its approach to enhance future performance, which helps the agent refine its decision-making and better align with the overall objective.</p><p>After defining critical steps, prompt c guides the selector to comprehend the given trajectory and summarize a high-level plan with sub-goals of the trajectory to enhance its understanding of the trajectory. Based on the sub-goals, the selector identifies the critical steps and categorizes them into four predefined categories. Notably, we require the selector to select at most m percentage of steps in the trajectory and return their indices as</p><formula xml:id="formula_4">C τ = selector(τ ; prompt c , m)<label>(4)</label></formula><p>ATLAS does not ignore all other steps in the trajectory during training. Instead, we keep the whole original trajectory, including the non-critical steps, as the input sequence but do not compute teacher-force loss on their tokens during training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Critical Step Identification Prompts</head><p>1. Generate a high-level plan or strategy from the expert conversation, summarizing the key sub-goals required to complete the task.</p><p>2. Determine the most critical action steps in the expert conversation based on the plan and sub-goals, ensuring the number of selected steps does not exceed {m% × length(τ )}.</p><p>3. Justify your selection of these critical steps, specifying the category to which each step belongs.</p><p>The full prompts are provided in Appendix D.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Agent Tuning on Critical Steps</head><p>Using the critical step dataset D c , we optimize the model by calculating the loss exclusively on these critical steps. Training the agent on this reduced set of essential steps enhances both the efficiency and effectiveness of the fine-tuning process, ensuring the model focuses on the key actions that contribute to task success and gains knowledge rather than merely mimicking expert behavior. Thus, the objective function can be defined as:</p><formula xml:id="formula_5">J (θ) = E τ ∼D t∈Cτ log π θ (h t |τ 1:t-1 ; prompt h , E, i)+ log π θ (a t |τ 1:t-1 , h t ; prompt a , E, i) ,</formula><p>where θ denotes the trainable parameter of the LLM agent. This expectation-based objective ensures that the model maximizes probabilities at the critical steps that most influence task success, following the same reasoning as in the full-trajectory approach but applied selectively to D c .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Environments</head><p>In our experimental framework, environments are categorized into held-in and held-out sets to evaluate the model's performance. Held-in environments refer to the set of environments that are included in the training dataset. These are the environments in which the models can be fine-tuned, allowing them to learn and adapt their behavior based on the provided expert trajectories. The performance of the held-in environments measures how well the model has learned from the training data and its ability to replicate or improve upon expert behaviors within familiar settings. On the other hand, held-out environments consist of environments and tasks that are excluded from the training process. These environments are used to assess the model's generalization capabilities, determining how effectively it can apply learned knowledge to novel and unseen scenarios. The performance of held-out environments indicates the model's ability to generalize its decision-making and problemsolving skills beyond the specific examples it was trained on, highlighting its potential for adaptability in diverse and dynamic real-world applications.</p><p>Specifically, our held-in environments include web navigation task Webshop <ref type="bibr">(Yao et al., 2022a)</ref>; textual digital games Textcraft <ref type="bibr" target="#b26">(Prasad et al., 2023)</ref>, Wordle and Maze <ref type="bibr" target="#b0">(Abdulhai et al., 2023)</ref>; embodied games Alfworld <ref type="bibr">(Shridhar et al., 2020)</ref>, Scienceworld <ref type="bibr" target="#b43">(Wang et al., 2022)</ref> and Babyai <ref type="bibr" target="#b5">(Chevalier-Boisvert et al., 2018)</ref>; tool using tasks Weather, Todo and Movie <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>. It is important to note that some environments provide a dense reward r ∈ [0, 1], while others offer only sparse rewards r ∈ {0, 1}. To maintain simplicity and consistency, we follow the evaluation matrix definition used in previous work <ref type="bibr" target="#b32">(Singh et al., 2024;</ref><ref type="bibr" target="#b46">Xi et al., 2024</ref>) across all tasks. For the held-out environments, we apply two tool usage environments Sheet and Academic, and two game environments Jericho and PDDL <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>. A detailed description of these environments can be found in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Implementation Details</head><p>We apply the open-sourced dataset AgentTraj-L<ref type="foot" target="#foot_0">foot_0</ref>  <ref type="bibr" target="#b46">(Xi et al., 2024)</ref> as our unfiltered dataset D o , which contains the expert trajectories of all held-in tasks mentioned above. We then filter the dataset to obtain the critical step dataset D c by prompting GPT-4o with the selection instruction I c . For more details, please refer to Appendix D.1.</p><p>We employ Llama-3.1-8B-Instruct <ref type="bibr" target="#b6">(Dubey et al., 2024)</ref> as the backbone model for our agent unless specified. During training, we focus on the critical step D c , computing loss exclusively at these pivotal steps in the trajectory. We set the maximum selection ratio m for the critical step to be 30%. More information about the training setup is provided in Appendix B. The evaluation prompts are based on the React format <ref type="bibr">(Yao et al., 2022b)</ref>, consistent with the structure of the training data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Baselines</head><p>We compare our LLM agent against three types of baselines: closed-source models, open-source models, and other fine-tuned LLM agents. Specifically, for closed-source models, we include GPT-3.5-Turbo <ref type="bibr" target="#b23">(Ouyang et al., 2022)</ref>, GPT-4-Turbo (Team, 2024a), Claude 3 (Anthropic, 2024), and DeepSpeek-Chat <ref type="bibr" target="#b20">(Liu et al., 2024)</ref>. For open-source models, we evaluate Llama3-8B-Instruct, Llama3.1-8B-Instruct <ref type="bibr" target="#b6">(Dubey et al., 2024)</ref>, Gemma-2-9b-it <ref type="bibr" target="#b8">(Gemma Team et al., 2024)</ref>, Phi-3mini-128k-instruct, Phi-3.5-mini-instruct (Team, 2024b), <ref type="bibr">Mistral-7B-Instruct-v0.3 (Jiang et al., 2023)</ref> and Qwen2.5-7B-Instruct (Team, 2024c). For LLM agents fine-tuned on expert trajectories, we compare Xlam-7B-r <ref type="bibr" target="#b53">(Zhang et al., 2024)</ref>, AgentLM from AgentTuning <ref type="bibr" target="#b52">(Zeng et al., 2023)</ref> and AgentEvol from AgentGym <ref type="bibr" target="#b46">(Xi et al., 2024)</ref>. We also fine-tune AgentTraj-L using the same base model, but with SFT on the unfiltered dataset D o as a baseline for a fair comparison. Additionally, we introduce another baseline where the base model's perplexity on all steps of the training dataset is used to select critical steps. Specifically, we choose the top 30% of steps with the highest perplexity and fine-tune on those steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Main Results</head><p>The results shown in Table <ref type="table" target="#tab_0">1</ref> demonstrate the performance of various models on held-in and held-out tasks. For closed-source models, the reported outcomes follow those presented in AgentGym <ref type="bibr" target="#b46">(Xi et al., 2024)</ref>. On held-in tasks, our approach, finetuned on just 30% of the entire tokens of the expert trajectories, outperforms baseline methods across most tasks. It also achieves over a 5% average improvement compared to models fine-tuned with unfiltered data. Furthermore, in certain tasks such as Alfowrld and Babyai, our model surpasses some advanced closed-source models. The perplexitybased selection performs poorly because it solely measures the token generation difficulty of one step by the base model, which is affected by both the step's importance and expert bias. Consequently, using perplexity for selection forces the model to mimic the expert's distribution rather than effectively learning the task knowledge to solve the problem.</p><p>The results on held-out tasks demonstrate that fine-tuning exclusively on critical steps enhances the generalization of agents to unseen tasks. Focus- ing solely on these steps reduces the need to fully replicate the expert LLM's distribution, allowing agents to learn the knowledge of how to solve problems effectively. Unlike other approaches, such as those described in <ref type="bibr" target="#b52">(Zeng et al., 2023)</ref>, which mix a large amount of general instruction data with task-specific trajectory data to enhance generalization, our method achieves comparable performance without relying on such datasets. This underscores the effectiveness of critical step training in boosting agents' performance on held-out tasks.</p><p>To validate the effectiveness of our approach across various backbone models, we perform experiments using Mistral-7B- <ref type="bibr">Instruct-v0.3 (Jiang et al., 2023)</ref> and Qwen2.5-7B-Instruct (Team, 2024c). The results, summarized in Table <ref type="table" target="#tab_1">2</ref>, demonstrate that our method consistently enhances performance across different models, yielding improvements on both held-in and held-out tasks. The detailed results are shown in Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Ablation Study</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.1">Critical Steps vs. Non-Critical Steps</head><p>To assess the effectiveness of critical steps, we compare ATLAS with finetuning on non-critical steps not selected by the selector LLM in ATLAS. The number of steps for the non-critical selection dataset remains identical to our fine-tuning dataset, which is 30% of the entire training dataset.</p><p>The experimental results, presented in Table <ref type="table" target="#tab_1">2</ref>, indicate that fine-tuning with critical steps positively impacts the performance on both held-in and held-out tasks. In contrast, fine-tuning with non-critical steps results in a negative impact across all tasks. These findings suggest that certain steps contribute positively to the agent's learning by providing useful knowledge, whereas other steps introduce negative biases, leading to a decline in performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.2">Different Selection Ratio</head><p>The ratio of critical steps plays a crucial role in the fine-tuning process. Therefore, we explore this hyperparameter and require the teacher model to select different proportions of steps from the expert trajectory as critical steps to identify the optimal ratio. As shown in Table <ref type="table" target="#tab_2">3</ref>, a 30% ratio yields the best agent performance on both held-in and heldout tasks. We also explore values of m greater than 30% but observed only a marginal increase in the number of critical steps selected by the selector. Consequently, we did not evaluate fine-tuning results for m larger than 30%. Motivated on these findings, we adopt m = 30%. More detailed results can be found in Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.3">Critical Steps vs. Random Steps</head><p>To further evaluate the efficacy of using a selector LLM for selecting critical steps, we conduct comparisons to randomly selected steps of different ratios. Specifically, we randomly draw 30%, 20%, and 10% steps from the original trajectories and compare them with 30%, 20%, and 10% critical steps for agent tuning.</p><p>The results are summarized in  to space constraints. Detailed results are provided in Appendix C. Our results indicate that increasing the ratio of random selection improves performance of the fine-tuned LLM agent on both held-in and held-out tasks. However, the random-selection's performance at all the three ratios remains inferior to that achieved on ATLAS's critical steps, particularly at higher ratios, highlighting the effectiveness of the selector.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.4">Value Function defined Critical Steps</head><p>To further assess the accuracy of using GPT to identify critical steps, we perform experiments to compare datasets selected based on the estimated value function. Following <ref type="bibr" target="#b47">(Xiong et al., 2024)</ref>, we estimate the value of expert actions by traversing all actions along the trajectory N times. Specifically, the agent begins from a specific action in the expert trajectory and performs rollouts from that action N times. The final rewards from these N rollouts are summed and averaged to estimate the value of the action. Subsequently, the differences in value between consecutive steps are calculated, and steps with differences exceeding a predefined threshold are identified as critical. We set N = 5 for this experiment and a detailed methodology is provided in Appendix B.3. Notably, the estimated value function is designed for single-task training, so we compare the performance on the BabyAI and Weather tasks for evaluation These environments are chosen because some others randomly generate goals upon reset, making rollouts infeasible. Additionally, environments with long horizons are impractical due to the extensive time and computational resources required. For instance, the rollout of a dataset with 2000 trajectories, each averaging 25 steps, necessitates at least 6.5 × 10 5 inferences, which is highly inefficient. Table <ref type="table">4</ref> shows that our method achieves performance comparable to the estimated value function approach. However, with limited rollouts, the estimates are often inaccurate, producing values of 0 at initial steps and 1 at later steps. As a result, only a few steps are identified as critical based on these variations. Despite this limitation, the comparable performance of the two methods suggests the potential for achieving better results with fewer critical steps, which we plan to explore in future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5.5">Choices of Selector LLMs</head><p>In this section, we evaluate different models for selecting critical steps. Specifically, we use the open-source model Llama3.1-70B-Instruct<ref type="foot" target="#foot_1">foot_1</ref> as the comparison teacher model to identify critical steps on three tasks Alfworld, BabyAI and Weather. The results in Table <ref type="table" target="#tab_4">5</ref> indicate that GPT4o selected dataset can better fine-tune the LLM agents on all three tasks, showing that the selector model's capability significantly impacts the quality of the critical step dataset. The dataset selected by Llama3.1-70B-Instruct fails to accurately identify critical steps, instead including many non-critical steps, which in turn reduces the agents' performance after fine-tuning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Critical Step Verification</head><p>We conduct an additional ablation study to evaluate the improvement in the base model's performance (LLaMA-3.1-8B-Instruct) when execution begins immediately after each identified critical step. In trajectories containing multiple critical steps, the model is reinitialized after each one in an iterative manner, ensuring that all critical steps are utilized throughout the trajectory. Experimental results on a representative subset of 100 tasks from the BabyAI and Maze environments reveal notable performance improvements when the model is initialized from critical steps, compared to start from the beginning of the task. This indicates that the base model is generally capable of generating all non-critical steps autonomously and that training efforts should prioritize learning from critical steps specifically. 5 Related Work</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">LLM Agents</head><p>LLMs have demonstrated strong capabilities as general-purpose agents, effectively handling complex tasks across diverse environments without task-specific training. Several recent works explore different paradigms to enhance the reasoning, planning, and learning abilities of LLM-based agents. <ref type="bibr">(Huang et al., 2022a)</ref> demonstrate that LLMs can act as zero-shot planners, enabling agents to perform complex tasks directly from natural language instructions. Building on this, Inner Monologue <ref type="bibr">(Huang et al., 2022b)</ref> proposes using internal dialogues for decision-making and planning, further eliminating the need for external training. Similarly, AUTOACT <ref type="bibr" target="#b27">(Qiao et al., 2024)</ref> shows that agents can learn to solve question-answering tasks through self-generated strategies and planning. ReST meets ReAct <ref type="bibr" target="#b1">(Aksitov et al., 2023)</ref> introduces a self-improvement framework in which agents enhance their multi-step reasoning through iterative feedback. TextGrad <ref type="bibr" target="#b51">(Yuksekgonul et al., 2024)</ref> leverages LLMs for automatic differentiation via textual reasoning, bypassing conventional training pipelines.</p><p>In the realm of interactive and social intelligence, SOTOPIA <ref type="bibr">(Wang et al., 2024b)</ref> emphasizes realtime human-agent communication for acquiring socially intelligent behavior. MMAC-Copilot extends this by employing collaborative chains to improve LLM agents' performance in multimodal interaction scenarios. <ref type="bibr" target="#b7">(Fang et al., 2024)</ref> demonstrate the effectiveness of integrating LLMs with external symbolic modules for zero-shot symbolic reasoning in text-based games. To improve agent performance in dynamic environments, MC-DML <ref type="bibr" target="#b30">(Shi et al., 2025)</ref> combines LLMs with Monte Carlo planning for text-based decision-making. Lastly, HASARD <ref type="bibr" target="#b38">(Tomilin et al., 2025)</ref> presents a visionbased safe reinforcement learning benchmark that challenges embodied agents with complex egocentric tasks, advancing the evaluation of safety in RL.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Tuning Agents</head><p>Fine-tuning large language models (LLMs) to enhance their performance in agent-related tasks has emerged as a key area of research, with various works proposing innovative frameworks, datasets, and methods. FireAct <ref type="bibr">(Chen et al., 2023)</ref> finetunes models using various agent trajectories in the ReAct format, achieving substantial performance boosts. AgentTuning <ref type="bibr" target="#b52">(Zeng et al., 2023)</ref> demonstrates the value of instruction tuning with datasets such as AgentInstruct, achieving superior task performance with its AgentLM models. AgentBank <ref type="bibr" target="#b33">(Song et al., 2024)</ref> improves agent generalization and performance by fine-tuning LLMs with more than 50,000 diverse interaction trajectories. Agen-tOhana <ref type="bibr" target="#b53">(Zhang et al., 2024)</ref> standardizes and aggregates agent trajectory datasets, facilitating efficient pipelines and providing state-of-the-art results with its xLAM-v0.1 model. AGENTGYM <ref type="bibr" target="#b46">(Xi et al., 2024)</ref> enables agent self-evolution through the interactive AGENTEVOL framework, which reduces human supervision through environmental feedback. The IPR framework <ref type="bibr" target="#b47">(Xiong et al., 2024)</ref> refines LLM agents with step-level feedback, demonstrating strong results on complex benchmarks. Above all, these works highlight the critical role of fine-tuning in advancing LLM agent capabilities, leveraging diverse data, iterative feedback mechanisms, and innovative frameworks to improve generalization, robustness, and task efficiency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this work, we propose a novel method, ATLAS, for fine-tuning LLM agents by focusing on critical steps in expert trajectories. Using an oracle LLM as the selector, we first construct a dataset of critical steps, which highlights the most impactful actions in the trajectories. We then optimize the LLMs by computing and minimizing the loss exclusively on these critical steps. Experimental results demonstrate that by leveraging only 30% of the steps, our method achieves superior performance in training environments compared to finetuning on 100% of the trajectories. Moreover, the improved generalization ability of our finetuned agents is also reflected in enhanced performance on held-out tasks. These findings underscore the importance of critical step training in maintaining and enhancing the strengths of LLM agents while significantly reducing training costs. This approach offers a cost-effective solution for fine-tuning LLMs across diverse tasks and environments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitation</head><p>While our proposed method, ATLAS, demonstrates significant improvements in efficiency and generalization for fine-tuning LLM agents on multi-environments, some aspects could be further improved. Firstly, the current approach to selecting critical steps depends heavily on powerful closed-source models. It is crucial to explore methods that enable precise critical step selection while minimizing time and computatiional costs. Additionally, the existing selection process primarily focuses on semantic aspects; combining it with other metrics could enhance the accuracy of identifying critical steps and further reduce the tokens needed for fine-tuning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Environment Details</head><p>ALFWorld <ref type="bibr">(Shridhar et al., 2020)</ref>: ALFWorld is a simulated household environment developed upon the TextWorld framework, designed to require agents to perform tasks that involve spatial navigation and the application of common-sense knowledge. Within this environment, the action space includes interactions such as object manipulation (e.g., lifting, repositioning), environmental inspection, and the operational use of furniture. Agent actions are executed according to predefined logical rules, with the system generating contextually appropriate feedback. The principal evaluation criterion is the success rate, with each task sequence capped at 30 iterations to balance efficiency and feasibility. For the AGENTTRAJ-L dataset, a total of 2,420 trajectories were aggregated, consisting of 1,920 instances generated by state-of-the-art computational models and 500 human-annotated examples to ensure diversity and grounding in real-world reasoning.</p><p>BabyAI (Chevalier-Boisvert et al., 2018): BabyAI is a grid-world simulation platform featuring 40 instruction-following tasks that necessitate agent-object interaction. Agents are constrained to a 7x7 observational grid, permitting object manipulation only within immediate proximity. The original framework employs visual observations and primitive actions (e.g., "move forward," "turn left"), while an adapted version substitutes visual inputs with textual instructions and integrates highlevel action commands (e.g., "pick up green key 1," "go through blue locked door 2"), thereby broadening the action space. A step-discounted reward is assigned upon successful task completion, with unsuccessful attempts yielding zero reward. For AGENTTRAJ-L, 810 trajectories were generated using state-of-the-art models. Performance is evaluated via task-specific rewards, capped at 20 rounds per task.</p><p>MAZE <ref type="bibr" target="#b0">(Abdulhai et al., 2023)</ref>: Maze is a textual environment where agents possess positional awareness, including their current location, target destination, and adjacent obstructions. Agents select movement in one of four directional axes (up, down, left, right) per step, with each action incurring a penalty of -1 until goal attainment. AGENTTRAJ-L comprises 215 trajectories. Performance is evaluated via success rate, with task sequences capped at 15 iterations.</p><p>Movie <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>: Movie is a structured environment enabling LLM agents to leverage a specialized tool for accessing film-related metadata (e.g., cinematic details, personnel, production entities). The framework offers 16 discrete actions to execute task-specific objectives. It integrates The Movie Database (TMDB) API, incorporating its dataset and operational functions to facilitate agent interactions. Agents obtain a binary reward (1 for correct output alignment with reference solutions, 0 otherwise). AGENTTRAJ-L comprises 215 annotated trajectories, with 20 questions reserved for evaluation and the remainder allocated to training. Success rate serves as the primary performance metric, with task sequences limited to 12 iterations. SciWorld <ref type="bibr" target="#b43">(Wang et al., 2022)</ref>: SciWorld functions as an empirical assessment framework for evaluating scientific reasoning capabilities in an interactive textual environment, structured to reflect elementary-level curricular standards. The platform encompasses 30 diverse task categories, operationalizing activities such as tool-based measurement and mechanical experimentation. It employs a domain-specific action space, with a simulator generating contextual feedback on action outcomes. The AGENTTRAJ-L dataset includes 2,120 trajectories synthesized for evaluation. Task performance is measured via reward accumulation, with each trial restricted to a maximum of 30 iterations.</p><p>TextCraft <ref type="bibr" target="#b26">(Prasad et al., 2023)</ref>: TextCraft is a text-based environment modeled after WordCraft, designed for simulating item crafting through a hierarchical framework of 544 nodes aligned with Minecraft's recipe hierarchy. Each task specifies a target item and a sequence of compositional crafting actions (e.g., "craft &lt;item&gt; using &lt;ingredi-ents&gt;," "get &lt;item&gt;," "inventory"), with complexity ranging from 1 to 4 procedural steps. The environment provides real-time feedback on action validity and execution states, enabling agents to directly acquire non-craftable items. A reward of 1 is granted exclusively upon successful synthesis of the target item. For evaluation, 100 tasks are partitioned from a broader training set, with AGENTTRAJ-L comprising 374 trajectories (299 generated by state-of-the-art models, 75 humanannotated). Success rate is the primary metric, capped at 20 rounds per task for empirical validation.</p><p>TODOList <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>: Todolist is a structured environment enabling LLM agents to manage personal agenda data through a task-oriented interface with 11 discrete operational commands. The tool integrates the TodoList API to operationalize task management functionalities. Agents receive binary reward allocation (1 for congruence with reference outputs, 0 otherwise). AGENTTRAJ-L comprises 135 trajectories, with 20 task instances reserved for evaluation and the remainder allocated to training. Performance is assessed via success rate, constrained to a maximum of 15 iterations per task.</p><p>Weather <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>: Weather is a structured environment enabling LLM agents to retrieve meteorological parameters (e.g., temperature, precipitation, air quality) across spatiotemporal contexts via a specialized tool. The framework offers 18 discrete operational commands, integrating the Open-Meteo API through Python-based implementation to enable data querying functionalities. Agents receive a binary reward (1 for output alignment with reference solutions, 0 otherwise). AGENTTRAJ-L includes 311 annotated trajectories, with 20 queries reserved for evaluation and the remainder allocated to training. Performance is assessed via success rate, constrained to a maximum of 10 iterations per task.</p><p>WebShop <ref type="bibr">(Yao et al., 2022a)</ref>: Webshop is a simulated e-commerce platform where agents execute product procurement tasks adhering to predefined criteria through interface interactions (button-based navigation) or text-based search functionality. The environment integrates 12,000 structured instructions and leverages over one million real-world Amazon product listings, with 6,910 instructions selected for task execution. AGENTTRAJ-L includes 3,930 annotated trajectories. Performance is quantified via success rate, with task sequences limited to 10 rounds to balance efficiency and practical applicability.</p><p>Wordle <ref type="bibr" target="#b0">(Abdulhai et al., 2023)</ref>: Wordle is a lexical reasoning assessment framework where agents deduce a target word from a constrained fiveletter vocabulary. The environment operationalizes character-level feedback after each guess, indicating positional accuracy and presence of characters. Agents accumulate a step penalty of -1 until successful identification or attempt exhaustion. AGENTTRAJ-L contains 955 trajectories. Performance is quantified via success rate, with trials capped at 8 rounds for empirical validation.</p><p>Academia <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>: Academia is a structured environment enabling LLM agents to access computer science research resources (e.g., publications, author metadata) via seven discrete operational commands. The tool integrates the Citation Network Dataset to implement core functionalities. Agents receive binary rewards (1 for output alignment with reference solutions, 0 otherwise). Performance is assessed via success rate across 20 evaluation tasks, with trials capped at 12 rounds per task.</p><p>Sheet <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>: Sheet is a structured environment enabling LLM agents to manipulate spreadsheet data via 20 discrete operational commands, leveraging the Google Sheets API. Reward is determined by structural and content congruence between the agent-modified spreadsheet and a reference template, quantified on a 0-1 scale. Evaluation employs 20 predefined tasks, with performance measured via reward accumulation and trials capped at 15 rounds per task.</p><p>Jericho <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>: Jericho is a textbased game framework designed to evaluate agents' capacity for interactive exploration and dynamic world modeling within fictional narratives. These tasks demand agents to infer contextual rules (e.g., magical systems) through iterative interaction rather than pre-existing commonsense knowledge. To address operational feasibility given LLM agents' context window constraints, original game objectives (often requiring 50-300 steps) are restructured into modular subtasks achievable within 15 steps. For example, the zork1 dungeon exploration is redefined as "locate the secret passage entrance in the living room," reducing the sequence to 8 steps. This adaptation preserves core exploratory challenges while aligning task complexity with computational tractability.</p><p>PDDL <ref type="bibr" target="#b21">(Ma et al., 2024)</ref>: The Planning Domain Definition Language (PDDL) serves as a framework for evaluating strategic reasoning in symbolic planning tasks, with four benchmark domains-Gripper, Barman, Blocksworld, and Tyreworld-designed to test multi-step action sequencing under efficiency constraints. Agents must navigate domain-specific objectives (e.g., transporting objects, mixology, block stacking, tire installation) by optimizing action sequences to minimize redundant operations. For instance, in the Barman domain, agents strategically allocate containers to reduce cleaning cycles during cocktail preparation. To enable natural language interaction, symbolic PDDL predicates (e.g., ontable(shaker1)) and actions (e.g., clean-shaker) are translated into textual observations (e.g., "Shaker1 is on the table") and instructions (e.g., "Clean shaker1 with hand1 while hand2 is empty"). Each domain features 10-20 curated multi-round problems, with progress measured via a normalized matching score that quantifies alignment between the current state and the goal state. Full task completion (100% progress) requires satisfying all goal conditions, such as hierarchical block placement in Blocksworld. This adaptation bridges symbolic planning with language-agent interoperability while preserving strategic complexity.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B More Implementation Details B.1 Training Configuration</head><p>We use the Adam optimizer (Kingma, 2014), with a learning rate of 2e-5 and a cosine scheduler for the agent fine-tuning. The models are trained with 3 epoches and a warmup rate 0.03. The batch size is 128 and the max length of 8192. All experiments are conducted on 4 NVIDIA A100 80G GPUs and fine-tunes a Llama3.1-8B-Instruct on ATLAS takes approximately 8 hours. We use PyTorch FSDP <ref type="bibr" target="#b24">(Paszke et al., 2019)</ref> for efficient training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Perplexity Selection</head><p>The perplexity-based selection method identifies critical steps by measuring the generation difficulty of each step within a trajectory. We compute perplexity as the exponentiated average negative loglikelihood of a step's tokens under the model's distribution. Formally, the perplexity for step x is defined as:</p><formula xml:id="formula_6">PPL(x) = exp   - 1 |x| |x| t=1 log p(x t | x 1:t-1 )   (5)</formula><p>where |x| is the token length of the step, and p(x t | x 1:t-1 ) is the model's probability for token x t given its context. Higher perplexity values indicate steps that are more challenging for the model to generate.</p><p>Instead of using a fixed threshold, we dynamically select the top 30% of steps with the highest perplexity within each trajectory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 Value Estimation</head><p>We follow the rollout setup of <ref type="bibr" target="#b47">(Xiong et al., 2024)</ref>, which defines the rollout estimate reward function as r s (s t , a t ) as the estimated outcome reward from the exploration starting step t. The agent with policy π s is employed to rollout trajectory τ t:n from step t, based on the historical trajectory τ t-1 . The environment then gives a final reward r o (i, τ n , E) for the trajectory. The estimated reward can be calculated as: r s (s t , a t ) = E τn∼πs(τt:n|τ t-1 ) [r o (i, τ n , E)] (6) Due to the complexity of computing this expectation value directly, we utilize the Monte Carlo sampling technique for estimation. By drawing N trajectories from step t using π s , we create a collection of trajectories:</p><formula xml:id="formula_7">{τ (i) |i = 1, . . . , N } = MC πs (τ t-1 ; N ) (7)</formula><p>The estimated reward is then calculated as: r s (s t , a t ) = 1 N N i=1 r o (i, τ n , E), for t &lt; n, r o (i, τ n , E), for t = n.</p><p>(8) Then the value function V π (s t ) is estimated as the expectation over all possible trajectories starting from state s t under policy π: V π (s t ) = E τt:n∼π(τt:n|st) n k=t γ k-t r s (s k , a k ) , (9) where γ is the discount factor which we set to be 0.99 here. Finally, we compute the difference between consecutive steps. If this difference exceeds the threshold of 0.1, the step is identified as a critical step. At this point, we designate the expert action corresponding to the same timestep t as trainable and calculate the loss associated with that action.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Additional Results</head><p>Detailed results of other backbone models, random selection and different critical selection ratio m are shown in Table <ref type="table" target="#tab_7">7</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Prompts Details D.1 Prompts of Critical Step Selection</head><p>Critcal Selection Prompts A critical step is defined as a key action or decision that, if performed correctly, significantly increases the likelihood of successfully completing the task. It represents a turning point in the process that influences the outcome of subsequent actions. More specifically, critical steps include:</p><p>• Plan Creation: Steps where the LLM agent formulates sub-goals by analyzing previous observations and considering the final objective, breaking down the larger goal into manageable tasks that guide the agent's actions towards the overall outcome.</p><p>• Critical Observation: Steps where the LLM agent identifies and analyzes key information from the environment, which help agent understand the objective or state and refine its strategy and decision-making towards more effective outcomes.</p><p>• Critical Action: Steps where the LLM agent takes decisive and impactful actions based on prior observations, significantly advancing the process toward the final objectives. These actions are crucial in shaping the direction of the agent's strategy and are often pivotal moments that determine progress or failure, ensuring that the agent remains on track to achieve the desired outcome.</p><p>• Self Correction: Steps where the LLM agent carefully recalls and assesses its previous actions or decisions, especially after encountering failure or suboptimal outcomes. During this process, the agent reflects on what went wrong, identifies areas for improvement, and adjusts its approach to enhance future performance, which helps the agent refine its decisionmaking and better align with the overall objective.</p><p>Task Description: Your task is:</p><p>1. Induce a high-level plan or strategy based on the expert conversation, summarizing the key steps needed to successfully complete the task.</p><p>2. Based on this high-level plan, identify the most critical action steps in the expert conversation. A maximum of {} steps may be chosen from the conversation.</p><p>3. Provide a detailed explanation for choosing these critical steps, specifying which category (e.g., key observation, planning, recall, pivotal action) they belong to and why mastering these steps ensures the success of the task.</p><p>Answer Format:</p><p>1.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Prompts for Task Inference</head><p>We adopt the setup of AgentGym <ref type="bibr" target="#b46">(Xi et al., 2024)</ref> and utilize the same prompts for task inference. For further details, please refer to Appendix G: Prompt Details of AgentGym.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure1: The proposed ATLAS identifies the critical steps in expert trajectories collected from diverse interactive environments and finetunes the agent on these steps only, where a i represents the expert action in stepi. ATLAS alleviates the potential overfitting to experts' every-step behaviors and achieves better generalizability by training on much fewer steps ("less is better").</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Three base LLMs finetuned by ATLAS vs. full trajectories (100% of the steps), evaluated on held-in and held-out agentic tasks. ATLAS consistently outperforms full-trajectory finetuning, indicating better generalizability of ATLAS by training on fewer but critical steps.</figDesc><graphic coords="2,306.14,70.86,218.27,93.55" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Overall of ATLAS. The selector identifies critical steps in expert trajectories collected in multiple environments, where "O" and "A" denote observation and action, respectively. Training loss is only computed on the critical steps. This encourages more exploration of non-critical steps, reduces the training cost, and improves the agent's generalization performance.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Performance of ATLAS-finetuned LLM agents vs. baseline LLMs and finetuned agents on held-in and held-out test tasks. "Unfilter" finetunes an LLM on the unfiltered dataset of complete expert trajectories. The best performance in each category is highlighted in bold. By finetuning LLMs only on the critical steps of expert trajectories, ATLAS achieves outstanding agent performance on both held-in and held-out tasks.</figDesc><table><row><cell>Model</cell><cell cols="16">held-in Alfworld Babyai Maze Movie Sciworld Textcraft Todo Weather Webshop Wordle AVG Academic Sheet Jericho PDDL AVG held-out</cell></row><row><cell>Closed-Source Model</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>DeepSeek-Chat</cell><cell>51.00</cell><cell>45.67</cell><cell>4.00</cell><cell>70.00</cell><cell>16.80</cell><cell>23.00</cell><cell>75.00</cell><cell>70.00</cell><cell>11.00</cell><cell cols="2">24.00 39.05</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>Claude-3-Haiku</cell><cell>0.00</cell><cell>1.93</cell><cell>4.00</cell><cell>50.00</cell><cell>0.83</cell><cell>0.00</cell><cell>65.00</cell><cell>55.00</cell><cell>5.50</cell><cell cols="2">16.00 19.83</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>Claude-3-Sonnet</cell><cell>13.00</cell><cell>79.25</cell><cell>4.00</cell><cell>50.00</cell><cell>2.78</cell><cell>38.00</cell><cell>80.00</cell><cell>65.00</cell><cell>1.50</cell><cell cols="2">36.00 36.95</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell>GPT-3.5-Turbo</cell><cell>26.00</cell><cell>71.36</cell><cell>4.00</cell><cell>70.00</cell><cell>7.64</cell><cell>47.00</cell><cell>40.00</cell><cell>25.00</cell><cell>12.50</cell><cell cols="2">20.00 32.35</cell><cell>65.00</cell><cell cols="2">38.34 19.93</cell><cell cols="2">24.98 37.06</cell></row><row><cell>GPT-4-Turbo</cell><cell>67.50</cell><cell cols="3">72.83 68.00 95.00</cell><cell>14.38</cell><cell>77.00</cell><cell>95.00</cell><cell>80.00</cell><cell>15.50</cell><cell cols="2">88.00 67.32</cell><cell>80.00</cell><cell cols="2">75.83 52.44</cell><cell cols="2">81.16 72.36</cell></row><row><cell>Open-Source Base Model</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Llama-2-7B-Instruct</cell><cell>0.00</cell><cell>23.00</cell><cell>0.00</cell><cell>0.00</cell><cell>7.20</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>3.02</cell><cell>0.00</cell><cell>0.00</cell><cell>1.25</cell><cell>0.83</cell><cell>0.52</cell></row><row><cell>Llama-3-8B-Instruct</cell><cell>0.00</cell><cell cols="3">61.60 12.00 60.00</cell><cell>70.82</cell><cell>15.00</cell><cell>60.00</cell><cell>30.00</cell><cell>13.00</cell><cell>0.00</cell><cell>32.24</cell><cell>40.00</cell><cell cols="2">35.40 10.51</cell><cell cols="2">16.67 25.65</cell></row><row><cell>Llama-3.1-8B-Instruct</cell><cell>0.00</cell><cell cols="3">60.69 16.00 65.00</cell><cell>19.57</cell><cell>9.00</cell><cell>65.00</cell><cell>40.00</cell><cell>2.00</cell><cell>0.00</cell><cell>27.72</cell><cell>40.00</cell><cell cols="2">37.31 19.23</cell><cell cols="2">12.18 27.18</cell></row><row><cell>Phi-3-mini-128k-instruct</cell><cell>0.00</cell><cell>19.80</cell><cell>8.00</cell><cell>50.00</cell><cell>19.10</cell><cell>1.00</cell><cell>40.00</cell><cell>20.00</cell><cell>1.00</cell><cell>4.00</cell><cell>16.29</cell><cell>25.00</cell><cell>30.21</cell><cell>1.25</cell><cell>1.25</cell><cell>14.43</cell></row><row><cell>Phi-3.5-mini-instruct</cell><cell>0.00</cell><cell cols="3">21.00 12.00 60.00</cell><cell>18.20</cell><cell>3.00</cell><cell>60.00</cell><cell>30.00</cell><cell>2.00</cell><cell>6.00</cell><cell>21.22</cell><cell>30.00</cell><cell>33.62</cell><cell>0.56</cell><cell>0.83</cell><cell>16.25</cell></row><row><cell>Gemma2-9B-it</cell><cell>0.00</cell><cell>52.00</cell><cell>8.00</cell><cell>55.00</cell><cell>72.60</cell><cell>0.00</cell><cell>45.00</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>23.26</cell><cell>30.00</cell><cell cols="2">34.46 14.02</cell><cell>7.20</cell><cell>21.42</cell></row><row><cell>Mistral-7B-Instruct-v0.3</cell><cell>0.00</cell><cell>17.30</cell><cell>4.00</cell><cell>0.00</cell><cell>48.00</cell><cell>0.00</cell><cell>10.00</cell><cell>5.00</cell><cell>0.00</cell><cell>0.00</cell><cell>8.43</cell><cell>0.00</cell><cell>9.69</cell><cell>1.96</cell><cell>2.50</cell><cell>3.54</cell></row><row><cell>Qwen2.5-7B-Instruct</cell><cell>0.00</cell><cell cols="3">67.00 16.00 75.00</cell><cell>15.30</cell><cell>7.00</cell><cell>85.00</cell><cell>30.00</cell><cell>3.00</cell><cell cols="2">12.00 31.03</cell><cell>55.00</cell><cell cols="2">39.00 14.26</cell><cell>0.28</cell><cell>27.14</cell></row><row><cell>Fine-tuned Agents</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Xlam-7B-r</cell><cell>17.50</cell><cell>62.00</cell><cell>0.00</cell><cell>20.00</cell><cell>12.00</cell><cell>1.00</cell><cell>15.00</cell><cell>10.00</cell><cell>37.50</cell><cell>4.00</cell><cell>17.9</cell><cell>35.00</cell><cell>28.40</cell><cell>8.92</cell><cell>3.06</cell><cell>18.85</cell></row><row><cell>AgentLM-7B</cell><cell>71.00</cell><cell>0.49</cell><cell>12.00</cell><cell>5.00</cell><cell>1.63</cell><cell>4.00</cell><cell>15.00</cell><cell>0.00</cell><cell>36.50</cell><cell>4.00</cell><cell>14.96</cell><cell>10.00</cell><cell cols="2">13.30 15.88</cell><cell>2.78</cell><cell>10.49</cell></row><row><cell>AgentEvol-7B</cell><cell>88.00</cell><cell cols="3">82.70 12.00 60.00</cell><cell>38.00</cell><cell>64.00</cell><cell>70.00</cell><cell>25.00</cell><cell>76.50</cell><cell cols="2">12.00 52.82</cell><cell>25.00</cell><cell>26.20</cell><cell>4.05</cell><cell>3.10</cell><cell>14.59</cell></row><row><cell>AgentTraj-L (100% steps)</cell><cell>83.00</cell><cell cols="3">70.31 48.00 75.00</cell><cell>37.92</cell><cell>71.00</cell><cell>85.00</cell><cell>55.00</cell><cell>68.00</cell><cell cols="2">12.00 60.52</cell><cell>75.00</cell><cell cols="2">42.83 15.18</cell><cell cols="2">11.71 36.18</cell></row><row><cell>Perplexity Selection</cell><cell>78.50</cell><cell cols="3">77.59 24.00 65.00</cell><cell>53.54</cell><cell>59.00</cell><cell>70.00</cell><cell>30.00</cell><cell>66.50</cell><cell>8.00</cell><cell>53.21</cell><cell>30.00</cell><cell cols="2">36.48 13.28</cell><cell>8.76</cell><cell>22.13</cell></row><row><cell>ATLAS (30% steps)</cell><cell>84.50</cell><cell cols="3">80.98 48.00 90.00</cell><cell>42.02</cell><cell>72.00</cell><cell>90.00</cell><cell>60.00</cell><cell>71.50</cell><cell cols="2">20.00 65.91</cell><cell>70.00</cell><cell cols="2">49.39 18.21</cell><cell cols="2">15.84 38.36</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Table3, with only the average performance across tasks presented due Critical vs. Non-critical steps &amp; complete trajectories for agent tuning (tested on held-in and held-out tasks). The agent trained on ATLAS-selected critical steps does not only outperform the agent trained on full trajectories but also surpasses the agent trained on non-critical steps by a large margin. This indicates that the critical steps improve agent tuning while training on non-critical steps might be detrimental to the generalization.</figDesc><table><row><cell>Data</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>ATLAS vs. random selection of steps at different ratios (including 100% as a reference).</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 5 :</head><label>5</label><figDesc>Ablation study of the selector LLM for critical step selection on Alfworld, BabyAI, and Weather tasks. Average performance over tasks is reported.</figDesc><table><row><cell>Task</cell><cell>Selector</cell><cell>Performance</cell></row><row><cell>Alfworld</cell><cell>GPT-4o Llama3.1-70B</cell><cell>83.00 78.50</cell></row><row><cell>BabyAI</cell><cell>GPT-4o Llama3.1-70B</cell><cell>78.93 67.23</cell></row><row><cell>Weather</cell><cell>GPT-4o Llama3.1-70B</cell><cell>60.00 55.00</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 6 :</head><label>6</label><figDesc>Performance comparison of the model initialized from scratch vs. from critical steps on BabyAI and Maze tasks.</figDesc><table><row><cell>Tasks</cell><cell cols="2">From Scratch From Critical Step</cell></row><row><cell>BabyAI</cell><cell>54.8</cell><cell>76.4</cell></row><row><cell>Maze</cell><cell>18.0</cell><cell>44.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head></head><label></label><figDesc>The high-level plan is: [Summarize the strategy and key steps for task completion]</figDesc><table /><note><p>2. The critical steps are: conversation[...] 3. Reason: [Explain why these steps are critical, including which category they fall into (key observation, planning, recall, pivotal action) and how they enable the player to avoid mistakes in subsequent steps]</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 7 :</head><label>7</label><figDesc>Detailed performance of other backbone models, random selection and different critical selection ratio m. The best performance in each section is highlighted in bold.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://huggingface.co/datasets/AgentGym/AgentTraj-L</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://huggingface.co/meta-llama/Llama-3. 1-70B-Instruct</p></note>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Marwa</forename><surname>Abdulhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isadora</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Snell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joey</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuexiang</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.18232</idno>
+		<title level="m">Lmrl gym: Benchmarks for multi-turn reinforcement learning with language models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Renat</forename><surname>Aksitov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sobhan</forename><surname>Miryoosefi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zonglin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daliang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheila</forename><surname>Babayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kavya</forename><surname>Kopparapu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zachary</forename><surname>Fisher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sushant</forename><surname>Prakash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranesh</forename><surname>Srinivasan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manzil</forename><surname>Zaheer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanjiv</forename><surname>Ku</surname></persName>
+		</author>
+		<title level="m">Rest meets react: Self-improvement for multi-step reasoning llm agent</title>
+		<imprint>
+			<date type="published" when="2023-03">mar. 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><surname>Preprint</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.10003.Anthropic.2024</idno>
+		<title level="m">The claude 3 model family: Opus, sonnet, haiku</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><forename type="middle">D</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.05915</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<editor>
+			<persName><forename type="first">Baian</forename><surname>Chen</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Chang</forename><surname>Shu</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ehsan</forename><surname>Shareghi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Nigel</forename><surname>Collier</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020. 2023</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Fireact: Toward language agent fine-tuning</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zehui</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuikun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiuchen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangning</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dahua</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.12881</idno>
+		<title level="m">Agent-flan: Designing data and methods of effective agent tuning for large language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Babyai: A platform to study the sample efficiency of grounded language learning</title>
+		<author>
+			<persName><forename type="first">Maxime</forename><surname>Chevalier-Boisvert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dzmitry</forename><surname>Bahdanau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Salem</forename><surname>Lahlou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Willems</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chitwan</forename><surname>Saharia</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.08272</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Thien Huu Nguyen, and Yoshua Bengio</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Abhimanyu</forename><surname>Dubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Jauhri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Pandey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Kadian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmad</forename><surname>Al-Dahle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aiesha</forename><surname>Letman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akhil</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Schelten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amy</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.21783</idno>
+		<title level="m">The llama 3 herd of models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Large language models are neurosymbolic reasoners</title>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shilong</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yudi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijing</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ling</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mykola</forename><surname>Pechenizkiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI conference on artificial intelligence</title>
+		<meeting>the AAAI conference on artificial intelligence</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="17985" to="17993" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Mesnard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gemma</forename><surname>Team</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cassidy</forename><surname>Hardin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Dadashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Surya</forename><surname>Bhupatiraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Sifre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morgane</forename><surname>Rivière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mihir</forename><surname>Sanjay Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juliette</forename><surname>Love</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pouya</forename><surname>Tafti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Léonard</forename><surname>Hussenot</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Gemma</forename><forename type="middle">Sreyan</forename><surname>Ghosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chandra</forename><surname>Kiran Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sonal</forename><surname>Evuru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deepali</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Aneja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramani</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dinesh</forename><surname>Duraiswami</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Manocha</surname></persName>
+		</author>
+		<idno type="DOI">10.34740/KAGGLE/M/3301</idno>
+		<idno type="arXiv">arXiv:2402.05119</idno>
+		<title level="m">limitations of instruction tuning</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>et al. 2024. A closer look at the</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Deepak Pathak, and Igor Mordatch. 2022a. Language models as zeroshot planners: Extracting actionable knowledge for embodied agents</title>
+		<author>
+			<persName><forename type="first">Wenlong</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pieter</forename><surname>Abbeel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2201.07207</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">2022b. Inner monologue: Embodied reasoning through planning with language models</title>
+		<author>
+			<persName><forename type="first">Wenlong</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ted</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harris</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacky</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pete</forename><surname>Florence</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Tompson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Mordatch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yevgen</forename><surname>Chebotar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Sermanet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomas</forename><surname>Jackson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linda</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karol</forename><surname>Hausman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2207.05608</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Albert Q Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Sablayrolles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Mensch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devendra</forename><surname>Bamford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Singh Chaplot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>De Las Casas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gianna</forename><surname>Bressand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lengyel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucile</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Saulnier</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.06825</idno>
+		<title level="m">Mistral 7b</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kingma</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1412.6980</idno>
+		<title level="m">Adam: A method for stochastic optimization</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Large language models are zero-shot reasoners</title>
+		<author>
+			<persName><forename type="first">Takeshi</forename><surname>Kojima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shane</forename><surname>Shixiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Machel</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutaka</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusuke</forename><surname>Matsuo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Iwasawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="22199" to="22213" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Selective reflectiontuning: Student-selected data recycling for LLM instruction-tuning</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lichang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiuhai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shwai</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiuxiang</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics ACL 2024</title>
+		<meeting><address><addrLine>Bangkok, Thailand</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="16189" to="16211" />
+		</imprint>
+	</monogr>
+	<note>and virtual meeting. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Reflection-tuning: Recycling data for better instruction-tuning</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lichang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiuhai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shwai</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPS 2023 Workshop on Instruction Tuning and Instruction Following</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenguang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijun</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yupeng</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fuxiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.13326</idno>
+		<title level="m">Mosaic-it: Free compositional data augmentation improves instruction tuning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Superfiltering: Weak-to-strong data filtering for fast instruction-tuning</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shwai</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhitao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianzong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Bangkok, Thailand</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="14255" to="14273" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">From quantity to quality: Boosting LLM performance with self-guided data selection for instruction tuning</title>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhitao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiuhai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lichang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianzong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Xiao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies</title>
+		<meeting>the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies<address><addrLine>Mexico City, Mexico</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="7595" to="7628" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Deepseek-v2: A strong, economical, and efficient mixture-of-experts language model</title>
+		<author>
+			<persName><forename type="first">Aixin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bei</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenggang</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengqi</forename><surname>Dengr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Ruan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Damai</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Guo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.04434</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junlei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujiu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaohui</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenzhong</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2401.13178</idno>
+		<title level="m">Agentboard: An analytical evaluation board of multi-turn llm agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Agents that reduce work and information overload</title>
+		<author>
+			<persName><forename type="first">Pattie</forename><surname>Maes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Readings in human-computer interaction</title>
+		<imprint>
+			<publisher>Elsevier</publisher>
+			<date type="published" when="1995">1995</date>
+			<biblScope unit="page" from="811" to="821" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Training language models to follow instructions with human feedback. Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="27730" to="27744" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Pytorch: An imperative style, high-performance deep learning library</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Paszke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Gross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco</forename><surname>Massa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Lerer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Bradbury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gregory</forename><surname>Chanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Killeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeming</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Natalia</forename><surname>Gimelshein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Antiga</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Shishir G Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.15334</idno>
+		<title level="m">Gorilla: Large language model connected with massive apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Archiki</forename><surname>Prasad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Koller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mareike</forename><surname>Hartmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.05772</idno>
+		<title level="m">Adapt: As-needed decomposition and planning with language models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Autoact: Automatic agent learning from scratch for qa via self-planning</title>
+		<author>
+			<persName><forename type="first">Shuofei</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ningyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runnan</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujie</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wangchunshu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eleanor</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengfei</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajun</forename><surname>Chen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Preprint</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2401.05268</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shihao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kunlun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaxi</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangru</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Qian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.16789</idno>
+		<title level="m">Toolllm: Facilitating large language models to master 16000+ real-world apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Monte carlo planning with large language model for text-based game agents</title>
+		<author>
+			<persName><forename type="first">Zijing</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ling</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.16855</idno>
+		<idno>arXiv:2010.03768</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Alfworld: Aligning text and embodied environments for interactive learning</title>
+		<editor>
+			<persName><forename type="first">Mohit</forename><surname>Shridhar</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Marc-Alexandre</forename><surname>Côté</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Matthew</forename><surname>Hausknecht</surname></persName>
+		</editor>
+		<imprint>
+			<date type="published" when="2020">2025. 2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Mastering the game of go without human knowledge</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karen</forename><surname>Simonyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioannis</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aja</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Guez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Hubert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrian</forename><surname>Bolton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">nature</title>
+		<imprint>
+			<biblScope unit="volume">550</biblScope>
+			<biblScope unit="issue">7676</biblScope>
+			<biblScope unit="page" from="354" to="359" />
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Beyond human data: Scaling self-training for problem-solving with language models</title>
+		<author>
+			<persName><forename type="first">Avi</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">D</forename><surname>Co-Reyes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishabh</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankesh</forename><surname>Anand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piyush</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Harrison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaehoon</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelvin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Parisi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Alemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Rizkowsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Azade</forename><surname>Nova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Adlam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernd</forename><surname>Bohnet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gamaleldin</forename><surname>Elsayed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanie</forename><surname>Sedghi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Mordatch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabelle</forename><surname>Simpson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izzeddin</forename><surname>Gur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jasper</forename><surname>Snoek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Pennington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiri</forename><surname>Hron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kathleen</forename><surname>Kenealy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Swersky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kshiteej</forename><surname>Mahajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laura</forename><surname>Culp</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lechao</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><forename type="middle">L</forename><surname>Bileschi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.06585</idno>
+		<editor>stant, Roman Novak, Rosanne Liu, Tris Warkentin, Yundi Qian, Yamini Bansal, Ethan Dyer, Behnam Neyshabur, Jascha Sohl-Dickstein, and Noah Fiedel</editor>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weimin</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiutian</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.07706</idno>
+		<title level="m">Agentbank: Towards generalized llm agents via fine-tuning on 50000+ interaction trajectories</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Reinforcement learning: An introduction</title>
+		<author>
+			<persName><surname>Richard S Sutton</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<publisher>A Bradford Book</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<idno type="arXiv">arXiv:2303.08774</idno>
+		<title level="m">OpenAI Team. 2024a. Gpt-4 technical report</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<idno type="arXiv">arXiv:2407.10671</idno>
+		<title level="m">Phi-3 Team. 2024b. Phi-3 technical report: A highly capable language model locally on your phone</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<idno type="arXiv">arXiv:2407.10671</idno>
+		<title level="m">Qwen2 Team. 2024c. Qwen2 technical report</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Hasard: A benchmark for vision-based safe reinforcement learning in embodied agents</title>
+		<author>
+			<persName><forename type="first">Tristan</forename><surname>Tomilin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mykola</forename><surname>Pechenizkiy</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.08241</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">2023a. Llama: Open and efficient foundation language models</title>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibaut</forename><surname>Lavril</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Martinet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Anne</forename><surname>Lachaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothée</forename><surname>Lacroix</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baptiste</forename><surname>Rozière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Azhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurelien</forename><surname>Rodriguez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume Lample ; Amjad</forename><surname>Almahairi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasmine</forename><surname>Babaei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolay</forename><surname>Bashlykov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soumya</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prajjwal</forename><surname>Bhargava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shruti</forename><surname>Bhosale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Bikel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukas</forename><surname>Blecher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cristian Canton</forename><surname>Ferrer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moya</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillem</forename><surname>Cucurull</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Esiobu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jude</forename><surname>Fernandes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeremy</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyin</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Fuller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cynthia</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vedanuj</forename><surname>Goswami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Hartshorn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saghar</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hakan</forename><surname>Inan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcin</forename><surname>Kardas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Viktor</forename><surname>Kerkez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Madian</forename><surname>Khabsa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Isabel</forename><surname>Kloumann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Artem</forename><surname>Korenev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Punit</forename><surname>Singh Koura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Anne</forename><surname>Lachaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibaut</forename><surname>Lavril</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jenya</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diana</forename><surname>Liskovich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinghai</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuning</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Martinet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Todor</forename><surname>Mihaylov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pushkar</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">;</forename><surname>Williams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Xiang Kuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Puxin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iliyan</forename><surname>Zarov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Angela</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Kambadur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.13971</idno>
+		<idno>arXiv:2307.09288</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Igor Molybog</title>
+		<editor>
+			<persName><forename type="first">Yixin</forename><surname>Nie</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Andrew</forename><surname>Poulton</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Jeremy</forename><surname>Reizenstein</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Rashi</forename><surname>Rungta</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Kalyan</forename><surname>Saladi</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Alan</forename><surname>Schelten</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ruan</forename><surname>Silva</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Eric</forename><forename type="middle">Michael</forename><surname>Smith</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ranjan</forename><surname>Subramanian</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Ellen</forename><surname>Xiaoqing</surname></persName>
+		</editor>
+		<editor>
+			<persName><surname>Tan</surname></persName>
+		</editor>
+		<imprint>
+			<publisher>Aurelien Rodriguez</publisher>
+			<pubPlace>Binh Tang, Ross Taylor; Robert Stojnic, Sergey Edunov</pubPlace>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+	<note>and Thomas Scialom. 2023b. Llama 2: Open foundation and fine-tuned chat models</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Grandmaster level in starcraft ii using multi-agent reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Babuschkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><forename type="middle">M</forename><surname>Czarnecki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michaël</forename><surname>Mathieu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Dudzik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">H</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Powell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Ewalds</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Petko</forename><surname>Georgiev</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">nature</title>
+		<imprint>
+			<biblScope unit="volume">575</biblScope>
+			<biblScope unit="issue">7782</biblScope>
+			<biblScope unit="page" from="350" to="354" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">2024a. A survey on large language model based autonomous agents</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueyang</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingsen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiakai</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers of Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page">186345</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ruiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haofei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengyang</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Sap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.08715</idno>
+		<title level="m">Sotopia-π: Interactive learning of socially intelligent language agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Marc-Alexandre Côté, and Prithviraj Ammanabrolu</title>
+		<author>
+			<persName><forename type="first">Ruoyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Jansen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.07540</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Scienceworld: Is your agent smarter than a 5th grader? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="24824" to="24837" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Intelligent agents: Theory and practice</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Wooldridge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><forename type="middle">R</forename><surname>Jennings</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The knowledge engineering review</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="115" to="152" />
+			<date type="published" when="1995">1995</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhiheng</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyang</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglin</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junzhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dingwen</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyang</forename><surname>Liao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.04151</idno>
+		<title level="m">Agentgym: Evolving large language model-based agents across diverse environments</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Watch every step! llm agent learning via iterative step-level process refinement</title>
+		<author>
+			<persName><forename type="first">Weimin</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiutian</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujian</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.11176</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">A survey on knowledge distillation of large language models</title>
+		<author>
+			<persName><forename type="first">Xiaohan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chongyang</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reynold</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Can</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dacheng</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno>ArXiv, abs/2402.13116</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">2022a. Webshop: Towards scalable real-world web interaction with grounded language agents</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Howard</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="20744" to="20757" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">2022b. React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Karthik R Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Eleventh International Conference on Learning Representations</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mert</forename><surname>Yuksekgonul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Bianchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Boen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhi</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Zou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.07496</idno>
+		<title level="m">Textgrad: Automatic &quot;differentiation&quot; via text</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aohan</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingdao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiao</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.12823</idno>
+		<title level="m">Agenttuning: Enabling generalized agent abilities for llms</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tian</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rithesh</forename><surname>Murthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thai</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangwei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yihao</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zuxin</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.15506</idno>
+		<title level="m">Agentohana: Design unified data and training pipeline for effective agent learning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title level="m" type="main">Model held-in held-out Alfworld Babyai Maze Movie Sciworld Textcraft Todo Weather Webshop Wordle AVG Sheet Academic Jericho</title>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Wayne Xin Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaolei</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yupeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingqian</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zican</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yushuo</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhipeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinhao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zikang</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian-Yun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.18223</idno>
+		<idno>PDDL AVG Mistral-7B-Instruct-v0.3</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+	<note>A survey of large language models</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

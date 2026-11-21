@@ -1,0 +1,149 @@
+{
+  "arxiv_id": "2601.11816",
+  "title": "POLARIS: Typed Planning and Governed Execution for Agentic AI in Back-Office Automation",
+  "abstract": "Enterprise back-office workflows require agentic systems that are auditable, policy-aligned, and operationally predictable, capabilities that generic multi-agent setups often fail to deliver. We present POLARIS (Policy-Aware LLM Agentic Reasoning for Integrated Systems), a governed orchestration framework that treats automation as typed plan synthesis and validated execution over LLM agents. A planner proposes structurally diverse, type-checked directed acyclic graphs (DAGs); a rubric-guided reasoning module selects a single compliant plan; and execution is guarded by validator-gated checks, a bounded repair loop, and compiled policy guardrails that block or route side effects before they occur. Applied to document-centric finance tasks, POLARIS produces decision-grade artifacts and full execution traces while reducing human intervention. Empirically, POLARIS achieves a micro-F1 of 0.81 on the SROIE dataset and, on a controlled synthetic suite, achieves 0.95-1.00 precision for anomaly routing with preserved audit trails. These evaluations constitute an initial benchmark for governed Agentic AI. POLARIS provides a methodological and benchmark reference for policy-aligned Agentic AI.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Enterprise back-office automation (e.g., accounts payable, contract checks) imposes requirements that generic multi-agent LLM stacks often fail to meet: actions must be auditable, operationally predictable, policy-aligned, and governed before any side effects occur, and reliably evaluable against reproducible metrics. In practice, untyped tool calls, best-of-𝑁 prompting, and open-ended retries yield brittle pipelines with unclear provenance and no predictable service-level agreement (SLA) guarantees. We argue that meeting enterprise guarantees requires re-casting orchestration as typed, governed planning and execution where plans are type-checked and structurally diverse; selection is rubric-based and policy-aware; and execution is guarded by validators and compiled policy checks that gate side effects.\n\nRecent progress in Agentic AI has created powerful but ungoverned multi-agent stacks. Modern LLMs now support precise language understanding and the use of controlled tools (OpenAI et al., 2023), enabling agentic systems for operational work. LLM-based agents combine core reasoning with domain tools (Qin et al., 2024;Wang et al., 2024); multi-agent systems assign specialized roles across workflows (Wu et al., 2023b;Hong et al., 2024); and planning-centric frameworks cast orchestration as agent-oriented planning (AOP) with typed sub-tasks (Li et al., 2024). In parallel, workflow-centric approaches represent execution as a directed acyclic graph (DAG) of tool calls with explicit interfaces (Wu et al., 2023b;Hong et al., 2024), often following a plan-then-act paradigm that synthesizes candidate workflows before selection (Author et al., 2025;Wu et al., 2023b). However, enterprise deployment of such Agentic AI remains limited by the lack of typed planning, evaluation metrics, and auditable execution paths.\n\nApplying these ideas in regulated settings is challenging: inputs are heterogeneous and legally constrained, and errors carry financial risk. Common stacks (a) pass untyped input/output (I/O) in free-form messages, (b) treat plan generation as best-of-𝑁 prompting without structural diversity guarantees, (c) lack compiled policy checks that gate side effects, and (d) don't use past experience to guide future decisions; making governed, auditable behavior difficult to guarantee.\n\nTo overcome these inherent drawbacks, we introduce POLARIS, a modular orchestration framework that treats back-office automation as planning over typed agents. A Chain-of-Action planner proposes a small set of structurally diverse type-checked DAGs; a lightweight reasoning selector chooses one plan using a rubric over compliance, safe sequencing, and parsimony. Execution is then guarded: the validator checks gate side effects and drives a targeted parser-validator repair loop, while compiled policy guardrails (e.g., thresholds, currency rules, segregation-of-duties (SoD)) block, route, or annotate actions prior to external effects. The result is an auditable decision object and complete execution trace suitable for regulated environments (Figure 1).\n\nRelative to prior multi-agent DAG systems, POLARIS (i) enforces type-sound composition with firstclass diversity constraints at plan generation (not just prompt sampling), (ii) uses a rubric-based selector that is policy-aware and emits auditable JSON decisions, and (iii) bounds latency and cost via a validator-gated repair loop that targets only failing fields before any external side-effects. In synthetic invoice suites and the SROIE benchmark, the same plan-select-act loop shows strong extraction accuracy and high-precision policy/anomaly routing while preserving end-to-end lineage.\n\nThis work contributes to the broader effort to establish reproducible benchmarks and evaluable frameworks for Agentic AI in enterprise settings. POLARIS provides a reference implementation for typed policy-aware orchestration that can be quantitatively assessed in controlled enterprise scenarios.\n\nThe remainder of this paper is organized as follows: Section 2 reviews prior advances in agentic process automation, benchmarking, and programmatic prompting. Section 3 introduces the enterprise task setting, notation, and agent taxonomy used throughout this work. Section 4 formalizes the POLARIS framework, covering typed plan synthesis, rubric-based reasoning, and dependency-aware execution. Sections 4.6-4.7 describe the validator-gated repair loop, policy guardrails, and risk control mechanisms. Section 5 presents empirical evaluations and benchmark comparisons, while Section 6 concludes with implications for governed, auditable agentic automation and future benchmark development.",
+      "n_words": 620
+    },
+    {
+      "heading": "Related Work",
+      "section_type": "related_word",
+      "text": "LLM-based back-office automation spans general orchestration frameworks and domain-specific systems. ProAgent reframes Robotic Process Automation as Agentic Process Automation by having an LLM synthesize executable workflows and coordinate sub-agents for data-dependent branches (Ye et al., 2023). SmartFlow complements this with vision and LLM planning to operate changing enterprise UIs without fragile selectors (Jain et al., 2024). Domain-aligned approaches harden governance: FinRobot introduces finance-focused Generative Business Process AI Agents that map intents to ERP tasks via rule-constrained planning, Chain-of-Actions execution, and human-in-theloop for auditability (Yang et al., 2025); Agent-S formalizes the execution of the SOP with a statedecision planner, an action executor for API/user steps, and shared execution memory for fault recovery (Kulkarni et al., 2025); and an RL-guided multi-agent parser learns document classification, schema induction, and iterative extraction to handle layout drift in invoices and POs (Amjad et al., 2025). Although not enterprise-specific, Generative Agents contribute reusable patterns for memory, retrieval, and reflection that stabilize multi-step behaviors (Park et al., 2023).",
+      "n_words": 161
+    },
+    {
+      "heading": "Benchmarks and evaluation.",
+      "section_type": "experiments",
+      "text": "Recent evaluation efforts emphasize process-aware benchmarking beyond final task success. AgentBench and AgentBoard introduce structured multi-environment evaluations with fine-grained analytical metrics for LLM agents (Liu et al., 2023;Ma et al., 2024), while BrowserGym and WebArena provide reproducible web-based environments to test planning, tool use, and long-horizon reasoning (Lemke et al., 2024;Zhou et al., 2023). Governance-focused frameworks such as Safe Agents (Huang et al., 2024) and rubric-based evaluation methods such as LLM-as-Judge (Zheng et al., 2024) underscore the importance of accountability and transparent decision traces-key motivations for POLARIS's policy-aware orchestration. Our work focuses on typed planning, policy-aware selection, and validator-gated repair producing auditable traces, areas not emphasized in UI/web benchmarks.\n\nProgrammatic prompting and planning priors. Beyond conventional prompt templates, DSPy compiles declarative LLM pipelines into self-improving modules and provides structured priors that enable optimizable, type-constrained plan synthesis (Khattab et al., 2023). AutoGen demonstrates scalable multi-agent conversations with coordination patterns, but lacks type contracts or compiled policy guardrails (Wu et al., 2023a). In broader multi-agent planning, Voyager (Wang et al., 2023) shows how exemplar-guided exploration and continual learning improve long-horizon agent behavior. POLARIS unifies these strengths by enforcing typed planning, policy compliance, and bounded repair loops, establishing a governance layer critical for enterprise-grade auditability and reliability.",
+      "n_words": 204
+    },
+    {
+      "heading": "Preliminaries",
+      "section_type": "related_word",
+      "text": "We target document-centric enterprise workflows (e.g., invoice processing) where heterogeneous inputs-PDFs, emails, prompts, or API events-must yield decision-grade artifacts such as validated records, approvals, or audit reports. Let X denote raw inputs and 𝜏 ∈ T be the normalized task record summarizing the metadata and required fields.",
+      "n_words": 47
+    },
+    {
+      "heading": "Plans as typed DAGs.",
+      "section_type": "other",
+      "text": "A plan 𝑝 is a directed acyclic graph 𝐺 𝑝 = (𝑉 𝑝 , 𝐸 𝑝 ) of agent invocations whose edges are type-checked against declared I/O contracts. Feasibility requires: (i) input compatibility, (ii) compliance ordering (e.g., parse→validate→risk/approval), and (iii) adherence to concurrency limits. Execution follows completion-based semantics-nodes become eligible when all parents finish-allowing safe fan-out and aggregation of partial evidence.\n\nCompliance and anomaly primitives. Policy checks detect unknown vendors, threshold breaches, and currency mismatches (Section 4.7). Anomalies use a robust vendor-wise score:",
+      "n_words": 83
+    },
+    {
+      "heading": "POLARIS Overview",
+      "section_type": "introduction",
+      "text": "POLARIS operationalizes the above as a plan-select-act loop over typed agents (Figure 1). It modularizes normalization, plan synthesis, reasoning-driven selection, guarded execution, and continuous feedback-each stage auditable and policy-aligned.",
+      "n_words": 29
+    },
+    {
+      "heading": "(1) Normalization",
+      "section_type": "introduction",
+      "text": "This stage converts heterogeneous input formats from the enterprise into a canonical JSON record, enabling type verification and policy tagging for reproducible downstream execution.\n\nInputNormalizerAgent maps raw inputs 𝑥 ∈ X (files, free text, events) to a canonical task record 𝜏 = 𝑓 norm (𝑥) consumed by downstream agents. It handles diverse inputs (schedules, prompts, PDFs, emails, API events), categorizes, and normalizes them for consistent downstream processing.\n\nConcretely, the agent is an Autogen ConversableAgent prompted with a strict JSON schema and returns a single JSON object with fields:\n\n• task_type: coarse task category (e.g., document_parsing, user_command, event_triggered); • input_format: acquisition mode (e.g., file, text, file+instruction, event); • file_name: original filename if present, otherwise empty; • file_type: MIME/extension (e.g., pdf, png, eml, csv) or none;\n\n• timestamp: ISO-8601 time associated with 𝑥 (ingest or document time); • origin: source identifier (e.g., email, upload, chat); • instruction: user/system instruction if supplied;\n\n• meta: auxiliary key-value pairs (e.g., locale, BU, region, channel).\n\nThe implementation enforces (i) schema-guided prompting, (ii) model invocation via generate_reply, and (iii) deterministic JSON extraction-the last JSON object in the response is regex-parsed. In case of failure to recover a valid JSON, the agent returns a structured error payload with the raw model response, enabling safe fallback or escalation without side effects. This normalization removes input heterogeneity before planning, ensuring reproducible type checks and policy attachment.",
+      "n_words": 226
+    },
+    {
+      "heading": "(2) Candidate Plan Synthesis (CoAPlanner)",
+      "section_type": "introduction",
+      "text": "Goal. Given a normalized task record 𝜏, the planner must propose a set of 𝐾 typed, feasible, and pairwise distinct workflow hypotheses\n\nwhere each 𝑝 𝑘 is a directed acyclic graph (DAG) of agent invocations whose edges respect the declared input/output (I/O) types and policy tags (Section 3). Plan synthesis is modeled as diversification under type constraints guided by model priors.\n\nCore reasoning steps. Internally, the CoAPlanner performs three sequential reasoning steps before generating candidate DAGs:\n\n• Interpret Task Intent: Derive the required outcome from the parsed task_type of 𝜏;\n\n• Select Required Agents: identify task-specific agents relevant to execution;\n\n• Sequence Agent Calls: order agents by dependencies and conditional triggers. The Reasoner later evaluates these DSPy-guided candidates, ensuring that only type-and policy-sound DAGs advance. Thus DSPy supplies CoAPlanner with a structured prior narrowing the search space to high-quality, diverse, interpretable 𝐾-plan proposals.\n\nPolicy-aware invariants. Certain invariants are hard-coded: invoices with vendors must retrieve policy context before irreversible actions; \"month-end\" workflows must stage scheduling before report emission; and approval sinks must trail validation and risk control. These invariants restrict F (𝜏) to type-and policy-sound plans.",
+      "n_words": 185
+    },
+    {
+      "heading": "(3) Reasoning-Based Selection (ReasoningAgent)",
+      "section_type": "method",
+      "text": "Objective. Given a diversified set Π(𝜏) = { 𝑝 1 , . . . , 𝑝 𝐾 } of typed plans (Section 4.3), the selector chooses a single plan p = arg max\n\nwith 𝑈 ( 𝑝; 𝜏) = 𝑤 1 compliance( 𝑝) + 𝑤 2 sequencing( 𝑝)\n\n(3) + 𝑤 3 parsimony( 𝑝) + 𝑤 4 prior( 𝑝).\n\n(4)\n\nThe four rubric terms are: (i) compliance: verifies admissible agents and contract/policy eligibility;\n\n(ii) sequencing: evaluates ordering quality, favoring safe sequences (parse→validate→risk/approval) while penalizing unsafe permutations; (iii) parsimony: prefers minimal non-redundant step sets; and (iv) prior: planner-assigned self-consistency score. Weights (𝑤 1 , 𝑤 2 , 𝑤 3 ) are fixed in this work.\n\nSelector as a constrained reasoner. We instantiate the selector as a lightweight reasoning LLM that (a) evaluates rubric terms against the typed plan specification and (b) emits a structured decision: a plan index and a short justification. Using the normalized record, the candidates 𝐾, and the rubric, it returns a JSON object containing chosen_index and reason.\n\nPlans that fail any hard constraint (policy or type) are discarded before scoring. Reasoning-tuned LLMs improve constraint awareness, calibrated comparison, and structured output control. They maintain policy/order invariants, apply rubric ties rationally, and emit strict JSON enabling fail-fast rejection and auditable decisions. Importantly, the selector evaluates only among pre-validated candidates without altering types or adding actions.",
+      "n_words": 226
+    },
+    {
+      "heading": "(4) Guarded Execution with a Dependency-Aware Scheduler",
+      "section_type": "method",
+      "text": "Given the selected plan p, the execution proceeds as a dependency graph with completion-based semantics. The scheduler converts CoAPlanner's ordered stages into a typed DAG and runs ready nodes in parallel while honoring dependencies (Figure 2).\n\nExecution model. We maintain a readiness set 𝑅 of nodes whose predecessors have been successfully completed. At each step, the scheduler dispatches all nodes in 𝑅 subject to resource limits; completions update downstream dependencies and refresh 𝑅.\n\nThe resulting parallel execution pattern is shown in Figure 2.",
+      "n_words": 83
+    },
+    {
+      "heading": "Dependency rules (enforced invariants).",
+      "section_type": "other",
+      "text": "• Parser first: any agent that consumes extracted fields must wait for DocumentParser.\n\n• Middle parallelization: after parsing, independent checks (PolicyRetrieval, RiskControl, AnomalyDetector, RecordMatcher) run concurrently.",
+      "n_words": 26
+    },
+    {
+      "heading": "(5) Validator-Gated Repair Loop",
+      "section_type": "method",
+      "text": "Document parsing is the dominant failure mode in back-office flows: OCR/layout models can miss fields, mis-read dates/currencies, or drift under noisy scans. Executing brittle parses propagates policy errors. We therefore insert a bounded, validator-gated repair loop to improve extractions before irreversible actions.\n\nTrigger. Let ẑ be the parser output (fields with confidences), and 𝑉 (ẑ) denote validator checks (schema completeness, cross-field arithmetic, date logic, external consistency). The loop is entered if: (i) required field missing; or (ii) field confidence < 𝜏 𝑐 ; or (iii) rule violation 𝑉 (ẑ) = fail.\n\nInstead of re-parsing wholesale, we issue localized repair actions guided by validator feedback: ROI hints (zones for totals/dates/vendors), OCR/layout cues, schema prompts, and string normalization.\n\nRepairs are additive; only implicated fields are re-requested.\n\nTermination and guarantees. The loop runs for at most 𝐿 max iterations (typically 2 ∼ 3) and terminates when 𝑉 (ẑ) = pass or the budget is exhausted. If it exits by budget, control escalates for human review or a safe lower-coverage path (no approvals, full audit trace).\n\nScheduler integration. The repair loop lies in the critical path before mid-pipeline checks. After completion, repaired fields seed the execution store, skipping redundant DocumentParser/DataValidator stages, and preserving parallelism downstream. Evaluation. We summarize policy decisions by (TPV, FPV, FNV, TNV):\n\n• TPV (True Positive Violation): the system correctly flags a true violation;\n\n• FPV (False Positive Violation): the system flags violation when none exists;\n\n• FNV (False Negative Violation): the system misses a true violation;\n\n• TNV (True Negative Violation): the system correctly identifies compliance.\n\nWe report precision/recall/F1 scores for policy compliance.\n\nExtending the policy layer.",
+      "n_words": 267
+    },
+    {
+      "heading": "Evaluation and Benchmark Results",
+      "section_type": "results",
+      "text": "We evaluate POLARIS as a benchmarking framework for governed Agentic AI in enterprise workflows, using (i) a controlled synthetic suite that stresses policy governance, anomaly handling, and scheduler behavior (in Table 2), and (ii) the SROIE benchmark for document-centric extraction.",
+      "n_words": 40
+    },
+    {
+      "heading": "Benchmark Implications",
+      "section_type": "experiments",
+      "text": "The controlled synthetic suite introduced in this work provides an initial benchmark for evaluating governed agentic systems. Beyond conventional precision and recall, it measures enterprise-specific dimensions such as policy compliance, audit-trace completeness, and risk-routing accuracy. POLARIS's typed DAG traces, validator repair logs, and policy decisions constitute reusable evaluation primitives that enable reproducibility of compliance accuracy, routing precision, and repair effectiveness across agent frameworks.\n\nFuture benchmarks may expand these dimensions with standardized governance metrics and multiagent reproducibility protocols, forming a baseline schema for comparing enterprise-grade Agentic AI systems.",
+      "n_words": 87
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "Classical back-office automation relies on brittle point tools (OCR + rules) that lack end-to-end provenance; generic agent stacks provide flexibility but often blur interfaces and policy boundaries. POLARIS integrates: typed DAG planning (safe composition), diversity-constrained plan synthesis (distinct candidates), reasoning-based selection (multi-criterion, policy-aware choice), and a bounded repair loop (targeted, auditable fixes). This combination yields decision-grade outputs with explicit lineage and policy justifications advancing from reactive point solutions or black-box agents to policy-aligned, valuable enterprise automation. Beyond its immediate performance gains, POLARIS introduces evaluation constructs-typed DAG lineage, governed selection logs, and validator repair traces-that can inform future benchmark design for reliable enterprise Agentic AI.",
+      "n_words": 104
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "with cohort/global fallback and date-sanity validation (Section 4.8). Additional details, agent role definitions, Table 6 appear in Appendix A.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "We view the planner as a conditional generator 𝐺 𝜃 ( 𝑝 | 𝜏, E) on typed DAGs, where E is a small exemplar bank. Each draw 𝑝 ∼ 𝐺 𝜃 must satisfy feasibility (typecompatible edges; intrinsic orderings such as parse→validate→risk/approval) and minimality (no superfluous stages). Feasibility is enforced at generation by emitting node signatures and checking edge composition against I/O contracts; minimality is encouraged through a brevity prior in the planner's scoring.Practically, candidates must differ in agent set, edge structure, or stage ordering while maintaining type soundness. Formally, the planner solves: 𝑠 𝜃 ( 𝑝; 𝜏) s.t. 𝑝 ∈ F (𝜏) ∀𝑝, 𝑝 𝑖 ≁ 𝑝 𝑗 ∀𝑖 ≠ 𝑗.(1)where 𝑠 𝜃 is the planner's internal plausibility score and F (𝜏) the feasible set. DSPy encodes reusable planning modules that are optimizeable and updateable. For CoAPlanner, E includes compact labeled scenarios (positive/negative, anomaly exemplars, approval thresholds) describing the ideal agent chains and rationales. These exemplars are compiled by DSPy into a reusable planning program conditioning 𝐺 𝜃 during generation.",
+      "content": "max Π (𝜏) | ∑︁ 𝑝∈Π (𝜏)\nDomain priors via few-shot planning. To bias generation toward policy-consistent plans, we\ninstantiate E (few-shot memory) using DSPy (Declarative Self-improving Python), which compiles\nLLM prompts into structured, trainable programs."
+    },
+    {
+      "kind": "table",
+      "label": "Algorithm 1 Validator-Gated Repair Loop (bounded) Require: normalized",
+      "captions": "record 𝜏, parser 𝑃, validator 𝑉, threshold 𝜏 𝑐 , budget 𝐿 max 1: ẑ ← 𝑃(𝜏) ⊲ initial parse 2: for ℓ = 1 to 𝐿 max do",
+      "content": "3: | 𝑟 ← 𝑉 (ẑ) | ⊲ schema / cross-field checks; 𝑟=pass and minconf (ẑ) ≥ 𝜏 𝑐\n4: | if 𝑟 = pass then | \n5: | break | ⊲ accept repaired extraction\n6: | A ← Explain(𝑟, ẑ) | ⊲ which fields/rules failed?\n7: | ẑ ← Merge(ẑ, 𝑃(𝜏; A)) | ⊲ re-parse + overwrite\n8: if 𝑉 (ẑ) = pass then | \n9: | return ẑ | ⊲ seed downstream agents\n10: else | \n11: | return Fallback(ẑ) | ⊲ safe path"
+    },
+    {
+      "kind": "table",
+      "label": "Table 1 |",
+      "captions": "Extraction by scenario (required fields: invoice #, date, vendor, total). RiskControl compiles these clauses into executable checks and gates unsafe actions: hard violations halt; soft ones escalate with machine-readable justifications. Let 𝐸(𝑣) denote the existence of the vendor 𝑣, 𝑎(𝑖) the total invoice for the invoice 𝑖, 𝜏(𝑣) the threshold for the vendor 𝑣, 𝑐(𝑖) the inferred currency , and 𝑐 * (𝑣) the policy currency A violation occurs if any holds:",
+      "content": "Scenario | total | TP FP FN TN precision | recall | f1\nViolation-Unknown Vendor (VU) | 40 | 35 | 1 | 0 | 4 | 0.9722 1.0000 0.9859\nViolation-Layout Drift and Noise (VL) | 40 | 23 | 5 | 0 12 | 0.8214 1.0000 0.9020\nCompliant-Clean Set (CC) | 40 | 29 | 1 | 2 | 8 | 0.9667 0.9355 0.9508\nCompliant-Month-End Batch (CM) | 40 | 34 | 0 | 2 | 4 | 1.0000 0.9444 0.9714\nTOTAL | 160 121 | 7 | 4 28 | 0.9453 0.9680 0.9565\n4.7. (6) Policy Guardrails and Risk Control |  |  |  |  | \nPolicyRetrieval queries a lightweight policy store keyed by vendor, sector and currency, returning (i)\nexistence flag, (ii) matched vendor identity, and (iii) the vendor's policy record (threshold, currency,\nterms). Violation definition. |  |  |  |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Beyond core checks, the layer supports: (i) duplicate detection (same (vendor, invoice_number) within a lookback window 𝑇); (ii) black/whitelists; (iii) graded risk scoring, 𝑠(𝑖) = 𝑘 𝑤 𝑘 1{rule 𝑘 (𝑖)} for tiered routing (auto-approve / review / block); and (iv) enforcement of provenance that requires PO, receiving, and approval artifacts. Missing provenance automatically registers as a violation. For each vendor 𝑣, we maintain baselines over the amount fields and compute 𝑧 MAD (𝑥; 𝑣) = |𝑥median 𝑣 |/(1.4826 • MAD 𝑣 ). An item is anomalous if 𝑧 MAD > 𝑘 mad (default 3.5).",
+      "content": "4.8. (7) Anomaly Detection and Handling\nSignal construction."
+    },
+    {
+      "kind": "table",
+      "label": "4.9. (8) Outputs, Auditability, and Feedback Decision-grade artifacts. For",
+      "captions": "POLARIS logs traces and summaries-what plan ran, why it was chosen, what failed, and what was repaired. These logs update (i) planning priors (few-shot exemplars) and (ii) anomaly/policy baselines. Improvement is governed: exemplars, not opaque prompts, are updated, preserving predictability and reviewability.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 |",
+      "captions": "Anomaly (MAD, 𝑘 mad =3.5) and date checks. Metrics are undefined (-) where no positive cases exist.",
+      "content": "Scenario total TP FP FN TN precision | recall | f1\nVU | 8 | 0 | 0 | 0 | 8 | - | - | -\nVL | 6 | 5 | 0 | 1 | 0 | 1.0000 0.8333 0.9091\nCC | 3 | 0 | 0 | 0 | 3 | - | - | -\nCM | 9 | 4 | 0 | 0 | 5 | 1.0000 1.0000 1.0000\nTOTAL | 26 | 9 | 0 | 1 16 | 1.0000 0.9000 0.9474"
+    },
+    {
+      "kind": "table",
+      "label": "Table 5 |",
+      "captions": "SROIE overall and per-field accuracy.",
+      "content": "Metric | Precision Recall | F1 | Field Acc.\nOverall | 0.8189 | 0.8045 0.8116 | 0.8045\nField | Company Address | Date | Total\nAccuracy | 0.8500 | 0.8500 0.7600 | 0.7576"
+    }
+  ],
+  "n_words": 2388,
+  "quality_flags": []
+}

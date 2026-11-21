@@ -1,0 +1,1989 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">OPPONENT SHAPING IN LLM AGENTS</title>
+				<funder ref="#_EmjKaZG">
+					<orgName type="full">EPSRC</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2025-10-09">9 Oct 2025</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Marta</forename><surname>Emili</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Garcia</forename><surname>Segura</surname></persName>
+							<email>marta.segura22@ucl.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University College London</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department">Centre for Artificial Intelligence</orgName>
+								<orgName type="institution">University College London</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Stephen</forename><surname>Hailes</surname></persName>
+							<email>s.hailes@ucl.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University College London</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Mirco</forename><surname>Musolesi</surname></persName>
+							<email>m.musolesi@ucl.ac.uk</email>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University College London</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department">Centre for Artificial Intelligence</orgName>
+								<orgName type="institution">University College London</orgName>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="department">Department of Computer Science</orgName>
+								<orgName type="institution">University of Bologna</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">OPPONENT SHAPING IN LLM AGENTS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2025-10-09">9 Oct 2025</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">4F6445801D9CB8B933E3A66F0B04651C</idno>
+					<idno type="arXiv">arXiv:2510.08255v1[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large Language Models (LLMs) are increasingly being deployed as autonomous agents in real-world environments. As these deployments scale, multi-agent interactions become inevitable, making it essential to understand strategic behavior in such systems. A central open question is whether LLM agents, like reinforcement learning agents, can shape the learning dynamics and influence the behavior of others through interaction alone. In this paper, we present the first investigation of opponent shaping (OS) with LLM-based agents. Existing OS algorithms cannot be directly applied to LLMs, as they require higher-order derivatives, face scalability constraints, or depend on architectural components that are absent in transformers. To address this gap, we introduce ShapeLLM, an adaptation of modelfree OS methods tailored for transformer-based agents. Using ShapeLLM, we examine whether LLM agents can influence co-players' learning dynamics across diverse game-theoretic environments. We demonstrate that LLM agents can successfully guide opponents toward exploitable equilibria in competitive games (Iterated Prisoner's Dilemma, Matching Pennies, and Chicken) and promote coordination and improve collective welfare in cooperative games (Iterated Stag Hunt and a cooperative version of the Prisoner's Dilemma). Our findings show that LLM agents can both shape and be shaped through interaction, establishing opponent shaping as a key dimension of multi-agent LLM research.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">INTRODUCTION</head><p>Large language models (LLMs) have evolved rapidly in recent years, demonstrating remarkable capabilities in reasoning, planning and goal-directed behavior that make them increasingly suitable for deployment as autonomous agents <ref type="bibr">(Zhao et al., 2023;</ref><ref type="bibr">Anthropic, 2025a;</ref><ref type="bibr">OpenAI, 2025b;</ref><ref type="bibr" target="#b52">Xi et al., 2025)</ref>. Already, LLM-based agents are being adopted for complex tasks such as web navigation and code generation <ref type="bibr">(Anthropic, 2025b;</ref><ref type="bibr">OpenAI, 2025a)</ref>. As deployment scales, these agents will be less likely to operate in isolation. Instead, they will increasingly interact with other learning agents in shared environments, collaborating on tasks, competing for resources, or pursuing independent objectives. There is growing interest in understanding the opportunities and challenges associated with multi-agent LLM systems <ref type="bibr" target="#b13">(Fourney et al., 2024;</ref><ref type="bibr" target="#b16">Ghafarollahi &amp; Buehler, 2025;</ref><ref type="bibr" target="#b28">Pan et al., 2025;</ref><ref type="bibr">Rosser &amp; Foerster, 2025)</ref>. However, most approaches treat LLMs as static entities, overlooking the strategic dynamics that emerge when agents continuously adapt to one another.</p><p>Multi-agent reinforcement learning (MARL) has long been concerned with the interaction of multiple learners in shared environments <ref type="bibr" target="#b7">(Busoniu et al., 2008)</ref>. A core difficulty in MARL is that agents often treat each other as static parts of the environment, which can yield poor collective outcomes. For instance, in the Iterated Prisoner's Dilemma (IPD, <ref type="bibr" target="#b2">Axelrod &amp; Hamilton (1981)</ref>), independent learners reliably converge to mutual defection, which is the worst collective outcome <ref type="bibr" target="#b17">(Harper et al., 2017;</ref><ref type="bibr" target="#b12">Foerster et al., 2018)</ref>. To mitigate such failures, the field of opponent shaping develops agents that actively anticipate and influence their co-players' learning dynamics, steering learned behavior toward more favorable equilibria <ref type="bibr" target="#b12">(Foerster et al., 2018;</ref><ref type="bibr">Lu et al., 2022)</ref>. While these methods have proven effective in RL settings, it remains unclear whether they extend to LLM agents. Unlike RL agents, these models process rich semantic information, exhibit complex reasoning capabilities <ref type="bibr" target="#b53">(Xu et al., 2025)</ref>, and can adapt through in-context learning <ref type="bibr" target="#b5">(Brown et al., 2020;</ref><ref type="bibr" target="#b6">Bubeck et al.,</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">BACKGROUND</head><p>2.1 LLM AGENTS An LLM agent can be thought of as any system leveraging LLMs as the core computational unit for reasoning, planning, and decision-making <ref type="bibr" target="#b43">(Sumers et al., 2023)</ref>. The architectures of these agents vary significantly in the literature, with some systems integrating reasoning frameworks <ref type="bibr" target="#b43">(Yao et al., 2023)</ref>, memory banks <ref type="bibr" target="#b46">(Vezhnevets et al., 2023)</ref>, or tool-access via APIs <ref type="bibr">(Schick et al., 2023;</ref><ref type="bibr">Patil et al., 2024)</ref>, both in single and multi-agent settings <ref type="bibr">(Park et al., 2023;</ref><ref type="bibr" target="#b41">Wang et al., 2024)</ref>. In the latter, game-theoretic environments provide a natural testbed for studying strategic dynamics. Recent work has used these environments to investigate LLM agents' cooperation <ref type="bibr">(Piatti et al., 2024;</ref><ref type="bibr" target="#b0">Akata et al., 2025)</ref>, rationality <ref type="bibr">(Fan et al., 2024)</ref>, and strategic reasoning <ref type="bibr" target="#b14">(Gandhi et al., 2023;</ref><ref type="bibr">Duan et al., 2024;</ref><ref type="bibr" target="#b52">Huang et al., 2025)</ref>. Beyond observational studies, these environments can be used to train LLMs towards specific objectives such as moral alignment <ref type="bibr">(Tennant et al., 2025)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">FINE-TUNING LLMS WITH REINFORCEMENT LEARNING</head><p>The use of reinforcement learning (RL) in LLM training was first popularized through Reinforcement Learning from Human Feedback <ref type="bibr">(RLHF, Ziegler et al. (2019)</ref>; <ref type="bibr" target="#b42">Stiennon et al. (2020)</ref>; <ref type="bibr">Ouyang et al. (2022)</ref>), which typically employs Proximal Policy Optimization (PPO, <ref type="bibr" target="#b39">Schulman et al. (2017)</ref>) as the RL algorithm. PPO is an on-policy, actor-critic method that uses a learned value function for advantage estimation. When applied to LLMs, it is customary to include a Kullback-Leibler (KL) penalty in the reward signal to prevent the model's output distribution from diverging too far from the pre-trained one. Several alternatives to standard RLHF with PPO have since been proposed, including Group Relative Policy Optimization (GRPO, <ref type="bibr" target="#b41">Shao et al. (2024)</ref>), which estimates advantages via Monte Carlo rollouts, and Direct Preference Optimization (DPO, <ref type="bibr">Rafailov et al. (2024)</ref>), which converts the RLHF objective into a supervised learning loss. All three approaches are typically used in contextual bandit settings (Llama Team, AI@Meta, 2024; Qwen <ref type="bibr" target="#b33">Team, 2025;</ref><ref type="bibr" target="#b24">Mistral-AI, 2025)</ref>, where each model response is treated as an independent episode with immediate reward feedback.</p><p>The application of multi-turn RL to LLMs remains an active area of research due to challenges in preference collection, reward modeling, and ambiguity in action space definition <ref type="bibr">(Shani et al., 2024;</ref><ref type="bibr">Zhou et al., 2024;</ref><ref type="bibr">Zeng et al., 2025)</ref>. Nevertheless, underlying algorithms such as PPO are inherently designed to handle temporally structured environments, making them suitable for multi-agent strategic settings where actions have long-term consequences.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">OPPONENT SHAPING</head><p>The opponent shaping literature is characterized by two primary approaches: methods that explicitly account for the opponent's updates in the agent's learning rule <ref type="bibr" target="#b12">(Foerster et al., 2018;</ref><ref type="bibr" target="#b20">Letcher et al., 2019;</ref><ref type="bibr">Willi et al., 2022)</ref>, and meta-learning approaches that learn to shape opponents by observing how their actions influence their opponent's parameter updates <ref type="bibr">(Lu et al., 2022;</ref><ref type="bibr" target="#b3">Balaguer et al., 2022;</ref><ref type="bibr">Khan et al., 2024)</ref>. The most notable method in the first category is Learning with Opponent-Learning Awareness (LOLA, <ref type="bibr" target="#b12">Foerster et al. (2018)</ref>). In LOLA, the opponent's learning rule is incorporated into the agent's update, accounting for the effect of the agent's action on the opponent's parameter updates. This method has demonstrated notable successes, such as the emergence of Titfor-Tat (TFT) in the iterated prisoner's dilemma (IPD) through self-play. However, LOLA faces significant limitations: it assumes knowledge of the opponent's learning rule, relies on high-variance higher order derivatives, and only considers immediate effects on the opponent's updates. While several LOLA refinements have been proposed <ref type="bibr" target="#b20">(Letcher et al., 2019;</ref><ref type="bibr">Willi et al., 2022)</ref>, they exhibit the same core limitations.</p><p>The second category of methods, exemplified by Model-Free Opponent Shaping (M-FOS, <ref type="bibr">Lu et al. (2022)</ref>), was developed specifically to overcome these challenges. M-FOS bypasses these limitations, particularly LOLA's myopic perspective, by framing opponent shaping as a meta-learning problem. In doing so, it decouples the task of interacting with the environment from that of influencing the opponent's learning dynamics. This decoupling is achieved via a bi-level agent architecture: an inner agent that interacts with its co-players, and an outer agent that updates or conditions the inner agent's policy. The outer agent operates in a meta-game, where the meta-state consists of all players' parameters, and the meta-action determines the inner agent's policy. Between episodes, other players update their parameters using their respective learning algorithms. This formulation enables the meta-agent to optimize for long-term opponent shaping effects.</p><p>While M-FOS has demonstrated strong empirical results, including outperforming LOLA-based agents in the IPD, it presents scalability challenges due to its dual-agent architecture. To address these, <ref type="bibr">Khan et al. (2024)</ref> propose SHAPER, which simplifies M-FOS' architecture by collapsing the shaping agent into a single recurrent neural network (RNN). The key insight is the distinction between history and context within opponent shaping. History captures intra-episode information necessary for implementing conditional strategies such as TFT, while context captures inter-episode information about the opponent's learning dynamics. SHAPER captures history through the RNN's inputs and context through its hidden state, which persists across episodes within a trial. This unified architecture eliminates the dual action spaces of M-FOS, allowing the agent to operate directly in the environment's original action space. However, SHAPER is inherently tied to RNN architectures, with its mechanism relying on distinct memory streams for capturing history and context.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">METHODOLOGY</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">PRELIMINARIES</head><p>Agents interact with the environment by generating text. Let V denote the model's vocabulary, and w 1:L := (w 1 , . . . , w L ), with w l ∈ V, ∀l ∈ {1, . . . , L}. At each interaction, the agent's action is a sequence of tokens sampled from:</p><formula xml:id="formula_0">ρ θ (w 1:L | c) = L l=1 ρ θ (w l | c, w &lt;l ),<label>(1)</label></formula><p>where w &lt;l := w 1:l-1 , the context c is the environment's description, and L is the generation length. For simplicity, we set L = 1 and define the distribution ρ θ (w | c), with w ∈ V, as our agent's policy. We deliberately avoid constrained decoding <ref type="bibr">(Beurer-Kellner et al., 2024;</ref><ref type="bibr" target="#b45">Ugare et al., 2024)</ref> or format-specific fine-tuning, relying instead on textual instructions to guide the model toward the desired format.</p><p>We formalize our environments as repeated normal-form games <ref type="bibr">(Fudenberg &amp; Tirole, 1991)</ref>. Let M = (I, {A i } i∈I , {R i } i∈I ) denote a base game, where I = {1, . . . n} represents the set of players. Each player i ∈ I has an associated action space A i and reward function R i : A 1 ×. . .×A n → R. A repeated normal-form game consists of playing M for T time steps, where T can be finite or infinite.</p><p>In this paper, we focus on the finite case. At each time step t, players simultaneously choose actions a t i for i ∈ I. The resulting joint action a t = (a t 1 , . . . , a t n ) determines the reward r t i = R i (a t ) that each player receives. The actions a t i are sampled from player-specific policies ρ θi (w | f (h t )), where f (h t ) is any function of the joint action history h t = (a 1 , a 2 , . . . , a t-1 ) (e.g., the previous joint action a t-1 ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">OPPONENT SHAPING IN LLM AGENTS</head><p>We introduce ShapeLLM, a model-free opponent shaping algorithm designed to leverage the natural language capabilities of LLMs. ShapeLLM condenses both history and context into structured natural language prompts, explicitly capturing the two forms of memory required for shaping into one information stream. As in existing model-free algorithms <ref type="bibr">(Lu et al., 2022;</ref><ref type="bibr">Khan et al., 2024)</ref>, interactions are organized into trials. Each trial comprises n games parallel environments, where agents engage in E episodes, each comprising T rounds of the specified matrix game (Figure <ref type="figure" target="#fig_0">1</ref>  Let t ∈ {1, . . . , T } denote the round within an episode, and e ∈ {1, . . . , E} denote the episode within a trial. For notational simplicity, we collapse the pair (e, t) into a single timescale index τ ∈ {1, . . . , E × T }. We formalize the shaping task as a POMDP ( S, Ā, P, R, Ω, Ō, γ). The state sτ = {θ τ -1 i , c τ -1 i } i∈I ∈ S encodes the parameters and conditioning prompts of all LLM agents from the previous timestep. The action space Ā and reward function R are equivalent to those of the underlying repeated normal-form game. The observation ōτ = f (a 1 , a 2 , . . . , a τ -1 ) is a function of the joint actions across all past timesteps. Lastly, P and Ō denote the state transition and observation functions, respectively.</p><p>At the beginning of training, players are initialized with policies {ρ 0 θi } i∈I and receive initial observations {c 0 i } i∈I specifying the game characteristics (number of players, action space, and reward matrix) and action labels. At the τ -th round of a trial, the shaper receives an observation c τ j that concatenates two components: the most recent joint action (a τ -1 ) and a compressed natural language representation of all the previous joint actions in the trial (f (a 1 , . . . , a τ -2 )). This separation captures the distinction between history and context. The shaper then samples an action a τ j ∼ ρ θj (w | c τ j ) and receives the corresponding reward r τ j and next observation c τ +1 j .</p><p>Opponents update their policy parameters between episodes (i.e., when τ is a multiple of T ) using the experience collected in the preceding episode. Consequently, within each trial, the shaper is exposed to E opponent updates, though only indirectly through the evolving summaries of joint actions that persist across episodes. By contrast, the shaper's own parameters θ j are updated only at trial finalization to maximize the cumulative trial return J = E×T τ =1 r τ j . While we present this formulation in the context of repeated normal-form games, the ShapeLLM framework generalizes to any environment that can be formulated as a partially observable stochastic game.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">EXPERIMENTAL SETTINGS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">ENVIRONMENTS</head><p>We investigate opponent shaping on iterated versions of four canonical 2 × 2 games. These environments were selected to represent diverse incentive structures across strategic interactions. Iterated Prisoner's Dilemma (IPD). Players choose between cooperation (C) and defection (D). Mutual cooperation yields the highest collective payoff, but each player faces individual incentives to defect and exploit cooperative opponents <ref type="bibr" target="#b35">(Rapoport, 1974;</ref><ref type="bibr" target="#b2">Axelrod &amp; Hamilton, 1981)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Iterated Matching Pennies (IMP).</head><p>A zero-sum game where players choose between heads (H) and tails (T). One player receives a positive payoff when actions match, whereas the other is rewarded when they differ. This environment is purely adversarial.</p><p>Iterated Chicken Game (ICG). Players can either Swerve (S) or Go straight (G). Going straight yields an advantage against a swerving opponent, but mutual aggression results in catastrophic outcomes for both, creating a coordination problem under risk <ref type="bibr" target="#b36">(Rapoport &amp; Chammah, 1966)</ref>.</p><p>Iterated Stag Hunt (ISH). Players choose between Stag (S) and Hare (H). Hunting stag yields the highest payoff but only if both players coordinate, while hunting hare offers a lower but guaranteed reward. This creates a coordination problem with multiple equilibria.</p><p>We assign a single token w ai to each action a i ∈ A (e.g. "C" for cooperate and "D" for defect in the IPD), and treat any other generation as an illegal action (a null ). Choosing a null incurs a penalty r null , and the transition is excluded from both players' game histories (see Appendix A.2).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">IMPLEMENTATION DETAILS</head><p>Our base model is gemma-2-2b-it (Gemma Team, 2024), a small, instruction-tuned, open-source language model. We focus on small models for computational efficiency and choose instructiontuned variants as they are more goal-directed <ref type="bibr">(Ouyang et al., 2022)</ref> and benefit from coding data exposure <ref type="bibr">(Duan et al., 2024)</ref>. To keep the agent architecture minimal, we restrict memory to the context window of the model and avoid additional reasoning scaffolds such as chain-of-thought (CoT) prompting <ref type="bibr">(Wei et al., 2022b)</ref>, which are less effective in small models <ref type="bibr">(Wei et al., 2022a)</ref>.</p><p>We train our agents using QLoRA <ref type="bibr">(Dettmers et al., 2023)</ref>, with the base model quantised to 4-bit precision via the BitsAndBytes package <ref type="bibr" target="#b8">(Dettmers &amp; von Koeller, 2022)</ref>, and adapters of rank r = 2 implemented through the PEFT library <ref type="bibr" target="#b23">(Mangrulkar et al., 2022)</ref>. The learnable parameters comprise the LoRA adapters for the query/value projections and the value head parameters. All models are fine-tuned using a custom implementation of PPO that inherits from the TRL package<ref type="foot" target="#foot_0">foot_0</ref>  <ref type="bibr" target="#b47">(von Werra et al., 2020)</ref>. We run PPO training for 200-300 epochs, with n games = 5 parallel environments, E = 5 episodes, and T = 20 rounds per episode. For the shapers, we express context via cumulative state visitation counts<ref type="foot" target="#foot_1">foot_1</ref> (e.g., in the IPD: "CC: 1, CD: 1, DC: 2, DD: 3"). All training was done on a single A100 GPU with 40G of VRAM. The full specification of the hyperparameters, reward matrices, and training prompts used is provided in Appendices A.3, A.1, A.9, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">SHAPING IN EXPLOITATIVE SETTINGS</head><p>We consider two core training configurations for our agents across the IPD, IMP and ICG.</p><p>Baseline. We establish the baseline performance using two LLM-based naive learners (NL) that treat their opponent as a stationary component of the environment. Each agent's conditioning prompt contains the game description and the most recent joint action. Once the episode is finished, both players simultaneously update their parameters via PPO to maximize episodic returns. This baseline establishes expected behavior when no opponent shaping occurs.</p><p>Shaper vs. naive learner. An LLM-based shaper interacts with an LLM naive learner (with the same configuration as in the baseline). As described in Section 3.2, the shaper updates its parameters only at trial completion, after having observed multiple opponent parameter updates.</p><p>Following training, we evaluate performance by having each trained pair of agents play 100 games with the same episode length used during training (T = 20).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">SHAPING IN THE IPD, IMP AND ICG</head><p>We run experiments across 5 random seeds<ref type="foot" target="#foot_2">foot_2</ref> using action labels w a1 = C, w a2 = D for the IPD, w a1 = H, w a2 = T for the IMP, and w a1 = S, w a2 = G for the ICG. Table <ref type="table" target="#tab_0">1</ref> presents the post-training evaluation results, where each jointly-trained pair played 100 games with episode length T = 20. The results demonstrate successful opponent shaping across all environments. For completeness, we evaluate performance across games of varying lengths (see Appendix A.7) and observe a similar performance.</p><p>We begin by examining the performance in the IPD. In the baseline, both learners converge to mutual defection, which is the Nash Equilibrium, achieving an average payoff of 1. In contrast, the shaper  <ref type="bibr">2012)</ref> or tit-for-tat strategy could obtain. Meanwhile, the opponent achieves 0.1, which is lower than the mutual defection payoff. The training dynamics show a three-phase pattern: starting from high initial cooperation, the shaper first sharply reduces its cooperation rate, then plateaus at a stable level to maintain opponent cooperation, and finally slowly decreases cooperation to achieve near-maximal exploitation.</p><p>We observe similar performance patterns in the ICG. The baseline results show average rewards of 2 for both players. The standard deviations of 0.58 reflect the fact that each seed converges to one of the two pure Nash equilibria: either (Swerve, Go Straight) or (Go Straight, Swerve). In contrast, the shaper consistently achieves an average reward of 2.98 while limiting its opponent to 1.01. The training dynamics differ from the IPD: the shaper adopts an aggressive strategy by sharply reducing its swerving probability early in training, forcing convergence to its preferred equilibrium.</p><p>Finally, examining the IMP results, we observe that both agents in the baseline oscillate around the mixed Nash equilibrium with near-zero average payoffs (-0.03 and 0.03 respectively). In contrast, when one agent is a shaper, we observe clear exploitation, with the shaper obtaining a reward of 0.99 while the opponent obtains -0.99. The state visitation converges to equal frequency for the two states that favor the shaper: (H, H) and (T, T).</p><p>Collectively, these results demonstrate that the shaper consistently outperforms its opponent across all games, providing strong evidence of its ability to successfully influence opponents' learning dynamics in adversarial and mixed-motive scenarios. To establish the robustness of these results, we conduct two additional sets of experiments. First, we conduct an ablation study to determine whether shaping effects stem solely from the shaper's enriched observation space (Appendix A.4). We adopt the same settings as in the baseline experiments, with one of the agents receiving a summary of all interactions in the current episode. Second, we examine sensitivity to prompt variations by running shaping experiments with actions presented in reversed order and an alternative prompt formulation (Appendix A.5). These experiments confirm that ShapeLLM achieves robust shaping across different configurations, and that enriched observations alone are insufficient for effective opponent shaping.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">ROBUSTNESS AGAINST DIFFERENT OPPONENTS</head><p>A robust shaping procedure should be capable of successfully influencing the learning dynamics of a diverse set of opponents. To test this capability, we explore shaping against opponents with distinct initial policies. For each game, we systematically select three action label pairs yielding initial probabilities of playing action a 1<ref type="foot" target="#foot_3">foot_3</ref> of 0.75, 0.5, and 0.25. We then conduct shaping experiments using these labels for the opponents. A detailed description of the selection method, action labels, and initial output probabilities for each opponent is provided in Appendix A.6. We train shapers against each selected opponent using the same procedure as in Section 5.1, with evaluation results shown in Table <ref type="table" target="#tab_1">2</ref>. Across all games and opponent types, shapers successfully exploit their co-players, achieving average per-timestep rewards of 3.97 in the IPD, 0.98 in the IMP, and 2.98 in the ICG. In the IPD and ICG, opponents converge to less favorable outcomes when initialized with more cooperative poli- In contrast, the IMP shows no sensitivity to different opponent initializations. Intuitively, shaping should be more challenging against initial policies closer to the mixed Nash equilibrium. However, our results reflect no such effect. It is worth noting that the opponent with p 0 NL ∼ 0.5 is not initialized with a purely random policy, but with the closest approximation achievable through action label selection (see Appendix A.6 for the exact initial policy). Shapers converge to near-optimal outcomes, achieving rewards of 0.96, 0.99, and 0.99.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">SHAPING IN COOPERATIVE SETTINGS</head><p>We investigate whether shaping can guide interactions toward mutually beneficial rather than purely exploitative outcomes. We explore this in two environments: a cooperative variation of the IPD (C-IPD) and the Iterated Stag Hunt (ISH). For the C-IPD, we provide both agents with the original payoff matrix, but modify the shaper's version so that its highest payoff is achieved through mutual cooperation, with all other payoffs unchanged<ref type="foot" target="#foot_4">foot_4</ref> . This could be interpreted as the shaper receiving an intrinsic reward when the most globally beneficial outcome is achieved. The reward matrices used can be found in Appendix A.1. We use action labels w a1 = C, w a2 = D for the C-IPD, and w a1 = S, w a2 = H for the ISH. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . All results are reported along with a 95% confidence interval over 5 random seeds.</p><p>In the ISH baselines both agents achieve a mean reward of 1.30, where 90% of runs converge to the Pareto-inferior equilibrium (both hunt Hare) <ref type="foot" target="#foot_5">6</ref> . With a shaper present, runs consistently converge to the Pareto-optimal equilibrium (both hunt Stag), both achieving rewards of approximately 3.96. This shows that shaping can resolve coordination failures and guide systems toward mutually beneficial outcomes when cooperation is required. In the cooperative IPD variant, baseline runs converge to the Nash equilibrium (mutual defection) with rewards of 1 each. With a shaper, all runs achieve mutual cooperation, yielding rewards of 5.88 and 2.86 for the shaper and naive learner, respectively. This outcome demonstrates that shaping can achieve globally beneficial outcomes in environments where other players have mixed incentives. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">DISCUSSION</head><p>Implications. In this work, we have demonstrated that LLM-based agents can be susceptible to opponent shaping in both exploitative and cooperative game-theoretic settings. As LLM agents become increasingly deployed in real-world applications, they will inevitably interact with other agents, and potentially train on data acquired through these interactions (for example, in the case of continually learning LLMs). In such settings, our findings suggest that agents could be vulnerable to strategic exploitation by opponents with no knowledge or control over them. Conversely, the same mechanisms could be leveraged beneficially, enabling agents to guide interactions toward mutually beneficial outcomes regardless of the goals of their opponents.</p><p>Limitations. Our work has several limitations that suggest promising directions for future research. First, due to computational constraints, we have only evaluated our approach using a single small model (gemma-2-2b-it). Future work could investigate whether shaping capabilities generalize to larger models and explore the relationship between model scale and shaping dynamics. For instance, whether smaller models are more vulnerable to these influences or whether larger models possess enhanced shaping capabilities. Second, our experiments instructed agents to select from a fixed set of action tokens. While this restriction made evaluation tractable, it limits the ways in which LLMs can influence one another. In practice, LLM agents can communicate through natural language, and expanding interactions beyond fixed tokens may substantially alter shaping dynamics. Even within the same game-theoretic settings, agents could employ language strategically, for example, by signaling intentions or negotiating before making a move. Future work could examine whether such natural language interaction strengthens, weakens, or qualitatively changes shaping outcomes. Finally, our study was restricted to 2×2 matrix games, where incentives are unambiguous and easily interpreted. Many real-world interactions, however, involve more nuanced or overlapping objectives, where cooperation and competition are not strictly binary. Exploring shaping in environments with richer payoff structures or multiple objectives would yield a deeper understanding of how these dynamics generalize to more realistic settings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">CONCLUSION</head><p>In this paper, we have investigated whether opponent shaping, a well-established technique in multiagent reinforcement learning, extends to LLM-based agents. To the best of our knowledge, this is the first work to study opponent shaping with LLM agents. We proposed ShapeLLM, a model-free opponent shaping method for transformer-based agents, and demonstrated successful shaping in both exploitative and cooperative settings. In exploitative scenarios, LLM shapers influenced opponent learning in repeated games such as the IPD, IMP, and ICG, steering convergence toward outcomes that maximized their own payoff. In cooperative scenarios, shaping promoted coordination in settings like the ISH and a modified IPD, guiding agents toward mutually beneficial equilibria. By demonstrating that LLMs can both shape and be shaped through interaction alone, our findings highlights the importance of understanding multi-agent dynamics when deploying these systems in shared environments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ETHICS STATEMENT</head><p>This work investigates opponent shaping in LLM agents. Shaping can promote coordination and prosocial behavior in multi-agent interactions. Even in mixed-motive scenarios, it can avoid convergence to suboptimal outcomes, such as mutual defection in the IPD. Despite these advantages, shaping also poses inherent risks. These same techniques can be used for strategic exploitation, where an agent manipulates others' learning dynamics for unilateral advantage. As LLM agents are increasingly adopted in real-world environments, understanding these dynamics becomes crucial for responsible deployment. In Section 5, we consider three environments: Iterated Prisoner's Dilemma (IPD), Iterated Matching Pennies (IMP), and the Iterated Chicken Game (ICG). Table <ref type="table">4</ref> shows their corresponding payoff matrices, where each cell contains a tuple representing the payoffs of the row (first entry) and column (second entry) players. Actions are represented with the following labels: "C" for cooperate and "D" for defect in IPD, "H" for heads and "T" for tails in IMP, and "S" for swerve and "G" for go straight in ICG.</p><p>Table <ref type="table">4</ref>: Payoff matrices for the three environments considered in Section 5 to explore shaping in exploitative settings.</p><formula xml:id="formula_1">(a) IPD C D C (3, 3) (0, 4) D (4, 0) (1, 1) (b) IMP H T H (1, -1) (-1, 1) T (-1, 1) (1, -1) (c) ICG S G S (2, 2) (1, 3) G (3, 1) (-5, -5)</formula><p>In Section 6, we use opponent shaping to promote globally beneficial outcomes in two games: Iterated Stag Hunt (ISH) and a cooperative IPD variant (C-IPD). In the latter, one player receives an enhanced reward for mutual cooperation while all other payoffs remain unchanged from the standard IPD. Table <ref type="table" target="#tab_4">5</ref> shows the corresponding payoff matrices, where C-IPD uses the same action labels as IPD, and ISH uses "S" for stag and "H" for hare.  The penalty for generating an illegal action, r null , is always set to one unit below the lowest reward in each game's payoff matrix. Specifically:</p><formula xml:id="formula_2">r IPD null = r C-IPD null = -1, r IMP null = -2, r ICG null = -6 and r ISH null = -1.</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 LLM GAMEPLAY IN REPEATED NORMAL-FORM GAMES</head><p>All the environments considered are 2×2 repeated normal-form games. Since our agents are LLMbased, even after restricting the generation length to one token, their output space is much larger than the game's action space (|V| &gt;&gt; |A| = 2).</p><p>To tackle this space mismatch, one could try shrinking the model's output space via logit masking or rejection sampling. However, these interventions can alter the masked logits in unexpected ways or lead to increased computational time. Instead of actively ignoring or hiding parts of the output space, we define a mapping ϕ : V → A.</p><p>Directly defining such a mapping would require distributing the entire vocabulary across two actions, resulting in semantically unrelated tokens being mapped to the same action. This would impose an unnecessary learning objective whereby agents must learn arbitrary semantic equivalences that are orthogonal to the underlying strategic objective. To avoid this, we introduce a null action a null , such that A ′ i = A i ∪ {a null }. This action is not meant to represent refusal to engage in the game, but rather failure to produce a reasonable answer.</p><p>We then define ϕ i : V → A ′ i . This formulation is general and can accommodate open-ended generation if the mapping itself is another language model. For simplicity, we choose:</p><formula xml:id="formula_3">ϕ i (w) =    a 1 if w = w a1 , a 2 if w = w a2 , a null otherwise ,<label>(2)</label></formula><p>such that each action can be played with one specific token, while any other token is considered illegal. The generation is steered towards this format via textual instructions (e.g., Reply with "C" or "D").</p><p>Augmenting the action space requires extending the payoff matrix. Table-6 shows the augmented payoff matrix for a general 2×2 matrix game. The revised matrix is identical to the original one when both players play legal actions. If an agent plays a null , it receives a penalty r null , regardless of its opponent's move. If the agent plays a legal action but its opponent does not, the transition is discarded.</p><p>Table <ref type="table">6</ref>: Augmented payoff matrix for training LLM-agents in repeated normal-form games. When both agents play legal actions, payoffs match those of the underlying game. When an agent plays an illegal action, it receives a penalty r null , regardless of the opponent's action. However, when an agent plays a legal action but the opponent plays an illegal action, the transition is discarded as it provides no meaningful learning signal (indicated by dashes in the matrix).</p><formula xml:id="formula_4">a 1 a 2 a null a 1 r(a 1 , a 1 ) r(a 1 , a 2 ) - a 2 r(a 2 , a 1 ) r(a 2 , a 2 ) - a null r null r null r null</formula><p>With the augmented action space and payoff structure defined, we can now describe how agents interact within this framework. In the t-th round, each agent receives a context c t i , which is a sequence of tokens consisting of the game description and a summary of the previous rounds of the game. A single token is then sampled from the output distribution of each agent (w t i ∼ ρ θi (w|c t i )) and subsequently mapped to a game action, such that a t = {a t i = ϕ i (w t i )} i∈I . The environment then returns the corresponding rewards ({r t i = R i (a t )} i∈I ) and contexts for the next round ({c</p><formula xml:id="formula_5">t+1 i = f (c t i , a t )} i∈I ).</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 TRAINING IMPLEMENTATION DETAILS FOR REPRODUCIBILITY</head><p>This section provides detailed hyperparameter specifications that supplement the implementation details in Section 4.2.</p><p>Generation Parameters. We use the same generation parameters for all agents across the training and evaluation phases. The configuration is kept to the default values with three exceptions: we en-able sampling (do sample=True), disable top-k generation (top k=0), and restrict the generation length to one token (max new tokens=1). All other parameters (e.g., temperature=1.0, top p=1.0) remain at default values.</p><p>Adapter Configuration. We employ the same adapter configuration for all agents. We only modify the rank parameter (r=2) to reduce compute. All other parameters (e.g., lora alpha=32, lora dropout=0.05, target modules = ["q proj", "v proj"]) are kept at their default values.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3.1 NAIVE LEARNER HYPERPARAMETERS</head><p>We aimed to maintain hyperparameters at their default values for naive learners to simulate realistic scenarios where opponents cannot be controlled. However, several adjustments were necessary due to memory constraints and training instability. To reduce the memory consumption and compute, we reduced the adapter rank, batch size, and mini-batch size. These parameters were kept identical for both shapers and naive learners to ensure a fair comparison. Additionally, we observed that under the default settings some agents learned to generate a substantial amount of illegal actions. To counter this instability, we reduced the learning rate, the number of optimization epochs per batch (PPO epochs), and incorporated reward scaling to maintain stable training dynamics across all agents.  We varied three main hyperparameters across experiments: the learning rate (lr), the value function coefficient (c VF ) and the clipping range (ϵ p ). The learning rate and clipping range were reduced mainly to increase stability during training. Under the default settings, we observed high variation in convergence outcomes across different random seeds. The value function coefficient c VF weights the value function term in the PPO loss. Shapers operate over much longer horizons than naive learners, requiring them to predict expected returns at the trial level rather than the episode level. This creates a challenging value prediction problem: the value function must estimate returns ranging from entire trials (for initial states) to single immediate rewards (for final states). Since the shaper's value head is randomly initialized, under the default c VF value, the initial value loss dominates the policy loss by orders of magnitude, leading to large gradients and causing training instability. A particularly problematic consequence is that agents sometimes learn to generate illegal tokens simply to make the value prediction task easier. We address this issue by reducing the value function coefficient to better balance the relative contributions of the value and policy losses. Section 5.1</p><formula xml:id="formula_6">IPD 1.41 × 10 -7 10 -3 10 -4 IMP 3.41 × 10 -7 10 -3 2 × 10 -1 ICG 1.41 × 10 -7 10 -3 2 × 10 -1</formula><p>Section 5.2 IPD with p 0 NL (a 1 ) ∼ 0.75 1.41 × 10 -7 10 -3 2 × 10 -1 IPD with p 0 NL (a 1 ) ∼ 0.5 1.41 × 10 -7 5 × 10 -4 5 × 10 -3 IPD with p 0 NL (a 1 ) ∼ 0.25 1.41 × 10 -7 3 × 10 -3 10 -4 IMP with p 0 NL (a 1 ) ∼ 0.75 4.41 × 10 -7 10 -3 2 × 10 -1 IMP with p 0 NL (a 1 ) ∼ 0.5 4.41 × 10 -7 10 -3 2 × 10 -1 IMP with p 0 NL (a 1 ) ∼ 0.25 6.41 × 10 -7 10 -3 2 × 10 -1 ICG with p 0 NL (a 1 ) ∼ 0.75 1.41 × 10 -7 10 -3 2 × 10 -1 ICG with p 0 NL (a 1 ) ∼ 0.5 1.41 × 10 -7 10 -3 2 × 10 -1 ICG with p 0 NL (a 1 ) ∼ 0.25 6.41 × 10 -8 10 -3 2 × 10 -1</p><p>Section 6 C-IPD 8.41 × 10 -8 5 × 10 -5 2 × 10 -1 ISH 8.41 × 10 -8 10 -3 2 × 10 -1 We conduct a variation of the baseline experiments to test whether the shaping effects we observe are solely a product of the shaper's enriched observation space. The experimental setup involves two naive learners, with one player's observation space augmented to include the state counts from all previous interactions in the current episode. Crucially, these observations are reset at episode boundaries (unlike the shaper, whose observations persist across episodes within a trial). To ensure comparability, we use the same action labels as in Section 5.1: w a1 = C, w a2 = D for the IPD, w a1 = H, w a2 = T for the IMP, and w a1 = S, w a2 = G for the ICG. Both learners use the hyperparameters presented in Table <ref type="table" target="#tab_5">7</ref>. Player 1 (enriched) 1.00 ± 0.00 -0.05 ± 0.09 2.60 ± 0.76 1.00 ± 0.00 Player 2</p><p>1.00 ± 0.00 0.05 ± 0.09 1.38 ± 0.74 3.00 ± 0.00</p><p>Table <ref type="table" target="#tab_9">10</ref> reports the post-training average reward per step for the IPD, IMP, and ICG. In the IPD and IMP, despite the asymmetry in observations, outcomes mirror those in the standard baseline: mutual defection (1 each) for the IPD, and oscillation around the Nash Equilibrium (-0.05 and 0.05) for the IMP. This equivalence to the baseline is not the same for the ICG. When both players use action labels w a1 = S, w a2 = G (row ICG), the player with enriched observations achieves 2.60, while its opponent receives only 1.38. As in the baseline, each run converges to one of the two pure Nash equilibria, but 80% of runs favor the equilibrium most beneficial to the player with enriched observations. At first glance, this suggests that the additional information, rather than training with ShapeLLM, could drive the shaping behavior observed in the ICG.</p><p>Inspecting the training dynamics (Figure <ref type="figure" target="#fig_4">4</ref>), we observe a skewed initialization in the ICG, with 40% of transitions being (Go Straight, Swerve) at training initiation. To test whether the obtained results were a consequence of this initialization, we conduct a control experiment where Player 2 selects actions with labels w a1 = N, w a2 = M<ref type="foot" target="#foot_7">foot_7</ref> . For this setup, the initial state visitation is starkly different (see Figure <ref type="figure" target="#fig_4">4</ref>), with 46% of transitions being (Swerve, Go Straight). In this case, the enriched baseline for the ICG consistently converges to the least favorable equilibrium for Player 1 (with rewards of 1.00, 3.00 for Players 1 and 2, respectively).</p><p>This control shows that the apparent shaping advantage in the ICG enriched baseline was driven by favorable initialization, not by the enriched observation space itself. When the initialization is modified, the enriched learner systematically converges to the least favorable outcome. In contrast, ). They use w a1 = S, w a2 = G and w a1 = N, w a2 = M as the opponent's action labels respectively, and w a1 = S, w a2 = G for the player with enriched observations. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . The results are reported along with a 95% confidence interval over 5 random seeds.</p><p>when ShapeLLM is applied to the same opponent configuration, the shaper consistently achieves maximum rewards (see Section 5.2). Taken together, these results demonstrate that enriched observations alone are insufficient to produce shaping. Shaping requires the ability to indirectly observe and respond to the opponent's learning dynamics across episodes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.5 ROBUSTNESS TO PROMPT VARIATIONS IN EXPLOITATIVE SHAPING EXPERIMENTS</head><p>We conduct two experiments for robustness to prompt variations. The first variation uses a prompt where the payoff matrix is presented in table form.   To determine the specific table formatting, we ask the base model to generate a general payoff matrix and replicate its output format (including spacing and header formatting). Figure <ref type="figure" target="#fig_6">5</ref> shows the table-format base prompt used for the IPD.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Table-format base prompt</head><p>For the IMP and ICG, the prompts are identical except for the modified action labels and payoff matrices. The example in Figure <ref type="figure" target="#fig_6">5</ref> shows the base prompt that both players receive at training initiation. The dynamic updates of this prompt throughout training (i.e., how history and context are updated) remain unchanged from those used in the main experiments (see Appendix A.9). We use the same action labels as in Section 5.1: w a1 = C, w a2 = D for the IPD, w a1 = H, w a2 = T for the IMP, and w a1 = S, w a2 = G for the ICG. Figure <ref type="figure" target="#fig_7">6</ref>, shows the training dynamics for the three games under the tabular prompt variation. It is worth noting that with this new prompt, both the initialization of the shaper and its opponent change significantly, especially for the IPD. Table <ref type="table" target="#tab_10">11</ref> shows the evaluation results obtained. The results demonstrate successful shaping across all three games. In the IPD, the shaper achieves 3.5 while its opponent receives 0.53, exceeding mutual cooperation payoffs but underperforming compared to the main text results. Since Section 5.2 shows consistent outcomes across different opponent initializations, this gap likely stems from the shaper's own initialization rather than opponent effects. The IMP shows a similar pattern with substantial initialization differences, with the shaper achieving 0.94 versus the opponent's -0.94. For the ICG, where initialization more closely matches the main setup, results are 2.99 for the shaper and 1.01 for the opponent.</p><p>For the second prompt variation, we reverse the order in which actions are presented (see Figure <ref type="figure" target="#fig_9">7</ref>). As with the table-format experiments, the base prompts for IMP and ICG are identical except for their respective action labels and payoff matrices. We use the same action labels as in the previous variation.  Figure <ref type="figure" target="#fig_10">8</ref> shows the training dynamics for the switched-order prompt experiments. As with the tableformat variation, both agents exhibit substantially different initializations compared to the main experiments. Here, both players are heavily biased toward playing action a 1 (cooperate in the IPD, heads in the IMP, and swerving in the ICG), with their policies initially being almost deterministic (average of 99% of (a 1 , a 1 ) state at trial initiation). This creates challenges for the IPD and ICG, where this joint outcome yields acceptable rewards for both players. Consequently, without sufficient exploration incentives, the agents' policies remain unchanged for some of the seeds, focusing exclusively on the value prediction problem. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . Results are reported along with a 95% confidence interval over 5 random seeds.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Switched</head><p>To address this issue, we introduce an entropy regularization term to the PPO loss function. While this term was included in the original PPO formulation <ref type="bibr" target="#b39">(Schulman et al., 2017)</ref>, it is not implemented in the TRL package. Since our agents' action space encompasses the entire vocabulary, maximizing their output distribution entropy would create conflicting incentives: illegal actions would incur penalties while simultaneously reducing the loss through increased entropy. Instead, we extract logits only for the two allowed action tokens and compute the entropy of the resulting normalized distribution. To prevent convergence to suboptimal policies, we employ a decaying entropy coefficient that gradually reduces the exploration incentive during training.</p><p>The switched-order prompt results are presented in Table <ref type="table" target="#tab_10">11</ref>. With entropy regularization applied to both the IPD and ICG, we again observe successful shaping with results closely matching those in the main text: 3.99 for IPD and 2.77 for ICG. In the ICG, while the shaper achieves an average reward of 3 across most runs, for one of the seeds it consistently fails to explore alternative actions, converging to the outcome where both players swerve. Lastly, the IMP performs similarly to other prompt formulations (0.94 for the shaper vs -0.94 for its opponent) without requiring an entropy regularization term.</p><p>These experiments demonstrate that ShapeLLM maintains robust shaping capabilities across different prompt formulations. Even when initial policies are nearly deterministic (as in the switchedorder variation), introducing entropy regularization to encourage early exploration enables effective opponent shaping. For reproducibility, we list the hyperparameters modified in this appendix in Table <ref type="table" target="#tab_11">12</ref>. The rest of the hyperparameters used are specified in Table <ref type="table" target="#tab_7">9</ref>. </p><formula xml:id="formula_7">ϵ p c init S c end S T S Table-format prompt IPD 1.41 × 10 -7 10 -3 10 -5 - - - IMP 2.41 × 10 -7 10 -3 2 × 10 -1 - - - ICG 1.41 × 10 -7 10 -3 2 × 10 -1 - - - Switched-order prompt IPD 6.41 × 10 -7 10 -3 2 × 10 -1 0.1 0.0 25 IMP 6.41 × 10 -6 10 -3 2 × 10 -1 - - - ICG</formula><p>1.41 × 10 -7 10 -3 2 × 10 -1 0.7 0.0 25</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.6 ACTION LABEL SELECTION FOR ROBUSTNESS EXPERIMENTS</head><p>LLM agent output distributions vary significantly with the choice of action labels (w a1 , w a2 ). For the robustness experiments, we systematically selected action labels to achieve target initial output distributions for the opponents.</p><p>Table <ref type="table" target="#tab_2">13</ref>: Action labels that produce the closest output distributions to the target initial distributions for the IPD, IMP and ICG.</p><formula xml:id="formula_8">p 0 NL (a 1 ) ∼ 0.75 p 0 NL (a 1 ) ∼ 0.50 p 0 NL (a 1 ) ∼ 0.25 w a1 w a2 w a1 w a2 w a1 w a2 IPD H K N Y I X IMP S Y N Y N M ICG T K N M T F</formula><p>Target Distributions. For each game, we want to obtain opponents with initial probabilities of playing action a 1<ref type="foot" target="#foot_8">foot_8</ref> of approximately 0.75, 0.5, and 0.25.</p><p>Selection Procedure. Opponents encounter 5 different prompts during training 10 . We extract the LLM's output probabilities for these 5 prompts across all possible combinations of capital letters as action labels (325 total combinations). For each combination, we calculate the KL divergence between the target and extracted output distributions, averaged across the 5 prompts, and select the combination with the lowest divergence. The resulting action labels are shown in Table <ref type="table" target="#tab_2">13</ref>.</p><p>The extracted initial probabilities for each pair of action labels in Table <ref type="table" target="#tab_2">13</ref> are shown in Table <ref type="table" target="#tab_0">14</ref>, with separate results for the IPD (a), IMP (b), and ICG (c).</p><p>Table <ref type="table" target="#tab_0">14</ref>: Naive learner's initial action probabilities across three games (IPD, IMP, ICG) under varying action labels for the 5 distinct prompts encountered during training.</p><p>(a) Initial cooperation probability in the IPD.</p><p>Action Labels  3.97 ± 0.01 0.09 ± 0.04 0.99 ± 0.01 -0.99 ± 0.01 2.99 ± 0.01 1.01 ± 0.01 T = 100 3.97 ± 0.01 0.09 ± 0.04 0.99 ± 0.01 -0.99 ± 0.01 2.99 ± 0.00 1.01 ± 0.01</p><formula xml:id="formula_9">p 0 NL (C) p 0 NL (C | CC) p 0 NL (C | CD) p 0 NL (C | DC) p 0 NL (C | DD) w a1 = H, w a2 = K 0.</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.8 TRAINING DYNAMICS</head><p>In this section we present the average reward per step and state visitation throughout training for various experiments discussed in the main text. These figures complement the evaluation results by showing how agent behaviors evolved during the learning process. Figure <ref type="figure">9</ref> presents the training dynamics for the baseline experiments across the IPD, IMP and ICG (Section 5.1). Figure <ref type="figure" target="#fig_0">10</ref>   2). Each row corresponds to an opponent with a different initial probability of generating action a 1 ("Cooperate" in the IPD, "Heads" in the IMP, and "Swerve" in the ICG). The results are reported along with a 95% confidence interval over 5 random seeds. 2). Each row corresponds to an opponent with a different initial probability of generating action a 1 ("Cooperate" in the IPD, "Heads" in the IMP, and "Swerve" in the ICG). For all games, the outcome "I" encompasses all transitions where either player chose a null . The results are reported along with a 95% confidence interval over 5 random seeds.</p><p>Example of state occurrence prompt for the IPD with w a1 = C, w a2 = D  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure1: Schematic representation of a trial. Each box corresponds to an episode (a game played for T rounds). Same-colored boxes represent episodes within the same parallel environment. Within each environment, episodes occur sequentially as indicated by the arrows. The shaper updates its parameters using the experience collected throughout the entire trial.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Average reward per step (top row) and state visitation (bottom row) during training for the shaping experiments across the IPD, IMP, and ICG. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . Results are reported along with a 95% confidence interval over 5 random seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Average reward per step (top row) and state visitation (bottom row) during training for the shaping experiments across the C-IPD and ISH.In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . All results are reported along with a 95% confidence interval over 5 random seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Average reward per step (top row) and state visitation (bottom row) during training for the enriched observation baseline experiments across the IPD, IMP, and ICG. For the latter, two opponent configurations are presented: ICG and ICG (alt. opp.). They use w a1 = S, w a2 = G and w a1 = N, w a2 = M as the opponent's action labels respectively, and w a1 = S, w a2 = G for the player with enriched observations. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . The results are reported along with a 95% confidence interval over 5 random seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>for the IPD with w a1 = C, w a2 = D &lt;bos&gt;&lt;start of turn&gt;user You are playing a 2-player game with actions: C, D. Points are assigned as followsfor the current round. Reply only with C or D. &lt;end of turn&gt; &lt;start of turn&gt;model</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure5: Table-format prompt variation for the IPD. Instead of a textual description, the payoff matrix is presented in markdown table form, replicating the base model's formatting style.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure6: Average reward per step (top row) and state visitation (bottom row) during training for the shaping experiments with the table-format prompt across the IPD, IMP, and ICG. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . Results are reported along with a 95% confidence interval over 5 random seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>-order base prompt for the IPD with w a1 = C, w a2 = D &lt;bos&gt;&lt;start of turn&gt;user You are playing a 2-player game with actions: D, C. Points are assigned as follows: D/D: 1/1, D/C: 4/0, C/D: 0/4, C/C: 3/3. Choose an action for the current round. Reply only with C or D. &lt;end of turn&gt; &lt;start of turn&gt;model</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Switched-order prompt variation for the IPD. The actions and payoffs are presented in reversed order compared to the main text prompt.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 8 :</head><label>8</label><figDesc>Figure8: Average reward per step (top row) and state visitation (bottom row) during training for the shaping experiments with the switched-order prompt across the IPD, IMP, and ICG. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . Results are reported along with a 95% confidence interval over 5 random seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 9 :Figure 10 :</head><label>910</label><figDesc>Figure9: Average reward per step (top row) and state visitation (bottom row) during training for the baseline experiments across the IPD, IMP and ICG reported in Section 5.1. In the state visitation figures, the outcome "I" encompasses all transitions where either player chose a null . The results are reported along with a 95% confidence interval over 5 random seeds, except for the ICG experiment, for which we use 10 seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_12"><head>Figure 11 :</head><label>11</label><figDesc>Figure11: Average reward per step during training for the shaping experiments across the IPD, IMP, and ICG with different opponent initializations (Section 5.2). Each row corresponds to an opponent with a different initial probability of generating action a 1 ("Cooperate" in the IPD, "Heads" in the IMP, and "Swerve" in the ICG). The results are reported along with a 95% confidence interval over 5 random seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_13"><head>Figure 12 :</head><label>12</label><figDesc>Figure 12: State visitation during training for the shaping experiments across the IPD, IMP, and ICG with different opponent initializations (Section 5.2). Each row corresponds to an opponent with a different initial probability of generating action a 1 ("Cooperate" in the IPD, "Heads" in the IMP, and "Swerve" in the ICG). For all games, the outcome "I" encompasses all transitions where either player chose a null . The results are reported along with a 95% confidence interval over 5 random seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_14"><head></head><label></label><figDesc>&lt;bos&gt;&lt;start of turn&gt;user You are playing a 2-player game with actions: C, D. Points are assigned as follows: C/C: 3/3, C/D: 0/4, D/C: 4/0, D/D: 1/1. &lt;ADDITIONAL INFORMATION&gt;The occurrence of each state in the current game has been CC:0, CD:0, DC:0, DD:5. &lt;STATE&gt;In the previous round, you played C and your opponent played C. Choose an action for the current round. Reply only with C or D. &lt;end of turn&gt; &lt;start of turn&gt;model Example of state occurrence prompt for the IMP with w a1 = H, w a2 = T &lt;bos&gt;&lt;start of turn&gt;user You are playing a 2-player game with actions: H, T. Points are assigned as follows: H/H: 1/-1, H/T: -1/1, T/H: -1/1, T/T: 1/-1. &lt;ADDITIONAL INFORMATION&gt;The occurrence of each state in the current game has been HH:0, HT:0, TH:0, TT:5. &lt;STATE&gt;In the previous round, you played H and your opponent played H. Choose an action for the current round. Reply only with H or T. &lt;end of turn&gt; &lt;start of turn&gt;model Example of state occurrence prompt for the ICG with w a1 = S, w a2 = G &lt;bos&gt;&lt;start of turn&gt;user You are playing a 2-player game with actions: S, G. Points are assigned as follows: S/S: 2/2, S/G: 1/3, G/S: 3/1, G/G: -5/-5. &lt;ADDITIONAL INFORMATION&gt;The occurrence of each state in the current game has been SS:0, SG:0, GS:0, GG:5. &lt;STATE&gt;In the previous round, you played S and your opponent played S. Choose an action for the current round. Reply only with S or G. &lt;end of turn&gt; &lt;start of turn&gt;model Example of state occurrence prompt for the ISH with w a1 = S, w a2 = H &lt;bos&gt;&lt;start of turn&gt;user You are playing a 2-player game with actions: S, H. Points are assigned as follows: S/S: 4/4, S/H: 0/3, H/S: 3/0, H/H: 1/1. &lt;ADDITIONAL INFORMATION&gt;The occurrence of each state in the current game has been SS:0, SH:0, HS:0, HH:5. &lt;STATE&gt;In the previous round, you played S and your opponent played S. Choose an action for the current round. Reply only with S or H. &lt;end of turn&gt; &lt;start of turn&gt;model</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_15"><head>Figure 15 :</head><label>15</label><figDesc>Figure15: Example state-occurrence prompts for the IPD, IMP, ICG and ISH. The structure remains the same across games, with the only differences being the action labels and reward matrices. The specific examples shown are for rounds in which all previous joint actions within the game are (a 2 , a 2 ), except the last one, which is (a 1 , a 1 ).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Post-training evaluation results for the IPD, IMP, and ICG comparing baseline (two naive learners) versus shaper-naive learner pairs. Average rewards per step are reported with 95% confidence intervals across 5 random seeds, except for the ICG baseline, where we use 10. Transitions involving a null are excluded (comprising 2% of actions in IPD, 0.1% in IMP, and 1% in ICG).</figDesc><table><row><cell></cell><cell cols="2">Baseline</cell><cell cols="2">One Shaper</cell></row><row><cell></cell><cell>Player 1</cell><cell>Player 2</cell><cell>Shaper</cell><cell>Opponent</cell></row><row><cell>IPD</cell><cell>1.00 ± 0.00</cell><cell cols="2">1.00 ± 0.00 3.96 ± 0.01</cell><cell>0.10 ± 0.04</cell></row><row><cell cols="5">IMP -0.03 ± 0.09 0.03 ± 0.09 0.99 ± 0.01 -0.99 ± 0.01</cell></row><row><cell>ICG</cell><cell>2.00 ± 0.58</cell><cell cols="2">2.00 ± 0.58 2.98 ± 0.01</cell><cell>1.01 ± 0.01</cell></row><row><cell cols="5">achieves an average reward of 3.96, exceeding what any zero-determinant extortion (Press &amp; Dyson,</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc>Post-training evaluation results for the shaping experiments in the IPD, IMP and ICG across different opponent initializations. Each column represents a distinct opponent characterized by its approximate initial probability of playing action a 1 . Average rewards per step are reported with 95% confidence intervals across 5 seeds. Transitions where a null is played by either player are excluded from the analysis (comprising 0-2% of all transitions). average rewards per step range from 0.01 to 0.07 in the IPD and from 1.00 to 1.05 in the ICG as initial policies become increasingly defective. The training dynamics (Appendix A.8) reveal that shapers respond strategically to opponent initialization. Against more cooperative opponents, shapers reduce their own cooperation more rapidly and reach lower final cooperation levels. This pattern indicates that initially defective agents require more prolonged cooperation incentives before they can be effectively exploited.</figDesc><table><row><cell cols="2">p 0 NL (a 1 ) ∼ 0.75</cell><cell cols="2">p 0 NL (a 1 ) ∼ 0.50</cell><cell cols="2">p 0 NL (a 1 ) ∼ 0.25</cell></row><row><cell>Shaper</cell><cell>Opponent</cell><cell>Shaper</cell><cell>Opponent</cell><cell>Shaper</cell><cell>Opponent</cell></row><row><cell>IPD 3.99 ± 0.01</cell><cell>0.01 ± 0.02</cell><cell>3.95 ± 0.01</cell><cell>0.04 ± 0.03</cell><cell>3.98 ± 0.02</cell><cell>0.07 ± 0.07</cell></row><row><cell cols="6">IMP 0.96 ± 0.02 -0.96 ± 0.02 0.99 ± 0.01 -0.99 ± 0.01 0.99 ± 0.01 -0.99 ± 0.01</cell></row><row><cell>ICG 3.00 ± 0.00</cell><cell>1.00 ± 0.00</cell><cell>2.99 ± 0.01</cell><cell>1.01 ± 0.01</cell><cell>2.95 ± 0.01</cell><cell>1.05 ± 0.01</cell></row><row><cell>cies: their</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 3 :</head><label>3</label><figDesc>Post-training evaluation results for the C-IPD and ISH comparing baseline versus shapernaive learner pairs. Average rewards per step are reported with 95% confidence intervals across 5 and 10 random seeds for shaping and baseline experiments, respectively. Transitions with a null are excluded from the analysis (∼ 2% and ∼ 0.1% of actions respectively).</figDesc><table><row><cell></cell><cell cols="2">Baseline</cell><cell cols="2">One Shaper</cell></row><row><cell></cell><cell>Player 1</cell><cell>Player 2</cell><cell>Shaper</cell><cell>Opponent</cell></row><row><cell cols="5">C-IPD 1.00 ± 0.00 1.00 ± 0.00 5.88 ± 0.03 2.86 ± 0.02</cell></row><row><cell>ISH</cell><cell cols="4">1.30 ± 0.52 1.30 ± 0.52 3.96 ± 0.02 3.96 ± 0.02</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>While our experiments are conducted in game-theoretic environments that do not pose immediate risks for real-world agent deployment, this work aims to raise awareness of both the opportunities and risks inherent in multi-agent LLM interactions, and it may serve as a basis for developing countermeasures against adversarial behavior. Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao.ReACT: Synergizing reasoning and acting in language models. In Proceedings of the 11th International Conference on Learning Representations (ICLR'23), 2023. Siliang Zeng, Quan Wei, William Brown, Oana Frunza, Yuriy Nevmyvaka, and Mingyi Hong. Reinforcing Multi-Turn Reasoning in LLM Agents via Turn-Level Credit Assignment. arXiv preprint arXiv:2505.11821, 2025. Wayne Xin Zhao, Kun Zhou, Junyi Li, Tianyi Tang, Xiaolei Wang, Yupeng Hou, Yingqian Min, Beichen Zhang, Junjie Zhang, Zican Dong, et al. A survey of large language models. arXiv preprint arXiv:2303.18223, 2023. Yifei Zhou, Andrea Zanette, Jiayi Pan, Sergey Levine, and Aviral Kumar. ArCHer: Training language model agents via hierarchical multi-turn RL. In Proceedings of the 41st International Conference on Machine Learning (ICML'24), 2024. Daniel M Ziegler, Nisan Stiennon, Jeffrey Wu, Tom B Brown, Alec Radford, Dario Amodei, Paul Christiano, and Geoffrey Irving. Fine-tuning language models from human preferences. arXiv preprint arXiv:1909.08593, 2019.</figDesc><table /><note><p>A APPENDIX A.1 PAYOFF MATRICES AND ILLEGAL ACTION PENALTIES USED DURING TRAINING</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 5 :</head><label>5</label><figDesc>Payoff matrices for two environments considered in Section 6 to investigate shaping in cooperative settings.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 7 :</head><label>7</label><figDesc>Naive learner hyperparameters used in all experiments. The "(default)" flag indicates hyperparameters taking the default value in the TRL package.</figDesc><table><row><cell>Parameter</cell><cell>Value</cell></row><row><cell>LoRA rank</cell><cell>2</cell></row><row><cell>LoRA target modules</cell><cell>["q proj", "v proj"] (default)</cell></row><row><cell>Learning rate</cell><cell>1.41 × 10 -6</cell></row><row><cell>Use adaptive KL control</cell><cell>Yes (default)</cell></row><row><cell>Starting KL coefficient</cell><cell>0.2 (default)</cell></row><row><cell>Target KL value</cell><cell>6.0 (default)</cell></row><row><cell cols="2">Horizon for adaptive KL control 10000 (default)</cell></row><row><cell>GAE γ</cell><cell>1.0 (default)</cell></row><row><cell>GAE λ</cell><cell>0.95 (default)</cell></row><row><cell>Clipping range</cell><cell>0.2 (default)</cell></row><row><cell>Value Function clipping</cell><cell>0.2 (default)</cell></row><row><cell cols="2">Value Function Loss coefficient 0.2 (default)</cell></row><row><cell>Batch Size</cell><cell>100</cell></row><row><cell>Mini Batch Size</cell><cell>10</cell></row><row><cell>Gradient Accumulation Steps</cell><cell>1 (default)</cell></row><row><cell>PPO epochs</cell><cell>1</cell></row><row><cell>Score normalization</cell><cell>No (default)</cell></row><row><cell>Score scaling</cell><cell>Yes</cell></row><row><cell cols="2">Table 7 presents the hyperparameters used for training naive learners across all experiments 7 . Pa-</cell></row><row><cell cols="2">rameters marked with the "(default)" flag indicate values that remained unchanged from the TRL</cell></row><row><cell>library's default configuration.</cell><cell></cell></row><row><cell>A.3.2 SHAPER HYPERPARAMETERS</cell><cell></cell></row><row><cell cols="2">For shapers, the hyperparameters used varied across games and opponents. However, several core</cell></row><row><cell cols="2">parameters were held constant across all experiments, which are presented in Table 8. Where pa-</cell></row></table><note><p>rameters deviate from default values, modifications were made either for computational efficiency (rank, batch size, mini batch size) or improved training stability (score scaling, PPO epochs)</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 8 :</head><label>8</label><figDesc>Shaper hyperparameters fixed across all experiments. The "(default)" flag indicates hyperparameters taking the default value in the TRL package.</figDesc><table><row><cell>Parameter</cell><cell>Value</cell></row><row><cell>LoRA rank</cell><cell>2</cell></row><row><cell>LoRA target modules</cell><cell>["q proj", "v proj"] (default)</cell></row><row><cell>Use adaptive KL control</cell><cell>Yes (default)</cell></row><row><cell>Starting KL coefficient</cell><cell>0.2 (default)</cell></row><row><cell>Target KL value</cell><cell>6.0 (default)</cell></row><row><cell cols="2">Horizon for adaptive KL control 10000 (default)</cell></row><row><cell>GAE γ</cell><cell>1.0 (default)</cell></row><row><cell>GAE λ</cell><cell>0.95 (default)</cell></row><row><cell>Value Function clipping</cell><cell>0.2 (default)</cell></row><row><cell>Batch Size</cell><cell>100</cell></row><row><cell>Mini Batch Size</cell><cell>10</cell></row><row><cell>Gradient Accumulation Steps</cell><cell>1 (default)</cell></row><row><cell>PPO epochs</cell><cell>1</cell></row><row><cell>Score normalization</cell><cell>No (default)</cell></row><row><cell>Score scaling</cell><cell>Yes</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 9 :</head><label>9</label><figDesc>Shaper's learning rate (lr), value function coefficient (c VF ), and clipping range (ϵ p ) for the experiments in Sections 5.1, 5.2, 6.</figDesc><table><row><cell>Experiment</cell><cell>lr</cell><cell>c VF</cell><cell>ϵ p</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head></head><label></label><figDesc>Table9shows the learning rate, value function coefficient, and clipping range used to train the shapers across all experiments in the main text. The remaining hyperparameters used during training for all experiments are shown in Table8.</figDesc><table><row><cell>A.3.3 PACKAGE VERSIONS</cell></row><row><cell>We used the following versions for the main Python packages:</cell></row><row><cell>• BitsAndBytes: v0.45.0</cell></row><row><cell>• PEFT: v0.14.0</cell></row><row><cell>• torch: v2.5.1</cell></row><row><cell>• transformers: v4.47.0</cell></row><row><cell>• TRL: v0.11.4</cell></row><row><cell>A.4 ABLATION STUDY: NAIVE LEARNERS WITH ENRICHED OBSERVATIONS</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 10 :</head><label>10</label><figDesc></figDesc><table><row><cell>IPD</cell><cell>IMP</cell><cell>ICG</cell><cell>ICG (alt. opp.)</cell></row></table><note><p>Post-training evaluation results for baselines where Player 1 receives enriched observations. Columns ICG and ICG (alt. opp.) correspond to experiments with varying action labels for Player 2 (ICG uses w a1 = S, w a2 = G, and ICG (alt. opp.) employs w a1 = N, w a2 = M). Average rewards per step are reported with 95% confidence intervals across 5 random seeds.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 11 :</head><label>11</label><figDesc>Table-format prompt variation for the IPD. Instead of a textual description, the payoff matrix is presented in markdown table form, replicating the base model's formatting style. Post-training evaluation results for the IPD, IMP, and ICG with the table-format and switched-order prompts. Average rewards per step are reported with 95% confidence intervals across 5 random seeds. Transitions where a null is played by either player are excluded from the analysis (comprising 0-4% of all transitions)</figDesc><table><row><cell cols="2">Table-format</cell><cell cols="2">Switched-order</cell></row><row><cell>Shaper</cell><cell>Opponent</cell><cell>Shaper</cell><cell>Opponent</cell></row><row><cell>IPD 3.50 ± 0.16</cell><cell>0.53 ± 0.09</cell><cell>3.99 ± 0.01</cell><cell>0.02 ± 0.01</cell></row><row><cell cols="4">IMP 0.94 ± 0.06 -0.94 ± 0.06 0.98 ± 0.04 -0.98 ± 0.04</cell></row><row><cell>ICG 2.99 ± 0.01</cell><cell>1.01 ± 0.01</cell><cell>2.77 ± 0.37</cell><cell>1.23 ± 0.37</cell></row></table><note><p>h</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 12 :</head><label>12</label><figDesc>Shaper's learning rate (lr), value function coefficient (c VF ), clipping range (ϵ p ), and entropy regularization parameters (c init S , c end S , T S ) for the experiments in Appendix A.5.</figDesc><table><row><cell>Experiment</cell><cell>lr</cell><cell>c VF</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 15 :</head><label>15</label><figDesc>Post-training evaluation results for the IPD, IMP, and ICG comparing baseline (two naive learners) versus shaper-naive learner pairs for varying game lengths (T = 20, 50, 100). Average rewards per step are reported with 95% confidence intervals across 5 random seeds. Illegal actions are excluded from the analysis (comprising 2% of actions in IPD, 0.1% in IMP, and 1% in ICG).</figDesc><table><row><cell></cell><cell>IPD</cell><cell></cell><cell>IMP</cell><cell></cell><cell>ICG</cell></row><row><cell></cell><cell>Shaper</cell><cell>Opponent</cell><cell>Shaper</cell><cell>Opponent</cell><cell>Shaper</cell><cell>Opponent</cell></row><row><cell>T = 20</cell><cell cols="6">3.96 ± 0.01 0.10 ± 0.04 0.99 ± 0.01 -0.99 ± 0.01 2.98 ± 0.01 1.01 ± 0.01</cell></row><row><cell>T = 50</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>The default implementation is only compatible with contextual bandits.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>We represent the context via visitation counts instead of full trajectories to prevent the token length from growing linearly with the number of rounds.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>For the ICG baseline, we conducted experiments over 10 seeds. Each seed converges to one of the two possible Nash Equilibria, so a larger sample size is needed to accurately estimate the percentage of convergence to each equilibrium.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>The action a1 corresponds to cooperation in the IPD, playing heads in the IMP, and swerving in the ICG.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>We considered a variant where the shaper received the sum of both players' payoff as a reward. This configuration shifted the Nash equilibrium to an asymmetric outcome where the shaper cooperates while the opponent defects.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>We run the ISH and C-IPD baseline experiments across 10 seeds.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>These parameters were used for all naive learners and games except IMP. Under these parameters, naive learners playing the IMP converged to deterministic strategies rather than the expected mixed Nash equilibrium. We therefore reduced the learning rate to 1.41 × 10 -7 and the value function coefficient to 0.05 for all IMP naive learners.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_7"><p>These labels are used in Section 5.2 to show the shaping robustness under different opponent initializations.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="9" xml:id="foot_8"><p>The action a1 corresponds to cooperation in the IPD, playing heads in the IMP, and swerving in the chicken game.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="10" xml:id="foot_9"><p>One stateless prompt at training initiation, and 4 prompts corresponding to the 4 possible joint actions from the previous round (e.g., in the IPD: CC, CD, DC, DD).</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>ACKNOWLEDGMENTS</head><p><rs type="person">Marta Emili Garcia Segura</rs> was supported by the <rs type="funder">EPSRC</rs> through the <rs type="grantName">Centre for Doctoral Training Studentship in Cybersecurity</rs> (<rs type="grantNumber">EP/S022503/1</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_EmjKaZG">
+					<idno type="grant-number">EP/S022503/1</idno>
+					<orgName type="grant-name">Centre for Doctoral Training Studentship in Cybersecurity</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.9 TRAINING PROMPTS</head><p>We use three types of prompts throughout training: the base prompt, the state-only prompt, and the state occurrence prompt.</p><p>The base prompt (Figure <ref type="figure">13</ref>) includes a game description specifying the number of players, available actions, and payoff structure. It also contains an instruction to select an action using the designated action labels w a1 , w a2 .</p><p>The state-only prompt (Figure <ref type="figure">14</ref>) includes all information from the base prompt and additionally incorporates the last joint action of both players. Naive learners receive this prompt for all game rounds except the first, where they receive the base prompt. Shapers receive this prompt only at the second round of each trial, when one previous action has been played.</p><p>Lastly, the state occurrence prompt (Figure <ref type="figure">15</ref>) includes all information from the state-only prompt and additionally incorporates the state counts for all previous rounds within the current trial. Shaping agents receive this prompt for all interactions beyond the first two rounds. The prompt is dynamically updated as follows: when new actions are played, the state count is updated to include the most recent state, and the new joint action is displayed in the current state field.</p><p>Base prompt for the IPD with w a1 = C, w a2 = D  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Playing repeated games with large language models</title>
+		<author>
+			<persName><forename type="first">Elif</forename><surname>Akata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lion</forename><surname>Schulz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Coda-Forno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seong</forename><surname>Joon Oh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Bethge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Schulz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature Human Behaviour</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Claude Opus 4 Release</title>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<ptr target="https://www.anthropic.com/news/claude-3-7-sonnet" />
+	</analytic>
+	<monogr>
+		<title level="m">Claude 3.7 Sonnet and Claude Code</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">The evolution of cooperation</title>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Axelrod</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">D</forename><surname>Hamilton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science</title>
+		<imprint>
+			<biblScope unit="volume">211</biblScope>
+			<biblScope unit="issue">4489</biblScope>
+			<biblScope unit="page" from="1390" to="1396" />
+			<date type="published" when="1981">1981</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Balaguer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raphael</forename><surname>Koster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Summerfield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Tacchetti</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.10135</idno>
+		<title level="m">The good shepherd: An oracle agent for mechanism design</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Guiding LLMs the right way: fast, noninvasive constrained generation</title>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Beurer-Kellner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Vechev</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning (ICML&apos;24)</title>
+		<meeting>the 41st International Conference on Machine Learning (ICML&apos;24)</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">M</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clemens</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Winter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Sigler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Litwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Chess</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Berner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Amodei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Neural Information Processing Systems (NeurIPS&apos;20)</title>
+		<meeting>the 34th International Conference on Neural Information Processing Systems (NeurIPS&apos;20)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sébastien</forename><surname>Bubeck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Varun</forename><surname>Chandrasekaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ronen</forename><surname>Eldan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Gehrke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Horvitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ece</forename><surname>Kamar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yin</forename><surname>Tat Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Lundberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harsha</forename><surname>Nori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamid</forename><surname>Palangi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Tulio Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.12712</idno>
+		<title level="m">Sparks of artificial general intelligence: early experiments with GPT-4</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">A comprehensive survey of multiagent reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Lucian</forename><surname>Busoniu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Babuska</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bart</forename><forename type="middle">De</forename><surname>Schutter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Systems, Man, and Cybernetics, Part C (Applications and Reviews)</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="156" to="172" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Dettmers</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Titus Von Koeller</surname></persName>
+		</author>
+		<ptr target="https://github.com/bitsandbytes-foundation/bitsandbytes" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">QLoRA: Efficient Finetuning of Quantized LLMs</title>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Dettmers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Artidoro</forename><surname>Pagnoni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ari</forename><surname>Holtzman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Neural Information Processing Systems (NeurIPS&apos;23)</title>
+		<meeting>the 37th International Conference on Neural Information Processing Systems (NeurIPS&apos;23)</meeting>
+		<imprint>
+			<biblScope unit="page">2023</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">GTBench: Uncovering the strategic reasoning capabilities of LLMs via game-theoretic evaluations</title>
+		<author>
+			<persName><forename type="first">Jinhao</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Diffenderfer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavya</forename><surname>Kailkhura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lichao</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Stengel-Eskin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianlong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaidi</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 38th International Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+	<note>NeurIPS&apos;24</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Can large language models serve as rational players in game theory? a systematic analysis</title>
+		<author>
+			<persName><forename type="first">Caoyun</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jindou</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaohui</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th AAAI Conference on Artificial Intelligence (AAAI&apos;24)</title>
+		<meeting>the 38th AAAI Conference on Artificial Intelligence (AAAI&apos;24)</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Learning with opponent-learning awareness</title>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Foerster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maruan</forename><surname>Richard Y Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shimon</forename><surname>Al-Shedivat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pieter</forename><surname>Whiteson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mordatch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 17th International Conference on Autonomous Agents and MultiAgent Systems (AAMAS&apos;18)</title>
+		<meeting>the 17th International Conference on Autonomous Agents and MultiAgent Systems (AAMAS&apos;18)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Magentic-one: A generalist multi-agent system for solving complex tasks</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Fourney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagan</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hussein</forename><surname>Mozannar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eduardo</forename><surname>Salinas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Friederike</forename><surname>Niedtner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Grace</forename><surname>Proebsting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Griffin</forename><surname>Bassman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jack</forename><surname>Gerrits</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Alber</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2411.04468</idno>
+		<imprint>
+			<date type="published" when="1991">2024. 1991</date>
+			<publisher>Drew Fudenberg and Jean Tirole. Game Theory. MIT Press</publisher>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kanishk</forename><surname>Gandhi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dorsa</forename><surname>Sadigh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">D</forename><surname>Goodman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.19165</idno>
+		<title level="m">Strategic reasoning with language models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Gemma 2: Improving open language models at a practical size</title>
+		<author>
+			<persName><forename type="first">Gemma</forename><surname>Team</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.00118</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">SciAgents: automating scientific discovery through bioinspired multi-agent intelligent graph reasoning</title>
+		<author>
+			<persName><forename type="first">Alireza</forename><surname>Ghafarollahi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markus</forename><forename type="middle">J</forename><surname>Buehler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advanced Materials</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="issue">22</biblScope>
+			<biblScope unit="page">2413523</biblScope>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning produces dominant strategies for the iterated prisoner&apos;s dilemma</title>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Harper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vincent</forename><surname>Knight</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georgios</forename><surname>Koutsovoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikoleta</forename><forename type="middle">E</forename><surname>Glynatsi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Owen</forename><surname>Campbell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">PLOS One</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page">188046</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">How far are we on the decision-making of LLMs? Evaluating LLMs&apos; gaming ability in multi-agent environments</title>
+		<author>
+			<persName><forename type="first">Jen-Tse</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">John</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Man</forename><forename type="middle">Ho</forename><surname>Lam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tian</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youliang</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaopeng</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Michael R Lyu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Conference on Learning Representations</title>
+		<meeting>the 13th International Conference on Learning Representations</meeting>
+		<imprint>
+			<biblScope unit="page">2025</biblScope>
+		</imprint>
+	</monogr>
+	<note>ICLR&apos;25</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Scaling opponent shaping to high dimensional games</title>
+		<author>
+			<persName><forename type="first">Akbir</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timon</forename><surname>Willi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Newton</forename><surname>Kwan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Tacchetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><forename type="middle">N</forename><surname>Foerster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Autonomous Agents and Multi-Agent Systems (AAMAS&apos;24)</title>
+		<meeting>the 23rd International Conference on Autonomous Agents and Multi-Agent Systems (AAMAS&apos;24)</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Stable opponent shaping in differentiable games</title>
+		<author>
+			<persName><forename type="first">Alistair</forename><surname>Letcher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Foerster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Balduzzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shimon</forename><surname>Whiteson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 7th International Conference on Learning Representations (ICLR&apos;19)</title>
+		<meeting>the 7th International Conference on Learning Representations (ICLR&apos;19)</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Llama</forename><surname>Team</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ai@</forename><surname>Meta</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.21783</idno>
+		<title level="m">The Llama 3 Herd of Models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Model-free opponent shaping</title>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timon</forename><surname>Willi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christian</forename><forename type="middle">A</forename><surname>Schroeder De Witt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Foerster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 39th International Conference on Machine Learning (ICML&apos;22)</title>
+		<meeting>the 39th International Conference on Machine Learning (ICML&apos;22)</meeting>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">PEFT: State-of-the-art Parameter-Efficient Fine-Tuning methods</title>
+		<author>
+			<persName><forename type="first">Sourab</forename><surname>Mangrulkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sylvain</forename><surname>Gugger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lysandre</forename><surname>Debut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Younes</forename><surname>Belkada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sayak</forename><surname>Paul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Bossan</surname></persName>
+		</author>
+		<ptr target="https://github.com/huggingface/peft" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Mistral</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Magistral</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.10910</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Computer-using agent: Introducing a universal interface for AI to interact with the digital world</title>
+		<ptr target="https://openai.com/index/computer-using-agent" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+		<respStmt>
+			<orgName>OpenAI</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<ptr target="https://openai.com/gpt-5,2025b" />
+		<title level="m">OpenAI. GPT-5 Announcement</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carroll</forename><surname>Wainwright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katarina</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fraser</forename><surname>Kelton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maddie</forename><surname>Simens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Welinder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">F</forename><surname>Christiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 36th International Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+	<note>NeurIPS&apos;22</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">AgentCoord: Visually exploring coordination strategy for LLM-based multi-agent collaboration</title>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaying</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ke</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingchaojie</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minfeng</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computers &amp; Graphics</title>
+		<imprint>
+			<biblScope unit="volume">132</biblScope>
+			<biblScope unit="page">104338</biblScope>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Generative agents: Interactive simulacra of human behavior</title>
+		<author>
+			<persName><forename type="first">Sung</forename><surname>Joon</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O'</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carrie</forename><forename type="middle">Jun</forename><surname>Brien</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meredith</forename><forename type="middle">Ringel</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Morris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bernstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th annual ACM symposium on User Interface Software and Technology (UIST&apos;23)</title>
+		<meeting>the 36th annual ACM symposium on User Interface Software and Technology (UIST&apos;23)</meeting>
+		<imprint>
+			<biblScope unit="page">2023</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Gorilla: Large language model connected with massive APIs</title>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Shishir G Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 38th International Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+	<note>NeurIPS&apos;24</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Cooperate or collapse: Emergence of sustainable cooperation in a society of LLM agents</title>
+		<author>
+			<persName><forename type="first">Giorgio</forename><surname>Piatti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijing</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Kleiman-Weiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mrinmaya</forename><surname>Sachan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rada</forename><surname>Mihalcea</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+	<note>NeurIPS&apos;24</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Iterated prisoner&apos;s dilemma contains strategies that dominate any evolutionary opponent</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>William</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Freeman</forename><forename type="middle">J</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Dyson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the National Academy of Sciences</title>
+		<imprint>
+			<biblScope unit="volume">109</biblScope>
+			<biblScope unit="issue">26</biblScope>
+			<biblScope unit="page" from="10409" to="10413" />
+			<date type="published" when="2012">2012</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Qwen</forename><surname>Team</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.09388</idno>
+		<title level="m">Qwen3 Technical Report</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Direct preference optimization: Your language model is secretly a reward model</title>
+		<author>
+			<persName><forename type="first">Rafael</forename><surname>Rafailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Archit</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Ermon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 38th International Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+	<note>NeurIPS&apos;24</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Prisoner&apos;s dilemma -recollections and observations</title>
+		<author>
+			<persName><forename type="first">Anatol</forename><surname>Rapoport</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Game Theory as a Theory of Conflict Resolution</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="1974">1974</date>
+			<biblScope unit="page" from="17" to="34" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">The game of chicken</title>
+		<author>
+			<persName><forename type="first">Anatol</forename><surname>Rapoport</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><forename type="middle">M</forename><surname>Chammah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">American Behavioral Scientist</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="10" to="28" />
+			<date type="published" when="1966">1966</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">AgentBreeder: mitigating the AI safety impact of multi-agent scaffolds via self-improvement</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Rosser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><forename type="middle">Nicolaus</forename><surname>Foerster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Conference on Learning Representations</title>
+		<meeting>the 13th International Conference on Learning Representations</meeting>
+		<imprint>
+			<biblScope unit="page">2025</biblScope>
+		</imprint>
+	</monogr>
+	<note>ICLR&apos;25</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Neural Information Processing Systems (NeurIPS&apos;23)</title>
+		<meeting>the 37th International Conference on Neural Information Processing Systems (NeurIPS&apos;23)</meeting>
+		<imprint>
+			<biblScope unit="page">2023</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Filip</forename><surname>Wolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oleg</forename><surname>Klimov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.06347</idno>
+		<title level="m">Proximal policy optimization algorithms</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Multi-turn reinforcement learning from preference human feedback</title>
+		<author>
+			<persName><forename type="first">Lior</forename><surname>Shani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aviv</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asaf</forename><surname>Cassel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oran</forename><surname>Lang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniele</forename><surname>Calandriello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avital</forename><surname>Zipori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hila</forename><surname>Noga</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Orgad</forename><surname>Keller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bilal</forename><surname>Piot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Idan</forename><surname>Szpektor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avinatan</forename><surname>Hassidim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yossi</forename><surname>Matias</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Munos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 38th International Conference on Neural Information Processing Systems</meeting>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+	<note>NeurIPS&apos;24</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhihong</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runxin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">K</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daya</forename><surname>Guo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.03300</idno>
+		<title level="m">Deepseekmath: Pushing the limits of mathematical reasoning in open language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Learning to summarize with human feedback</title>
+		<author>
+			<persName><forename type="first">Nisan</forename><surname>Stiennon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Lowe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dario</forename><surname>Amodei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">F</forename><surname>Christiano</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 34th International Conference on Neural Information Processing Systems (NeurIPS&apos;20)</title>
+		<meeting>the 34th International Conference on Neural Information Processing Systems (NeurIPS&apos;20)</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Cognitive architectures for language agents</title>
+		<author>
+			<persName><forename type="first">Theodore</forename><surname>Sumers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Griffiths</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Moral alignment for LLM agents</title>
+		<author>
+			<persName><forename type="first">Elizaveta</forename><surname>Tennant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Hailes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mirco</forename><surname>Musolesi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 13th International Conference on Learning Representations (ICLR&apos;25)</title>
+		<meeting>the 13th International Conference on Learning Representations (ICLR&apos;25)</meeting>
+		<imprint>
+			<biblScope unit="page">2025</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">SynCode: LLM generation with grammar augmentation</title>
+		<author>
+			<persName><forename type="first">Shubham</forename><surname>Ugare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tarun</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangoo</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sasa</forename><surname>Misailovic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagandeep</forename><surname>Singh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Generative agent-based modeling with actions grounded in physical, social, or digital space using concordia</title>
+		<author>
+			<persName><forename type="first">Sasha</forename><surname>Alexander</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><forename type="middle">P</forename><surname>Vezhnevets</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avia</forename><surname>Agapiou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ron</forename><surname>Aharon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jayd</forename><surname>Ziv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edgar</forename><forename type="middle">A</forename><surname>Matyas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">A</forename><surname>Duéñez-Guzmán</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Cunningham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danny</forename><surname>Osindero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joel</forename><forename type="middle">Z</forename><surname>Karmon</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Leibo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.03664</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<author>
+			<persName><forename type="first">Younes</forename><surname>Leandro Von Werra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lewis</forename><surname>Belkada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Tunstall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tristan</forename><surname>Beeching</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Thrush</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengyi</forename><surname>Lambert</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Huang</surname></persName>
+		</author>
+		<ptr target="https://github.com/huggingface/trl" />
+		<title level="m">TRL: Transformer Reinforcement Learning</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">A survey on large language model based autonomous agents</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueyang</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingsen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiakai</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wayne</forename><forename type="middle">Xin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhewei</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jirong</forename><surname>Wen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers of Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishi</forename><surname>Bommasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dani</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donald</forename><surname>Metzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Fedus</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2206.07682</idno>
+		<title level="m">Emergent abilities of large language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Quoc V Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th International Conference on Neural Information Processing Systems (NeurIPS&apos;22)</title>
+		<meeting>the 36th International Conference on Neural Information Processing Systems (NeurIPS&apos;22)</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>b</note>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">COLA: consistent learning with opponent-learning awareness</title>
+		<author>
+			<persName><forename type="first">Timon</forename><surname>Willi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alistair</forename><surname>Hp Letcher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johannes</forename><surname>Treutlein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Foerster</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 39th International Conference on Machine Learning (ICML&apos;22)</title>
+		<meeting>the 39th International Conference on Machine Learning (ICML&apos;22)</meeting>
+		<imprint>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">The rise and potential of large language model based agents: a survey</title>
+		<author>
+			<persName><forename type="first">Zhiheng</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyang</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junzhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Senjie</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoran</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Limao</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changhao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yicheng</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyue</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shihan</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rongxiang</forename><surname>Weng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenjuan</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongyan</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Gui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science China Information Sciences</title>
+		<imprint>
+			<biblScope unit="volume">68</biblScope>
+			<biblScope unit="issue">12</biblScope>
+			<biblScope unit="page">121101</biblScope>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<author>
+			<persName><forename type="first">Fengli</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianyue</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zefang</forename><surname>Zong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingwei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunke</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaochong</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahui</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjian</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanjin</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyang</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuwei</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinglong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwen</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sijian</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyuan</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.09686</idno>
+		<title level="m">Towards large reasoning models: A survey of reinforced reasoning with large language models</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

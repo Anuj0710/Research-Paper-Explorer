@@ -1,0 +1,883 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Time Series Augmented Generation for Financial Applications</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-04-21">21 Apr 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author role="corresp">
+							<persName><forename type="first">Anton</forename><surname>Kolonin</surname></persName>
+							<email>akolonin@gmail.com</email>
+						</author>
+						<author>
+							<persName><forename type="first">Alexey</forename><surname>Glushchenko</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Evgeny</forename><surname>Bochkov</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Abhishek</forename><surname>Saxena</surname></persName>
+						</author>
+						<title level="a" type="main">Time Series Augmented Generation for Financial Applications</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-04-21">21 Apr 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">8AB10F199C5DBA79E4F4BBA5532991D0</idno>
+					<idno type="arXiv">arXiv:2604.19633v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Evaluating the reasoning capabilities of Large Language Models (LLMs) for complex, quantitative financial tasks is a critical and unsolved challenge. Standard benchmarks often fail to isolate an agent's core ability to parse queries and orchestrate computations. To address this, we introduce a novel evaluation methodology and benchmark designed to rigorously measure an LLM agent's reasoning for financial time-series analysis. We apply this methodology in a large-scale empirical study using our framework, Time Series Augmented Generation (TSAG), where an LLM agent delegates quantitative tasks to verifiable, external tools. Our benchmark, consisting of 100 financial questions, is used to compare multiple SOTA agents (e.g., GPT-4o, Llama 3, Qwen2) on metrics assessing tool selection accuracy, faithfulness, and hallucination. The results demonstrate that capable agents can achieve near-perfect tool-use accuracy with minimal hallucination, validating the tool-augmented paradigm. Our primary contribution is this evaluation framework and the corresponding empirical insights into agent performance, which we release publicly to foster standardized research on reliable financial AI.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The financial domain demands timely and accurate insights derived from complex, dynamic data <ref type="bibr" target="#b25">(Tsay 2002)</ref>. Natural language offers an intuitive interface for accessing this information, yet effectively bridging conversational queries with the necessary underlying quantitative analysis remains a significant hurdle. Large Language Models (LLMs) have demonstrated remarkable capabilities in natural language understanding and generation <ref type="bibr" target="#b3">(Brown et al. 2020;</ref><ref type="bibr" target="#b28">Wu et al. 2023)</ref>. However, their application to finance is often constrained by limitations in precise numerical computation, robust temporal reasoning, and reliable grounding in volatile, high-frequency financial time series data <ref type="bibr" target="#b1">(Blasco, Sánchez, and García 2024)</ref>. Directly applying LLMs to tasks requiring high analytical fidelity can lead to inaccurate or unsubstantiated outputs. Conversely, traditional quantitative models and libraries <ref type="bibr" target="#b2">(Box and Jenkins 1970)</ref>, while accurate, lack accessible natural language interfaces, limiting their usability for broader audiences.</p><p>This capability gap hinders the seamless integration of sophisticated data analysis into interactive financial workflows. Standard Retrieval-Augmented Generation (RAG) systems primarily retrieve textual documents <ref type="bibr" target="#b13">(Lewis et al. 2020)</ref> and are insufficient for queries demanding real-time computation over numerical time series. Recent RAG adaptations for time series forecasting focus on retrieving similar historical data sequences <ref type="bibr" target="#b29">(Xiao et al. 2025)</ref>, a different task from executing diverse, on-demand analytical computations required for complex financial question-answering (Q&amp;A) systems.</p><p>While tool-use is a promising solution, its application in finance demands extreme reliability. A key obstacle is the lack of standardized methods for evaluating an LLM agent's core reasoning capabilities for quantitative tasks. It is crucial to distinguish between failures in agentic reasoning (e.g., choosing the wrong tool) and failures in tool execution (e.g., noisy live data). This paper tackles this evaluation challenge directly. We introduce a methodology and benchmark designed to isolate and rigorously measure an agent's ability to parse financial queries, select appropriate computational tools, and extract correct parameters.</p><p>We conduct our analysis using Time Series Augmented Generation (TSAG), a framework we developed as a testbed for this purpose. TSAG operates as a Tool-Augmented RAG system.</p><p>Our main contributions are primarily methodological and empirical:</p><p>• A novel evaluation methodology and benchmark for isolating and measuring an LLM agent's core reasoning skills (parsing, tool selection, parameter extraction) for financial Q&amp;A, independent of live data noise.</p><p>• The first comprehensive empirical study comparing a wide range of modern LLM agents (Llama 3.x, Qwen2, GPT-4o variants) for this specific task, revealing key trade-offs in their reliability, accuracy, and performance.</p><p>• The public release of our benchmark and evaluation framework as open-source artifacts to foster standardized and reproducible research into reliable financial AI agents.</p><p>This paper presents the related work (Section 2), describes the TSAG framework (Section 3), experimental setup (Section 4) and results (Section 5), and derives the conclusion (Section 6).</p><p>Our work integrates insights from four key areas: LLMs in finance, time series analysis, Retrieval-Augmented Generation (RAG), and tool-using agents.</p><p>While LLMs like BloombergGPT <ref type="bibr" target="#b28">(Wu et al. 2023</ref>) excel at financial NLP tasks such as sentiment analysis <ref type="bibr" target="#b24">(Tim and Bill 2011)</ref> and summarization <ref type="bibr" target="#b11">(Jin et al. 2020)</ref>, they often fail at the precise numerical grounding required for quantitative queries, motivating our tool-based approach. Established financial time series methods, from classical models like ARIMA <ref type="bibr" target="#b2">(Box and Jenkins 1970)</ref> and GARCH <ref type="bibr" target="#b7">(Engle 1982)</ref> to deep learning approaches <ref type="bibr" target="#b9">(Hochreiter and Schmidhuber 1997;</ref><ref type="bibr" target="#b26">Vaswani et al. 2017;</ref><ref type="bibr" target="#b14">Lim and Zohren 2021)</ref>, are powerful for forecasting but lack native natural language interfaces for diverse Q&amp;A. The need for verifiable computation is further highlighted by challenges in model uncertainty <ref type="bibr" target="#b1">(Blasco, Sánchez, and García 2024)</ref>.</p><p>Standard RAG retrieves text <ref type="bibr" target="#b13">(Lewis et al. 2020)</ref>, and recent adaptations for time series focus on improving forecasting by retrieving similar historical data sequences <ref type="bibr" target="#b29">(Xiao et al. 2025)</ref>. Our TSAG framework differs significantly by employing an agent to invoke computational tools for analytical Q&amp;A, rather than retrieving data for prediction. This aligns our work with the growing paradigm of tool-using LLM agents <ref type="bibr" target="#b22">(Schick et al. 2023;</ref><ref type="bibr" target="#b4">Chase 2022;</ref><ref type="bibr" target="#b20">Patil et al. 2023</ref>), a recognized direction for time series analysis <ref type="bibr" target="#b31">(Zhang et al. 2024)</ref>. While other agentic systems for time series focus on integrating external text <ref type="bibr" target="#b27">(Wang et al. 2024)</ref> or using complex multi-agent loops for forecasting <ref type="bibr" target="#b12">(Lee et al. 2025;</ref><ref type="bibr" target="#b10">Jiang et al. 2025)</ref>, TSAG is distinct. It focuses specifically on financial Q&amp;A, using a single agent to orchestrate a curated set of predefined, reliable quantitative functions to ensure verifiable accuracy.</p><p>3 Methodology: The TSAG Framework TSAG operates as a Tool-Augmented RAG system using an LLM agent to orchestrate specialized tools. For this study, we employ a controlled experimental design to isolate and rigorously evaluate the LLM agent's core reasoning capabilities. This approach allows us to measure an agent's performance on parsing, tool selection, and parameter extraction, distinct from confounding variables like network latency or live data noise that would arise from end-to-end execution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Architecture</head><p>The architecture consists of four layers, presented in Figure 1. First, there is a User Layer with "front-end" components which may be represented by a Telegram bot, Jupyter Notebook for research purposes, any end-user application (e.g. in Python) or the Evaluation Agent as part of the evaluation framework based on DeepEval <ref type="bibr" target="#b5">(Confident AI 2023)</ref> being presented in this paper. Second, the LLM Layer consists of the TSAG kernel based on LangChain <ref type="bibr" target="#b4">(Chase 2022)</ref>, connecting to one of the selected LLM agents -either self-hosted locally or cloud-hosted such as ChatGPT or DeepSeek. Third, the Tools Layer contains the tools plugged into the TSAG kernel as a "grounding" functions. Finally, For the evaluation purposes discussed in this paper, the Tools Layer contains grounding function "stubs" with expected responses hard-coded according to the Benchmark Data. The latter makes it possible to abstract from specific transient temporal data in the TS DB to perform Benchmark-Driven Development (BDD) of the TSAG framework on the basis of the Benchmark Data, supporting designated set of grounding functions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Workflow</head><p>Given a natural language query (NLQ), TSAG proceeds via LLM-orchestrated steps to obtain a natural language response (NLR): 1. Query Parsing &amp; Tool Selection: LLM agent parses NLQ, identifies intent, extracts parameters (using defaults from subsection 3.4) and selects tool(s) (subsection 3.3) based on prompt descriptions (subsection 3.5. 2. Tool Execution: System invokes selected tool(s) (e.g., volatility(...) according to <ref type="bibr" target="#b19">Parkinson (1980)</ref>) via predefined Python code, querying data sources and performing verifiable TS computation. 3. Result Synthesis: Tool returns structured result (e.g., {'volatility_percent': 5.0}). 4. Response Generation: LLM agent synthesizes result into a grounded NLR answering the NLQ. This structured workflow ensures calculations are handled by dedicated, verifiable logic.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Grounding Functions (Tools)</head><p>A core TSAG component is a library of specialized Python functions serving as tools. This proof-of-concept (POC) focuses on cryptocurrency trading data sourced from a Time-Series Database, as shown in Figure <ref type="figure" target="#fig_0">1</ref>. We implement tools based on the NLQ → Function → NLR structure. As our primary goal is to benchmark the agent's reasoning, our evaluation deliberately utilizes tool "stubs" with predefined outputs. This methodological choice ensures that our metrics reflect the agent's ability to correctly invoke the tool, rather than the computational correctness of the tool itself on dynamic data. The initial tool set, prioritizing reliability for this study, covers the following:</p><p>• Seasonality/Pattern Analysis: Tools (peak_traded_volume, lowest_traded_volume, round_the_clock_pattern, abnormal_deviations) identifying recurring/anomalous volume patterns via statistical analysis.</p><p>• Price and Volatility Analysis:</p><p>Tools (price, volatility) retrieving current data or calculating historical metrics (e.g., <ref type="bibr">Parkinson volatility (Parkinson 1980)</ref>) along with respective prediction tools (predict_price, predict_volatility).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>• Correlation</head><p>Analysis: Tools (correlation_between_exchanges, correlation_between_tokens) computing Pearson correlation coefficients <ref type="bibr" target="#b21">(Pearson 1895</ref>) across different instruments and exchanges.</p><p>• Metadata Retrieval: Tools (get_base_tokens, get_exchanges, get_valid_time_units, etc.) that provide valid parameters for the tools listed above.</p><p>The grounding functions used in the TSAG POC are implemented in Python. These tools encapsulate specific analytical logic corresponding to common financial queries according to business specification in Table <ref type="table">1</ref>. The stubs of the functions delivered as part of the benchmark presented in this work are containing specific expected responses hardcoded in tsag/tools.py source code according to the benchmark in tests/benchmark.tsv.</p><p>Future work includes implementing more sophisticated "real" functions and expanding the scope of applications to traditional finance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Function Parameters and Defaults</head><p>The LLM extracts parameters from the NLQ. Predefined defaults (e.g., quote_token='USDT', exchange='BINANCE') handle short queries with poorly defined input parameters.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">LLM Agents</head><p>We evaluated several LLMs (Table <ref type="table" target="#tab_1">2</ref>) as agents, selected to explore trade-offs between size, cost, accuracy, hallucinations and run-time performance. Initial experiments involved use of different prompts, however at some point we have sorted out that using standard LangChain contextualization together with sufficient context size does not require specific prompts in order to maximize accuracy and minimize hallucinations. In particular, we discovered that context of 8192 is sufficient for holding the tool context for our set of tools, while smaller contexts of 4096 and default 2048 is insufficient. Specifically, insufficient context does not fit all tools to have their parameters (function arguments) identified properly.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Setup</head><p>We evaluated TSAG reliability, accuracy, level of hallucinations, and run-time efficiency across different LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Tasks</head><p>We run the evaluation framework against benchmark consisting of 100 natural language questions with different levels of brevity corresponding to the tools described above in subsection 3.3: seasonality and patterns, price/volatility, correlation, and metadata retrieval.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Benchmark and Test Corpus</head><p>The test corpus used for evaluation consists of 100 items each represented by triplet derived from the original business specification, including the original natural language query (NLQ, as a "zero shot" sample), a set of expected words or numbers to be found in the text of the natural language response (NLR), and the full expected NLR text in the expected wording at the expected level of detail.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Evaluation Framework and Metrics</head><p>We evaluated across LLM agents using the evaluation framework based on DeepEval <ref type="bibr" target="#b5">(Confident AI 2023)</ref>, having the following metrics evaluated based on the benchmark, having the DeepEval backed up with locally hosted Qwen2 7B LLM agent <ref type="bibr" target="#b0">(Bai et al. 2024</ref>).</p><p>• Return Rate (RR): For each of the benchmark itemsend-to-end execution success indicator, set to 1.0 if any non-empty text result is returned by the TSAG framework in response to the benchmark NLQ, and 0.0 otherwise. Across the entire benchmark -the average result, the higher the better.</p><p>• Match Accuracy (MA): This metric programmatically validates the agent's reasoning by checking if the generated tool name and all extracted parameters are an exact match with a ground-truth object. It is a strict, non-subjective measure of the agent's ability to correctly invoke a tool.</p><p>• LLM-accessed Accuracy (LA): For each of the benchmark items -measure of accuracy comparing the expected NLR from benchmark against the actual NLR, assessed by DeepEval <ref type="bibr" target="#b5">(Confident AI 2023)</ref> in the range between 0.0 and 1.0. Across the entire benchmark -the average result, the higher the better.</p><p>• Hallucination Rate (HR): For each of the benchmark items -degree of contextual divergence of the actual NLR text away from the expected one, assessed by DeepEval in the range between 0.0 and 1.0. Across the entire benchmark -the average result, the lower the better.</p><p>• Seconds per Query (SPQ): For each of the benchmark items -the amount of seconds to obtain NLR given NLQ. Across the entire benchmark -the average result, the lower the better. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Comparative Analysis</head><p>Our primary analysis compares the performance of different LLM agents, hosted locally or available online in the cloud, given the TSAG framework (Table <ref type="table" target="#tab_1">2</ref>) to identify models best suited for orchestrating financial tools, a key goal of our work. We evaluated these LLM agents against our benchmark. As expected, raw models not augmented with the tools provided ultimate Return Rate but showed zero Match Accuracy and negligible LLM-assessed Accuracy with high Hallucination Rate, confirming TSAG's necessity for grounded quantitative Q&amp;A. These baseline results are omitted from Table <ref type="table" target="#tab_1">2</ref> for clarity. The search of the parameters and hyper-parameters was performed incrementally along with development course. Lower numbers or defaults of hyper-parameters were chosen at the beginning of the study and then we were incrementally increasing them in the course of debugging and benchmarking till the return rate and accuracy metrics reached the plateau and stopped improving further.  We evaluated the LLM agents with different temperatures: Temperature=0.0 was used for them most "conservative" responses (Figure <ref type="figure" target="#fig_2">2</ref>), Temperature=1.0 was used for the greatest "diversity". In case of Temperature=1.0, we used 3 different random seeds [1, 10, 100] for 3 runs (Table <ref type="table" target="#tab_1">2</ref>, Figure <ref type="figure" target="#fig_4">3</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Implementation Details &amp; Hyper-parameters</head><p>The following hardware was used for the evaluation: MSI Raider GE77HX 12UGS notebook with 12th Gen Intel(R) Core(TM) i7-12800HX 2.00 GHz, 32.0 GB RAM, 23.9 GB GPU NVIDIA GeForce RTX 3070 Ti Laptop GPU. The computational budget in hours was taking about 2 hours for each run of the benchmark including TSAG with LLM agent execution and evaluation carried our with DeepEval. The total research time with all experimental runs and debugging was about 3 machine-months.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results and Discussion</head><p>We analyzed the performance of TSAG, focusing on comparing LLM agents, using multiple runs with different random seeds with non-zero temperature to assess the reliability of our evaluations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Quantitative Results</head><p>Our quantitative evaluation confirms the viability of the TSAG framework, with most agents achieving high Return Rates, indicating successful end-to-end execution (Table <ref type="table" target="#tab_1">2</ref>). Crucially, the results highlight a clear performance distinction based on the agent's underlying capabilities.</p><p>The top-performing agents, GPT-4o and Qwen2 (7B), demonstrated flawless tool orchestration, achieving a perfect Match Accuracy of 1.00. In terms of response quality, these models also excelled: Qwen2 (7B) reached the highest LLM-assessed Accuracy at 0.66, while GPT-4o achieved a remarkably low Hallucination Rate of just 0.02. This confirms that with a capable agent, the TSAG framework can produce highly reliable and factually grounded responses.</p><p>In contrast, smaller models struggled significantly. For instance, Llama 3.2 (3.2B) and Qwen2.5 (1.5B) achieved much lower Match Accuracies of only 0.76 and 0.66, respectively, with correspondingly higher Hallucination Rates. This suggests that the complex reasoning required for robust tool use is an emergent capability of larger models. The variability across runs, indicated by MPE error bars (Figure <ref type="figure" target="#fig_4">3</ref>), further supports this, showing higher consistency for topperforming agents.</p><p>Comparing the deterministic "conservative" performance at Temperature=0.0 shown in Figure <ref type="figure" target="#fig_2">2</ref> with the "diverse" (which can be considered "exploratory") results at Temper-ature=1.0 shown in Figure <ref type="figure" target="#fig_4">3a</ref> shows that the top-performing models deterministically maintain high Return Rate, Match Accuracy, LLM-assessed Accuracy, and low Hallucination Rate. Zero temperature generally leads to slight reductions in hallucination across the board, reinforcing its suitability for high-stakes applications requiring maximal factuality.</p><p>Latency analysis (Figure <ref type="figure" target="#fig_4">3b</ref>) reveals significant differences. Local models like Qwen2 7B (2.2s) and the smaller Qwen2.5 3B (2.8s) offer fast responses. API models vary, with GPT-4o-mini ( 2.4-3s) being relatively quick, while DeepSeek-V3 exhibited high latency ( 14s) in our tests. This highlights a crucial trade-off between accessing potentially highest-performing proprietary models versus leveraging efficient open models for lower latency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Qualitative Analysis</head><p>The TSAG framework presented above has been implemented through a chat bot which interact with real time time-series data, having the tool functions implemented as "stubs" in the evaluation framework replace with real quantitative analysis functions for price and volume analysis, correlation, prediction and pattern mining like presented in Figure 4. From the Figure <ref type="figure" target="#fig_5">4</ref> it is seen that most of the queries are interpreted correctly, picking the right tool functions, identifying input arguments for them appropriately and even combining calls to multiple different tools or the same tool with different arguments correctly, except on case on the figure.</p><p>Manual review of generated responses complements the quantitative findings. Successful cases demonstrate the LLM agent's ability to parse complex natural language, correctly identify and parameterize the appropriate tool (e.g., handling multiple constraints in a query handled by function like peak_traded_volume(...)), and synthesize the numerical or list-based output into a fluent, accurate sentence in natural language. For example, given "What was the price correlation between BTC and ETH quoted in USDT on BINANCE exchange in the past 7 days?", a high-performing agent correctly invokes correlation_between_tokens with extracted parameters and generates a response like "The price correlation between tokens BTC and ETH quoted in USDT on BINANCE exchange in the past 7 days trading window is 1.0." Common failure modes, particularly with less capable agents or ambiguous queries, included selecting an incorrect tool, failing to extract all necessary parameters (relying incorrectly on defaults), or minor hallucinations where the synthesized text slightly misrepresents the exact nuance of the tool's output (though major fabrications were rare with top models, reflected in low HR scores). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Discussion</head><p>The experimental results strongly validate Time-Series Augmented Generation (TSAG) approach for enabling reliable quantitative Q&amp;A over financial time series using LLMs. By delegating computation to predefined, verifiable tools, TSAG effectively grounds LLM responses, achieving high accuracy scores (Table <ref type="table" target="#tab_1">2</ref>) and mitigating the inherent weaknesses of LLMs in complex numerical reasoning <ref type="bibr" target="#b1">(Blasco, Sánchez, and García 2024)</ref>. The comparison across different agents underscores the critical role of the LLM's underlying capabilities; models like GPT-4o and Qwen2 (7B) excel at the multi-step reasoning involved in parsing, tool selection/invocation, and synthesis. The performance dropoff with smaller models suggests that robust instructionfollowing and parameter extraction are non-trivial requirements for successful tool orchestration in this domain.</p><p>Our analysis of run variability (MPE error bars, Figure <ref type="figure" target="#fig_4">3</ref>) indicates good stability for the top-performing models across different random seeds with high temperature, lending confidence to their reliability. The comparison between Temperature=0.0 (Figure <ref type="figure" target="#fig_2">2</ref>) and Temperature=1.0 average results (Figure <ref type="figure" target="#fig_4">3a</ref>) suggests that while deterministic generation slightly reduces hallucination, performance on core accuracy metrics remains high for capable agents across these temperatures, offering flexibility depending on application needs (consistency vs. minor linguistic variation).</p><p>The TSAG approach, using predefined tools, offers significant advantages in terms of reliability and interpretability compared to alternatives considered in our design phase, such as agents generating Python code on the fly to create and execute plans <ref type="bibr" target="#b30">(Yao et al. 2022;</ref><ref type="bibr" target="#b23">Surís, Menon, and Vondrick 2023)</ref> or end-to-end fine-tuning of a Large Language-Numeric Model (LLNM). While less flexible than code generation, the verifiable nature of the tools is paramount in the high-stakes financial domain. The challenges encountered, primarily related to natural language ambiguity and tool coverage, highlight key areas for future work. Improving the TSAG robustness through advanced prompting, agent fine-tuning, or incorporating query clarification steps could enhance performance. Expanding the tool li-brary, potentially incorporating more sophisticated forecasting models beyond the current POC stubs, and developing mechanisms for multi-tool composition are necessary steps to broaden TSAG's analytical capabilities and address more complex financial queries. The latency differences observed also motivate further exploration of optimized local models like Qwen2 (7B).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we presented and evaluated a Time-Series Augmented Generation (TSAG) approach, implemented as a Tool-Augmented RAG framework designed to empower LLM agents with reliable quantitative analysis capabilities for financial time series Q&amp;A. By orchestrating calls to a library of specialized, predefined computational tools, TSAG effectively grounds language model outputs in verifiable data analysis, addressing critical limitations of LLMs in numerical reasoning and factuality within the demanding financial domain.</p><p>Our comprehensive experiments, comparing multiple state-of-the-art LLM agents (Llama 3.x, Qwen2 variants, GPT-4o variants, DeepSeek-V3), demonstrate the viability and effectiveness of this approach. We show that capable agents like GPT-4o and Qwen2 7B, when integrated into TSAG, achieve high accuracy and low hallucination in executing the tool-based pipeline, accurately matching tool outputs, generating faithful responses with minimal hallucination (validated by DeepEval). We analyzed performance trade-offs across model size, accuracy (RR, MA, LA) and hallucination (HR) metrics, latency (SPQ), and consistency (MPE), providing insights into agent selection. Furthermore, analysis of deterministic (Temperature=0.0) versus stochastic (Temperature=1.0) generation highlights the framework's stability and potential for tuning based on application requirements for factuality versus linguistic variation.</p><p>We provide a benchmark that can be used to evaluate other LLM agents to improve the described evaluation metrics, and can also be extended to obtain richer and more functional sets of tools that extend the applicability of TSAG. This work validates tool-augmentation as a powerful and pragmatic strategy... Key future directions include expanding the tool library and, critically, enhancing the agent's ability to handle complex multi-step reasoning by exploring agentic architectures like ReAct. Furthermore, we will address robustness by incorporating Chain-of-Thought (CoT) prompting for better explainability and by developing a paraphrased version of our benchmark to test for linguistic variations, while continuing to prioritize ethical considerations and responsible AI development.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitations</head><p>Our work has limitations:</p><p>• Tool Coverage &amp; Brittleness: Scope limited by predefined tools; cannot answer out-of-scope queries. Performance of the non-stub tools depends on their implementation and content of the actual time-series database. Tools may be brittle to API/data format changes.</p><p>• Tool Correctness: Accuracy hinges on meticulous tool implementation and valid data sources. Further work on uncertainty quantification <ref type="bibr" target="#b1">(Blasco, Sánchez, and García 2024)</ref> is also needed. • Natural Language Robustness: Our benchmark, while comprehensive, does not systematically test for robustness against linguistic variations such as paraphrasing or intentionally ambiguous phrasing. The brittleness of the agent to such changes is an important, unmeasured variable in this work. • Static Tools: No dynamic code generation, limiting flexibility compared to some agent approaches. Reliance on LangChain-compatible tooling excluded some models (e.g., online Qwen). • Evaluation Scope: Focused on crypto-finance Q&amp;A domain; generalization to traditional finance requires significant tool adaptation. Run variability analysis based on 3 seeds provides initial insights but more runs would be beneficial. • Compositionality: The current single-step workflow of TSAG cannot handle complex queries requiring multi-tool reasoning chains (e.g., 'Find assets with high volatility and positive recent news'). This is a significant limitation for advanced financial analysis. • Sensitivity to Agent/Parameters: Performance varies significantly with LLM choice and temperature, necessitating careful tuning and selection. • Baseline Scope: Our comparative analysis focuses on general-purpose LLM agents. We did not include benchmarks against finance-specialized LLMs operating without tools, which could further highlight the necessity of the tool-use paradigm.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Ethical Considerations</head><p>Deploying and using TSAG, especially in production environment, requires addressing ethical concerns, as follows.</p><p>• Potential Risks Improper use of any financial instrument can cause financial damage to a user. From this perspective, grounding an LLM agent performance with manually predefined function with control over hallucination level, as we do in our work, can mitigate the risk. Anyway, using our TSAG framework in production, as using any financial instrument on the market requires personal responsibility and awareness. • Personally Identifying Info Or Offensive Content:</p><p>The benchmark we created do not include any personally identifying info or offensive content. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The TSAG Tool-Augmented RAG architecture and workflow.</figDesc><graphic coords="2,319.50,54.00,238.50,154.73" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>For</head><label></label><figDesc>TSAG development and evaluation we used Python 3.11, langchain 0.3.20, langchain-core 0.3.45, langchaindeepseek-official 0.1.0, langchain-ollama 0.2.2, langchainopenai 0.3.8, deepeval 2.5.4. LLM agents hosted locally were accessed via Ollama v0.1.32 for local models and official vendor APIs (OpenAI, DeepSeek) accessed in April 2025. The following models were evaluated. • Llama 3.1 (8B) (Meta AI 2024b) • Llama 3.2 (3.2B) (Meta AI 2024a) • Qwen2 (0.5B, 1.5B, 7B) (Bai et al. 2024) • Qwen2.5 (0.5B, 1.5B, 3B, 7B) (Lu et al. 2024) • GPT-4o (OpenAI 2024b) • GPT-4o-mini (OpenAI 2024a) • DeepSeek-V3 (API) (DeepSeek AI 2024) Some LLM agents that we were considering to use initially, including local Gemma 7B (Gemma Team 2024), DeepSeek hosted online (DeepSeek AI 2024), and online Qwen (Lu et al. 2024) were excluded from evaluation results due to incompatibility with the required tooling in the used version of LangChain (Kotiyal et al. 2024). The following LLM parameters and hyper-parameters were used, overriding the defaults for respective LLM agents. • LLM temperatures (temperature): [0.0, 1.0] • Random seeds (seed): [1, 10, 100] • Length of LLM context window in tokens (num_ctx): 8192 • The maximum number of tokens LLM is allowed to generate (num\_predict): 512 • The maximum number of retries for GPT and DeepSeek LLM agents (max\_retries): 2 • The maximum number of retries for all LLM agents, in case if no text is generated (retries): 5</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: TSAG performance with different LLM agents (Temperature = 0.0). Metrics: return rate, match accuracy, LLM-measured accuracy and hallucination rate measured by DeepEval framework. Figure 3 shows results for Temperature = 1.0.</figDesc><graphic coords="5,319.50,341.51,238.49,96.81" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>(a) Metrics: return rate, match accuracy, LLM-measured accuracy and hallucination rate measured by DeepEval framework. (b) Seconds spent by query (SPQ). Use of GPT and especially DeepSeek takes longer, compared to locally hosted models.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: TSAG performance with different LLM agents as average over 3 runs (Temperature = 1.0). Error bars indicate run variability as mean percentage error (MPE). Figure 2 shows results for Temperature = 0.0.</figDesc><graphic coords="6,311.04,54.00,246.96,107.01" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: An example of the TSAG framework implemented as a Telegram chatbot, showing successful tool selection for various queries and one instance of an incorrect tool choice (Exchange Correlation instead of Instrument Correlation).</figDesc><graphic coords="7,54.00,54.00,504.02,375.82" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table><row><cell>LLM agent</cell><cell cols="4">RR↑ MA↑ LA↑ HR↓ SPQ↓</cell></row><row><cell>Llama 3.1 (8B) (Meta AI 2024b)</cell><cell>0.98</cell><cell>0.90 0.60</cell><cell>0.13</cell><cell>5</cell></row><row><cell>Llama 3.2 (3.2B) (Meta AI 2024a)</cell><cell>0.91</cell><cell>0.76 0.53</cell><cell>0.26</cell><cell>3</cell></row><row><cell>Qwen2 (7B) (Bai et al. 2024)</cell><cell>1.00</cell><cell>1.00 0.66</cell><cell>0.08</cell><cell>2</cell></row><row><cell>Qwen2.5 (1.5B) (Lu et al. 2024)</cell><cell>0.80</cell><cell>0.66 0.47</cell><cell>0.37</cell><cell>6</cell></row><row><cell>Qwen2.5 (3B) (Lu et al. 2024)</cell><cell>0.89</cell><cell>0.82 0.55</cell><cell>0.19</cell><cell>3</cell></row><row><cell>Qwen2.5 (7B) (Lu et al. 2024)</cell><cell>0.90</cell><cell>0.86 0.59</cell><cell>0.17</cell><cell>5</cell></row><row><cell>GPT-4o (API) (OpenAI 2024b)</cell><cell>1.00</cell><cell>1.00 0.65</cell><cell>0.02</cell><cell>2</cell></row><row><cell>GPT-4o-mini (API) (OpenAI 2024a)</cell><cell>1.00</cell><cell>0.97 0.59</cell><cell>0.04</cell><cell>3</cell></row><row><cell>DeepSeek-V3 (API) (DeepSeek AI 2024)</cell><cell>1.00</cell><cell>0.92 0.58</cell><cell>0.08</cell><cell>14</cell></row></table><note><p>TSAG performance with different LLM agents (Temperature = 0.0). Metrics: return rate (RR), match accuracy (MA), LLM-measured accuracy (LA), hallucination rate (HR), and seconds per query (SPQ). Arrows indicate preferred direction. Best results are bold.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>•</head><label></label><figDesc>Transparency vs. Opacity: Tool use enhances computational transparency. LLM reasoning remains partially opaque; we provide code details with tool stubs, TSAG framework and evaluation framework. • Accuracy and Reliability: Crucial in finance. Tool accuracy dependence requires rigorous testing. Low hallucination rates are confirmed in our study for top performing models. Users must understand outputs are toolbased information, not infallible financial advice. • Data Bias: In production use, reliance on historical timeseries data may reflect historical market biases (e.g., asset popularity, exchange-specific patterns). Auditing for bias propagation is needed. • Potential Misuse: Generating convincing analyses requires safeguards against misinformation/manipulation. Not a substitute for professional advice. • Data Privacy: Uses public data; adaptation for private data requires robust security/privacy protocols. • Reproducibility: Enhanced by releasing code for function stubs with tool descriptions, entire TSAG framework and evaluation framework. API access and specific model versions may limit full replication. • Fairness &amp; Equity: When using the TSAG platform for production purposes, potential biases may arise if the data or actual implementation of real tools favors certain assets or exchanges. Expanding tool coverage requires attention to equitable representation.</figDesc><table /></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0" />			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Qwen2: The New Generation of Qwen Large Language Models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Dang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<publisher>Qwen Team, Alibaba Cloud</publisher>
+		</imprint>
+	</monogr>
+	<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">A survey on uncertainty quantification in deep learning for financial time series prediction</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Blasco</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sánchez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>García</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neurocomputing</title>
+		<imprint>
+			<biblScope unit="volume">577</biblScope>
+			<biblScope unit="page">127339</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Time series analysis: Forecasting and control</title>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">E</forename><surname>Box</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">M</forename><surname>Jenkins</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1970">1970</date>
+			<pubPlace>Holden-Day</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Language Models are Few-Shot Learners</title>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">B</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Askell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2020">2020. NeurIPS 2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="1877" to="1901" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">LangChain</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chase</surname></persName>
+		</author>
+		<ptr target="https://github.com/langchain-ai/langchain" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Confident</surname></persName>
+		</author>
+		<ptr target="https://github.com/confident-ai/deepeval" />
+		<title level="m">DeepEval: The Evaluation Framework for LLMs</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">DeepSeek LLM: Scaling Open-Source Language Models with Long Training</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Deepseek</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Technical Report</note>
+	<note>DeepSeek AI</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Autoregressive conditional heteroscedasticity with estimates of the variance of United Kingdom inflation</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">F</forename><surname>Engle</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Econometrica</title>
+		<imprint>
+			<biblScope unit="volume">50</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="987" to="1007" />
+			<date type="published" when="1982">1982</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Gemma</forename><surname>Team</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.08295</idno>
+		<title level="m">Gemma: Open Models Based on Gemini Research and Technology</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Long short-term memory</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hochreiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schmidhuber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Neural Computation</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1735" to="1780" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.01013</idno>
+		<title level="m">Explainable Multi-modal Time Series Prediction with LLM-in-the-Loop. Version 2</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Hooks in the Headline: Learning to Generate Headlines with Controlled Styles</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">T</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Orii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Szolovits</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kotiyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">P M</forename><surname>Devadas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">M</forename><surname>Hiremani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Tangade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2004.01980</idno>
+	</analytic>
+	<monogr>
+		<title level="m">2024 Second International Conference on Advances in Information Technology</title>
+		<imprint>
+			<date type="published" when="2020">2020. 2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1" to="4" />
+		</imprint>
+	</monogr>
+	<note>Chat With PDF Using LangChain Model</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.11418</idno>
+		<title level="m">TimeCAP: Learning to Contextualize, Augment, and Predict Time Series Events with Large Language Model Agents. Version 2</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">P</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">T</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kiela</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2005.11401</idno>
+		<title level="m">Generation for Knowledge-Intensive NLP Tasks</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Time series forecasting with deep learning: a survey</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zohren</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Philosophical Transactions of the Royal Society A</title>
+		<imprint>
+			<biblScope unit="volume">379</biblScope>
+			<biblScope unit="page">20200209</biblScope>
+			<date type="published" when="2021">2021. 2194</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<author>
+			<persName><forename type="first">C</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cui</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advancing Large Language Models in Reasoning, Comprehension, and Safety</title>
+		<imprint>
+			<publisher>Qwen Team, Alibaba Cloud</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">Technical Report</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m">Meta AI. 2024a. Introducing Meta Llama 3</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Meta</surname></persName>
+		</author>
+		<ptr target="https://ollama.com/library/llama3.1" />
+		<title level="m">Llama 3.1 (8B) Model -Ollama Library</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="2025" to="2029" />
+		</imprint>
+	</monogr>
+	<note>OpenAI. 2024a. GPT-4o mini [Model Information</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m">OpenAI. 2024b. Introducing GPT-4o</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">The Extreme Value Method for Estimating the Variance of the Rate of Return</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Parkinson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of Business</title>
+		<imprint>
+			<biblScope unit="volume">53</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="61" to="65" />
+			<date type="published" when="1980">1980</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.15334</idno>
+		<title level="m">Gorilla: Large Language Model Connected with Massive APIs</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Note on Regression and Inheritance in the Case of Two Parents</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Pearson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the Royal Society of London</title>
+		<imprint>
+			<biblScope unit="volume">58</biblScope>
+			<biblScope unit="page" from="240" to="242" />
+			<date type="published" when="1895">1895</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.04761</idno>
+		<title level="m">Toolformer: Language Models Can Teach Themselves to Use Tools</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">ViperGPT: Visual Inference via Python Execution for Reasoning</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Surís</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Menon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Vondrick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE/CVF International Conference on Computer Vision (ICCV)</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">When is a liability not a liability? Textual analysis, dictionaries, and 10-Ks</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Tim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bill</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Journal of finance</title>
+		<imprint>
+			<biblScope unit="volume">66</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="35" to="65" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Analysis of financial time series</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">S</forename><surname>Tsay</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2002">2002</date>
+			<publisher>John Wiley &amp; Sons</publisher>
+			<biblScope unit="volume">543</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ł</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017. 2017</date>
+			<biblScope unit="volume">30</biblScope>
+			<biblScope unit="page" from="5998" to="6008" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.17515</idno>
+		<title level="m">From News to Forecast: Iterative Event Reasoning in LLM-Based Time Series Forecasting. Version 3</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Irsoy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Dabravolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dredze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gehrmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Kambadur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Rosenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Mann</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.17564</idno>
+		<title level="m">BloombergGPT: A Large Language Model for Finance</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R.-L</forename><surname>Weng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ananiadou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Xie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.05878</idno>
+		<title level="m">Retrieval-augmented Large Language Models for Financial Time Series Forecasting. Version 2</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">ReAct: Synergizing Reasoning and Acting in Language Models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Roy Chowdhury</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">K</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.01801</idno>
+		<title level="m">Large Language Models for Time Series: A Survey</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

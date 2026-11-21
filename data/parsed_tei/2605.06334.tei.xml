@@ -1,0 +1,1684 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">MANTRA: Synthesizing SMT-Validated Compliance Benchmarks for Tool-Using LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-05-07">7 May 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Ashwani</forename><surname>Anand</surname></persName>
+							<email>ashwani@mpi-sws.org</email>
+							<affiliation key="aff0">
+								<orgName type="department">Max Planck Institute for Software Systems</orgName>
+								<address>
+									<settlement>Kaiserslautern</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ivi</forename><surname>Chatzi</surname></persName>
+							<email>ichatzi@mpi-sws.org</email>
+							<affiliation key="aff0">
+								<orgName type="department">Max Planck Institute for Software Systems</orgName>
+								<address>
+									<settlement>Kaiserslautern</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Ritam</forename><surname>Raha</surname></persName>
+							<email>rraha@mpi-sws.org</email>
+							<affiliation key="aff0">
+								<orgName type="department">Max Planck Institute for Software Systems</orgName>
+								<address>
+									<settlement>Kaiserslautern</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Anne-Kathrin</forename><surname>Schmuck</surname></persName>
+							<email>akschmuck@mpi-sws.org</email>
+							<affiliation key="aff0">
+								<orgName type="department">Max Planck Institute for Software Systems</orgName>
+								<address>
+									<settlement>Kaiserslautern</settlement>
+									<country key="DE">Germany</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">MANTRA: Synthesizing SMT-Validated Compliance Benchmarks for Tool-Using LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-05-07">7 May 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2983255FB5BCE7C7DC5C0943AB35A139</idno>
+					<idno type="arXiv">arXiv:2605.06334v1[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool-using large language model (LLM) agents are increasingly deployed in settings where their reliable behavior is governed by strict procedural manuals. Ensuring that such agents comply with the rules from these manuals is challenging, as they are typically written for humans in natural language while agent behavior manifests as an execution trace of tool calls. Existing evaluations of LLM agents rely on manually constructed benchmarks or LLM-based judges, which either do not scale or lack reliability for complex, long-horizon manuals. To overcome these limitations, we present MANTRA, a framework for automatically synthesizing machine-checkable compliance benchmarks from natural-language manuals and tool schemas. MANTRA independently generates (i) a symbolic world model capturing procedural dependencies, and (ii) a set of trace-level compliance checks for a given task, and validates their consistency using SMT solving. A structured repair loop resolves inconsistencies, requiring human intervention only as a fallback. Importantly, MANTRA supports arbitrary domains and long procedural manuals, and provides a tunable notion of task complexity which is utilized to automatically derive challenging tasks accompanying compliance checks. Using MANTRA, we build a new benchmark suite with 285 tasks across 6 domains scaling to 50+ page manuals with minimal human effort. Empirically, we show that the compliance checks are richer with stronger constraint enforcement compared to existing benchmarks. Additionally, the granularity of the checks can be used for debugging the agents' failure modes. These results demonstrate that combining automated benchmark generation with formally grounded validation methods enables scalable and reliable benchmarking of tool-using agents.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The capabilities of tool-using large language-model (LLM) agents have increased substantially in recent years. Modern agents can autonomously plan, invoke external tools, and execute complex, multi-step workflows across various domains such as enterprise operations <ref type="bibr" target="#b43">[44,</ref><ref type="bibr" target="#b26">27]</ref>, scientific discovery <ref type="bibr" target="#b37">[38,</ref><ref type="bibr" target="#b32">33]</ref>, travel booking <ref type="bibr" target="#b5">[6]</ref>, and healthcare <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b23">24]</ref>. However, their practical usefulness depends not only on their capability to successfully complete tasks, but also on whether they comply with the regulations and procedures that govern them <ref type="bibr" target="#b16">[17,</ref><ref type="bibr">48]</ref>. For instance, when procuring company hardware, employees must adhere to detailed policies specifying under which conditions items should be sourced internally versus ordered, and which approval steps must precede a purchase.</p><p>Such policies are typically written as natural-language manuals for human interpretation, while agent behavior is observed as execution traces of tool calls. This mismatch makes it inherently difficult to design benchmarks for evaluating procedural compliance of tool-using agents, as it requires translating informal instructions into machine-checkable constraints over execution traces. Existing benchmarks address this problem through either manual constraint construction, LLM-based judging, or a combination thereof <ref type="bibr" target="#b31">[32,</ref><ref type="bibr" target="#b42">43,</ref><ref type="bibr" target="#b1">2,</ref><ref type="bibr" target="#b18">19,</ref><ref type="bibr" target="#b20">21,</ref><ref type="bibr" target="#b25">26,</ref><ref type="bibr" target="#b30">31,</ref><ref type="bibr" target="#b38">39,</ref><ref type="bibr" target="#b29">30]</ref> (see Tab. 1). Manual construction can produce high-quality evaluations, but it is costly to scale across domains and long manuals. LLM-based judges are easier to deploy, but they struggle at reliably handling strict temporal constraints, preconditions, and forbidden actions over long traces. As a result, current methods do not provide a scalable and reproducible way to construct trace-level compliance benchmarks from natural-language manuals.</p><p>We address this gap with MANTRA (MANual-to-Test-tRAnslation), a framework which automatically generates compliance benchmarks from natural-language procedural documents and tool schemas. In contrast to all existing methods, MANTRA exposes both a very high level of automation, and yields high-quality trace-level compliance checks which allows to evaluate agents deterministically. Thereby, MANTRA scales to large unstructured procedural documents and can easily be extended to new domains with minimal human effort.</p><p>Contributions. Concretely, we make the following contributions: (i) We develop an automated pipeline for converting a given natural-language procedural manual and a tool schema into machine-checkable compliance benchmarks, with controllable task difficulty and deterministic trace-level grading. (ii) We introduce a two-artifact formulation that separately generates a symbolic world model and compliance checks, which are automatically cross-validated by a Satisfiability Modulo Theories (SMT) <ref type="bibr" target="#b24">[25,</ref><ref type="bibr" target="#b2">3]</ref> solver. This allows to automatically identify and repair inconsistencies before benchmark items are accepted. Human review is supported but only required as a fallback. (iii) To show the capabilities of MANTRA as a benchmark generator, we have created a benchmark suite with 285 diverse benchmarks across 6 domains. We show empirically that the granularity of the trace-level checks can be used for debugging the agents' failure modes. The code is available at <ref type="url" target="https://anonymous.4open.science/r/mantra-for-compliance/">https: //anonymous.4open.science/r/mantra-for-compliance/</ref> and the benchmark data is available at <ref type="url" target="https://huggingface.co/datasets/mantra-anon/MANTRA">https://huggingface.co/datasets/mantra-anon/MANTRA</ref>. Related work. Our work builds upon a growing literature on benchmarking toolusing agents, automated benchmark generation, and the use of formal methods to validate LLM outputs.</p><p>The study of tool-using agents has been a major focus of recent research <ref type="bibr" target="#b22">[23]</ref>, with a large number of benchmarks proposed across various domains such as web Table <ref type="table">1</ref>. Comparison of MANTRA with representative tool-use and agent-compliance benchmarks along supported (✓), partially/indirectly supported (△) and not supported (✗) features.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Feature</head><p>ToolBench τ /τ 2 -Bench IntellAgent AgentOrca SOP-Bench AgentIF MCP-Bench Agent-Diff MANTRA <ref type="bibr" target="#b31">[32]</ref> [ <ref type="bibr" target="#b42">43,</ref><ref type="bibr" target="#b1">2]</ref> [19] <ref type="bibr" target="#b20">[21]</ref> [26] <ref type="bibr" target="#b30">[31]</ref> [39] <ref type="bibr" target="#b29">[30]</ref> Automated generation</p><formula xml:id="formula_0">✓ ✗ ✓ △ △ ✗ ✓ △ ✓ Large document size - ✗ ✗ ✗ ✓ ✓ ✗ ✗ ✓ Expandable to new domains ✓ ✗ ✓ △ △ ✗ ✓ ✗ ✓ Trace evaluation ✗ ✗ △ ✓ ✓ ✓ △ ✗ ✓ Deterministic evaluation ✗ ✓ ✗ ✓ ✓ △ ✗ ✓ ✓</formula><p>Notes: Automated generation is partially satisfied (△) if tasks are automatically generated but require substantial human validation or hand-built environments. Large document sizes are only partially supported (△) if long structured instructions rather than unstructured procedural manuals are used. Expanding to new domains is only partially satisfied (△) if domain-specific manual effort is required. Trace evaluation is supported (✓) when procedural properties of the execution trace (e.g., required or forbidden calls, ordering of constraints, ..) are checked and not only the final answer or database state, and partially supported (△) if trajectory-level properties are evaluated by LLM judges. Deterministic evaluation is supported (✓) if per-test grading is fully reproducible without invoking an LLM judge, and partially supported (△) if evaluation relies only partly on LLM judges.</p><p>navigation <ref type="bibr" target="#b41">[42,</ref><ref type="bibr">47]</ref>, science <ref type="bibr" target="#b35">[36]</ref>, and general tool and API usage <ref type="bibr" target="#b19">[20,</ref><ref type="bibr" target="#b21">22,</ref><ref type="bibr" target="#b15">16,</ref><ref type="bibr" target="#b28">29,</ref><ref type="bibr" target="#b29">30]</ref>. However, the capabilities of benchmarks for unstructured and open-ended tasks is still limited, as shown in Tab. 1 (see App. A for details). Even the most similar benchmark SOP-Bench <ref type="bibr" target="#b25">[26]</ref> requires substantial human effort in benchmark generation, validation and extension to new domains, vastly limiting its scalability compared to MANTRA.</p><p>Automated benchmark generation has been recently explored in different contexts <ref type="bibr" target="#b39">[40]</ref>, especially for coding tasks <ref type="bibr" target="#b36">[37,</ref><ref type="bibr" target="#b45">46,</ref><ref type="bibr" target="#b14">15,</ref><ref type="bibr" target="#b17">18]</ref>. However, these benchmarks rely on an accuracy-based evaluation of structured tasks, are not designed to test agents' tool usage capabilities, and do not involve checking compliance of tool traces with complex natural language manuals designed for human use.</p><p>MANTRA brings these techniques to unstructured domains where tool-using LLM agents are increasingly deployed.</p><p>While formal methods have a rich history in the specification and verification of software systems <ref type="bibr" target="#b0">[1]</ref>, their application in the context of LLMs remains underexplored <ref type="bibr" target="#b44">[45]</ref>. An emerging line of work studies the usage of symbolic solvers to improve LLM-generated code <ref type="bibr" target="#b4">[5]</ref>, logical reasoning <ref type="bibr" target="#b27">[28,</ref><ref type="bibr" target="#b40">41,</ref><ref type="bibr" target="#b9">10]</ref> and planning <ref type="bibr" target="#b13">[14]</ref>, and to detect hallucinated claims <ref type="bibr" target="#b33">[34]</ref>. Recently, a translation of natural language policies and LLM outputs into symbolic specifications for response grounding was proposed <ref type="bibr" target="#b3">[4]</ref>, which focuses on verifying static natural-language outputs. In contrast, MANTRA does not only verify a final output, but constructs trace-level compliance checks to evaluate sequences of tool calls.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Overview</head><p>Before presenting MANTRA in detail, we illustrate its operation-schematically shown in Fig. <ref type="figure">2</ref>-using the running example in Fig. <ref type="figure">1</ref>. The example is based</p><p>Procedural Manual for Hardware Procurement Standard fulfillment (A). When fulfilling a hardware request, the agent must first check inventory . If the requested item is in stock, the agent must assign a warehouse picker . It must not create a purchase order for an in-stock item.</p><p>. . .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Integration-lab procurement (B).</head><p>For integration-lab requests that require procurement, the agent must first check the legacy portal before creating a purchase order , and it must set delivery options for the incoming hardware.</p><p>Tool schema check_inventory assign_warehouse_picker create_purchase_order check_legacy_portal set_delivery_options ...</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Case 1 uses paragraph (A)</head><p>Fig. <ref type="figure">1</ref>. Running example. From a hardware-procurement manual and a tool schema, MANTRA synthesizes benchmark items with concrete scenarios and trace-level checks. Case 1 is generated from paragraph (A), while Case 2 combines paragraphs (A) and (B).</p><p>on a hardware-procurement procedural manual D, of which two representative paragraphs are shown on the left of Fig. <ref type="figure">1</ref>. In addition, MANTRA is given a global tool schema T describing the tools available to a tool-using agent for interacting with a hidden database DB over variables Var DB .</p><p>Given these inputs, MANTRA constructs a benchmark suite B = {b i } i∈ <ref type="bibr">[n]</ref> , n ∈ N of validated test-cases, two of which are shown on the right of Fig. <ref type="figure">1</ref>. Each test-case b i is centered around a scenario λ i , generated from D in Step 1 of Fig. <ref type="figure">2</ref>.</p><p>To do so, MANTRA first builds a dependence graph G D capturing hierarchy and reference relations in D, and then samples a subgraph G DS corresponding to a region D S of D together with a subset of relevant tools T S . An LLM then maps (D S , T S ) to a concrete scenario λ, consisting of a prompt p λ and a valuation of relevant variables. The key design choice in this step is that the sampled subgraph controls scenario complexity: in Fig. <ref type="figure">1</ref>, Case 1 uses only paragraph (A), whereas Case 2 combines paragraphs (A) and (B).</p><p>When the prompt p λ is later given to an agent along with D, it produces an execution trace τ = (t 0 , a 0 ), . . . , (t l-1 , a l-1 ) , where each t i ∈ T is a tool call and each a i instantiates its arguments.</p><p>Step 2 of MANTRA generates, for each scenario λ, a set of trace-level checks C λ that specify whether such a trace  complies with the sampled document region. These checks provide a deterministic evaluation procedure for agent traces.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>MANTRA</head><formula xml:id="formula_1">( Φ h (WS)) Check SMT Encoding ( Φ h (Cλ)) Z3 Forward Conflict (Φ fwd λ ) Z3 Backward Conflict (Φ bwd λ ) Validated ✓ Conflicting Trace (τ * ) Benchmark (B)</formula><p>Because the checks are generated by an LLM, MANTRA does not assume that they are correct. Instead, Step 3 independently generates a world model W S for the same D S and uses SMT-based cross-validation to compare the bounded traces admitted by C λ and W S . Concretely, MANTRA searches for bounded traces that satisfy the checks but violate the world model, suggesting that the checks are under-constrained or the world model is over-constrained, and for bounded traces that satisfy the world model but only violate a single check, which may suggest the vice versa. Such inconsistencies are used to iteratively refine the generated checks and world model. Although W S is not treated as ground truth, this formal cross-validation between two independently generated artifacts yields a structured and largely automated refinement loop, producing validated test-cases with minimal human intervention.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">The MANTRA Framework (Methodology)</head><p>The next subsections explain all steps of MANTRA shown in Fig. <ref type="figure">2</ref> (see App. B-C for details).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Document Ingestion and Generation Pipeline</head><p>The first stage of the pipeline involves generating a diverse set of candidate (partial) test-cases called scenarios, which will later be converted into full testcases by adding necessary checks. At this stage, each scenario λ contains a natural-language prompt p λ for the agent, along with a concrete valuation of a set of relevant variables Var λ . In order to generate scenarios that reflect the diversity of rules and constraints in D, we first create and then sample parts of a graph representation of D.</p><p>Dependence Graph Construction. The problem of extracting a graph representation of a text document has been studied extensively in the context of retrieval-augmented generation <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b12">13]</ref>. The goal is to construct a dependence graph G D over D, where nodes represent chunks of content (e.g., chapters, sections, or paragraphs) and edges represent hierarchical and reference relations between chunks. In our implementation, the nodes are created deterministically by recursively chunking the document based on its natural hierarchy and a pre-specified length limit,<ref type="foot" target="#foot_0">foot_0</ref> while the edges are created by prompting an LLM to identify explicit and implicit references between chunks. See App. C.5 for details.</p><p>Coverage-Driven Node Sampling. Once G D is constructed, MANTRA samples nodes from the graph and their corresponding edges to obtain smaller regions of D for scenario generation. We call a sample S = (G D S , D S ), where G D S is the sampled subgraph and D S is the text of D that is contained in the nodes of G D S . Each sample will be used to generate one or more scenarios involving only the parts of the procedural manual that are in D S . As such, the sampling process naturally controls scenario complexity: small, densely connected subgraphs tend to yield simpler scenarios focused on a specific part of D, whereas larger or more weakly connected subgraphs can induce more complex ones involving constraints from multiple, distant parts of D. Our chosen sampling strategy maintains coverage statistics over nodes in G D and biases sampling toward under-covered regionsrefer to App. C.6 for details.</p><p>Tool Relevance Mapping. For each sample S, MANTRA prompts an LLM to identify a subset of tools T S ⊆ T that are relevant to D S , to be used in subsequent stages of test-case generation. For instance, a sampled subgraph corresponding to paragraph (A) of D in Fig. <ref type="figure">1</ref> would retain tools such as check_inventory, assign_warehouse_picker, and create_purchase_order in T S , whereas a sampled subgraph that also includes paragraph (B) would additionally have tools such as check_legacy_portal and set_delivery_options. Scenario Generation. For each sample S and its relevant tool subset T S , MANTRA generates, via an LLM, a user-specified number of m distinct scenarios λ 1 , . . . , λ m that involve D S . The LLM is instructed to generate, for each scenario λ, a naturallanguage prompt p λ describing a task for the agent to complete in compliance with D S , which contains specific named entities and exact numerical quantities. In parallel, the LLM generates a corresponding valuation I λ of a set of variables Var λ = Var ext λ ∪ Var int λ , where Var ext λ ⊆ Var DB are variables that the agent may observe via tool calls to the database, and Var int λ ∩ Var DB = ∅ are additional scenario-specific variables that are not part of the database and cannot be accessed by the agent. In order for the agent to be able to complete the task, the values of Var int λ are made explicit in the scenario prompt p λ . For example, in Fig. <ref type="figure">1</ref> (top right), the internal variables request_pending and purchase_order_created are initialized, and the prompt states that "This request is still pending, and no purchase order has been created yet.".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Check Generation and World Model Creation</head><p>Evaluating whether an agent complied with D when executing a scenario is challenging because the agent may follow different valid tool-call trajectories. Existing benchmarks either inspect the final state after execution or rely on an LLM judge to detect violations <ref type="bibr" target="#b42">[43,</ref><ref type="bibr" target="#b18">19,</ref><ref type="bibr" target="#b20">21,</ref><ref type="bibr" target="#b25">26,</ref><ref type="bibr" target="#b30">31]</ref>. However, the former cannot determine whether the agent followed the correct procedure, and the latter is sensitive to the variability of LLM judgments. To address these limitations, MANTRA generates a set of deterministic trace-level checks C λ for each scenario λ, to be later integrated into test-cases.</p><p>Check Generation (C λ ). For each scenario λ, MANTRA generates a set C λ of boolean checks. These checks are intended to capture the properties that must be satisfied by an execution trace τ generated by the agent when prompted with p λ , in order for the scenario to be executed in compliance with D. Let Π(C λ ) be the set of traces that satisfy all checks in C λ , Traces in Π(C λ ) may be required to (not) contain particular calls and satisfy correct ordering between dependent calls. More specifically, atomic checks take the form call(t, a) and no_call(t, a), where t ∈ T S and a is a concrete partial argument map,<ref type="foot" target="#foot_1">foot_1</ref> while compound checks support disjunction and temporal operators such as after, before, follows, and precedes-see App. B.1 for the check grammar and operator semantics.</p><p>Importantly, the arguments appearing in the checks in C λ are grounded rather than symbolic, because they use the values set in I λ during scenario generation. In an ideal world where C λ perfectly represents the intent of D, an agent successfully completes the task in compliance with D if its execution trace satisfies all checks in C λ . For instance, in case 1 of the running example in Fig. <ref type="figure">1</ref>, the requested Dell Ultrasharp U2723QE monitor is assigned to be in stock in I λ , so a check must classify all execution traces which call create_purchase_order as noncompliant.</p><p>Generating Formal World Model (W S ) from a Sample. Unfortunately, we cannot assume that C λ accurately represents all procedural restrictions from D for the given scenario, due to the inherent limitations of LLMs which are used to generate them. MANTRA therefore independently generates a world model W S for the sampled D S from which C λ was derived. This world model aims to represent D S as a state-transition system, which defines the set of traces Π(W S ) that comply with D S . We then compare Π(W S ) with Π(C λ ) in Sec. 3.3 in a validation and refinement loop.</p><p>Formally, the world model W S is defined as W S = (X , T S , δ), where T S ⊆ T is the set of relevant tools (actions), X is the state space of relevant variables Var WS , and δ is a transition relation which maps each tool t ∈ T S to a transition relation δ t (x, x ′ , a) over the current state x ∈ X , the next state x ′ ∈ X , and concrete tool arguments a. Similarly to the scenario variables, we have Var WS = Var ext WS ∪Var int WS , where Var ext WS ⊆ Var DB may be accessible to the agent via tool calls, while Var int WS ∩ Var DB = ∅ are hidden internal variables with Var int λ ∩ Var int WS = ∅. We say that an execution trace τ = [(t 0 , a 0 ), . . . , (t l-1 , a l-1 )] is compliant with W S and write τ ∈ Π(W S ) if there exist states x 0 , x 1 , . . . s.t. x i ∈ X and transitions</p><formula xml:id="formula_2">δ ti (x i , x i+1 , a i ) for all i ∈ [l -1].</formula><p>In practice, generating W S directly is unreasonable due to (i) the potentially prohibitive size of X and δ and (ii) the lack of structure to guide its generation. Instead, we prompt an LLM to describe W S in a typed domain specific language (DSL), which allows us to generate a compact, structured representation of W S . We provide all details on this DSL in App. B.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Cross-Validation Using SMT.</head><p>To validate that the generated checks for a scenario are consistent with the corresponding sampled document region, MANTRA leverages bounded model checking with SMT solvers to compare the sets of h-bounded traces Π h (C λ ) ⊆ Π(C λ ) and Π h (W S ) ⊆ Π(W S ), where h a pre-specified bound on the length of traces. Concretely, we search for two kinds of bounded inconsistencies: traces that comply with checks but violate the world model, and traces that comply with the world model while violating a single check. The former indicates that the checks may be too weak or the world model too restrictive, whereas the latter indicates that the world model may be too permissive or the checks too restrictive. We provide a concrete example of this process in App. B.5.</p><p>SMT Compilation. To support this validation, MANTRA deterministically compiles both the generated checks C λ and the world model W S into bounded SMT encodings Φ h (C λ ) and Φ h (W S ) respectively. To illustrate these encodings, consider the running example from Fig. <ref type="figure">1</ref>. A check in C λ requiring that the tool call assign_warehouse_picker must follow a tool call check_inventory, contributes to Φ h (C λ ) a bounded ordering constraint of the form 0≤i&lt;j&lt;h t i = check_inventory ∧ t j = assign_warehouse_picker which asserts that there exist two positions in the bounded trace such that check_inventory occurs before assign_warehouse_picker.</p><p>Similarly, a transition rule in W S stating that assign_warehouse_picker is enabled only when in_stock holds and, when executed, sets picker_assigned in the successor state, contributes the following family of per-step constraints to Φ h (W S ):</p><formula xml:id="formula_3">h-1 i=0 t i = assign_warehouse_picker ⇒ in_stock i = ⊤ ∧ picker_assigned i+1 = ⊤ (1)</formula><p>Thus, bounded SMT compilation unrolls the transition semantics across the horizon 0, . . . , h -1: if step i invokes a tool, then its pre-conditions must hold at position i, and its post-conditions constrain position i + 1. Refer to App. B.3-B.4 for the full SMT compilation procedure.</p><p>Forward Z3 Conflict Search. Intuitively, Φ h (W S ) and Φ h (C λ ) are a set of logical formulas representing Π h (W S ) and Π h (C λ ), respectively, and we search for mutual inconsistencies in these formulas via a cross-validation loop using the SMT solver Z3. This search is meaningful as both formulas involve the same variables from Var DB . A natural first attempt is to query the solver to check whether the formula</p><formula xml:id="formula_4">Φ = Φ h (C λ ) ∧ ¬ Φ h (W S</formula><p>) is satisfiable. Any trace that satisfies Φ complies with the checks but not with the world model, and is hence non-consistent. In practice, however, this query is too coarse: the solver can satisfy the negated world-model formula in spurious ways that do not isolate the actual source of disagreement.</p><p>To obtain more informative inconsistencies, MANTRA decomposes Φ h (W S ) into three distinct sets of formulas: Φ h pre (W S ) and Φ h post (W S ) include constrains on the pre-and post-conditions of the subset of tools T λ ⊆ T S explicitly mentioned in C λ , and Φ h bg (W S ) includes all constrains on the rest of the tools T bg = T S \ T λ . Then the refined forward conflict query takes the form</p><formula xml:id="formula_5">Φ fwd λ = Φ h (C λ ) ∧ Φ h bg (W S ) ∧ Φ h post (W S ) ∧ ¬ Φ h pre (W S )</formula><p>together with the initial-state constraint, that is, assigning the values of I λ to the corresponding variables. Intuitively, a trace that satisfies Φ fwd λ complies with C λ while violating the pre-conditions of tools C λ focuses on, rather than via conflicts in unrelated parts of the world model. If Φ fwd λ is satisfiable, the solver returns a bounded conflicting trace τ * witnessing this conflict. This trace is then used in the subsequent resolution step to determine whether the inconsistency is better explained by an error in the world model or by an error in the generated checks. See App. B.5 for an example.</p><p>Sample-Batched World-Model Resolution. Given a fixed sample S, the above forward conflict search via SMT solving is applied to each scenario λ 1 , . . . , λ m generated from S and its corresponding check encoding Φ h (C λ1 ), . . . , Φ h (C λm ) against the same bounded world-model encoding Φ h (W S ). In practice, several resulting conflicting traces often reflect the same defect in the shared world model, such as a missing pre-condition for a tool transition, so it is sensible to resolve them together. That is why MANTRA first performs a batched world-model resolution step: it groups the conflicting traces obtained for the same sample S and asks an LLM judge whether they point to a common defect in the world model. If so, the judge proposes a single shared repair to the world model, such as adding a missing state predicate to the pre-condition of a transition. The repaired world model is then recompiled into SMT and the affected scenarios are re-evaluated.</p><p>Check Resolution. Conflicts that remain after the shared world-model repair step are treated as evidence that the inconsistency may instead lie in the generated checks for a particular scenario λ, such as a missing no_call condition. In this case, MANTRA performs a per-scenario resolution step: given a scenario λ, its check set C λ , and a conflicting trace τ * , an LLM judge identifies which checks in C λ are responsible for the disagreement and proposes localized fixes to those checks only. This separation between shared world-model repair and scenariospecific check repair keeps modifications targeted to the artifact most likely to be incorrect.</p><p>Deterministic Edits and Backward Audit. To ensure that repairs remain wellformed, MANTRA does not apply free-form text edits directly to the generated artifacts. Instead, every repair is expressed through a typed edit language over the intermediate representations of the world model and checks. These edits are then applied deterministically, after which the corresponding artifacts are recompiled before the next solver call. The edit-and-validate loop continues until the forward conflict query Φ fwd λi is unsatisfiable for every generated scenario λ i of the sampled subgraph or the pre-specified number of iterations. The former case indicating that no bounded forward inconsistencies remain under the current encodings.</p><p>After this forward phase, MANTRA performs a backward audit to detect overrestrictive checks. For a fixed scenario λ with check set C λ = {c λ,1 , . . . , c λ,ℓ λ }, the backward audit considers each check c λ,j in turn and asks whether the world model admits a bounded trace that satisfies all remaining checks but violates c λ,j . Formally, the corresponding backward query is</p><formula xml:id="formula_6">Φ bwd λ,j = Φ h (W S ) ∧ k̸ =j Φ h (c λ,k ) ∧ ¬ Φ h (c λ,j ).</formula><p>If Φ bwd λ,j is satisfiable, then c λ,j is flagged as a candidate for over-restriction, since the current world model admits a bounded trace that is rejected only because of that particular check. An LLM judge then decides whether to remove c λ,j from C λ , which is deterministically done using the typed edit language. Then C λ is re-compiled and re-evaluated.</p><p>If for a sample S, after a pre-specified number of validation loops, all scenarios λ 1 , . . . , λ m pass both the forward conflict search and the backward audit, then all these scenarios are marked as validated. Otherwise, they are deferred to human review and re-evaluated. At the end of the pipeline, all scenarios that have been validated make up the test-cases of the final benchmark B.</p><p>Human-in-the-Loop Fallback. Most inconsistencies can be resolved automatically through the repair loop discussed above. However, some cases remain ambiguous or unresolved after a fixed repair budget. MANTRA then falls back to structured human review: the unresolved scenario λ, its checks C λ , and the corresponding conflicting trace τ * are presented to a reviewer, along with D S who can inspect the conflict and apply a manual typed repair. Once such a manual repair is made, the modified portion is excluded from subsequent automated rewriting, and any overwrite requires human approval. See App. C.8 for more details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Evaluation</head><p>This section discusses both the evaluation of the benchmark generation process in Sec. 4.1 as well as the utilization of the resulting benchmark suit for evaluating tool-using agents in Sec. 4.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Evaluating Benchmark Generation with MANTRA</head><p>We built a prototype implementation of MANTRA which uses OpenAI GPT 5.4 (see App. C.2) for all LLM calls in the pipeline and Z3 <ref type="bibr" target="#b24">[25]</ref> to evaluate SMT queries. It was run on a machine with 2 × 3.2 GHz Intel Xeon Gold 6134M CPUs, 2 × 32GB V100 Nvidia Tesla GPUs and 768GB RAM. We used the coverage_islands sampling strategy (described in App. C.6) to create a sample graph G DS and generated m = 4 scenarios per sample S. For the SMT conflict search, we used trace bound h = 16, and refined the world model W S and checks C λ for at most 5 rounds. The choice of h is based on the observation during development that most tests cases require only a few steps to fulfill the task, and that the SMT solving time (specially for UNSAT proofs) increases significantly with higher trace bounds.</p><p>We used this implementation to generate a benchmark suite of 285 tasks across 6 domains, with procedural manuals D ranging from 1,158 to 16,644 words and tool schemas T spanning 13 to 148 tools (Table <ref type="table" target="#tab_1">2</ref>). The operations domain uses a synthetic manual; the others use real-world procedural manuals. The airline, retail, and telecom domains are taken from τ -bench <ref type="bibr" target="#b1">[2]</ref>, with tool schemas T and databases DB available. For the remaining domains, we built T and DB.</p><p>Table <ref type="table" target="#tab_1">2</ref> further illustrates, that many generated test cases where automatically validated. These automatically validated cases form a benchmark suite with a variety of scenarios to cover the procedural rules from D as controlled by the sampling strategy. The number of validated test cases can be increased by either running more cross-validating rounds or by human review. To aid human review, MANTRA includes a user-interface (see App. C.8 for details) which enables the targeted inspection of remaining conflicts. While we did not review these conflicts, we did inspect all test cases automatically validated by MANTRA to ensure the generation of high-quality benchmark instances. We emphasize that we did not find any instance where the LLM hallucinated similarly in the world model and checks, which would have resulted in a false positive validation. During the review, we removed a few problematic generated test cases, as shown in the last two columns of Tab. 2, that originated from engineering challenges such as arguments pinning exact strings (see App. E for details). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Evaluating Agent Performance on the Generated Benchmark Suites</head><p>To show the usefulness of the benchmark suite generated by MANTRA for its intended application, we used it to evaluate 6 LLM models. We implemented the agents using the Strands framework <ref type="bibr" target="#b34">[35]</ref>. We run all 285 tasks 5 times independently and report the success rate statistics in Table <ref type="table" target="#tab_9">4</ref> of App. D.1.</p><p>We note high variance in performance within domains, which indicates varying test-case difficulty. An interesting observation is that domains taken from τ -bench seem harder for all models. This is explained by Table <ref type="table">D</ref>.1 of App. D.1, which shows that while the domains from τ -bench have shorter procedural manuals and fewer tools, these tools are more complex and harder to use correctly by the agents.</p><p>Another interesting observation is that none of the used models reached very high procedural compliance. While this might change for stronger models, the detailed trace-level checks generated by MANTRA allow us to understand in detail how different models fail in different domains, which reveals structural problems of the used LLMs. Towards this goal, we have assigned a failure category to each of the 10,895 failed checks observed in our corpus. Table <ref type="table" target="#tab_11">6</ref> in App. D.2 summarizes the distribution over these failure modes and shows that 76% of all failed checks are due to Missing-Required-Call (an atom of the form CALL(t, a) appears in C λ but the agent never invoked t with arguments matching a) and Missing-Anchor (the absence of the anchor tool of an AFTER, BEFORE, FOLLOWS, or PRECEDES clause).</p><p>These missing tool calls in particular manifest themselves in the habit of weaker models to write prematurely, i.e., to call a write-style tool before any read-style tool. Table <ref type="table" target="#tab_12">9</ref> in App. D.2 reports how often agents write prematurely. Interestingly, Qwen3.6:36B never prematurely writes in tau2-airline and tau2-retail, which may explain why it performs best in these domains. It is plausible that the consistent read-before-write habit was explicitly thought to Qwen3.6:36B and could therefore be used to also improve other open-source models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Discussion and Limitations</head><p>Here, we point out limitations of our work, discuss its broader impact, and highlight interesting avenues for future research.</p><p>Methodological limitations. MANTRA does not provide full formal certification of compliance with the original document. Instead, it mitigates this challenge by independently generating trace-level checks and a world model, then cross-validating them through SMT-based conflict search and structured repair. Moreover, the framework assumes a specified tool schema as input and validates traces only up to a fixed horizon h. While this makes the procedure explicit and tractable, inconsistencies arising only beyond the chosen bound may remain undetected.</p><p>Some scenarios may also remain unresolved after the automated repair budget is exhausted and therefore require structured human review.</p><p>Scope and generality. MANTRA is designed to evaluate tool-using agents through their tool-call traces. This focus enables deterministic grading and finegrained compliance analysis within the target setting, but limits the framework's immediate applicability beyond tool-based agent interaction. Extending the same ideas to settings without explicit tool calls, or to broader forms of agent evaluation, would be an interesting direction for future research.</p><p>Evaluation coverage. Our benchmark currently contains 285 validated test cases across six domains, all derived from English-language procedural manuals. Although this shows that MANTRA can operate across diverse enterprise-style settings, broader coverage across additional domains, languages, and document styles remains to be explored. Likewise, while we evaluate six LLM agents, model capabilities continue to evolve rapidly, and broader evaluation on future systems is left to future work.</p><p>Broader Impact. This work illustrates how machine-learning-based methods and verification-based methods can complement each other in the development and evaluation of AI systems. More broadly, such combinations may help make AI systems more trustworthy in settings where procedural compliance matters, including enterprise, regulatory, and safety-critical workflows. At the same time, MANTRA is not a standalone guarantee of safe or compliant behavior, but rather one component of a broader assurance process. We hope this work encourages further research at the interface of machine learning and formal methods for evaluating increasingly capable LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We present MANTRA, a framework for automatically generating and validating compliance benchmarks for tool-using LLM agents from procedural manuals and tool schemas. By combining LLM-based generation with SMT-based crossvalidation, MANTRA produces high-quality test cases with deterministic tracelevel grading. Using MANTRA, we built a benchmark of 285 validated test cases across six domains and used it to evaluate six frontier LLM agents. We believe that MANTRA provides a useful foundation for the more reliable evaluation of increasingly capable AI agents in compliance-critical settings in the future.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Acknowledgements</head><p>This work was supported by DFG project 89792660 as part of TRR248-CPEC, and by the Emmy Noether Grant SCHM 3541/1-1. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Detailed Comparison of MANTRA to Existing Benchmarks</head><p>Table <ref type="table">1</ref> positions MANTRA against representative benchmarks for tool-using and policy-compliant LLM agents. We highlight the contrasts that matter for compliance benchmarking on long procedural manuals.</p><p>Automation vs. human effort. ToolBench <ref type="bibr" target="#b31">[32]</ref>, IntellAgent <ref type="bibr" target="#b18">[19]</ref>, and MCP-Bench <ref type="bibr" target="#b38">[39]</ref> achieve fully automated task generation, but at the cost of either having no policy documents at all (ToolBench, MCP-Bench) or relying on short synthetic policies (IntellAgent). At the other end of the spectrum, τ /τ 2 -bench <ref type="bibr" target="#b42">[43,</ref><ref type="bibr" target="#b1">2]</ref> and AgentIF <ref type="bibr" target="#b30">[31]</ref> produce high-quality benchmarks through heavy manual authoring and validation, which limits scaling to new domains and longer documents. Agen-tOrca <ref type="bibr" target="#b20">[21]</ref>, SOP-Bench <ref type="bibr" target="#b25">[26]</ref>, and Agent-Diff <ref type="bibr" target="#b29">[30]</ref> sit in between, automating part of the pipeline but requiring substantial hand-built environments, executable constraints, or state-diff contracts per domain. MANTRA is, to our knowledge, the only framework that combines fully automated benchmark generation with rigorous, formally grounded validation over arbitrary natural-language manuals. Documents: instructions vs. procedural manuals. Several benchmarks accept long inputs, but along a different axis than MANTRA. AgentIF includes instructions averaging 1,723 words (max 15,630), but each instruction is a self-contained directive for one task in which essentially every clause applies. SOP-Bench similarly uses detailed industrial SOPs but pairs each test with a tightly scoped task. In contrast, MANTRA targets standing procedural manuals-hierarchical, cross-referenced documents (up to ∼16,000 words and 148 tools in our suite) where any given user request activates only a small, scenario-dependent subset of the rules. This setting requires the benchmark to identify which parts of the document are relevant to a scenario before constraints can even be formulated, a step absent from instruction-style benchmarks.</p><p>Trace-level vs. outcome-level evaluation. A central distinction is whether evaluation inspects the agent's tool-call trajectory or only the final environment state. τ /τ 2 -bench, ToolBench, and Agent-Diff fall on the outcome side: they compare final database states or LLM-judged solutions, which cannot distinguish between an agent that followed the prescribed procedure and one that arrived at the right state through a non-compliant path. For example, a policy that requires a safety check before a critical operation would be satisfied by an agent that simply performed the critical operation without the check, as long as the final state is correct. This is a fundamental limitation for compliance benchmarking, as it cannot reliably detect procedural violations. AgentOrca, SOP-Bench, AgentIF, and partially MCP-Bench do evaluate trajectories, but their checks are either hand-coded per task or expressed as natural-language rubrics scored by an LLM judge. MANTRA generates trace-level checks automatically from the manualordering constraints, required calls, forbidden calls, conditional obligations-and validates them against an independently extracted symbolic world model before they are accepted into the benchmark. The tokenizer is permissive about identifiers, which keeps state-variable names and the ordering operators (&lt;=, &gt;=, =&gt;) syntactically distinct without escaping.</p><p>The reserved head keywords are {model, const, var, transition, params, pre, post, Enum, Record, Array, param, next, field, contains} together with the operator set above.</p><p>Strongly Typed Abstract Syntax Trees (AST). Every DSL phrase constructed from the syntax above parses into a strongly typed abstract syntax tree (AST). Types are drawn from A transition for tool t ∈ T S binds a subset of the tool's arguments to local names, and lists precondition and postcondition clauses. Top-level pre/post entries must be Bool-typed. The validator rejects bare value-typed nodes such as (pre (var_ref booking_status) (literal "NONE")), which would otherwise compile to non-Boolean Z3 expressions; this discipline is enforced atomically before any in-place edit is committed during the repair loop.</p><formula xml:id="formula_7">DSLType ::= Int | Real | Bool | String | Enum(v 1 , . . . , v n ) | Record(f i : τ i ) n i=1 |</formula><p>Semantics of pre-and postconditions Let σ ∈ X denote a typed valuation of all state variables and constants, and let a denote a tuple of concrete arguments to a tool t. A precondition clause P over (σ, a) evaluates by interpreting bare identifiers as σ(•) values and (param p) as the corresponding component of a. A postcondition clause Q over (σ, σ ′ , a) additionally interprets (next v) as σ ′ (v). The transition relation δ t (σ, σ ′ , a) referenced in Sec. 3.2 is the conjunction of the corresponding pre-and postcondition clauses together with a frame axiom on the unmentioned variables.</p><p>Frame axiom. State variables that do not appear under any (next •) in the postcondition list of a transition are implicitly carried forward. Concretely, if Mod(t) ⊆ X is the set of variables mentioned via (next •) in t's postconditions, the transition relation δ t implicitly conjoins v / ∈ Mod(t) σ ′ (v) = σ(v). This eliminates a common source of malformed output, which is forgetting to restate identity for irrelevant variables.</p><p>No-op padding. Traces shorter than the bound are padded with a sentinel no-op step that carries every state variable forward unchanged. A contiguous-prefix constraint enforces that once a step is inactive, all later steps are inactive too, so all encoded traces effectively have length i ∈ [0, h]. Structural clauses. The compiler emits, for every i, the constant pinning constraints, the enum-domain bounds (enums encode to consecutive integers in declaration order), the tool-index range, the activity-flag definition, the contiguousprefix property ¬active i ⇒ ¬active i+1 , and the no-op carry</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 Bounded SMT compilation</head><formula xml:id="formula_8">t i = |T S | ⇒ σ i+1 = σ i .</formula><p>Transition clauses. For every transition t k with preconditions P k = {p 1 k , . . . , p n k k } and postconditions Q k = {q 1 k , . . . , q m k k }, the compiler emits, for every i,</p><formula xml:id="formula_9">(t i = k) =⇒ n k j=1 p j k (σ i , a i ), (t i = k) =⇒ m k j=1 q j k (σ i , σ i+1 , a i ), (t i = k) =⇒ v / ∈Mod(t k ) σ i+1 (v) = σ i (v),</formula><p>where • denotes the homomorphic translation from the AST to the corresponding Z3 expression. Equality of an enum-typed state variable with a string literal lowers to integer equality against the value's declaration index; arithmetic operators preserve the sort that Z3 infers from their operands.</p><p>Focused compilation. The validation loop of Sec. 3.3 requires, for a counterexample search, formulas of the form</p><formula xml:id="formula_10">Φ fwd λ = Φ h (C λ ) ∧ Φ h bg (W S ) ∧ Φ h post (W S ) ∧ ¬ Φ h pre (W S )</formula><p>together with the initial-state constraint, that is, assigning the values of I λ to the corresponding variables. Intuitively, a trace that satisfies Φ fwd λ complies with C λ while violating the pre-conditions of tools C λ focuses on, rather than via conflicts in unrelated parts of the world model.</p><p>Witness extraction. Whenever the solver returns sat, a counterexample trace τ * = ((t i0 , a i0 ), . . . , (t i l-1 , a i l-1 )) is recovered by reading back the values of t i and the corresponding argument vector at each active step, stopping at the first no-op (which by the contiguous-prefix invariant terminates the trace). The state vector σ i0 at the witness's first step is the concrete initial state that the solver chose, which is what the judge panel renders when reasoning about the disagreement.</p><p>Determinism and concurrency. The compilation procedure depends only on the parsed AST, the trace bound, and the tool registry; given the same inputs, the same Z3 formula is produced. Z3's Python bindings share a single global C context, so all calls into the solver, including the encoding-time sanity check that catches latent sort errors, serialise on a shared lock.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.4 Check encoding</head><p>In order to run a cross-validation check between C λ and W S also C λ needs to be compiled into an SMT encoding Φ h (C λ ). In order to formalize cross-validation via a joint formula evaluated by Z3, Φ h (C λ ) must reuse the step variables introduced in Sec. B.3. The shared building block is a per-step matching predicate</p><formula xml:id="formula_11">match(t, a, i) ≡ active i ∧ t i = idx(t) ∧ (p,v)∈a a i (p) = v,</formula><p>which holds when step i is active, calls tool t, and pins every argument specified in a (an empty a collapses the inner conjunction into a wildcard that matches any call to t).</p><p>Each check formula compiles deterministically using this predicate. atom(call(t,a)) expands to i match(t, a, i) and atom(no_call(t,a)) to its global negation; or returns the disjunction of its operands. The temporal forms quantify over ordered pairs of step indices: after and before are conditional -a match at step j implies the existence (resp. non-existence) of a witnessing anchor call on the indicated side of j -while follows and precedes are positive obligations that require both events to occur with the demanded order. The initial state declared by the test case is pinned by adding equalities σ 0 = σ init to Φ h (C λ ), with enum strings lowered to their declaration index.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.5 Illustrative Encoding and Cross-Validation Example</head><p>We illustrate the introduced DSL and the subsequent cross-validation loop on fragments of the hardware-procurement running example from Fig. <ref type="figure">1</ref>. We first show how a sampled document fragment is represented in the DSL and compiled into a bounded SMT world-model encoding. We then continue with a concrete refinement example showing how a conflicting trace reveals a missing check and how the repair is incorporated into the bounded check encoding.</p><p>Example DSL for World Model. Consider a fragment of the hardwareprocurement example containing a single Boolean state variable for inventory availability together with transitions for inventory checking, warehouse-picker assignment, and purchase-order creation. The warehouse-picker assignment requires in_stock, while purchase-order creation requires that the legacy portal has already been consulted. We omit tool argument names that do not participate in the world model, and use ⊥/⊤ for Boolean literals purely as typesetting shorthand. For trace bound h = 4, the compiler introduces step variables t 0 , . . . , t 3 ∈ {0, . . . , 4}, where index 4 denotes the no-op, boundary states σ 0 , . . . , σ 4 over the four declared variables, and per-step argument variables. The transition assign_warehouse_picker contributes the following family of bounded constraints (cf. Sec. 3.3):</p><formula xml:id="formula_12">h-1 i=0 t i = assign_warehouse_picker =⇒ σ i (in_stock) = ⊤ ∧ σ i+1 (picker_assigned) = ⊤ ,</formula><p>together with the frame axiom on the three unmentioned variables of the same transition,</p><formula xml:id="formula_13">h-1 i=0 t i = assign_warehouse_picker =⇒ v ∈ {in_stock, legacy_checked, po_created} σ i+1 (v) = σ i (v) .</formula><p>Combined with the analogous clauses for the remaining transitions and the structural constraints from Sec. B.3, this yields the bounded world-model encoding Φ h (W S ).</p><p>Cross-Validation and Repair. We now continue with one concrete instance of the refinement loop from our implementation on the in-stock hardwareprocurement scenario from Fig. <ref type="figure">1</ref>. The scenario asks the agent to fulfill a request for one Dell UltraSharp U2723QE monitor for Maya Torres at Lake Union Studio, under the assumption that the request is still pending and no purchase order has yet been created.</p><p>In an early version of this test case, the generated checks already required the calls call(check_inventory, . . .) and call(assign_warehouse_picker, . . .), but did not yet include the missing ordering constraint that check_inventory must precede assign_warehouse_picker. As a result, the preliminary bounded check encoding admitted traces in which both calls occurred, but in the wrong order.</p><p>At the same time, the bounded world-model encoding already captured the intended precondition for picker assignment. For a fixed trace bound h, it contained constraints of the form</p><formula xml:id="formula_14">h-1 i=0 t i = assign_warehouse_picker =⇒ inventory_checked i = true ,</formula><p>that is, assign_warehouse_picker is enabled only after inventory has already been checked.</p><p>Z3 then returned the trace τ * = assign_warehouse_picker(HWM2741, 1), check_inventory(Dell UltraSharp U2723QE) .</p><p>This trace satisfies the preliminary check encoding, since both required calls occur. However, the same tool call assign_warehouse_picker also activates the corresponding world-model precondition. At the first step of τ * , we have t 0 = assign_warehouse_picker and inventory_checked 0 = false, so the world-model implication t 0 = assign_warehouse_picker =⇒ inventory_checked 0 = true is false at that step. Hence its negation is satisfied by τ * . Therefore, this trace simultaneously satisfies the incomplete preliminary checks and witnesses a violation of the world-model precondition, which is exactly why it is returned as a conflicting trace.</p><p>Given this conflict, the resolver added the missing ordering check precedes(check_inventory, assign_warehouse_picker).</p><p>At the SMT level, this contributes the bounded constraint 0≤i&lt;j&lt;h t i = check_inventory ∧ t j = assign_warehouse_picker , which rules out traces in which the picker assignment occurs before the inventory check. After recompiling the checks, the trace τ * no longer satisfies the check encoding, and the inconsistency disappears.</p><p>This example illustrates one typical refinement step in the cross-validation loop. Even when the generated checks already capture the required calls, solvergenerated conflicting traces can reveal that an essential temporal constraint is still missing. In this case, the repair consisted of adding the missing precedence check and re-validating the resulting encoding against the same world model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Additional implementation details</head><p>This section provides all implementation details of MANTRA except for the details on the cross-validation loop ( 3 in Fig. <ref type="figure">2</ref>), which are detailed in App. B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Resumability</head><p>The MANTRA pipeline is designed to be resumable at every stage. Intermediate outputs such as the parsed document graph, the sampled subgraph, the generated world model and checks, the round information are all saved to disk in a structured format. If the process is interrupted or if a particular stage needs to be re-run with modified parameters, MANTRA can load the relevant intermediate files and resume from that point without having to repeat earlier stages. This is particularly useful during development and debugging, as well as for iterating on specific samples or scenarios without having to regenerate everything from scratch.</p><p>We built the document graph once and reused them to seed different runs, skipping the document parsing and graph construction stages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 LLM model choice</head><p>MANTRA is designed to be model-agnostic and supports multiple LLM providers and models. The configuration allows users to specify which model to use for each stage of the pipeline. For the experiments in this paper, we used OpenAI's GPT-5.4 with Codex for all stages. The choice of the model is based on its strong performance, but we also experimented with other models during development. We used open source models suchs as GPT-OSS:20.9B, Qwen3:8.2B, and Qwen3.6:36.0B during development and found that GPT-OSS and Qwen3 struggled with generating syntactically correct world models and checks, and could not recover even with retry. Qwen3.6 performed better and generated valid output more consistently, but the test cases tool more rounds of refinement to get validated. In one of the runs, out of total 48 generated scenarios, only 11 got validated within 13 rounds of refinement. In contrast, GPT-5.4 with Codex validated approximately 50% of the generated scenarios within 5 rounds of refinement.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 Validation parameters</head><p>We set the trace bound h to 16 for all experiments, which is a reasonable upper bound on the length of compliant traces in our domains. The number of validation rounds n rounds is set to 5, which allows for multiple iterations of repair and conflict resolution while keeping the overall generation time manageable.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.4 Pipeline Configuration</head><p>MANTRA offers a highly configurable YAML-based configuration system. Below is an example config file used for generating the benchmarks in this paper, which specifies parameters for document parsing, tool integration, LLM usage, sampling strategies, validation settings, and logging preferences. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.5 Graph generation</head><p>To be able to generate test cases that cover a long document, we first build a graph representation of the document. We ingest a markdown document and recursively build the graph by chunking the document. We start with the whole graph as a node, and if the node content is longer than a certain threshold (can be set via the config, based on the downstream LLM's context window), we chunk the node into smaller nodes by the next hierarchy level (e.g., from section to subsection) and add edges from the original node to the smaller nodes. We repeat this process until we reach the leaf nodes, which are within the content threshold. This deterministic process results in a hierarchical graph representation of the document with the edges representing the parent-child relationships between the chunks. We then build a table of contents (ToC) by traversing the graph and find implicit and explicit references between the nodes by prompting an LLM to identify them. The LLM is provided with the content of a node and the ToC, and can read other nodes' content if needed. The extracted references are added as edges to the graph. This graph representation allows us to sample coherent chunks of the document for test case generation, and also to identify related sections that may need to be covered together in a scenario.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.6 Graph sampling strategies</head><p>The graph sampler ( 1 in Fig. <ref type="figure">2</ref>) is a core part of MANTRA's benchmark generation pipeline. It determines which paragraphs of the procedural document are used together for benchmark generation, which in turn affects tool and document coverage and hence influences the quality of the resulting compliance evaluation. Once a node from the document graph G D is successfully sampled, its coverage counter is incremented. This allows to prioritize lowcoverage nodes in successive batches to improve overall node coverage of the generated benchmark over the document graph. MANTRA exposes four strategies: uniform is a random baseline; coverage_driven prioritizes least-covered nodes; connected_diverse_coverage selects a low-coverage, globally diverse seed and expands through graph neighbors to preserve local coherence; and coverage_islands builds a sample from multiple locally coherent islands, which can exercise cross-policy composition when a single scenario naturally touches separated parts of the document. Our default experiments use coverage_islands.</p><p>Intellagent <ref type="bibr" target="#b18">[19]</ref> uses a sophisticated weight based sampling strategy to ensure good coverage of a policy graph (different from our graph) that is constructed from multiple policies with nodes weighted with complexity and edges representing likelihood that two policies co-occur in the same interaction. While we did not implement this exact strategy, our coverage_islands sampler is designed to achieve similar goals of improving coverage and compositionality by sampling multiple connected subgraphs. It will be interesting future work to use a weighted sampling strategy similar to the one in <ref type="bibr" target="#b18">[19]</ref>.</p><p>Sample Scenarios Across Sampling Strategies. Table <ref type="table" target="#tab_6">3</ref> shows how the choice of sampling strategy and nodes_per_sample interacts to shape the scenarios that downstream stages consume. To generate this table we have run MANTRA only until stage 1 was completed, i.e.,a scenario λ was generated. The shown scenarios are, hence, not effected by the preceding refinement steps. Columns are the three sampling strategies; rows are nodes_per_sample buckets (small, medium, large). All cells share seed = 42 and max_samples = 2; the only knobs varied across the matrix are strategy (columns) and min/max_nodes_per_sample (rows: [2, 3], <ref type="bibr" target="#b3">[4,</ref><ref type="bibr" target="#b5">6]</ref>, <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b9">10]</ref>). The cabin-safety document graph 121 document chunks, while the operations document contains 12, so the large bucket is cut to 12 for the latter as the sampler refuses to draw more nodes than are eligible. Each cell holds one cabin-safety entry (top, marked cabin) and one operations entry (bottom, marked ops); both are deterministically selected as the first sample emitted at that (strategy, nodes-per-sample) configuration. The italicised line above each scenario shows the document chunks the sampler selected. We clarify that these scenarios were generated for the purpose of demonstrating effects of the different sampling strategies and these were not sent downstream to the generation, validation, repair phases.</p><p>Observed Effect of Used Sampling Strategy. Table <ref type="table" target="#tab_6">3</ref> allows us to draw the following conclusions.</p><p>-coverage_driven ranks eligibles by tier (least-covered first) and breaks ties at random. The result is broad document coverage but topically loose pairings: in the cabin run, samples mix unrelated sections (e.g. Turbulence + Ramp escorting, Report closure + Symptoms &amp; treatment). Scenarios end up multi-pronged, weaving two unrelated themes per user request.</p><p>-coverage_islands draws a globally diverse low-coverage seed and then expands locally through graph neighbours, only starting a new island when the marginal coverage win exceeds local expansion. Each sample becomes a coherent topical cluster: cabin samples look like (Receipt of report + Processing of report), (Symptoms + Use of ground physician), (Bomb procedures + Threat types). Scenarios read as natural single-workflow user requests.</p><p>-uniform ignores coverage and graph structure entirely. It produces the most jarring chunk pairings, which the scenario LLM is forced to splice into one user request -the cabin / medium cell pairs Bomb handling with Rapid decompression and Final descent, generating contrived multi-topic scenarios that are unrealistic but stress-test the downstream stages.</p><p>We further observe that the size of the procedural document D matters for the diversity of generated scenarios. While the cabin domain (121 chunks) shows clear strategy divergence; the operations domain (12 chunks) does not. With so few eligible nodes, all three strategies converge onto largely the same chunk pairings, so the ops scenarios are nearly interchangeable across columns. This shows that the used sampling strategy only becomes a meaningful differentiator when the document is large enough that a single sample cannot cover most of it.</p><p>Implication for benchmark generation. For benchmarks that should resemble realistic single-workflow user requests, coverage_islands is the strongest default -it gives broad coverage across batches while keeping each sample topically tight. uniform is useful when the goal is adversarial cross-section testing of how an agent handles unrelated obligations bundled together. coverage_driven sits between the two: balanced coverage at the cost of synthetic pairings.   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.7 Syntactic Error Repair Loop</head><p>During the generation or repair of the world model and the checks, the LLM may produce output that does not conform to the expected DSL syntax or type constraints. To address this, we implement a syntactic error repair loop that detects and corrects such issues before they propagate to the SMT encoding and validation stages. When the LLM generates a candidate world model or check set, we first attempt to parse it into the corresponding AST. If parsing fails due to syntax errors, we extract the error message and the offending text span, and feed this information back into the LLM with a prompt that includes the original generation, the error details, and instructions to produce a corrected version. This loop continues until a valid AST is produced or a maximum number of attempts is reached. We catch issues like use of wrong tool names, wrong argument types, etc. By catching syntactic issues early, we ensure that the subsequent stages of compilation and validation operate on well-formed inputs, which improves the overall robustness of the benchmark generation process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.8 Human intervention via WebUI</head><p>MANTRA includes a web-based user interface that allows human reviewers to inspect generated scenarios, checks, and counterexamples after the repair rounds are exhausted. If the automated repair loop fails to resolve issues between the world model and the check set after a predefined number of iterations, MANTRA marks the scenario awaiting_human. We observed that such issues mainly arise when there is ambiguity in the document. Then the human reviewer get the relevant information regarding the scenario, along with LLM generated suggestions for how to resolve the disagreement. The human reviewer then can edit the world model or checks directly in the UI to fix the issue. The human edits are considered final and are not subject to further automated repair (the agents may still flag issues but any modification must be done via the WebUI), but the scenario is re-validated against the world model to ensure consistency. This human-in-the-loop mechanism allows us to handle edge cases and ambiguities that may be difficult for the LLM to resolve on its own, while still maintaining a high level of automation in the overall benchmark generation process.</p><p>We observe that many repairs could be handled by the automated loop given sufficient time, but for the test suite, we discarded scenarios that required human intervention after 5 rounds of repair. However, human intervention could be a valuable tool for generating benchmarks in cases where the document is particularly ambiguous or complex.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.9 Reproducibility</head><p>While we share our implementation of MANTRA, the generation of our provided benchmark involves non-deterministic and non-reproducible components because of the use of a proprietary LLM agent during the process. However, we believe that one can obtain qualitatively similar benchmarks by running our code using the same LLM agent.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Evaluating LLM Agents on Generated Benchmarks</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1 Success Rate Statistics</head><p>We evaluated the benchmark suite generated by MANTRA on 6 LLM models. For a suite with N tasks, we run each task n times independently and let α i ∈ {0, 1, . . . , n} denote the number of successful runs on task i. We report the following standard success rates in Table <ref type="table" target="#tab_9">4</ref>:</p><p>-Pass@1the average single-attempt success rate,</p><formula xml:id="formula_15">1 N N i=1</formula><p>αi n . This is the standard accuracy of one independent rollout.</p><p>-Pass@kthe probability that at least one of k independent attempts on a task succeeds, averaged over the suite. Following the unbiased estimator of Chen et al. <ref type="bibr" target="#b6">[7]</ref>,</p><formula xml:id="formula_16">Pass@k = 1 N N i=1 1 -n-αi k n k</formula><p>for n ≥ k. We report Pass@5.</p><p>-Pass^k-the probability that all k independent attempts on a task succeed, averaged over the suite <ref type="bibr" target="#b1">[2]</ref>:</p><formula xml:id="formula_17">Pass^k= 1 N N i=1 αi k n k</formula><p>. This is a stricter consistency/reliability measure than Pass@k. We report Pass^5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model</head><p>Cabin Ops </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Analysis of Compliance Failures</head><p>To understand how agents fail on MANTRA benchmarks, we aggregate the per-check verdicts emitted by the deterministic evaluator across all sweep runs (6 domains × 6 models × 5 attempts per test case). Each failed check is assigned a failure category based on the structural reason the evaluator rejected the trace. The categories below partition the 10,895 failed checks observed in our corpus.</p><p>Aggregate failure-category distribution. The skipped-lookup pattern. The dominance of Missing-Required-Call holds within every domain (49-67% of that domain's failures) and every model (51-71%). Strikingly, the tools that account for the largest counts of Missing-Required-Call failures are almost all read-style information-gathering primitives: check_inventory (449, operations), get_item_details (615, retail), get_order_details (357, retail), get_flight_status (306, airline), inspect_patient (204, sneaky-sasquatch), and process_hazard_report (227, cabin safety). Models tend to jump to write-style or commit-style tool calls without first running the lookups that the manual mandates as a precondition. Concretely, the benchmark is in large part measuring whether models read before they write. Domain-specific over-action. The complementary failure mode-Forbidden-Call-is concentrated on a small number of write-style tools whose preconditions the agent skipped. Table <ref type="table">7</ref> lists the top forbidden-tool hits per domain. In the benchgen domains, these are exactly the tools that mandate gating reads: create_purchase_order requires an inventory or legacy-portal check first, book_travel requires policy verification, and run_vitamin_test should not be ordered when the scenario does not call for it. Across the three tau2 domains, the dominant forbidden tool is transfer_to_human_agents: agents prematurely escalate to a human when the policy expects them to handle the request themselves.</p><p>Model-level pathologies. Beyond the per-check categories, we observe modelspecific failure modes that manifest as crashes or empty traces rather than wrong tool calls. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Manual Benchmark Inspection and Filtering</head><p>Using MANTRA, we generated test cases across 6 domains. The validated (both forward and backward) test cases were then manually inspected for consistency and quality. During this process, we identified some minor issues in the generated test cases that were not caught by the automated validation process. The issues highlight engineering challenges instead of showing problems with the pipeline itself, and they were mostly resolved by manual filtering or minor edits to the checks.</p><p>We describe these issues here for transparency and to inform future improvements to the benchmark generation process.</p><p>Forcing only one tool call. In some cases, the generated checks forced at most one tool call in the trace. Although we do not have a specific rule in the grammar to restrict the number of times a tool call can be made, the one-call-only constraint can be imposed using a NO-CALL toolBEFORE CALL tool check and a NO-CALL tool AFTER CALL tool check. While this is necessary for tools like give_medicine and perform_surgery in the sneaky-sasquatch domain, to ensure that unnecessary medical interventions are not performed, some of the generated test cases had this constraint on tools like run_mineral_test. While it is not necessarily wrong to have only one call to run_mineral_test, it is not a clear requirement as per the SOP. In these cases, we manually removed the check that forced at most one call. We believe that this issue is inherently difficult for the LLM to resolve, as it requires a nuanced understanding of the SOP and the specific requirements of each tool, which may not be explicitly stated in the document.</p><p>Convention mismatch in string arguments. In some airline test cases, the checks pinned the book_flight tool call to specific string arguments that were present in the scenario text but did not match the expected format in the tool description. For example, the scenario might mention a flight from "New York" to "Los Angeles", while the tool expects IATA codes like "JFK" and "LAX". This mismatch caused some check failures that had to be manually filtered out. These issues could not be caught by our repair loop because the checks do not violate any logical constraints and the SOP does not explicitly require the use of IATA codes.</p><p>Such issues can be caught in the future by adding a post-processing step that finds traces in W ∧ C, to find a satisfying trace and executing the tract to identify any tool call errors.</p><p>Trivial samples. Some of the generated test cases were deemed trivial upon manual inspection, since they were generated from chunks that contained very basic information or instructions that did not require any complex reasoning or tool use. For example, for the following chunk from operations domain document, the generated scenarios did not have meaningful tasks.</p><p>### 1. Introduction This document outlines the mandatory procedures for all personnel regarding the acquisition of digital assets, physical hardware, and travel arrangements. Failure to adhere to these branching logic requirements will result in a "Rejection State" for the procurement ticket.</p><p>We discarded such test cases to maintain the overall quality and challenge of the benchmark. Such issues can be mitigated by choosing a better sampling strategy that avoids chunks with trivial content.</p><p>Pinned string arguments in checks. In some cases, the generated checks included specific string arguments in the tool calls, such as 'reason' for flight cancellation, or 'delivery_address' for hardware procurement. These could not be caught by the repair loop as they do not violate any logical constraints, but we removed them manually since they made the checks brittle. For example, if a check requires that the 'delivery_address' argument for a hardware delivery must be '123 Main St, London, UK', and a trace with minor deviations from this address (such as '123 Main St., London, United Kingdom') would fail.</p><p>We believe that this issue is again difficult to LLMs to avoid, but a better prompt design that teaches LLMs to avoid pinning string arguments such as 'delivery_address' without affecting the string arguments like 'user_id'.</p><p>A related issue was encountered in the cabin domain where a chunk mentioned that passengers should not be informed about bomb threats. Although the domain provides a tool for making announcements, no check can appropriately capture the requirement. For example, NO-CALL make_announcement would be too broad, and NO-CALL make_announcement("We have received a bomb threat") is effectively useless.</p><p>Missing relevant information in a sample. In sneaky-sasquatch domain, a sample contained the following chunk. A generated scenario required diagnosing a patient suffering from diabetes, so it created a check that required calling give_food with a pinned argument 'Cookies'. However, there exists another chunks that mentions the food items that are high in glucose.</p><formula xml:id="formula_18">### Glucose -Corn -Eggplant -Soy Sauce -Onion -Yogurt -Cake -Soda (can)</formula><p>The check should have allowed any of these food items to be given, but it only allowed 'Cookies' due to the pinned argument. We removed the pinned argument manually, and allowed any food item that is high in glucose to be given. This is again a sampling issue, as the document graph indeed contains a reference edge between the chunk that mentions diabetes and the chunk that lists glucoserich food items, but the sampling strategy did not include both chunks in the same sample.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Interesting Test Cases</head><p>Diagnose-only scenario vs. treatment-mandating SOP Symptom: "Been eating terribly lately."</p><p>Treatment: A food item from your inventory that is high in the missing vitamin or mineral.</p><p>Note: Run vitamin and mineral tests in the lab first so you know exactly which nutrient the patient is short on, then deliver the matching food.</p><p>A genuine scenario-vs-SOP design conflict. The scenario deliberately framed a "diagnose only" task, but the SOP mentions that after vitamin and mineral tests are completed, an appropriate food should be delivered. Here the expected behavior is to run the tests but not deliver anything, as the scenario only asks for the diagnosis. This tests whether the model can correctly identify the relevant SOP instructions and not over-apply them when the scenario doesn't call for it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G Additional Test Cases</head><p>Cabin Safety -case_029 </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>3.7.1</head><p>General. An unruly passenger is one whose behaviour poses a threat to the safety of the flight and/or its passengers, crew, or properties. (Note: This behaviour is distinguished from attempted hijacking, skyjacking, or bomb threats) Passenger misconduct involves behaviour that poses a threat to the safety of the flight, its passengers, crew, or property. Passenger misconduct can range from rude and boorish behaviour to physical assault. Operators should have a zero tolerance for physical assaults against its crewmembers or agents. Refer to the "Misconduct and Category and Action Table " in Appendix D. During the flight, inform the PIC whenever a potential unruly passenger is on board. Flight deck crew should avoid dealing directly with such passengers as they are needed to fly the airplane. If all efforts to contain such an unruly passenger fail and a threat to safety is identified, immediately advise the PIC who shall evaluate the situation and decide on the course of action. If the PIC has reasonable grounds to believe that a person has committed or is about to commit an offence or act which may jeopardize the safety of the airplane, the PIC might impose upon the person reasonable measures, including restraint, to protect the safety of the airplane, its passengers, crew, and cargo. There are several levels/categories of passenger misconduct, as follows: -The most benign are those where a crewmember requests compliance with instructions and the passenger complies with the request; no further action is required by the crewmember, nor does this warrant a report to the flight deck, the carrier or the regulatory authority -The second level are those where a crewmember requests the passenger to comply, but the passenger continues disturbance which interferes with cabin safety, such as continuation of verbal abuse or continuing refusal to comply with applicable regulations -The most severe cases of passenger misconduct are those where a crewmember's duties are disrupted by the continuing passenger interference, a passenger or crewmember is injured or subjected to a credible threat of injury, an unscheduled landing is made, and/or restraints are necessary {"element": {"kind": "primitive", "ptype": "String"}, "kind": "array"}; date_of_birth: String; payment_methods: {"element": {"kind": "enum", "values": ["credit_card", "gift_card", "travel_certificate"]}, "kind": "array"}; membership_level: enum(regular, silver, gold); reservation_numbers: {"element": {"kind": "primitive", "ptype": "String"}, "kind": "array"} {"element": {"kind": "primitive", "ptype": "String"}, "kind": "array"}; date_of_birth: String; payment_methods: {"element": {"kind": "enum", "values": ["credit_card", "gift_card", "travel_certificate"]}, "kind": "array"}; membership_level: enum(regular, silver, gold); reservation_numbers: {"element": {"kind": "primitive", "ptype": "String"}, "kind": "array"} Understanding and Troubleshooting Your Phone's Cellular Service. This section details for agents how a user's phone connects to the cellular network (often referred to as "service") and provides procedures to troubleshoot common issues. Good cellular service is required for calls, texts, and mobile data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>SMT Model</head><p>SMT id: smt_smp_004_v004 State vars: service_issue_checked: Bool; has_cellular_signal: Bool; bill_status_checked: Bool; selected_bill_status: enum(PAID, UNPAID, AWAITING_PAYMENT); other_bill_awaiting_payment_exists: Bool; customer_exists: Bool; bill_exists: Bool; bill_belongs_to_customer: Bool; line_status: enum(ACTIVE, SUSPENDED, PENDING_ACTIVATION); suspension_start_date_present: Bool Transitions: get_bills_for_customer(customer_id-&gt;cid, limit-&gt;lim): pre not(cid = ""); post bill_status_checked' = true resume_line(customer_id-&gt;cid, line_id-&gt;lid): pre (line_status = "SUSPENDED" or line_status = "PENDING_ACTIVATION"), not(cid = ""), not(lid = ""); post line_status' = "ACTIVE", suspension_start_date_present' = false send_payment_request(bill_id-&gt;bid, customer_id-&gt;cid): pre not(bid = ""), not(cid = ""), customer_exists = true, bill_exists = true, bill_belongs_to_customer = true, other_bill_awaiting_payment_exists = false, bill_status_checked = true, not(selected_bill_status = "PAID"); post selected_bill_status' = "AWAITING_PAYMENT"</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>For a fixed trace bound h, the DSL compiles deterministically into the bounded encoding Φ h (W S ). The compiler introduces, for each step i ∈ {0, . . . , h-1} and each transition index k ∈ {0, . . . , |T S |} (where k = |T S | is the no-op): a tool-index variable t i ∈ {0, . . . , |T S |}, an activity flag active i ∈ B with active i ⇔ (t i ̸ = |T S |), a per-boundary state vector σ b for b ∈ {0, . . . , h}, where σ 0 is the initial state, and a per-step argument vector a i keyed on the local names declared in each transition's params block.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>= (next in_stock) in_stock))) (transition check_legacy_portal (params (item itm)) (pre) (post (= (next legacy_checked) true))) (transition assign_warehouse_picker (params (item itm)) (pre (= in_stock true)) (post (= (next picker_assigned) true))) (transition create_purchase_order (params (item itm)) (pre (= in_stock false) (= legacy_checked true)) (post (= (next po_created) true))))</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>Transitions: get_user_details(user_id-&gt;requested_user_id): pre requested_user_id = user_id, user_details_retrieved = false; post user_details_retrieved' = true, numbers on file for user USR-66340. Trace checks 1 check_000: CALL get_user_details(user_id=USR-66340) Relevant Chunk User. Each user has a profile containing: -user id -email -addresses -date of birth -payment methods -membership level -reservation numbers There are three types of payment methods: **credit card**, **gift card**, **travel certificate**. There are three membership levels: **regular**, **silver**, **gold**. SMT Model SMT id: smt_smp_000_v005 State vars: user_details_retrieved: Bool; user_id: String; email: String; addresses:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>Transitions: get_user_details(user_id-&gt;requested_user_id): pre requested_user_id = user_id, user_details_retrieved = false; post user_details_retrieved' = true, helping Priya Nair: her phone has been stuck with no signal bars since last night even after she turned Airplane Mode off and reseated the SIM. Her line LINE-88431 for customer CUST-44862 is currently suspended, so please restore service on that line.Trace checks 1 check_000: CALL resume_line(customer_id=CUST-44862, line_id=LINE-88431)2 check_003: NO-CALL send_payment_request() Relevant ChunkDiagnosing Service Issues. 'check_status_bar()' can be used to check if the user is facing a service issue. If there is cellular service, the status bar will return a signal strength indicator.Common ServiceIssues and Their Causes. If the user is experiencing service problems, here are some common causes: * **Airplane Mode is ON**: This disables all wireless radios, including cellular. * **SIM Card Problems**: * Not inserted or improperly seated. * Locked due to incorrect PIN/PUK entries. * **Incorrect Network Settings**: APN settings might be incorrect resulting in a loss of service. * **Carrier Issues**: Your line might be inactive due to billing problems.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Overview of the MANTRA pipeline. See Sec. 3 and App. B-C for details.</figDesc><table><row><cell cols="2">1 Document Ingestion and Scenario Generation</cell><cell>2 Check Creation</cell></row><row><cell cols="2">3 Cross-Validation using SMT</cell><cell></cell></row><row><cell>UNSAT</cell><cell>UNSAT</cell><cell>SAT</cell></row><row><cell></cell><cell>SAT</cell><cell></cell></row><row><cell></cell><cell></cell><cell>refinement</cell></row><row><cell>Fig. 2.</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>Per-domain corpus statistics: input size, average checks per case, and number of test-cases yield through the automatic forward/backward validation pipeline.</figDesc><table><row><cell cols="2">Domain</cell><cell></cell><cell cols="2">Input Words Tools</cell><cell cols="2">Mean ±95% checks/case</cell><cell>Test cases Generated Fwd. valid. Bwd. valid. Final</cell></row><row><cell cols="2">operations</cell><cell></cell><cell>566</cell><cell cols="3">20 5.60 ± 0.86</cell><cell>166</cell><cell>82</cell><cell>65</cell><cell>63</cell></row><row><cell cols="3">sneaky-sasquatch [9]</cell><cell>1,338</cell><cell cols="3">23 6.19 ± 1.10</cell><cell>162</cell><cell>76</cell><cell>53</cell><cell>47</cell></row><row><cell cols="3">cabin-safety [11]</cell><cell>16,644</cell><cell cols="3">148 2.82 ± 0.53</cell><cell>164</cell><cell>71</cell><cell>43</cell><cell>43</cell></row><row><cell cols="3">tau2-retail [2]</cell><cell>1,158</cell><cell cols="3">16 4.79 ± 0.86</cell><cell>75</cell><cell>59</cell><cell>47</cell><cell>44</cell></row><row><cell cols="3">tau2-airline [2]</cell><cell>1,313</cell><cell cols="3">14 4.38 ± 0.90</cell><cell>80</cell><cell>49</cell><cell>57</cell><cell>57</cell></row><row><cell cols="3">tau2-telecom [2]</cell><cell>3,715</cell><cell cols="3">13 2.75 ± 0.48</cell><cell>56</cell><cell>36</cell><cell>32</cell><cell>31</cell></row><row><cell>Validated TCs (% of generated)</cell><cell>0% 20% 40% 60% 80% 100%</cell><cell>R1</cell><cell></cell><cell>R2</cell><cell></cell><cell cols="2">R3 Refinement round</cell><cell>R4</cell><cell>R5</cell></row><row><cell></cell><cell></cell><cell cols="4">operations (n=166) sneaky-sasquatch (n=162)</cell><cell cols="2">cabin-safety (n=164) tau2-retail (n=75)</cell><cell>tau2-airline (n=80) tau2-telecom (n=56)</cell></row></table><note><p>Fig. 3. Cumulative validated test cases through forward refinement rounds R1-R5, per domain. Left: absolute counts. Right: fraction of generated cases. n is the initial generated count.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>47. Zhou, S., Xu, F.F., Zhu, H., Zhou, X., Lo, R., Sridhar, A., Cheng, X., Ou, T., Bisk, Y., Fried, D., Alon, U., Neubig, G.: Webarena: A realistic web environment for building autonomous agents. In: The Twelfth International Conference on Learning</figDesc><table><row><cell>Representations (2024)</cell></row><row><cell>48. Zwerdling, N., Boaz, D., Rabinovich, E., Uziel, G., Amid, D., Anaby Tavor, A.:</cell></row><row><cell>Towards enforcing company policy adherence in agentic workflows. In: Proceedings</cell></row><row><cell>of the 2025 Conference on Empirical Methods in Natural Language Processing:</cell></row><row><cell>Industry Track. pp. 595-606. Association for Computational Linguistics, Suzhou</cell></row><row><cell>(China) (Nov 2025). https://doi.org/10.18653/v1/2025.emnlp-industry.41</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Determinism of grading. Once a benchmark is constructed, agent grading should be reproducible. LLM-as-judge pipelines (ToolBench, IntellAgent, MCP-Bench, and the natural-language-assertion mode of τ 2 -bench) introduce variance and prompt sensitivity into per-test scoring. τ -bench, AgentOrca, SOP-Bench, and Agent-Diff achieve deterministic grading but only by restricting evaluation to outcome states or hand-coded constraints. MANTRA is the only framework in the table that delivers deterministic, trace-level grading on automatically generated tests: once a test case is validated and committed, evaluating an agent trace against its check set requires zero LLM calls.Each existing benchmark optimizes for a subset of the five properties we consider, and trades off the others. ToolBench and MCP-Bench scale via automation but cannot enforce procedural compliance. τ /τ 2 -bench, SOP-Bench, and AgentIF achieve high evaluation rigor through manual effort that does not scale to long manuals or new domains. AgentOrca and Agent-Diff achieve deterministic, codebased grading at the cost of hand-built constraints and sandboxes. MANTRA The distinction between conditional ordering and positive ordering is important. after and before can be vacuously satisfied by a trace in which the target call never occurs. follows and precedes fail unless both calls exist.B.2 World model DSLThis subsection details the typed domain specific language (DSL) used to formalize the world model W S .Model Syntax. The world model syntax is an S-expression variant. A model declares constants, state variables, and one transition per relevant tool t ∈ T S , as detailed in the following listing where comments begin with ; and run to end of line.</figDesc><table><row><cell></cell><cell cols="3">Check form | LITERAL Semantics</cell></row><row><cell></cell><cell>atom(A)</cell><cell></cell><cell>| '(' 'param' Enforce a call or no-call atom. IDENT ')' ; tool argument | '(' 'next' IDENT ')' ; post-state value</cell></row><row><cell></cell><cell>or(A,B)</cell><cell></cell><cell>Recursive disjunction over atoms or nested disjunc-| '(' 'field' expr IDENT ')' ; record field access</cell></row><row><cell></cell><cell></cell><cell></cell><cell>tions. | '(' 'contains' expr expr ')' ; array membership</cell></row><row><cell></cell><cell cols="2">after(A,</cell><cell>If A occurs, it must occur after an anchor call; no-| '(' op expr+ ')'</cell></row><row><cell>op</cell><cell>anchor)</cell><cell cols="2">call variants forbid matching calls after the anchor. ::= '+' | '-' | '*' | '/'</cell></row><row><cell></cell><cell cols="2">before(A,</cell><cell>If A occurs, it must occur before an anchor call; | '=' | '&lt;' | '&lt;=' | '&gt;' | '&gt;='</cell></row><row><cell></cell><cell>anchor)</cell><cell></cell><cell>no-call variants forbid matching calls before the | 'and' | 'or' | 'not' | '=&gt;'</cell></row><row><cell></cell><cell></cell><cell></cell><cell>anchor.</cell></row><row><cell></cell><cell cols="3">follows(call,</cell><cell>Positive obligation: both calls occur and the first</cell></row><row><cell></cell><cell>anchor)</cell><cell></cell><cell>follows the anchor.</cell></row><row><cell></cell><cell cols="3">precedes(call,</cell><cell>Positive obligation: both calls occur and the first</cell></row><row><cell></cell><cell>anchor)</cell><cell></cell><cell>precedes the anchor.</cell></row><row><cell cols="2">model</cell><cell cols="2">::= '(' 'model' clause* ')'</cell></row><row><cell cols="2">clause</cell><cell cols="2">::= const | state-var | transition</cell></row><row><cell cols="2">const</cell><cell cols="2">::= '(' 'const' IDENT type-expr value ')'</cell></row><row><cell cols="2">state-var</cell><cell cols="2">::= '(' 'var'</cell><cell>IDENT type-expr ')'</cell></row><row><cell cols="2">type-expr</cell><cell cols="2">::= 'Int' | 'Real' | 'Bool' | 'String'</cell></row><row><cell></cell><cell></cell><cell></cell><cell>| '(' 'Enum'</cell><cell>STRING+</cell><cell>')'</cell></row><row><cell></cell><cell></cell><cell></cell><cell>| '(' 'Record' field+</cell><cell>')'</cell></row><row><cell></cell><cell></cell><cell></cell><cell>| '(' 'Array' type-expr</cell><cell>')'</cell></row><row><cell cols="2">field</cell><cell cols="2">::= '(' IDENT type-expr ')'</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Atoms</cell></row><row><cell cols="4">transition ::= '(' 'transition' IDENT are either required calls or forbidden calls: '(' 'params' param-bind* ')'</cell></row><row><cell></cell><cell></cell><cell></cell><cell>call(t, a) '(' 'pre' '(' 'post'</cell><cell>expr* no_call(t, a), ')' expr* ')' ')'</cell></row><row><cell cols="4">param-bind ::= '(' IDENT IDENT ')'</cell><cell>; (tool_param_name local_name)</cell></row><row><cell cols="4">where a is a concrete partial argument map. Missing arguments are wildcards.</cell></row><row><cell cols="4">Compound checks support disjunction and temporal ordering: expr ::= IDENT ; state-var or constant</cell></row></table><note><p><p><p><p><p>is the first benchmark-generation framework that simultaneously (i) automates task and check synthesis, (ii) scales to large procedural manuals, (iii) extends to new domains given only the manual and a tool schema, (iv) evaluates the full execution trace, and (v) grades each test deterministically through SMT-validated checks.</p>B Check Grammar, World Model DSL, and SMT Encoding</p>This appendix details the grammar used to formalize checks in C in Sec. B.1 and the typed domain-specific language (DSL) used to express the world model W S in Sec. B.2. It is then discussed how both are deterministically compiled into the bounded SMT encodings Φ h (W S ) and Φ h (C λ ) in Sec. B.3 and Sec. B.4, respectively. We note that the DSL is the only object used by the LLMs in the world-model generation, structured fix suggestions, and failure combination within MANTRA's pipeline. Raw SMT encodings or Z3 Python expressions are never exposed to the LLMs.</p>B.1 Check Grammar</p>A set C = {c 1 , . . . , c k } of checks is formalized via the following grammar.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>Array(τ ), with Record and Array allowed to nest. Expressions form the following AST node families:</figDesc><table><row><cell>Node</cell><cell>Role</cell></row><row><cell>var_ref(name)</cell><cell>current value of a state var or constant</cell></row><row><cell>param_ref(name)</cell><cell>tool parameter (local name from params)</cell></row><row><cell>next_ref(name)</cell><cell>post-state value of a state var (postconditions only)</cell></row><row><cell>literal(value)</cell><cell>primitive literal (Int/Real/Bool/String)</cell></row><row><cell>op(symbol, args)</cell><cell>operator application</cell></row><row><cell cols="2">field(record, field_name) record field projection</cell></row><row><cell cols="2">contains(array, element) array membership predicate</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 3 :</head><label>3</label><figDesc>Sample scenarios across sampling strategies (columns) and nodes_per_sample buckets (rows). One cabin-safety entry (top, cabin) and one operations entry (bottom, ops) per cell, deterministically selected as the first sample emitted at that configuration. Cabin: 121-chunk document; ops: 12-chunk document -the ops large bucket clamps to 12 because the sampler refuses to draw more nodes than are eligible. codex / gpt-5.4, seed = 42.</figDesc><table><row><cell cols="2">#Nodes coverage_driven</cell><cell>coverage_islands</cell><cell>uniform</cell></row><row><cell>small</cell><cell>[cabin] 1.3 GENERAL /</cell><cell>[cabin] 5.1.3 Receipt of</cell><cell>[cabin] 3.11.1 In-Flight</cell></row><row><cell>(2-3)</cell><cell>2.10.3 Non-ambulatory</cell><cell>the Report / 5.1.4</cell><cell>Medical Emergency Action</cell></row><row><cell></cell><cell>Passengers</cell><cell>Processing of the Report</cell><cell>Plan / 3.6.4 At</cell></row><row><cell></cell><cell>We're fueling Flight</cell><cell>I'm Elena Markovic,</cell><cell>Decompression</cell></row><row><cell></cell><cell>SKX431 at Gate B12.</cell><cell>employee ID FA-3187. I</cell><cell>Case MED-308-07 on</cell></row><row><cell></cell><cell>Wheelchair passenger</cell><cell>need to report that</cell><cell>flight HJ308: Malik</cell></row><row><cell></cell><cell>Elena Petrov is in seat</cell><cell>galley cart GC-17</cell><cell>Thompson, 8, in seat</cell></row><row><cell></cell><cell>18C. Please update the</cell><cell>broke loose during</cell><cell>14A ate a peanut snack</cell></row><row><cell></cell><cell>safety log for this</cell><cell>boarding on Flight</cell><cell>and now has facial</cell></row><row><cell></cell><cell>flight.</cell><cell>LYN482 and struck</cell><cell>swelling, hives, and</cell></row><row><cell></cell><cell></cell><cell>seat row 12, and 1</cell><cell>wheezing. No one has</cell></row><row><cell></cell><cell></cell><cell>flight attendant was</cell><cell>identified as a medical</cell></row><row><cell></cell><cell>Inventory Check Logic Set up Lena Ortiz's finance workstation: install Northstar Ledger on SSC-FIN-07 with department head signature DHS-8841</cell><cell>bruised. Digital Asset Acquisition (Software &amp; Licenses) Install MapleEdit Community on</cell><cell>professional on board, and the emergency medical kit with epinephrine is in the forward galley. Please handle this in-flight medical emergency.</cell></row><row><cell></cell><cell>and verification IDs</cell><cell>workstation</cell><cell>[ops] 4.2. Delivery</cell></row><row><cell></cell><cell>VER-4418 and</cell><cell>ENG-BIRCH for Priya</cell><cell>Requirements / 4.1.</cell></row><row><cell></cell><cell>VER-4421, and get 2</cell><cell>Natarajan.</cell><cell>Inventory Check Logic</cell></row><row><cell></cell><cell>Meridian Glow</cell><cell></cell><cell>Please send one</cell></row><row><cell></cell><cell>monitors.</cell><cell></cell><cell>ApexForge Atlas</cell></row><row><cell></cell><cell></cell><cell></cell><cell>desktop workstation,</cell></row><row><cell></cell><cell></cell><cell></cell><cell>priced at $2,005, to</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Priya Natarajan's</cell></row><row><cell></cell><cell></cell><cell></cell><cell>home at 1187 Willow</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Creek Dr, Naperville,</cell></row><row><cell></cell><cell></cell><cell></cell><cell>IL 60540.</cell></row></table><note><p><p>[ops] 2.1. The "SSC" Conditional Rule / 4.1.</p>[ops] 2.1. The "SSC" Conditional Rule / 2.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 3 :</head><label>3</label><figDesc>Sample scenarios across sampling strategies and nodes_per_sample (continued).</figDesc><table><row><cell cols="2">#Nodes coverage_driven</cell><cell>coverage_islands</cell><cell>uniform</cell></row><row><cell>medium</cell><cell>[cabin] 2.2.8 Stowage of</cell><cell>[cabin] 5.1.3 Receipt of</cell><cell>[cabin] 4.2.4 Bomb</cell></row><row><cell>(4-6)</cell><cell>Cabin Baggage / 1.3</cell><cell>the Report / 5.1.4</cell><cell>Handling Procedures /</cell></row><row><cell></cell><cell>GENERAL / 2.10.3</cell><cell>Processing of the Report /</cell><cell>3.6.3 Rapid</cell></row><row><cell></cell><cell>Non-ambulatory</cell><cell>5.1.6 Reporting Database</cell><cell>Decompression Subjective</cell></row><row><cell></cell><cell>Passengers / 2.9.6</cell><cell>/ 5.1.2 How will staff</cell><cell>Signs / 3.6.6</cell></row><row><cell></cell><cell>Turbulence Terminology /</cell><cell>report hazards? / 5.1</cell><cell>Post-Decompression</cell></row><row><cell></cell><cell>2.9.3 Turbulence</cell><cell>HAZARD REPORT-</cell><cell>Procedures / 2.2.3</cell></row><row><cell></cell><cell>Procedures During Flight</cell><cell>ING/TRACKING / 5.1.5</cell><cell>Transportation of</cell></row><row><cell></cell><cell>/ 2.3.1 Guidelines for</cell><cell>Distribution of the Report</cell><cell>Passengers with</cell></row><row><cell></cell><cell>Escorts</cell><cell>Results</cell><cell>Disabilities / 2.9.5</cell></row><row><cell></cell><cell>On flight AUR482,</cell><cell>Please log a</cell><cell>Anticipated Turbulence /</cell></row><row><cell></cell><cell>after 12 minutes of</cell><cell>confidential cabin</cell><cell>2.7 FINAL DESCENT</cell></row><row><cell></cell><cell>smooth air, the captain</cell><cell>safety report for me:</cell><cell>PROCEDURES</cell></row><row><cell></cell><cell>just called about the</cell><cell>during boarding on</cell><cell>On flight HN517, we're</cell></row><row><cell></cell><cell>current ride conditions</cell><cell>Flight OA417 at Berlin</cell><cell>passing 10,000 feet on</cell></row><row><cell></cell><cell>while service was</cell><cell>Brandenburg on</cell><cell>descent into Boston.</cell></row><row><cell></cell><cell>underway. The roller</cell><cell>2026-05-05 at 06:40, a</cell><cell>Passenger Rosa</cell></row><row><cell></cell><cell>bag tagged BG-447 is</cell><cell>SkyCater Services cart</cell><cell>Delgado, ID PAX-3307,</cell></row><row><cell></cell><cell>resting against the</cell><cell>jammed in the forward</cell><cell>uses a cane tagged</cell></row><row><cell></cell><cell>forward bulkhead at</cell><cell>left exit area and</cell><cell>CANE-44, wants</cell></row><row><cell></cell><cell>row 2, and tote BG-448</cell><cell>blocked access to the</cell><cell>wheelchair help at the</cell></row><row><cell></cell><cell>was left in the lavatory.</cell><cell>door for 11 minutes. I</cell><cell>gate after landing, and</cell></row><row><cell></cell><cell>Update the rest of the</cell><cell>am cabin crew member</cell><cell>is insisting on staying</cell></row><row><cell></cell><cell>cabin crew using</cell><cell>Leena Voss, employee</cell><cell>in exit row 21A. Her</cell></row><row><cell></cell><cell>standard turbulence</cell><cell>ID CC-2719, and I</cell><cell>grandson Mateo</cell></row><row><cell></cell><cell>wording, give</cell><cell>need my name</cell><cell>Delgado, ID PAX-3308,</cell></row><row><cell></cell><cell>passengers the</cell><cell>withheld from anything</cell><cell>is in 21B in a</cell></row><row><cell></cell><cell>appropriate</cell><cell>shared outside Cabin</cell><cell>KidSecure 2 child</cell></row><row><cell></cell><cell>announcement, and</cell><cell>Safety, but I do want</cell><cell>restraint, and Rosa's</cell></row><row><cell></cell><cell>move both bags into</cell><cell>confirmation that my</cell><cell>cane is still beside her</cell></row><row><cell></cell><cell>approved stowage.</cell><cell>report was received and</cell><cell>seat. Please handle this</cell></row><row><cell></cell><cell>[ops] 3.1. Regional Overrides / 2.1. The</cell><cell>a follow-up when the investigation is done.</cell><cell>for landing. [ops] 4.2. Delivery</cell></row><row><cell></cell><cell>"SSC" Conditional Rule /</cell><cell>[ops] 3.1. Regional</cell><cell>Requirements / 3. Travel</cell></row><row><cell></cell><cell>4.2. Delivery</cell><cell>Overrides / 3.2. The</cell><cell>&amp; Expense Branching</cell></row><row><cell></cell><cell>Requirements / 3.2. The</cell><cell>"Over-Budget" Protocol /</cell><cell>Logic / 2. Digital Asset</cell></row><row><cell></cell><cell>"Over-Budget" Protocol /</cell><cell>3. Travel &amp; Expense</cell><cell>Acquisition (Software &amp;</cell></row><row><cell></cell><cell>Global Operations &amp;</cell><cell>Branching Logic / 5.</cell><cell>Licenses) / 4. Hardware</cell></row><row><cell></cell><cell>Procurement Standard</cell><cell>Compliance &amp;</cell><cell>Procurement &amp; Logistics /</cell></row><row><cell></cell><cell>Operating Procedure</cell><cell>Termination States /</cell><cell>5. Compliance &amp;</cell></row><row><cell></cell><cell>(SOP) v.4.2 / 4.1.</cell><cell>Global Operations &amp;</cell><cell>Termination States / 4.1.</cell></row><row><cell></cell><cell>Inventory Check Logic</cell><cell>Procurement Standard</cell><cell>Inventory Check Logic</cell></row><row><cell></cell><cell>Book travel for Claire</cell><cell>Operating Procedure</cell><cell>Please arrange 2</cell></row><row><cell></cell><cell>Dubois from Brussels</cell><cell>(SOP) v.4.2 / 4.</cell><cell>HelioView 32Q</cell></row><row><cell></cell><cell>to Paris for a 2-day</cell><cell>Hardware Procurement &amp;</cell><cell>Monitor units for Dana</cell></row><row><cell></cell><cell>investor meeting. My</cell><cell>Logistics</cell><cell>Voss and deliver them</cell></row><row><cell></cell><cell>budget is $252 per day,</cell><cell>Please book</cell><cell>to her residence at</cell></row><row><cell></cell><cell>and I want a</cell><cell>GlobalGate trip</cell><cell>1842 Cedar Lane, Ann</cell></row><row><cell></cell><cell>business-class flight.</cell><cell>GGT-55102 from</cell><cell>Arbor, MI 48104. The</cell></row><row><cell></cell><cell></cell><cell>Chicago to Toronto as</cell><cell>total quoted value is</cell></row><row><cell></cell><cell></cell><cell>a business-class flight</cell><cell>$2040, and the request</cell></row><row><cell></cell><cell></cell><cell>for 2 days. The flight is</cell><cell>number is</cell></row><row><cell></cell><cell></cell><cell>5 hours 40 minutes, the</cell><cell>HWR-2026-118.</cell></row><row><cell></cell><cell></cell><cell>daily budget is $220,</cell><cell></cell></row><row><cell></cell><cell></cell><cell>and the reason is</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 3 :</head><label>3</label><figDesc>Sample scenarios across sampling strategies and nodes_per_sample (continued).</figDesc><table><row><cell cols="2">#Nodes coverage_driven</cell><cell>coverage_islands</cell><cell>uniform</cell></row><row><cell>large</cell><cell>[cabin] 2.2.8 Stowage of</cell><cell>[cabin] 5.1.3 Receipt of</cell><cell>[cabin] 4.2.4 Bomb</cell></row><row><cell>(8-10)</cell><cell>Cabin Baggage / 1.3</cell><cell>the Report / 5.1.4</cell><cell>Handling Procedures /</cell></row><row><cell></cell><cell>GENERAL / 2.10.3</cell><cell>Processing of the Report /</cell><cell>3.6.3 Rapid</cell></row><row><cell></cell><cell>Non-ambulatory</cell><cell>5.1.6 Reporting Database</cell><cell>Decompression Subjective</cell></row><row><cell></cell><cell>Passengers / 2.9.6</cell><cell>/ 5.1.2 How will staff</cell><cell>Signs / 3.6.6</cell></row><row><cell></cell><cell>Turbulence Terminology /</cell><cell>report hazards? / 5.1</cell><cell>Post-Decompression</cell></row><row><cell></cell><cell>2.9.3 Turbulence</cell><cell>HAZARD REPORT-</cell><cell>Procedures / 2.2.3</cell></row><row><cell></cell><cell>Procedures During Flight</cell><cell>ING/TRACKING / 5.1.5</cell><cell>Transportation of</cell></row><row><cell></cell><cell>/ 2.3.1 Guidelines for</cell><cell>Distribution of the Report</cell><cell>Passengers with</cell></row><row><cell></cell><cell>Escorts / 2.2.7 Cabin</cell><cell>Results / 5.1.7 Report</cell><cell>Disabilities / 2.9.5</cell></row><row><cell></cell><cell>Baggage (Carry-On</cell><cell>Closure / 5.1.1 What</cell><cell>Anticipated Turbulence /</cell></row><row><cell></cell><cell>Luggage) / 5.1.3 Receipt</cell><cell>hazards should staff</cell><cell>2.7 FINAL DESCENT</cell></row><row><cell></cell><cell>of the Report / 3.11.1</cell><cell>report? / 3.5.6 Galley</cell><cell>PROCEDURES / 1.1</cell></row><row><cell></cell><cell>In-Flight Medical</cell><cell>Fire Procedure / 3.5.2</cell><cell>BACKGROUND / 3.9.2</cell></row><row><cell></cell><cell>Emergency Action Plan /</cell><cell>Classification of Fire</cell><cell>Cabin Crew Incapacitation</cell></row><row><cell></cell><cell>2.2.5 Seat Duplications</cell><cell>Meridian Air flight</cell><cell>/ 2.2.9 Child Restraint</cell></row><row><cell></cell><cell>Before the door closes</cell><cell>MA482 has smoke</cell><cell>Systems (CRS) / 3.6.4 At</cell></row><row><cell></cell><cell>on BlueNorth 217</cell><cell>coming from the</cell><cell>Decompression</cell></row><row><cell></cell><cell>(flight ID FLT-BN217),</cell><cell>forward galley oven 2</cell><cell>Flight ORC482 has</cell></row><row><cell></cell><cell>help passenger Nora</cell><cell>minutes after meal</cell><cell>started descent into</cell></row><row><cell></cell><cell>Petrov in 14C with bag</cell><cell>service started, and the</cell><cell>Madrid. Please handle</cell></row><row><cell></cell><cell>BG-4411, a hard-shell</cell><cell>oven smoke detector</cell><cell>Daniel Cho in 14A,</cell></row><row><cell></cell><cell>suitcase, and bag</cell><cell>has triggered once.</cell><cell>who uses a cane and</cell></row><row><cell></cell><cell>BG-4412, a Styrofoam</cell><cell>Please take care of the</cell><cell>wants to remain in that</cell></row><row><cell></cell><cell>food cooler. BG-4411</cell><cell>onboard emergency on</cell><cell>seat, and Maya Torres</cell></row><row><cell></cell><cell>weighs 4 kg, BG-4412</cell><cell>MA482 and make sure</cell><cell>in 13B, who wants her</cell></row><row><cell></cell><cell>weighs 3 kg, the</cell><cell>Leah Ortiz's report is</cell><cell>25-month-old son Leo</cell></row><row><cell></cell><cell>underseat space at 14C</cell><cell>handled confidentially</cell><cell>to stay in his child seat</cell></row><row><cell></cell><cell>has a restraint bar and</cell><cell>by Cabin Safety</cell><cell>in 13A for landing.</cell></row><row><cell></cell><cell>BG-4412 fits fully there, the overhead bin above row 14 is placarded for 22 kg and already has 18 kg in it, and the only other open spots are the forward lavatory and the bulkhead ledge at row 1.</cell><cell>afterward. [ops] 3.1. Regional Overrides / 3.2. The "Over-Budget" Protocol / 3. Travel &amp; Expense Branching Logic / 5. Compliance &amp; Termination States / Global Operations &amp; Procurement Standard</cell><cell>[ops] 4.2. Delivery Requirements / 3. Travel &amp; Expense Branching Logic / 2. Digital Asset Acquisition (Software &amp; Licenses) / 4. Hardware Procurement &amp; Logistics / 5. Compliance &amp; Termination States / 4.1. Inventory Check Logic /</cell></row><row><cell></cell><cell>[ops] 2.1. The "SSC"</cell><cell>Operating Procedure</cell><cell>Global Operations &amp;</cell></row><row><cell></cell><cell>Conditional Rule / 3.1.</cell><cell>(SOP) v.4.2 / 4.</cell><cell>Procurement Standard</cell></row><row><cell></cell><cell>Regional Overrides / 3.2.</cell><cell>Hardware Procurement &amp;</cell><cell>Operating Procedure</cell></row><row><cell></cell><cell>The "Over-Budget"</cell><cell>Logistics / 4.1. Inventory</cell><cell>(SOP) v.4.2 / 3.1.</cell></row><row><cell></cell><cell>Protocol / 3. Travel &amp;</cell><cell>Check Logic / 4.2.</cell><cell>Regional Overrides / 3.2.</cell></row><row><cell></cell><cell>Expense Branching Logic</cell><cell>Delivery Requirements /</cell><cell>The "Over-Budget"</cell></row><row><cell></cell><cell>/ 4.1. Inventory Check</cell><cell>1. Introduction / 2.1. The</cell><cell>Protocol / 1. Introduction</cell></row><row><cell></cell><cell>Logic / 4.2. Delivery</cell><cell>"SSC" Conditional Rule</cell><cell>I'm Ravi Cho. Please</cell></row><row><cell></cell><cell>Requirements / 4.</cell><cell>Please arrange travel</cell><cell>order one AtlasForge</cell></row><row><cell></cell><cell>Hardware Procurement &amp;</cell><cell>for Elena Fischer from</cell><cell>RackStation S2 server</cell></row><row><cell></cell><cell>Logistics / 5. Compliance</cell><cell>Brussels to Paris for a</cell><cell>and send it to my</cell></row><row><cell></cell><cell>&amp; Termination States /</cell><cell>2-day regulatory</cell><cell>home office at 417</cell></row><row><cell></cell><cell>Global Operations &amp;</cell><cell>meeting. I want a flight</cell><cell>Maple Crest Drive,</cell></row><row><cell></cell><cell>Procurement Standard</cell><cell>in economy, my budget</cell><cell>Plano, TX 75024; it's a</cell></row><row><cell></cell><cell>Operating Procedure</cell><cell>is $260 per day, and</cell><cell>residential address.</cell></row><row><cell></cell><cell>(SOP) v.4.2 / 1.</cell><cell>the justification on the</cell><cell>Purchasing quoted a</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 4 .</head><label>4</label><figDesc>Pass@1, Pass@5, and Pass^5 by model and domain. Values are percentages with 95% confidence intervals; bold indicates the best model for each domain and metric.We see that Qwen3.6 is the strongest overall model, leading the most metrics across domains, especially Cabin, Ops, Airline, and Retail. Gemma4 is highly competitive, particularly on Cabin and Sasquatch, while Claude Haiku 4.5 stands out on Sasquatch, Airline, and Telecom support-style metrics. GPT-5.4-mini is the clear Telecom specialist and also has the best Retail support score. Qwen3 and GPT-OSS have isolated strengths-Qwen3 on Cabin support and GPT-OSS on Ops pass@5-but are less consistent overall. Retail appears to be the hardest domain, with generally lower scores than the others.We further see that domains taken from τ -bench seem harder for all models even though Cabin has a much longer document and a much larger tool set. Yet, this discrepancy can be explained via the complexity of the tools used in the different domains, as reported in TableD.1. This reveals that the difficulty of the benchmark (low success rate in Table 4) correlates with the tool complexity (highest values in Table D.1).</figDesc><table><row><cell>Domain</cell><cell cols="7">Tools Avg. params Avg. required Enum Array Complex Max</cell></row><row><cell cols="2">Cabin Safety 148</cell><cell>1.09</cell><cell>1.07</cell><cell>0</cell><cell>1</cell><cell>1</cell><cell>4</cell></row><row><cell>Operations</cell><cell>20</cell><cell>2.40</cell><cell>1.35</cell><cell>0</cell><cell>1</cell><cell>3</cell><cell>7</cell></row><row><cell>Sasquatch</cell><cell>23</cell><cell>1.26</cell><cell>1.13</cell><cell>0</cell><cell>0</cell><cell>0</cell><cell>2</cell></row><row><cell>Airline</cell><cell>14</cell><cell>2.57</cell><cell>2.57</cell><cell>4</cell><cell>5</cell><cell cols="2">3 11</cell></row><row><cell>Retail</cell><cell>16</cell><cell>2.44</cell><cell>2.44</cell><cell>0</cell><cell>5</cell><cell>4</cell><cell>7</cell></row><row><cell>Telecom</cell><cell>13</cell><cell>1.85</cell><cell>1.77</cell><cell>0</cell><cell>0</cell><cell>0</cell><cell>3</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 5 .</head><label>5</label><figDesc>Tool argument structural complexity by domain. Tools is the registry size; Avg. params and Avg. required are mean parameter counts per tool; Enum / Array count parameters whose typed slot is an enumeration or array (records do not occur in any registry); Complex counts tools with ≥ 4 parameters; Max is the largest parameter count of any tool in the domain.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 6 .</head><label>6</label><figDesc>Table6summarizes the distribution. The dominant failure mode, by a wide margin, is Missing-Required-Call: an atom of the form CALL(t, a) appears in the check set but the agent never invoked t with arguments matching a. Together, Missing-Required-Call and Missing-Anchor (the absence of the anchor tool of an AFTER, BEFORE, FOLLOWS, or PRECEDES clause) account for 76% of all failed checks. Pure ordering violations-an agent that called the right tools but in the wrong order-are rare (2%), and compound OR clauses where every disjunct fails are rarer still (1%). The benchmark, in aggregate, is therefore primarily measuring whether agents call the right tools at all, not whether they sequence them correctly. Distribution of failure categories across all failed checks in the evaluation sweep. Missing-Required-Call and Missing-Anchor together account for 76% of failures, indicating that agents most commonly fail by skipping a mandated tool call rather than by misordering the calls they do make.</figDesc><table><row><cell>Failure category</cell><cell>Count Share</cell></row><row><cell cols="2">Missing-Required-Call (atom CALL(t, a) never satisfied) 6,349 58%</cell></row><row><cell cols="2">Missing-Anchor (anchor of an ordering clause never fired) 2,006 18%</cell></row><row><cell>Forbidden-Call (atom NO-CALL(t, a) violated)</cell><cell>2,184 20%</cell></row><row><cell>Ordering violation (AFTER/BEFORE/FOLLOWS/PRECEDES)</cell><cell>250 2%</cell></row><row><cell>Compound OR with all branches failing</cell><cell>105 1%</cell></row><row><cell>Total</cell><cell>10,895 100%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 9 .</head><label>9</label><figDesc>Table8summarizes them. GPT-OSS:20.9B has the highest crash rate at 7.6% overall, rising to 23.4% on the operations domain. On the other end of Premature-write rate (%): fraction of attempts in which a write-style tool was invoked before any read-style tool. Lower is better. Qwen3.6:36B is the only open model that never writes before looking up on tau2-airline or tau2-retail, which coincides with its leaderboard dominance on those domains.Illustrative head-to-head trace. Test case smp_003_002 on tau2-retail ("swap ITM-7210 for ITM-7216 on order ORD-58804, charge difference to payment method PM-CC-7730") exhibits the lookup-discipline contrast in microcosm. Qwen3.6:36B passed all 5/5 attempts with the trace</figDesc><table><row><cell>Domain</cell><cell cols="5">Qwen3.6:36B Qwen3:8.2B GPT-OSS:20.9B Claude Haiku Gemma4:8.0B</cell></row><row><cell>Cabin Safety</cell><cell>38.1</cell><cell>65.1</cell><cell>56.5</cell><cell>35.2</cell><cell>66.3</cell></row><row><cell>Sneaky-Sasquatch</cell><cell>29.8</cell><cell>62.8</cell><cell>19.1</cell><cell>25.1</cell><cell>69.8</cell></row><row><cell>Tau2 Airline</cell><cell>0.0</cell><cell>30.0</cell><cell>31.4</cell><cell>4.5</cell><cell>15.5</cell></row><row><cell>Tau2 Retail</cell><cell>0.0</cell><cell>1.4</cell><cell>8.4</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>Tau2 Telecom</cell><cell>20.0</cell><cell>34.2</cell><cell>20.0</cell><cell>38.1</cell><cell>40.6</cell></row><row><cell cols="5">find_user_id_by_email → get_user_details →</cell><cell></cell></row><row><cell cols="5">get_order_details → get_item_details(7210) →</cell><cell></cell></row><row><cell cols="5">get_item_details(7216) → get_product_details</cell><cell></cell></row><row><cell cols="6">six read-only lookups followed by no write at all (the order is not in a modifiable</cell></row><row><cell cols="6">state, which the lookups reveal). Both Qwen3:8.2B and Gemma4:8.0B failed all</cell></row><row><cell cols="3">5/5 attempts with the same shorter trace,</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">get_order_details → modify_pending_order_items(. . .),</cell><cell></cell></row><row><cell cols="6">an immediate write that violates the manual's gating-read requirement. Both</cell></row><row><cell cols="6">the Missing-Required-Call checks (for the skipped item lookups) and the</cell></row><row><cell cols="6">Forbidden-Call check on modify_pending_order_items fire, producing the</cell></row><row><cell cols="5">characteristic compound failure pattern visible in the aggregate statistics.</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head></head><label></label><figDesc>Just sort out the deficiency for his chart.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>TEST CASE: sneaky-sasquatch</cell></row><row><cell>Entities:</cell><cell>Eli Barker,</cell><cell>patient_id=PT-7004,</cell><cell>case_id=CM44,</cell></row><row><cell cols="2">deficiency=vitamin_b12.</cell><cell></cell><cell></cell></row><row><cell>Scenario &amp; Checks</cell><cell></cell><cell>Relevant Chunk</cell><cell></cell></row><row><cell>Scenario</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">Patient Eli Barker, patient ID</cell><cell></cell><cell></cell></row><row><cell cols="2">PT-7004, says, "Been eating</cell><cell></cell><cell></cell></row><row><cell cols="2">terribly lately" and wants to</cell><cell></cell><cell></cell></row><row><cell cols="2">know exactly what nutrient is</cell><cell></cell><cell></cell></row><row><cell cols="2">missing before we make any</cell><cell></cell><cell></cell></row><row><cell>diet changes. Trace checks</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">1 CALL run_vitamin_test</cell><cell></cell><cell></cell></row><row><cell>(PT-7004)</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">2 CALL run_mineral_test</cell><cell></cell><cell></cell></row><row><cell>(PT-7004)</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head></head><label></label><figDesc>Please handle passenger Victor Alvarez, passenger ID PAX-55209. After 2 instructions from the cabin crew during climb, he is still refusing to stow his roller bag and is shouting profanities at the flight attendant. No one has been injured, but the aisle remains partially blocked.</figDesc><table><row><cell>TEST CASE: cabin-safety</cell></row><row><cell>dataset_hf: case_029</cell></row><row><cell>Scenario &amp; Checks</cell></row><row><cell>Scenario</cell></row><row><cell>Trace checks</cell></row><row><cell>1 check_000: CALL classify_passenger_misconduct_level(passenger_id=PAX-55209)</cell></row><row><cell>2 check_001: CALL notify_pic_of_unruly_passenger(passenger_id=PAX-55209)</cell></row><row><cell>3 check_002: CALL attempt_unruly_passenger_deescalation(passenger_id=PAX-55209)</cell></row><row><cell>4 check_003: CALL coordinate_unruly_passenger_report(passenger_id=PAX-55209)</cell></row><row><cell>5 check_004: CALL notify_pic_of_unruly_passenger(passenger_</cell></row><row><cell>id=PAX-55209) PRECEDES CALL attempt_unruly_passenger_deescalation(passenger_</cell></row><row><cell>id=PAX-55209)</cell></row><row><cell>6 check_005: CALL notify_pic_of_unruly_passenger(passenger_</cell></row><row><cell>id=PAX-55209) PRECEDES CALL coordinate_unruly_passenger_report(passenger_</cell></row><row><cell>id=PAX-55209)</cell></row><row><cell>7 check_006: CALL classify_passenger_misconduct_level(passenger_</cell></row><row><cell>id=PAX-55209) PRECEDES CALL coordinate_unruly_passenger_report(passenger_</cell></row><row><cell>id=PAX-55209)</cell></row><row><cell>8 check_007: NO-CALL record_unruly_passenger_restraint()</cell></row><row><cell>9 check_008: NO-CALL request_law_enforcement_for_unruly_passenger()</cell></row><row><cell>Relevant Chunk</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_16"><head></head><label></label><figDesc>3.7.2 Unruly Passenger Handling Procedures. Procedures for handling the misconduct vary with the severity of the event. An action/procedure table Please arrange a 4-day economy flight from Boston to Toronto for Elena Marquez so she can attend the NorthBridge compliance workshop, and keep the daily budget at $245. Each user has a profile containing: -user id -email -addresses -date of birth -payment methods -membership level -reservation numbers There are three types of payment methods: **credit card**, **gift card**, **travel certificate**. There are three membership levels: **regular**, **silver**, **gold**.</figDesc><table><row><cell>Cabin Safety -case_010 Operations -case_006 Tau2 Airline -case_002</cell><cell></cell><cell>TEST CASE: cabin-safety TEST CASE: operations TEST CASE: tau2-airline</cell></row><row><cell>dataset_hf: case_010 dataset_hf: case_006 dataset_hf: case_002</cell><cell></cell><cell></cell></row><row><cell>Scenario &amp; Checks</cell><cell></cell><cell></cell></row><row><cell>Scenario &amp; Checks Scenario &amp; Checks Scenario</cell><cell>Relevant Chunk Relevant Chunk</cell><cell>SMT Model SMT Model</cell></row><row><cell cols="2">Scenario Categorize the active bomb threat for Kestrel Air flight KST482. Trace checks 1 check_000: CALL classify_bomb_threat( flight_id=KST482) Scenario Trace checks 1 check_000: CALL book_travel(daily_ budget_usd=245, destination=Toronto, num_days=4, origin=Boston, travel_ class=economy, travel_mode=flight) 2 check_001: NO-CALL book_travel(daily_ budget_usd=245, destination=Toronto, num_days=4, origin=Boston, reason=NorthBridge compliance workshop, travel_class=economy, travel_mode=flight) BEFORE CALL book_ travel(daily_budget_usd=245, destination=Toronto, num_days=4, origin=Boston, reason=NorthBridge compliance workshop, travel_ Which payment methods are saved for user USR-77193? 4.2.1 Types of Bomb Threats. -**Specific**: Threat is identified by flight number, departure time, or bomb location and includes positive identification to aircraft -**Non-specific**: Threat is one in which the caller may identify the flight by 1. Introduction. Trace checks This document 1 check_000: CALL get_user_details(user_id=USR-77193) outlines the mandatory procedures for requirements branching logic adhere to these Failure to arrangements. travel hardware, and physical digital assets, acquisition of regarding the all personnel Relevant Chunk User.</cell><cell>SMT id: smt_smp_002_v001 State vars: bomb_threat_type: enum(SPECIFIC, NON_SPECIFIC); bomb_threat_type_ checked: Bool Transitions: classify_bomb_ threat(flight_ id-&gt;fid): pre true; post bomb_threat_type_ checked' = true SMT id: smt_smp_004_v002 State vars: booking_status: enum(NONE, CONFIRMED) "CONFIRMED" booking_status' = pre true; post travel_mode-&gt;m): travel_class-&gt;c, reason-&gt;r, origin-&gt;o, num_days-&gt;n, destination-&gt;d, budget_usd-&gt;b, travel(daily_ Transitions: book_</cell></row><row><cell>class=economy, travel_mode=flight)</cell><cell>destination or will result in a</cell><cell></cell></row><row><cell>3 check_002: NO-CALL book_travel(daily_</cell><cell>origin, flight "Rejection</cell><cell></cell></row><row><cell>budget_usd=245, destination=Toronto, num_days=4, origin=Boston, reason=NorthBridge compliance</cell><cell>number or time of departure or State" for the procurement</cell><cell></cell></row><row><cell>workshop, travel_class=economy, travel_mode=flight) AFTER CALL book_ travel(daily_budget_usd=245, destination=Toronto, num_days=4, origin=Boston, reason=NorthBridge compliance workshop, travel_ class=economy, travel_mode=flight)</cell><cell>arrival ticket. Determination of bomb threat 3. Travel &amp; Expense type should be Branching conducted by Logic. All Dispatch and/or travel must be PIC or booked through management. the &gt; **NOTE**: "GlobalGate" While a majority of portal.</cell><cell></cell></row><row><cell></cell><cell>bomb threats are</cell><cell></cell></row><row><cell></cell><cell>hoaxes, the</cell><cell></cell></row><row><cell></cell><cell>threat should be</cell><cell></cell></row><row><cell></cell><cell>treated as</cell><cell></cell></row><row><cell></cell><cell>legitimate.</cell><cell></cell></row></table><note><p><p>SMT Model</p>SMT id: smt_smp_000_v005 State vars: user_details_retrieved: Bool; user_id: String; email: String; addresses:</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>This chunk-size limit can be chosen by the benchmark creator based on the context window available for downstream generation stages.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>The check only matches the arguments explicitly specified by a.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"> <ref type="table">7</ref><p>. Top write-style tools accounting for Forbidden-Call failures, by domain. These tools share the property that the manual prescribes a gating read before they may fire; the failure mode is the agent committing without that read.</p><p>the spectrum, Claude Haiku 4.5 crashes in fewer than 0.5% of attempts overall, but on the cabin-safety domain 21% of its failures are empty traces-the model returns natural-language text without invoking any tool. We did not observe a comparable empty-trace rate for any other (model, domain) pair. We conjecture that the unusually long cabin-safety policy document triggers a passivity or refusal mode in the Haiku system prompt; investigating the trigger is left for future work.  Lookup discipline distinguishes strong from weak models. A behavioral statistic that cleanly separates the strongest from the weakest model on each domain is the premature-write rate: the fraction of attempts in which a write-style tool was called before any read-style tool.  Order. Each order has the following attributes: -unique order id -user id -address -items ordered -status -fullfilments info (tracking id and item ids) -payment history The status of an order can be: * Bool; delivered_return_confirmed: Bool Transitions: cancel_pending_order(order_id-&gt;oid, reason-&gt;r): pre order_status = "PENDING", cancellation_confirmed = true, non_gift_card_refund_min_business_days &lt;= non_gift_card_refund_max_business_days; post order_status' = "CANCELLED", payment_method_kind = "GIFT_CARD" =&gt; refund_status' = "GIFT_CARD_BALANCE_CREDITED", payment_method_kind = "NON_GIFT_CARD" =&gt; refund_status' = "EXTERNAL_REFUND_PENDING" exchange_delivered_order_items(item_ids-&gt;iids, new_item_ids-&gt;nids, order_id-&gt;oid, payment_method_id-&gt;pmid): pre order_details_checked = true, requested_item_type_match = true, (product_details_checked = true or product_types_listed = true), order_status = "DELIVERED", delivered_post_delivery_action_count &lt; max_delivered_post_delivery_actions, delivered_exchange_confirmed = true; post delivered_post_delivery_action_count' = delivered_post_delivery_action_count + 1 get_item_details(item_id-&gt;iid): pre true; post item_details_checked' = true get_order_details(order_id-&gt;oid): pre true; post order_details_checked' = true get_product_details(product_id-&gt;pid): pre true; post product_details_checked' = true list_all_product_types(): pre product_type_count = 50; post product_types_listed' = true modify_pending_order_address(address1-&gt;a1, address2-&gt;a2, city-&gt;c, country-&gt;co, order_id-&gt;oid, state-&gt;st, zip-&gt;z): pre order_details_checked = true, order_status = "PENDING", pending_address_modification_confirmed = true; post shipping_address_address1' = a1, shipping_address_address2' = a2, shipping_address_city' = c, shipping_address_country' = co, shipping_address_state' = st, shipping_address_zip' = z modify_pending_order_items(item_ids-&gt;iids, new_item_ids-&gt;nids, order_id-&gt;oid, payment_method_id-&gt;pmid): pre order_details_checked = true, item_details_checked = true, (product_details_checked = true or product_types_listed = true), requested_item_type_match = true, order_status = "PENDING", pending_item_modification_count &lt; max_pending_item_modifications, pending_item_modification_confirmed = true; post pending_item_modification_count' = pending_item_modification_count + 1 modify_pending_order_payment(order_id-&gt;oid, payment_method_id-&gt;pmid): pre order_details_checked = true, order_status = "PENDING", pending_payment_modification_confirmed = true; post payment_method_id' = pmid Tau2 Retail -case_007</p><p>TEST CASE: tau2-retail dataset_hf: case_007</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Scenario &amp; Checks</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Scenario</head><p>Please exchange the Larkspur Hoodie from order ORD-51763 from small to medium and charge any difference to gift card GC-77105, which has $25.00 available. I'm returning the whole hoodie line, and yes, I confirm you should proceed. My account email is usr_auto__51763@example.com.</p><p>Trace checks 1 check_000: CALL get_order_details(order_id=ORD-51763) 2 check_001: NO-CALL exchange_delivered_order_items() 3 check_002: NO-CALL return_delivered_order_items()</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Relevant Chunk</head><p>Exchange delivered order. An order can only be exchanged if its status is 'delivered', and you should check its status before taking the action. In particular, remember to remind the customer to confirm they have provided all items to be exchanged. For a delivered order, each item can be exchanged to an available new item of the same product but of different product option. There cannot be any change of product types, e.g. modify shirt to shoe. The user must provide a payment method to pay or receive refund of the price difference. If the user provides a gift card, it must have enough balance to cover the price difference. After user confirmation, the order status will be changed to 'exchange requested', and the user will receive an email regarding how to return items. There is no need to place a new order.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>SMT Model</head><p>SMT id: smt_smp_002_v002 State vars: order_status: enum(DELIVERED, EXCHANGE_REQUESTED, RETURN_REQUESTED, OTHER); order_status_checked: Bool; exchange_confirmed: Bool; return_confirmed: Bool; payment_method_kind: enum(ORIGINAL_PAYMENT_METHOD, EXISTING_GIFT_CARD, OTHER); gift_card_balance_sufficient: Bool; exchange_items_eligible: Bool Transitions: get_order_details(order_id-&gt;oid): pre true; post order_status_checked' = true exchange_delivered_order_items(item_ids-&gt;iids, new_item_ids-&gt;niids, order_id-&gt;oid, payment_method_id-&gt;pmid): pre order_status_checked = true, order_status = "DELIVERED", exchange_confirmed = true, exchange_items_eligible = true, payment_method_kind = "EXISTING_GIFT_CARD" =&gt; gift_card_balance_sufficient = true; post order_status' = "EXCHANGE_REQUESTED" return_delivered_order_items(item_ids-&gt;iids, order_id-&gt;oid, payment_method_id-&gt;pmid): pre order_status_checked = true, order_status = "DELIVERED", return_confirmed = true, (payment_method_kind = "ORIGINAL_PAYMENT_METHOD" or payment_method_kind = "EXISTING_GIFT_CARD"), not(oid = ""), not(iids = ""), not(pmid = ""); post order_status' = "RETURN_REQUESTED" Tau2 Telecom -case_026 resume_line(customer_id-&gt;cid, line_id-&gt;lid): pre (line_status = "SUSPENDED" or line_status = "PENDING_ACTIVATION"), not(cid = ""), not(lid = ""); post line_status' = "ACTIVE", suspension_start_date' = ""</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Principles of model checking</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Baier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">P</forename><surname>Katoen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<publisher>MIT press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">tau2-bench: Evaluating conversational agents in a dual-control environment</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Barres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.07982</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">C</forename><surname>Barrett</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Tinelli</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<publisher>Springer International Publishing</publisher>
+			<biblScope unit="page" from="305" to="343" />
+			<pubPlace>Cham</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bayless</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Buliani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cassel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Cook</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Clough</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Delmas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Diallo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Erata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Giannakopoulou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2511.09008</idno>
+		<title level="m">A neurosymbolic approach to natural language formalization and verification</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Automated program refinement: Guide and verify code large language model with refinement calculus</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Sanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">S</forename><surname>Dong</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3704905</idno>
+		<ptr target="https://doi.org/10.1145/3704905" />
+	</analytic>
+	<monogr>
+		<title level="j">Proc. ACM Program. Lang</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<date type="published" when="2025-01">jan 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.08069</idno>
+		<title level="m">Travelagent: An ai assistant for personalized travel planning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">P D O</forename><surname>Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Brockman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2107.03374</idno>
+		<title level="m">Evaluating large language models trained on code</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Edge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Trinh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bradley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mody</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Truitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Metropolitansky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">O</forename><surname>Ness</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Larson</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2404.16130</idno>
+		<title level="m">From local to global: A graph rag approach to query-focused summarization</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Sneaky sasquatch wiki -doctor</title>
+		<author>
+			<persName><surname>Fandom</surname></persName>
+		</author>
+		<ptr target="https://sneaky-sasquatch.fandom.com/wiki/Doctor" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="2026" to="2031" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Vericot: Neuro-symbolic chain-of-thought validation via logical consistency checks</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Weir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Bostrom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bayless</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cassel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chaudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Kiesl-Reiter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Rangwala</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2511.04662</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<ptr target="https://flightsafety.org/wp-content/uploads/2016/09/cabin_safety_compendium.pdf" />
+		<title level="m">Flight Safety Foundation: Cabin safety compendium</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="2026" to="2031" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Empowering biomedical discovery with ai agents</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Giunchiglia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Noori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Schwarz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ektefaie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kondic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zitnik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Cell</title>
+		<imprint>
+			<biblScope unit="volume">187</biblScope>
+			<biblScope unit="issue">22</biblScope>
+			<biblScope unit="page" from="6125" to="6151" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.10997</idno>
+		<title level="m">Retrieval-augmented generation for large language models: A survey</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page">32</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Large language models can solve realworld planning rigorously with formal verification tools</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Fan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference of the Nations of the Americas Chapter</title>
+		<meeting>the 2025 Conference of the Nations of the Americas Chapter</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3434" to="3483" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Benchmarking llms for unit test generation from real-world functions</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Harman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">K</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3805043</idno>
+		<ptr target="https://doi.org/10.1145/3805043" />
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Softw. Eng. Methodol</title>
+		<imprint>
+			<date type="published" when="2026-03">mar 2026</date>
+		</imprint>
+	</monogr>
+	<note>just Accepted</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Metatool benchmark for large language models: Deciding whether to use tools and which to use</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">Z</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kolt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.07913</idno>
+		<title level="m">Governing ai agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">SEC-bench: Automated benchmarking of LLM agents on real-world software security tasks</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirty-ninth Annual Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Intellagent: A multi-agent framework for evaluating conversational ai systems</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Levi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Kadar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.11067</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">APIbank: A comprehensive benchmark for tool-augmented LLMs</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.187</idno>
+		<ptr target="https://doi.org/10.18653/v1/2023.emnlp-main.187" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023-12">Dec 2023</date>
+			<biblScope unit="page" from="3102" to="3116" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Antoniades</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yan</surname></persName>
+		</author>
+		<title level="m">Agentorca: A dual-system framework to evaluate language agents on operational routine and constraint adherence</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page">2503</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Agentboard: An analytical evaluation board of multi-turn llm agents</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="74325" to="74362" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Evaluation and benchmarking of llm agents: A survey</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mohammadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yip</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3711896.3736570</idno>
+		<ptr target="https://doi.org/10.1145/3711896.3736570" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V</title>
+		<meeting>the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">25</biblScope>
+			<biblScope unit="page" from="6129" to="6139" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Coordinated ai agents for advancing healthcare</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Moritz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Topol</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Rajpurkar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature Biomedical Engineering</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="432" to="438" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Tools and Algorithms for the Construction and Analysis of Systems</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>De Moura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Bjørner</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2008">2008</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="page" from="337" to="340" />
+			<pubPlace>Berlin Heidelberg; Berlin; Heidelberg</pubPlace>
+		</imprint>
+	</monogr>
+	<note>Z3: An efficient smt solver</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Nandi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Datta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Vichare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Bhattacharya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Raja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Carenini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.08119</idno>
+		<title level="m">Sop-bench: Complex industrial sops for evaluating llm agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Systematic literature review on the rise of agentic ai in enterprise operations</title>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">M</forename><surname>Ozman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Frontiers in Science and Technology Research</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="1" to="015" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Logic-LM: Empowering large language models with symbolic solvers for faithful logical reasoning</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Albalak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.findings-emnlp.248</idno>
+		<ptr target="https://doi.org/10.18653/v1/2023.findings-emnlp.248" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2023</title>
+		<meeting><address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2023-12">Dec 2023</date>
+			<biblScope unit="page" from="3806" to="3824" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">The berkeley function calling leaderboard (BFCL): From tool use to agentic evaluation of large language models</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C J</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-second International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Agent-diff: Benchmarking llm agents on enterprise api tasks via code execution with state-diff-based evaluation</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">M</forename><surname>Pysklo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zhuravel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">D</forename><surname>Watson</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.11224</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">AGENTIF: Benchmarking large language models instruction following ability in agentic scenarios</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Xin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gerstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sun</surname></persName>
+		</author>
+		<title level="m">ToolLLM: Facilitating large language models to master 16000+ realworld APIs</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>The Twelfth International Conference on Learning Representations</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Towards scientific discovery with generative ai: Progress, opportunities, and challenges</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">K</forename><surname>Reddy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Shojaee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI conference on artificial intelligence</title>
+		<meeting>the AAAI conference on artificial intelligence</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">39</biblScope>
+			<biblScope unit="page" from="28601" to="28609" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">V</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cassel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Weir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bayless</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.20055</idno>
+		<title level="m">Verge: Formal refinement and guidance engine for verifiable llm reasoning</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<idno>ac- cessed: 2026-05-05</idno>
+		<ptr target="https://github.com/strands-agents" />
+		<title level="m">Strands Labs: Strands agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.19897</idno>
+		<title level="m">Scienceboard: Evaluating multimodal autonomous agents in realistic scientific workflows</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Automated benchmark generation for repository-level coding tasks</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Vergopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">N</forename><surname>Mueller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Vechev</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-second International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Scientific discovery in the age of artificial intelligence</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Chandak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Van Katwyk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Deac</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<biblScope unit="volume">620</biblScope>
+			<biblScope unit="issue">7972</biblScope>
+			<biblScope unit="page" from="47" to="60" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">MCP-bench: Benchmarking tool-using LLM agents with complex real-world tasks via MCP servers</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Patel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Biju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Rezazadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Siow</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Fourteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Livebench: A challenging, contamination-limited LLM benchmark</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dooley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Feuer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shwartz-Ziv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Saifullah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dey</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shubh-Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">S</forename><surname>Sandha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">V</forename><surname>Naidu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hegde</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Goldstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Neiswanger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Goldblum</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Faithful logical reasoning via symbolic chain-of-thought</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">L</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Hsu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.acl-long.720</idno>
+		<ptr target="https://doi.org/10.18653/v1/2024.acl-long.720" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Bangkok, Thailand</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024-08">Aug 2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="13326" to="13365" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Webshop: Towards scalable real-world web interaction with grounded language agents</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="20744" to="20757" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">tau-bench: A benchmark for tool-agent-user interaction in real-world domains</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">R</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Ai-enabled enterprise information systems for manufacturing</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zdravković</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Panetto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Weichhart</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Enterprise Information Systems</title>
+		<imprint>
+			<biblScope unit="volume">16</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="668" to="720" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Luan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.06512</idno>
+		<title level="m">The fusion of large language models and formal methods for trustworthy ai agents: A roadmap</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Autocodebench: Large language models are automatic code benchmark generators</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ziyanxu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hengyiliu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Lian</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Fourteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<idno>11.2 66.7 ± 11.7 42.9 ± 12.3 32.8 ± 11.0 51.1 ± 14.4 14.9 ± 10.3</idno>
+		<title level="m">Pass@5</title>
+		<imprint/>
+	</monogr>
+	<note>Pass^5 Qwen3:8.2B 54</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Claude</forename></persName>
+		</author>
+		<idno>Haiku 4.5 50.2 ± 10.5 68.3 ± 11.6 31.7 ± 11.6 51.5 ± 13.5 59.6 ± 14.2 42.6 ± 14.3 Gemma4:8.0B 56.2 ± 10.9 68.3 ± 11.6 42.9 ± 12.3 48.5 ± 13.0 61.7 ± 14.0 38.3 ± 14.0</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<idno>Qwen3:8.2B 53.5 ± 12.0 72.1 ± 13.6 23.3 ± 12.8 39.1 ± 13.2 50.0 ± 14.9 27.3 ± 13.3</idno>
+		<title level="m">Model Sasquatch Airline Pass@1 Pass@5 Pass^5 Pass@1 Pass@5 Pass^5</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Claude</forename></persName>
+		</author>
+		<idno>Haiku 4.5 49.7 ± 17.1 58.1 ± 17.7 45.2 ± 17.8 29.5 ± 10.9 40.4 ± 12.8 22.8 ± 11.0 Gemma4:8.0B 53.5 ± 15.7 67.7 ± 16.7 38.7 ± 17.4 28.8 ± 9.5 47.4 ± 13.1 10.5 ± 8.0</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -2,12 +2,18 @@
 # Fetches metadata and PDF reasearch papers from arXiv.org
 
 import argparse
-import json 
+import json
 import re
+import sys
 import time
+from pathlib import Path
 
 import arxiv
 from tqdm import tqdm
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src import config
 
@@ -19,13 +25,25 @@ def safe_filename(arxiv_id: str) -> str:
     return arxiv_id.replace("/","_") + "pdf"
 
 def load_metadata() -> dict:
-    if config.METADATA_DIR.exists():
-        return json.loads(config.METADATA_DIR.read_text())
+    if not config.METADATA_DIR.exists():
+        return {}
 
-    return {}
+    text = config.METADATA_DIR.read_text(encoding="utf-8").strip()
+    if not text:
+        return {}
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+
 
 def save_metadata(metadata : dict) -> None:
-    config.METADATA_DIR.write_text(json.dumps(metadata, indent = 2, ensure_ascii = False))
+    config.METADATA_DIR.parent.mkdir(parents=True, exist_ok=True)
+    config.METADATA_DIR.write_text(
+        json.dumps(metadata, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
 def result_to_record(r: arxiv.Result) -> dict:
 
@@ -78,7 +96,11 @@ def main(target: int, metadata_only : bool) -> None:
         sort_by=arxiv.SortCriterion.Relevance,
     )
 
-    done = sum(1 for m in metadata.values() if m["pdf_downloaded"] or metadata_only)
+    done = sum(
+        1
+        for m in metadata.values()
+        if m.get("pdf_download") or m.get("pdf_downloaded") or metadata_only
+    )
     pbar = tqdm(total = target, initial=min(done, target), desc = "Papers")
 
     for r in client.results(search):
@@ -113,7 +135,7 @@ def main(target: int, metadata_only : bool) -> None:
 
     ok = sum(1 for m in metadata.values() if m["pdf_download"])
     print(f"\n Done. {len(metadata)} records, {ok} PDF's download")
-    print(f"Metadata : {config.METADATA_PATH}")
+    print(f"Metadata : {config.METADATA_DIR}")
     print(f"PDF's:  {config.PDF_DIR}")
 
 

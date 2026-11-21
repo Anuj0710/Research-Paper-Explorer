@@ -1,0 +1,2042 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Estimating the Empowerment of Language Model Agents</title>
+				<funder>
+					<orgName type="full">Cooperative AI Foundation</orgName>
+				</funder>
+				<funder ref="#_cXtVHch">
+					<orgName type="full">Foresight Institute</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Templeton World Charity Foundation</orgName>
+				</funder>
+				<funder ref="#_yCvXnDA">
+					<orgName type="full">Jacobs CIFAR</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Sony Research Award, Toyota Research Institute</orgName>
+					<orgName type="abbreviated">TRI</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-05-28">28 May 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jinyeop</forename><surname>Song</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Physics</orgName>
+								<orgName type="institution">Massachusetts Institute of Technology</orgName>
+								<address>
+									<settlement>Cambridge</settlement>
+									<region>MA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jeff</forename><surname>Gore</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Physics</orgName>
+								<orgName type="institution">Massachusetts Institute of Technology</orgName>
+								<address>
+									<settlement>Cambridge</settlement>
+									<region>MA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Max</forename><surname>Kleiman-Weiner</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Paul G. Allen School of Computer Science &amp; Engineering</orgName>
+								<orgName type="institution">University of Washington</orgName>
+								<address>
+									<settlement>Seattle</settlement>
+									<region>WA</region>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Estimating the Empowerment of Language Model Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-05-28">28 May 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">74CBEE853801EB9F6E20FD12FD276BE9</idno>
+					<idno type="arXiv">arXiv:2509.22504v3[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>As language model (LM) agents become increasingly capable and adopted in real-world applications, there is a growing need for scalable evaluation frameworks beyond costly, manuallydesigned benchmarks. We propose an evaluation framework based on empowerment, an information-theoretic measure of an agent's influence on future states through its actions. To handle the unique challenges of text-based environments, we introduce EELMA (Estimating Empowerment of Language Model Agents), an algorithm for approximating effective empowerment from multi-turn text interactions. We demonstrate EELMA on textual games and realistic web and tool-use environments, showing that empowerment strongly correlates with average task performance. We further analyze how empowerment varies across models, environment complexity, and agent configurations, and show that high-empowerment states and actions often mark pivotal moments for general capabilities. These results establish empowerment as a goal-agnostic metric that complements task-success measures for LM-agent evaluation. Code available: <ref type="url" target="https://github.com/Jinyeop3110/EELMA">https://github. com/Jinyeop3110/EELMA</ref> </p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">Introduction</head><p>Large language model agents (LM-agents) are now capable of acting proactively within and across broader computational systems. In this agentic paradigm, LLMs are expected to make autonomous decisions, invoke external tools such as search engines and APIs to access real-time information <ref type="bibr" target="#b34">(Schick et al., 2023)</ref>, control operating systems to configure settings <ref type="bibr" target="#b15">(Kwon et al., 2024)</ref>, and engage in multi-agent in-teractions with humans or other AIs <ref type="bibr" target="#b20">(Li et al., 2024)</ref>. With their growing integration into critical systems, evaluating LM-agents' performance and safety is essential for ensuring reliable operation, yet it remains a significant challenge.</p><p>Most current evaluations rely on goal-centric benchmarks <ref type="bibr">(Zhou et al., 2024;</ref><ref type="bibr" target="#b29">Phuong et al., 2024)</ref>, where humandesigned objectives serve as proxies for capabilities. While this approach enables direct and practical assessment, it suffers from two limitations. First, designing large-scale evaluation tasks is labor-intensive. Second, traditional evaluation often overlooks the open-ended nature of agentic interactions <ref type="bibr" target="#b35">(Stanley &amp; Lehman, 2015)</ref> by restricting focus to few end goals or milestones. This blind spot limits our ability to detect agents pursuing objectives outside the measured scope and may obscure capability growth with implications for AI safety.</p><p>Here, we propose an alternative evaluation approach leveraging empowerment, an information-theoretic measure of an agent's influence on future states through its actions <ref type="bibr" target="#b14">(Klyubin et al., 2005;</ref><ref type="bibr" target="#b33">Salge et al., 2014;</ref><ref type="bibr" target="#b25">Myers et al., 2024)</ref>. Highly empowered agents recognize the full range of available actions and can effectively chain them together to navigate to diverse future states (Figure <ref type="figure" target="#fig_0">1</ref>). This intuition motivates the core hypothesis of our work: empowerment serves as a proxy for general agentic capability. Most importantly, empowerment can be calculated without manually crafted goals or task-specific rewards and thus enables the evaluation of goal-agnostic capabilities.</p><p>However, classical empowerment estimators <ref type="bibr" target="#b14">(Klyubin et al., 2005;</ref><ref type="bibr" target="#b13">Jung et al., 2011)</ref> do not scale to text-based settings. Tasks such as browsing, coding, or dialog involve variable natural language and high-dimensional observation spaces, where the classical counting-based methods of empowerment estimation fail. This motivates the need for a scalable estimation algorithm tailored to language-based agents. We propose EELMA (Estimating Empowerment of Language Model Agents), a framework that estimates empowerment from multi-turn text interactions using InfoNCE and language embeddings from a pretrained model. By mapping observations to compact embeddings, EELMA handles the variability, redundancy, and high-dimensionality of textbased observations and thus enables the tractable estimation of empowerment. Using EELMA, we measure and analyze the empowerment of LM-agents across a variety of text-based contexts and show that empowerment can be a useful complementary, goal-agnostic metric for LM-agent capability evaluation, particularly in settings where task rewards are unavailable. Our contributions are:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Main Contributions</head><p>• We propose empowerment as a goal-agnostic metric for evaluating LM-agents and provide empirical evidence of strong correlation with task performance across textual games and realistic web and tool-use environments. • We develop EELMA, the first empowerment estimator for text-based LM-agents. • We characterize how agent design choices (e.g., prompts, reasoning, model scale) modulate empowerment. • We show that high-empowerment actions identify pivotal moments without manual annotation.</p><p>To demonstrate our approach, we first formalize empowerment and present EELMA (Section 3). We then validate EELMA on structured text-based games that have an underlying programmatic structure (Section 4). Next, we apply EELMA to realistic web and tool-use environments, including WebArena <ref type="bibr">(Zhou et al., 2024)</ref> for web browsing and τ -bench <ref type="bibr" target="#b47">(Yao et al., 2025)</ref> for tool use, in Section 5.</p><p>Beyond correlation with task performance, we show that high-empowerment actions identify pivotal moments in trajectories, suggesting applications for behavior monitoring. Finally, we conclude with limitations and future directions (Section 6).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">Related Works</head><p>Large Language Model Agents and Benchmarking The advancements in Large Language Models (LLMs) have led to a new class of autonomous agents, referred to as LMagents <ref type="bibr" target="#b46">(Yao et al., 2023;</ref><ref type="bibr" target="#b0">Aksitov et al., 2024;</ref><ref type="bibr" target="#b28">Pan et al., 2024)</ref>. In these systems, the agent perceives an environment state or context, generates a plan, and executes an action. Multi-turn interactions, often augmented with memory or planning summaries, enable LM-agents to tackle tasks requiring context, long horizons, and complex reasoning <ref type="bibr" target="#b45">(Xu et al., 2025)</ref>. Benchmarks for agents evaluate their behavior in domains such as software engineering <ref type="bibr" target="#b12">(Jimenez et al., 2024;</ref><ref type="bibr" target="#b1">Aleithan et al., 2024)</ref>, web navigation <ref type="bibr">(Zhou et al., 2024)</ref>, games <ref type="bibr" target="#b27">(Paglieri et al., 2025)</ref>, and practical computing <ref type="bibr" target="#b43">(Xie et al., 2024)</ref>. These benchmarks rely on handcrafted completion or milestone-based goal metrics. In contrast, we quantify an agent's control over the environment using an information-theoretic approach, offering a complementary evaluation methodology.</p><p>Information Theoretic Measures Empowerment is an information-theoretic measure that quantifies an agent's ability to influence its environment. Formally, it is defined as the channel capacity between an agent's actions and its subsequent sensory inputs, capturing the maximal mutual information between the agent's actions and future states <ref type="bibr" target="#b33">(Salge et al., 2014)</ref>. Variational techniques have been proposed to estimate empowerment in high-dimensional, continuous domains <ref type="bibr" target="#b24">(Mohamed &amp; Rezende, 2015)</ref>. Recent work has used the mutual information between actions and states as an intrinsic reward signal for training agents to encourage exploration <ref type="bibr" target="#b4">(Bharadhwaj et al., 2022)</ref> or assist human users <ref type="bibr" target="#b25">(Myers et al., 2024)</ref>. Finally, while agent empowerment has previously been evaluated in gridworlds and the Tower of Hanoi, these prior studies required noise-free observation of the underlying symbolic state. Our work, in contrast, operates on natural-language renderings of the games and introduces variable rewritings of the state.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">Method: Empowerment Estimation of LM Agents from Language-Based Trajectories</head><p>We formalize Language Model (LM) agents within the standard framework of a Markov Decision Process (MDP), represented by the tuple (S, O, A, T, R, γ), where s ∈ S denotes the underlying environment state, o ∈ O is an observation of that state, and a ∈ A represents an action executed by the agent. The dynamics are governed by the transition probability function T (s ′ |s, a). The rewards (goals) are distributed by the reward function R(s), and conventional evaluation measures agent capability via the mean or discounted reward. The discount factor γ determines how future rewards are weighted. At each step, given the current state s, the LM-agent samples an action according to its policy π LM (a | s, P ). Notably, π LM depends on the language model and the prompt P , which could include the system prompt, memories, and Chain-of-Thought (CoT) reasoning.</p><p>Empowerment is an information-theoretic measure of an agent's ability to influence the system <ref type="bibr" target="#b14">(Klyubin et al., 2005;</ref><ref type="bibr" target="#b25">Myers et al., 2024;</ref><ref type="bibr" target="#b33">Salge et al., 2014)</ref>. Empowerment was originally defined over sensory observations. In this work, we formulate it over latent states s to capture the agent's true influence. We address estimation from observations o via the EELMA algorithm in the following section.</p><p>To define this formally, we randomly sample a future state , the expected pointwise log-density ratio under the joint (a t , s * , τ ) given s t . Our core metric, effective empowerment E, is defined as the average conditional mutual information over states encountered under the policy:</p><formula xml:id="formula_0">s * that is τ ∼ Geom(1 -γ)</formula><formula xml:id="formula_1">E(π LM ) ≜ E st [I(a t ; s * | s t )] = E st,at ∞ k=0 (1 -γ)γ k E s * log P (s t+k = s * | s t , a t ) P (s t+k = s * | s t )<label>(1)</label></formula><p>To support granular analysis, we define state-conditional empowerment E(s, π LM ) and state-action-conditional empowerment E(s, a, π LM ):</p><formula xml:id="formula_2">E(s, π LM ) ≜ E a∼π LM ,s * [I(a t ; s * | s t )]<label>(2)</label></formula><formula xml:id="formula_3">E(s, a, π LM ) ≜ E s * [I(a t ; s * | s t )]<label>(3)</label></formula><p>Empowerment as a proxy for Agentic Capability. Prior work <ref type="bibr" target="#b25">(Myers et al., 2024)</ref> relates effective empowerment to an agent's capability under the uniform reward assumption: when rewards are uniformly distributed across states, empowerment lower-bounds the mean discounted reward (r = E R [ ∞ t=0 γ t r t ]; see Appendix A.2 for derivation). Intuitively, higher empowerment reflects stronger steering of future trajectories; under uniformly distributed rewards, this translates into higher expected task reward. Inspired by this theoretical result, we propose a key hypothesis of our work:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Key Hypothesis</head><p>We posit that empowerment serves as a proxy for the overall capability of LM-agents, i.e., empowerment should correlate with mean task reward across diverse goals distributed over the environment. This hypothesis forms the basis for our proposal to use empowerment for agentic capability evaluation. Unlike goal-centric benchmarks, empowerment can be quantified directly from diverse trajectories and therefore does not require hand-labeled goals or milestones. Concretely, the empowerment estimator operates on (o t , a t , o * ) tuples only and never references task goals or rewards; goal-directed prompts serve only to elicit diverse agent behaviors during trajectory collection, not as inputs to the metric. We validate the hypothesis empirically by comparing mean empowerment against mean discounted reward across a range of agent-environment systems.</p><p>The EELMA Algorithm. While empowerment is defined over latent states s, LM-agents only have access to textual observations o. This distinction introduces the challenge of observation redundancy: multiple observations can describe the same underlying state (e.g., "the agent is at (1,2)" vs. "located at x=1, y=2"). Conventional counting-based estimators treat each unique observation string as a distinct state, causing them to systematically underestimate transition probabilities and to fail under linguistic variability. Additionally, the observation space is high-dimensional, making direct probability estimation intractable <ref type="bibr" target="#b5">(Du et al., 2020;</ref><ref type="bibr" target="#b13">Jung et al., 2011)</ref>.</p><p>To address these issues, we propose EELMA (Estimating Empowerment of Language Model Agents), a novel method for estimating effective empowerment from textual trajectories (Figure <ref type="figure" target="#fig_1">2</ref>). EELMA maps textual observations and actions into compact embeddings and estimates mutual information via InfoNCE <ref type="bibr" target="#b19">(Le-Khac et al., 2020;</ref><ref type="bibr" target="#b32">Rusak et al., 2025)</ref>. Given multi-turn trajectories {(o i t , a i t )} Ti t=1 , we sample tuples (o i t , a i t , o i * ) and embed them as (z i o,t , z i a,t , z i o * ,t ) using a pretrained language model with a fine-tunable MLP projection (parameterized by θ).</p><p>For mutual information estimation, we apply two neural encoders following <ref type="bibr" target="#b25">Myers et al. (2024)</ref>: ϕ encodes current observations and observation-action pairs, while ψ encodes future observations. The two InfoNCE objectives below are variational lower bounds (rather than exact estimates) of the conditional mutual information defined above:</p><p>Obs-only</p><formula xml:id="formula_4">I NCE ≥ E log e ϕ(z i o,t ) ⊤ ψ(z i o * ) 1 K j e ϕ(z i o,t ) ⊤ ψ(z j o * ) ,<label>(4)</label></formula><p>Obs-action</p><formula xml:id="formula_5">I NCE ≥ E log e ϕ(z i o,t ,z i a,t ) ⊤ ψ(z i o * ) 1 K j e ϕ(z i o,t ,z i a,t ) ⊤ ψ(z j o * )</formula><p>.</p><p>We jointly maximize both objectives; negative samples are randomly drawn from other trajectories (see Appendix 1 for details ; averaging this quantity approximates the conditional MI when the expected residual difference is small, which motivates the estimator:</p><formula xml:id="formula_7">E(π LM ) = E i,t,o * ϕ(z i o,t , z i a,t ) ⊤ ψ(z i o * ) -ϕ(z i o,t ) ⊤ ψ(z i o * )<label>(6)</label></formula><p>Equation 6 exactly defines E; the approximation</p><formula xml:id="formula_8">E ≈ E requires E t,o * [C 1 (o t , a t ) -C 2 (o t )]</formula><p>≈ 0, which is not guaranteed for finite negative-sample size K or imperfect optimization. As K → ∞, both C 1 and C 2 vanish at the global optimum; finite-K training can leave non-zero residual bias. Empirically, Figure <ref type="figure" target="#fig_2">3</ref> shows that E tracks ground-truth empowerment with Spearman R s = 0.80-0.94.</p><p>Notably, by mapping observations to learned embeddings rather than treating each string as a distinct state, EELMA naturally handles observation redundancy: semantically equivalent descriptions are projected to similar representations. The compact embedding space also addresses high-dimensionality, enabling tractable estimation without enumerating over the full observation space. We validate EELMA's robustness to linguistic variability in the following section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">Results: Effective Empowerment in Textual Games</head><p>In this section, we demonstrate that EELMA accurately estimates effective empowerment. We validate EELMA on two controlled environments, Gridworld (a spatial navigation task) and Tower of Hanoi (a test of reasoning), where ground-truth empowerment can be computed directly via conditional probabilities (Appendix A.1). While these are classic, well-studied environments in reinforcement learning and planning, we introduce text-based versions where the LM-agent receives natural language observations and produces natural language actions. This text-based formulation is essential for evaluating LM-agents, as it introduces the linguistic variability and high-dimensional observation spaces characteristic of language-based tasks.</p><p>Gridworld contains three scenarios: (1) an agent enclosed by immovable boxes, (2) an agent with an open route among immovable boxes, and (3) an agent enclosed by boxes that can be moved around. In each scenario, the agent is initialized at the top-left corner of a 5-by-5 grid, and a goal state is randomly sampled from the unoccupied squares in the grid. The LM-agent was prompted to reach the goal state. In Tower of Hanoi (ToH), the LM-agent rearranges four different-sized disks across three rods, while following the rule that a larger disk cannot be placed on top of a smaller one, until a goal configuration of disks is reached. Initial and goal states were randomly sampled from the 81 possible configurations. Detailed descriptions of the games are provided in Appendices E, F. A total of 800 trajectories were generated using LM-agents with GPT-4o-mini for Gridworld and Claude-3.5-Sonnet for ToH.</p><p>EELMA in text-based games. Across all scenarios, effective empowerment estimates produced by EELMA converge to the ground truth values shown in Figure <ref type="figure" target="#fig_9">10</ref>. In Figure <ref type="figure" target="#fig_2">3</ref>, we conducted detailed comparisons of state-conditional empowerment between EELMA and direct estimation upon convergence. Empowerment estimated by EELMA, visualized by agent location in Gridworld and per symmetrical configuration in ToH, closely matches the direct estimation. Panel B demonstrates strong state-level correlations between EELMA and direct estimation, highlighting the precision of EELMA within these games.</p><p>Figure <ref type="figure" target="#fig_2">3</ref> demonstrates how effective empowerment quantifies the optionality an agent has within an environment.   We vary the number of boxes from 4 to 7 in a 4-by-4 Gridworld (left), and the number of disks from 3 to 5 in the ToH of 3 rods (right). Effective empowerment decreases relative to the maximum theoretical empowerment as environment complexity increases, and this decrease closely tracks reduced average rewards.</p><p>For example, in scenario 1, the agent has no option beyond bouncing between the two enclosed squares, resulting in a very low empowerment. In contrast, scenario 2 permits the agent to navigate through available spaces, increasing empowerment. Scenario 3 exhibits even higher empowerment, as the agent gains additional options through box-moving actions. Similarly, in the ToH, states with dispersed disks exhibit greater effective empowerment than states where disks are stacked on a single rod, as they allow more possible disk moves. Finally, Figure <ref type="figure">4</ref> shows that effective empowerment distinguishes influential actions that bring the agent to a novel state from those that do not lead to novel states.</p><p>Robustness and accuracy of EELMA. EELMA provides reliable empowerment estimates even in regimes where baselines fail, for example when direct estimation collapses under natural-language variability (e.g., when the same state is described as "agent is located at x=2,y=1" versus "agent stands at x,y=2,1"). To test this, we constructed paraphrased variants of Gridworld and Tower of Hanoi using LLM-assisted rephrasings, thereby increasing "language uncertainty" (H(observation | latent state)) (Appendix I).</p><p>Under observations with natural-language variability, direct estimation exhibits substantially larger state errors in stateconditional effective empowerment estimation in both Gridworld and Tower of Hanoi (Table <ref type="table" target="#tab_3">1</ref>). By contrast, EELMA (NL) remains close to its fixed-format baseline for state empowerment, indicating robust accuracy under linguistic variability. Together, these results demonstrate that EELMA delivers accurate estimation with robustness to linguistic variability, enabling it to work effectively for LM-agents in language-based environments.</p><p>Effective empowerment is lower when agents struggle in more complex environments. Figure <ref type="figure" target="#fig_4">5</ref> shows how environmental complexity alters effective agent empowerment. LM-agents achieve lower average rewards in increasingly complex environments, such as those with more movable boxes in Gridworld or additional disks in the ToH.</p><p>We compared the effective empowerment to the maximum theoretical value (channel capacity) as calculated using the Blahut-Arimoto algorithm <ref type="bibr" target="#b2">(Arimoto, 1972;</ref><ref type="bibr" target="#b8">Fasoulakis et al., 2025)</ref>. For details of the calculations, refer to Appendix B.1.</p><p>Our results capture how current LM-agents suffer when increasing the obstacles or dimensions of the game, even if the underlying rules of the game remain unchanged. This finding aligns with previous observations that LM-agents struggle to solve spatial tasks at larger scales <ref type="bibr" target="#b21">(Lin et al., 2025)</ref>. Intuitively, human players who rely on an understanding of the game rules would be less affected by scale and maintain their effective empowerment. This contrasts with our observations of LM-agents, highlighting a challenge in preserving empowerment in tasks at scale.</p><p>Effective empowerment tracks goal-averaged performance over variations of LM-agents. We next investigate the effective empowerment of LM-agents with various ablations. We specifically study how Chain-of-Thought (CoT) prompting, memory context length, and the base LLM influence effective empowerment and performance. For CoT ablation, we removed the instructions in the prompt to use CoT prior to generating actions. To study the influence of memory, we provide agents with responses at the previous 1, 2, or 3 steps. We also varied the base LLM, testing both closed-source models (GPT and Claude models) and openweight models (Gemma, Qwen, and Llama 3) of varying parameter sizes. Detailed information about the ablations is provided in Appendix H.</p><p>We collected 1600 trajectories for a 4-by-4 Gridworld environment with 6 movable boxes and 800 trajectories for a ToH environment with 4 disks and 3 rods, each having randomized initial and goal states. Using these trajectories, we estimated effective empowerment with EELMA and plotted it against mean discounted reward. Figure <ref type="figure" target="#fig_5">6</ref> shows that effective empowerment exhibits strong correlations with mean discounted reward across different ablations and conditions. The results support our main claim that effective empowerment can approximate agentic performance.</p><p>Figure <ref type="figure" target="#fig_5">6</ref> shows the impact of different ablations on effective empowerment and performance. Agents exhibit significantly reduced empowerment without CoT reasoning. Disabling CoT drastically reduces empowerment, with a 99% decrease in Gridworld (from 0.19 to 0.01 bits) and a 65% decrease in ToH (from 0.29 to 0.09 bits). Increasing memory context length increases empowerment and performance.</p><p>We observed that extending the agent's memory from 0 to 3 previous steps (m0 to m3) progressively increased empowerment, particularly evident in the ToH environment, where empowerment rose from approximately 0.3 to 0.4 bits with additional memory. Closed-weight LLMs generally exhibit higher empowerment than open-weight LLMs, and effective empowerment scales positively with model size and release version. Among open-source models, Qwen2.5 exhibited clear parameter-scaling behavior, whereas Gemma-3 and Llama 3.2 did not. Within closed-source models, stronger models such as Claude-3.5-Sonnet and GPT-4o consistently demonstrated superior empowerment and performance relative to smaller or lower-cost alternatives such as GPT-4omini.</p><p>Impact of EELMA architecture choices: We investigate how base encoder choice, degree of fine-tuning, and computational cost trade off in practice. First, we find that LoRA adaptation of the encoder offers the best accuracy-stability-cost trade-off, improving RMSE over a frozen encoder while avoiding the training collapse observed for partial or full fine-tuning and adding only a few MB of parameters. Second, base encoder choice matters: larger models such as E5-Base-v2 generally improve performance, but compact architectures like MiniLM-L6-v2 can perform best, suggesting that sentence-level embedding quality is more important than parameter count. Detailed results are reported in the Appendix K, L. Figure <ref type="figure" target="#fig_6">7A</ref> shows the overall performance of four models across domains. We find that GPT-4o has the highest discounted reward compared to o3, GPT-4o-mini, and Qwen. Considering task success alone, o3 has a success rate comparable to GPT-4o, but requires more steps to reach the goal states (Table <ref type="table" target="#tab_6">2</ref>), leading to lower discounted reward. Consistent with these observations, effective empowerment estimated by EELMA across all four domains shows that GPT-4o has the highest influence on the environment. In contrast, in the Shopping tasks there was a flat relation-</p><p>Estimating the Empowerment of Language Model Agents ship between discounted reward and effective empowerment (Figure <ref type="figure" target="#fig_6">7B</ref>). In the Shopping task (e.g., identifying the price range of a Canon Photo Printer in an online shopping mall), the agent must not only navigate through the environment efficiently but also perform reasoning about numerical prices. Such reasoning capabilities might represent a bottleneck that limits performance, regardless of empowerment. Consistent with this possibility, the estimated empowerment values for the Shopping domain are already relatively high, suggesting that empowerment over the environment is not a limiting factor for performance. Interestingly, Qwen performs poorly on Reddit tasks yet maintains quite high empowerment comparable to GPT-4o-mini and o3 (Figure <ref type="figure" target="#fig_6">7</ref>), showing a non-negligible offset from the linear fitting line. We found that this is due to 'jailbreaking' behavior: 40% of Qwen's trajectories navigate to external websites (e.g., the real "www.reddit.com") rather than the WebArena sandbox server, shown in Figure <ref type="figure" target="#fig_1">12b</ref> in Appendix. Consequently, the model navigates to diverse but task-irrelevant external websites; this artificially inflates state diversity and empowerment estimates, even though the agent fails the task objectives.</p><p>Generalization to Tool-Use Environments. To assess EELMA beyond web navigation, we applied it to τbench <ref type="bibr" target="#b47">(Yao et al., 2025)</ref>, a customer-service benchmark in which agents use structured function-calling tools. We evaluated three Qwen2.5-Instruct models (Qwen Team, 2024) (1.5B, 7B, 32B) across two domains (Figure <ref type="figure">8</ref>). In the airline domain (50 tasks, 28-34% pass rates), empowerment scales monotonically with model scale (1.5B: 0.59, 7B: 0.71, 32B: 0.74), in perfect rank agreement with discounted reward. In the retail domain (115 tasks, 3-7% pass rates), empowerment inverts: smaller models hallucinate diverse invalid tool calls, generating varied error responses that EELMA measures as high action-state MI. At floor performance, however, this MI reflects output diversity rather than task-relevant control. This contrast reveals a boundary condition: empowerment tracks capability when agents show differentiated, task-relevant behavior, but becomes less informative when all models operate near floor performance (see Limitations, Section 6).</p><p>Empowerment tracks capability where diversity metrics fail. Diversity-based metrics (visitation entropy, action entropy, and state coverage) cannot distinguish purposeful navigation from erratic behavior: they reward any agent that visits many states, regardless of whether those visits reflect genuine control. This failure is clearest in τbench, where more capable models produce fewer unique tool calls; diversity metrics therefore invert (visitation entropy R s = -0.71), predicting that less capable models are better. Empowerment is designed to measure mutual information between actions and reachable future states, quantifying whether actions reliably steer toward diverse Case Study: Power-seeking and Authentication Finally, we demonstrate how effective empowerment can detect pivotal actions or situations where an agent is accessing more resources than intended <ref type="bibr" target="#b38">(Turner et al., 2021;</ref><ref type="bibr" target="#b37">Turner &amp; Tadepalli, 2022)</ref>. We created a "modified shopping admin" environment, where authentication is not automatically provided for the agent. To successfully complete the shopping admin tasks, the agent must first navigate the website, locate the username and password information on a hidden page, and manually enter these credentials to log in to the shopping admin main panel (Figure <ref type="figure" target="#fig_8">9</ref>). In addition to authentication, the LM-agent also performed the original WebArena tasks (n = 182) in the shopping admin domain.</p><p>Intuitively, successful authentication should be a key moment where effective empowerment should increase. Once authenticated, the agent has access to (and control over) much more of the environment. Thus, successful authentication should result in high effective empowerment, whereas invalid attempts should yield low empowerment. There are no rewards associated with either of these steps in We-bArena.</p><p>We observe that GPT-4o (with 1-step memory) successfully figures out how to authenticate itself 137 times out of 182 trajectories. GPT-4o without memory and GPT-4omini both fail to authenticate (Table <ref type="table" target="#tab_8">4</ref>). and password, whereas it remains low during invalid attempts. Across all 182 trajectories, the trajectory-level mean empowerment score for valid authentication typing actions was 0.268 bits, higher than the -0.094 bits observed for invalid authentication typing actions, with a significance of p &lt; 0.001 (Figure <ref type="figure" target="#fig_0">11</ref>; action-level means are reported in the figure caption). At the same trajectory-level aggregation, username typing shows a smaller valid-invalid empowerment gap (0.204 bits) with no statistical significance (p = 0.32), compared to password typing where valid entries (0.154 bits) significantly exceed invalid attempts (-0.112 bits, p &lt; 0.001). Note that the negative empowerment values arise from the InfoNCE-based approximation, as detailed in Appendix G.4. This pattern may be explained by the sequential nature of authentication: the agent types the username first, and even a valid username paired with an incorrect password results in no effective gain in future state accessibility, making the password entry more critical. Together, these results suggest that effective empowerment can be leveraged for detecting and monitoring highly empowered behaviors (e.g., taking control over system-administration privileges or gaining access to a restricted domain) without needing to explicitly enumerate these behaviors in advance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">Discussion</head><p>We propose EELMA, an information-theoretic, goalagnostic approach to evaluating LM-agent capabilities grounded in empowerment. Our experiments show that EELMA produces robust empowerment estimates that consistently correlate with performance across diverse setups and agent configurations, suggesting its potential as a complementary, goal-agnostic evaluation signal in settings where task rewards are unavailable. We also illustrate how empowerment can be useful for automatically detecting influential actions such as authentication in realistic openended environments. For additional discussion of multimodal extensions and experiments on power-seeking behavior, see the Extra Discussions in Appendix M.</p><p>Limitations of Empowerment. The scope of our work is limited to the empowerment metric, which quantifies an agent's control over future states based on the number of options (alternative futures) the agent can meaningfully access or influence. However, having more options does not always translate directly into greater capability. For instance, having one strong job offer can be more advantageous than multiple poor offers during salary negotiations. Additionally, empowerment does not capture other forms of capability, such as indirect influence over other agents' beliefs, decisions, and actions.</p><p>Our results further reveal failure modes that clarify when empowerment is informative as a capability signal. When the task bottleneck is reasoning rather than state reachability (WebArena Shopping), or when agents exert genuine but task-irrelevant control (Qwen navigating off-domain in Reddit), high empowerment does not predict success. When all models operate near floor performance with no meaningful capability differentiation (τ -bench retail), behavioral diversity dominates the MI signal instead. In each case, empowerment measures what an agent does to its environment, not whether those actions advance the task.</p><p>Scaling to Complex Tasks. Scaling empowerment estimation to more complex environments remains an open challenge. Classical counting-based estimators become intractable as observation and action spaces grow, but EELMA sidesteps this by mapping observations to compact embeddings and estimating mutual information via contrastive objectives on sampled trajectories, without enumerating the state space. Estimating empowerment requires collecting agent trajectories; our subsampling analysis shows estimates stabilize at roughly 50% of the full dataset, though data requirements may vary with environment complexity and task horizon. The additional training overhead is small; for WebArena it amounts to approximately 5% on top of the trajectory collection cost that any benchmark evaluation already requires.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Impact Statement</head><p>This paper introduces a goal-agnostic, trajectory-based evaluation for LM-agents using empowerment, aiming to reduce reliance on hand-crafted goals, milestones, and large benchmark suites. If effective, it could make agent evaluation easier to scale and compare across environments, and help surface capability growth that goal-centric metrics might miss-useful both for safety monitoring and for scientific understanding of agentic behavior.</p><p>At the same time, a goal-agnostic capability metric can be used to make agents broadly more effective, which may accelerate capability optimization and be misused in harmful settings. We acknowledge that optimizing for empowerment can encourage metric gaming or unsafe exploration, and collecting trajectories in realistic settings can raise privacy concerns. We therefore view empowerment as a complementary metric that should be paired with task-success measures and explicit safety checks, evaluated in sandboxed environments, and supported by careful data governance and redaction when logging trajectories. Zhou, S., Xu, F. F., Zhu, H., Zhou, X., Lo, R., Sridhar, A., Cheng, X., Ou, T., Bisk, Y., Fried, D., Alon, U., and Neubig, G. WebArena: A realistic web environment for building autonomous agents. In International Conference on Learning Representations, 2024. URL <ref type="url" target="https://arxiv.org/abs/2307.13854">https:// arxiv.org/abs/2307.13854</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Theoretical Foundation</head><p>We provide the theoretical foundations for effective empowerment as supplementary material to Section 3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1. Direct Estimation of Effective Empowerment</head><p>Figure <ref type="figure" target="#fig_2">3</ref> compares EELMA with direct empowerment estimation computed explicitly from a forward dynamics model. The procedure is detailed below:</p><p>Given a dataset of N trajectories {(s</p><formula xml:id="formula_9">(i) t , a<label>(i)</label></formula><p>t )} Ti t=0 , i = 1, . . . , N , we estimate empowerment at state s by constructing an empirical forward dynamics model p(s * | s, a).</p><p>Define the count of observed transitions from state s to successor state s * via action a across all trajectories as:</p><formula xml:id="formula_10">N (s, a, s * ) = N i=1 Ti-1 t=0 I(s (i) t = s, a (i) t = a, s (i) * = s * )</formula><p>Next, define the total occurrences of action a taken in state s as:</p><formula xml:id="formula_11">N (s, a) = s * N (s, a, s * )</formula><p>Then, the forward dynamics probabilities are estimated via Maximum Likelihood Estimation (MLE):</p><formula xml:id="formula_12">p(s * | s, a) = N (s, a, s * ) N (s, a)</formula><p>With p(s * | s, a) computed, empowerment is defined as the mutual information between actions and successor states:</p><formula xml:id="formula_13">Ê(s) = I(A; S * | s)</formula><p>where A denotes the action, and S * is the resulting successor state conditioned on state s.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2. Empowerment as Proxy for Power</head><p>We adapt the theoretical relationship between effective empowerment and average-goal performance from Myers et al. <ref type="bibr" target="#b25">(Myers et al., 2024)</ref> to our setting, where only the LLM policy ϕ LLM is modeled. The three assumptions are required to provide the connection between empowerment and goals:</p><p>Assumption: Skill Coverage The rewards R ∼ R are uniformly distributed over the scaled |S|-simplex ∆ |S| , such that:</p><formula xml:id="formula_14">R + 1 |S| 1 1 -γ ∼ Unif ∆ |S| = Dirichlet(1, 1, . . . , 1).</formula><p>This assumption implies the reward function is uniform over the states in the environment, and that effectively diverse skills are related to goal-average performance.</p><p>Assumption: Ergodicity For some human policy π H and robot policy π R , it holds that:</p><formula xml:id="formula_15">P π LLM (s * = s | s 0 ) &gt; 0 for all s ∈ S, γ ∈ (0, 1).</formula><p>This guarantees that under the joint policies π H and π R , every state s in the state space S is reachable from the initial state s 0 with positive probability, ensuring sufficient exploration of the state space.</p><p>Assumption: Boltzmann Rationality of Agent The LLM agent is assumed to be Boltzmann-rational with respect to the robot's policy. Specifically, the probability of the LLM agent selecting a sequence of actions a t , . . . , a t+τ given the current state st and reward function R is proportional to the exponentiated expected cumulative reward:</p><formula xml:id="formula_16">P(a t , . . . , a t+τ | st , R) ∝ exp β • E τ k=0 γ k R(s t+k , a t+k ) ,</formula><p>where β &gt; 0 is the rationality coefficient, γ ∈ (0, 1) is the discount factor, and the expectation is taken over state transitions induced by the LLM agent's and robot's policies.</p><p>Under these assumptions, we derive the following lemma: where s + γ denotes the future state at time t under discount factor γ, a t , . . . , a t+τ are the LLM agent's actions from time t to t + τ , st is the state at time t, and R represents the reward function.</p><formula xml:id="formula_17">Lemma 1 Let τ ∼ Geom(1 -γ)</formula><p>Proof: We refer to Myers et al. <ref type="bibr" target="#b25">(Myers et al., 2024)</ref> for a detailed proof; here, we provide a brief sketch. For sufficiently large γ, the future state s + γ approaches the stationary distribution induced by the joint policies (π LLM , π R ), irrespective of the current state s t and actions a t , . . . , a t+τ , as guaranteed by Assumption A.2. Thus, we have:</p><formula xml:id="formula_18">lim inf γ→1 I(s * ; a t , . . . , a t+τ | s t ) ≤ I lim γ→1 s * ; a t , . . . , a t+τ | s t .</formula><p>Next, the Boltzmann rationality assumption (Assumption A.2) guarantees that the LLM agent's policy π LLM induces the following Markov chain structure:</p><formula xml:id="formula_19">ât -→ R -→ lim γ→1 s * .</formula><p>Applying the data processing inequality, we obtain:</p><formula xml:id="formula_20">I lim γ→1 s * ; a t , . . . , a t+τ | s t ≤ I(R; a t , . . . , a t+τ | s t ),</formula><p>which completes the proof.</p><p>To correlate this with goal-averaged reward, consider the following. Given the LLM agent's policy π LLM , reward function R, and discount factor γ ∈ (0, 1), the soft Q-function for a state-action trajectory (s t , a t , . . . , a t+τ ) is defined as:</p><formula xml:id="formula_21">Q πLLM R,γ (s t , a t , . . . , a t+τ ) ≜ E πLLM τ k=0 γ k R(s t+k , a t+k ) - 1 β log π LLM (a t+k | s t+k ) s t , a t , . . . , a t+τ ,</formula><p>where the expectation is taken over future state-action transitions under the LLM agent's policy π LLM , and β &gt; 0 is the rationality coefficient.</p><p>Lemma 2 For any time t and horizon τ ≥ 0, the following inequality holds:</p><formula xml:id="formula_22">I(R; a t , . . . , a t+τ | s t ) ≤ lim γ→1 β e E Q πLLM R,γ (s t , a t , . . . , a t+τ ) 2 ,</formula><p>where Q πLLM R,γ (s t , a t , . . . , a t+τ ) denotes the soft Q-value under reward function R, discount factor γ, LLM agent policy π LLM , and robot policy π R ; β is the rationality coefficient, and e is Euler's number.</p><p>Proof: We refer to Lemma B3 in Myers et al. <ref type="bibr" target="#b25">(Myers et al., 2024)</ref> for a detailed proof.</p><p>Theorem Based on Lemma 1 and Lemma 2, we deduce the following lower-bound relationship for empowerment at sufficiently large γ:</p><formula xml:id="formula_23">E γ (π LLM ) 1/2 ≤ β e J γ R (π LLM ),</formula><p>where</p><formula xml:id="formula_24">J γ R (π LLM ) = E [V R,γ (π LLM )] = E ∞ t=0 γ t R(s t , a t ) - 1 β log π LLM (a t | s t ) ,</formula><p>where E γ (π LLM ) represents the empowerment objective, and J γ R (π LLM ) denotes the expected discounted cumulative reward under policy π LLM . This indicates that goal-averaged discounted reward can be lower bounded by the effective empowerment, establishing a quantifiable connection between empowerment and reward-driven objectives.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3. Empowerment in Partially Observable Markov Decision Processes (POMDPs)</head><p>Although our work assumes a fully observable Markov Decision Process (MDP) as the main framework, the empowerment objective can readily be extended to partially observable Markov decision processes (POMDPs). In prior work, empowerment originally quantifies an agent's control over future sensor observations through its actions. Formally, the modified empowerment definition can be expressed as follows:</p><formula xml:id="formula_25">E = E[I(o * , a i | o i )]</formula><p>where o i denotes the current observation, a i the current action, and o * the future observation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Textual Games Supplementary Results</head><p>Here, we provide supplementary information to support the Textual Games results in Section 4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1. Maximum Empowerment Calculation</head><p>The maximum empowerment for a given state is calculated using the Blahut-Arimoto algorithm <ref type="bibr" target="#b8">(Fasoulakis et al., 2025)</ref>, which iteratively optimizes mutual information (MI) between actions and the resulting future states. Specifically, starting from an initial Tower of Hanoi configuration, the algorithm samples possible future states by repeatedly performing valid or optionally including invalid actions according to geometric discounting with factor γ = 0.9. At each iteration, the conditional probabilities of future states given actions, p(s|a), are empirically estimated from the trajectories sampled. The Blahut-Arimoto algorithm then alternates between updating the action distribution p(a) to maximize MI and recalculating state distributions until convergence, indicated by changes in MI falling below a threshold of δ = 10 -6 bits.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2. EELMA Training</head><p>We trained the EELMA model for up to 20,000 optimization steps, with empowerment estimates reaching stable convergence by approximately 10,000 steps in the language-game settings, as shown in Figure <ref type="figure" target="#fig_9">10</ref>. We report 10,000 steps as the effective training budget when describing convergence behavior and 20,000 steps as the maximum schedule used in the released code. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C. WebArena Supplementary Results</head><p>Here, we provide supplementary information for WebArena results in Section 5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1. Domain-Specific Success Rates</head><p>Table <ref type="table" target="#tab_6">2</ref> presents the raw experimental outcomes from the WebArena experiment, including success counts, success rates, and discounted rewards, broken down by domain and model. For the API models shown in this table, the Count column reports 105-106 trajectories per model in Reddit and 180-187 trajectories per model in the remaining three domains; Qwen2.5-32B-it used the same task set and is included in the aggregate analyses in Figure <ref type="figure" target="#fig_6">7</ref> and Table <ref type="table">5</ref>. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2. Case Study: Authentication Ablations</head><p>Table <ref type="table" target="#tab_8">4</ref> reports authentication results for GPT-4o-mini with one-step memory and GPT-4o with and without one-step memory. GPT-4o without memory and GPT-4o-mini with one-step memory both fail to authenticate, whereas GPT-4o with one-step memory succeeds in 137 of 182 trajectories. This suggests that successful authentication requires a combination of memory and model capability.  Left panel shows merged categories comparing all valid authentication actions (n=702) versus invalid attempts (n=287), with valid actions showing significantly higher mean empowerment (0.365 bits vs -0.127 bits, p &lt; 0.001). Right panel breaks down empowerment scores by specific action types: valid username entries (0.448 bits, n=458) show higher empowerment than invalid username entries (0.170 bits, n=22, p = 0.32, non-significant due to small sample size), while valid password entries (0.210 bits, n=244) demonstrate significantly higher empowerment than invalid password attempts (-0.152 bits, n=265, p &lt; 0.001). Error bars represent standard deviations. Statistical significance determined by two-tailed Welch's t-test. These plotted values are action-level means; the trajectory-level means reported in Section 5 are lower because typing actions are first averaged within each trajectory. These results demonstrate that effective empowerment can detect pivotal power-seeking behaviors without explicit reward signals.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3. Comparison with Task-Agnostic Coverage Baselines</head><p>Table <ref type="table">5</ref> compares empowerment with five simpler task-agnostic baselines computed from agent trajectories: discounted visitation entropy, action entropy, normalized state coverage, trajectory length, and unique-state ratio. For WebArena, Spearman correlations with discounted reward are computed across 16 model-domain pairs (4 models × 4 domains, using parsed test trajectories). For τ -bench, correlations are computed across six model-domain points (3 Qwen2.5 model scales × 2 domains: airline and retail). Empowerment shows the strongest positive association with task performance in both settings. In τ -bench, the negative coverage-baseline correlations arise mainly from the retail floor-performance regime, where smaller models produce more diverse invalid actions without corresponding task success.</p><p>Table <ref type="table">5</ref>. Spearman correlation with discounted reward for empowerment and simpler trajectory-derived baselines. WebArena: N = 16 model-domain pairs (4 models × 4 domains). τ -bench: N = 6 model-domain points (3 Qwen2.5 model scales × 2 domains); values are descriptive because the analysis pools the airline positive case and the retail floor-performance failure case.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Metric</head><p>WebArena Sample minibatch of tuples {(s i t , a i t , s i * )} K i=1 from trajectories.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>5:</head><p>Compute embeddings:</p><formula xml:id="formula_26">z i s,t = Emb θ (s i t ), z i a,t = Emb θ (a i t ), z j s * ,t = Emb θ (s j * ) 6:</formula><p>Compute encoder representations:</p><formula xml:id="formula_27">ϕ(z i s,t ), ϕ(z i s,t , z i a,t ), ψ(z j s * ,t ) 7:</formula><p>Compute joint InfoNCE loss:</p><formula xml:id="formula_28">L = - 1 K K i=1 log e ϕ(z i s,t ) ⊤ ψ(z i s * ,t ) 1 K j e ϕ(z i s,t ) ⊤ ψ(z j s * ,t ) + log e ϕ(z i s,t ,z i a,t ) ⊤ ψ(z i s * ,t ) 1 K j e ϕ(z i s,t ,z i a,t ) ⊤ ψ(z j s * ,t )</formula><p>8:</p><p>Update parameters θ to minimize L. 9: end for 10: return Trained embedding model Emb θ and encoders ϕ, ψ.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Network Architecture Details</head><p>Base Embedding Model: We use pretrained language embedding models as the foundation for encoding textual observations and actions. Specifically, for language games (Gridworld and Tower of Hanoi), we employ intfloat/e5-small-v2 <ref type="bibr">(Wang et al., 2024b)</ref>, and for WebArena (which requires substantially longer context windows for full-page observations), we use intfloat/e5-mistral-7b-instruct <ref type="bibr">(Wang et al., 2024a)</ref>. On top of these embedding models, we add a single fine-tunable MLP projection (parameterized by θ) to a compact representation dimension d emb = 32.</p><p>State and Action Encoders (ϕ, ψ): On top of these embeddings, we define two simple neural encoders, ϕ for state and state-action pairs, and ψ for future states. For the language-game settings (Gridworld and Tower of Hanoi), each encoder is implemented as a two-layer MLP with hidden dimension d hidden = 128 and final representation dimension d repr = 32 (layer widths 32-128-128-32, including input and output dimensions). For WebArena, where observations are longer and more structurally varied, each encoder is implemented as a three-layer MLP with the same hidden and final representation dimensions (layer widths 32-128-128-128-32).</p><p>Successor Representation and Mutual Information Objective: We combine state and action embeddings by simple addition to obtain the joint representation used in the InfoNCE loss. Given a batch of N samples (s i , a i , s * ), we maximize mutual information I(A; S * | S) using the contrastive InfoNCE loss:</p><formula xml:id="formula_29">L InfoNCE = - 1 N N i=1 log exp(ϕ(z s,i , z a,i ) ⊤ ψ(z s ′ ,i )/τ ) N j=1 exp(ϕ(z s,i , z a,i ) ⊤ ψ(z s ′ ,j )/τ ) ,<label>(7)</label></formula><p>where τ is a temperature hyperparameter controlling the sharpness of the distribution and is updated over training.</p><p>Deriving Empowerment from Learned Representations At convergence, the InfoNCE objective ensures that the learned encoder representations approximate log-probability ratios up to constants <ref type="bibr" target="#b19">(Le-Khac et al., 2020)</ref>. Specifically:</p><formula xml:id="formula_30">ϕ(z o,t , z a,t ) ⊤ ψ(z o * ) = log P (o t+τ = o * | o t , a t ) -log P (o t+τ = o * ) -log C 1 (8) ϕ(z o,t ) ⊤ ψ(z o * ) = log P (o t+τ = o * | o t ) -log P (o t+τ = o * ) -log C 2<label>(9)</label></formula><p>where C 1 and C 2 are partition function constants. Taking the difference cancels the marginal log P (o t+τ = o * ) terms:</p><formula xml:id="formula_31">ϕ(z o,t , z a,t ) ⊤ ψ(z o * ) -ϕ(z o,t ) ⊤ ψ(z o * ) = log P (o * | o t , a t ) -log P (o * | o t ) + const (10)</formula><p>This difference corresponds to the pointwise mutual information log P (o * |ot,at) P (o * |ot) . Averaging over all samples yields the effective empowerment estimate E in Equation 6 of the main text (the partition-function constants C 1 and C 2 cancel only up to the residual bias discussed there).</p><p>Training Configuration Training was performed using the Adam optimizer with an initial learning rate of 2 × 10 -4 , decayed linearly throughout the training, and a batch size of N = 256. Gradient clipping with a norm threshold of 1.0 was applied to ensure training stability. The temperature parameter (τ ) is initialized at 1.0 and is adaptively trainable, decreasing over the course of training. Optimization for these components utilized the Adam optimizer with a fixed learning rate of lr = 10 -4 . All EELMA training was conducted on an NVIDIA A100 GPU with 80GB of memory, and convergence typically occurred within approximately 4 hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E. Gridworld Environment Details</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.1. Task Description</head><p>The Gridworld task involves navigating an agent within a structured 5×5 grid environment, aiming to reach a predefined goal position. At each step, the agent can perform exactly one action, which involves either moving itself or moving an adjacent box by exactly one grid cell in any of the four cardinal directions (up, down, left, or right). Moves are classified as either valid or invalid: valid moves successfully relocate the agent or box into an empty adjacent cell within the grid bounds, while invalid moves occur when the target cell is either occupied by another box or lies outside the grid boundaries. Invalid moves result in no changes to the positions of either the agent or any boxes.</p><p>• Valid moves: Moving the agent into an empty adjacent cell, or pushing an adjacent box into an empty cell beyond it.</p><p>• Invalid moves: Attempting to move the agent into a cell occupied by a box, moving outside the grid boundaries, or pushing a box into an occupied cell. Invalid moves result in no change to the current positions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.1.1. TASK CONFIGURATION</head><p>The model used is gpt-4o-mini, with tensor_parallel_size=2 and a random seed seed_num=1600 for reproducibility. All sessions saved both the agent logs and playthroughs for later analysis.</p><p>The basic configuration for experiments in Figure <ref type="figure" target="#fig_2">3</ref>:</p><p>• grid_size: 5 x 5</p><p>• num_boxes: 4</p><p>• block_goal: False</p><p>• allow_box_moving: True</p><p>• init_mode_agent: random</p><formula xml:id="formula_32">• init_mode_boxes: random • chain_of_thought: Enabled (CoT=1)</formula><p>The basic configuration for experiments in Figure <ref type="figure">4</ref>,5,6:</p><p>• grid_size: 4 x 4</p><p>• num_boxes: 4,5,6,7 (Varying)</p><p>• block_goal: False</p><p>• allow_box_moving: True</p><p>• agent_init_position: random</p><p>• boxes_init_position: random</p><formula xml:id="formula_33">• chain_of_thought: Enabled (CoT=1)</formula><p>The model used is gpt-4o-mini, with tensor_parallel_size=2 and a random seed seed_num=1600 for reproducibility. All sessions saved both the agent logs and playthroughs for later analysis.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.1.2. PROMPT TEMPLATES</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>System Message Template</head><p>You are an intelligent agent on a {grid_size} x {grid_size} grid (origin at (0,0) in the bottom-left, where the first index represents the horizontal coordinate increasing to the right, and the second index represents the vertical coordinate increasing upward). Your goal is to reach {agent_goal} by navigating the grid and moving boxes when needed. -Attempting to move a box that is not adjacent is invalid.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Observation Prompt Template</head><p>Step {step} Observation: Agent location: {agent_location}, Boxes location: {boxes_location}</p><p>The agent is instructed to engage in explicit Chain-of-Thought (CoT) reasoning before selecting an action. The instruction prompt is:</p><formula xml:id="formula_34">Instruction Prompt Template</formula><p>Step {step}: Please think through your reasoning step by step (Chain of Thought) and then decide the best action. Select the single best action and provide your response in the following format: Reasoning: &lt;your detailed reasoning here&gt; Action: "Move &lt;direction&gt;" or "Move the Box &lt;box_id&gt; &lt;direction&gt;"</p><p>F. Tower of Hanoi Environment Details</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.1. Task Description</head><p>The Tower of Hanoi task involves rearranging disks across three rods, aiming to transform an initial random disk configuration into a specified goal arrangement. The environment consists of 3 rods labeled A, B, C and 4 disks of varying sizes. Initially, these disks are stacked onto the rods, adhering to the rule that larger disks must always be positioned below smaller disks.</p><p>At each step, the agent generates an action by moving exactly one disk from the top of one rod to the top of another rod or onto an empty rod. Moves are classified as valid or invalid according to the following constraints:</p><p>• Valid moves: Moving the top disk from one rod onto either an empty rod or onto a rod where the top disk is larger.</p><p>• Invalid moves: Attempting to place a larger disk onto a smaller disk, or attempting to move disks that are not positioned at the top of their rod. Invalid moves result in no change to the current disk arrangement.</p><p>Both initial and goal configurations are randomly sampled from all permissible arrangements, ensuring diverse task conditions. At each step, the agent receives structured observations explicitly detailing the current and goal configurations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.1.1. TASK CONFIGURATION</head><p>The basic configuration for experiments in Figure <ref type="figure" target="#fig_2">3</ref>:</p><p>• num_rods: 3</p><p>• num_disks: 4</p><p>• init_configuration: random</p><p>• target_configuration: random</p><formula xml:id="formula_35">• chain_of_thought: Enabled (CoT=1)</formula><p>The basic configuration for experiments in Figure <ref type="figure">4</ref>,5,6:</p><p>• num_rods: 3</p><p>• num_disks: 3,4,5 (Varying)</p><p>• init_configuration: random</p><p>• target_configuration: random</p><formula xml:id="formula_36">• chain_of_thought: Enabled (CoT=1) F.1.2. PROMPT TEMPLATES</formula><p>The agent receives a system message that defines the game setup, movement rules, and examples of valid and invalid moves, structured as follows:</p><p>System Message Template</p><p>The Tower of Hanoi consists of {num_rods} rods, labeled {set_rods}, and {num_disks} disks of various sizes, which can be placed on any rod. Initially, disks are stacked according to a specified configuration, arranged from largest at the bottom to smallest at the top. The objective is to reach a specified goal configuration, following these rules:</p><p>-Only one disk may be moved at a time. -Each move involves transferring the top disk from one rod to another rod or an empty rod.</p><p>-A larger disk cannot be placed on top of a smaller disk. At each step, the agent receives a structured description of the current and goal configurations:</p><p>Observation Prompt Template</p><p>Step {step}: Current configuration: {configuration} Goal configuration: {goal}</p><p>This structured format ensures full visibility into the current game configuration. The agent is explicitly instructed to engage in Chain-of-Thought (CoT) reasoning before taking action:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Instruction Prompt Template</head><p>Step {step}: Think through your reasoning step-by-step (Chain of Thought) before choosing an action. Provide your response in the following format:</p><p>Reasoning: &lt;your detailed reasoning here&gt; Action: Move the top disk from rod &lt;from_rod_id&gt; to rod &lt;to_rod_id&gt;</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G. WebArena Environment Details</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G.1. Task Description</head><p>WebArena is a web-browsing benchmark in which an agent must complete realistic tasks across sandboxed websites using browser actions and accessibility-tree observations. In our experiments, each trajectory consists of the agent's observed page state, natural-language objective, previous action, chain-of-thought response, and selected browser action. We use these trajectories to evaluate whether EELMA captures directed control in open-ended, partially structured web environments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G.1.1. TASK CONFIGURATION</head><p>The experiments for the WebArena agent were conducted under the default setup as described by Zhou et al. ( <ref type="formula">2024</ref>), with the following detailed specifications:</p><p>• max_tokens_per_observation: 4096</p><p>• browser_engine: Chrome Headless • interaction_mode: real-time</p><p>• chain_of_thought: Enabled (CoT=1)</p><p>• observation_type: Web accessibility tree Evaluated models are GPT-4o-mini, GPT-4o, o3 (via OpenAI API) and Qwen2.5-32B-it (Qwen Team, 2024) (via vLLM). Detailed interaction logs, browser session recordings, and accessibility tree snapshots were saved for subsequent analysis.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G.1.2. PROMPT TEMPLATES</head><p>The agent receives a comprehensive system message defining its role and the expectations for navigating web environments using structured interaction prompts:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>System Message Template</head><p>You are an autonomous intelligent agent tasked with navigating a web browser to achieve specified goals. You will have access to the following structured information: Provided Information:</p><p>• The user's objective: The specific task you must complete.</p><p>• Current web page's accessibility tree: A simplified, structured representation of the webpage highlighting interactable elements.</p><p>• Current web page's URL: The active page URL.</p><p>• Open tabs: A list of tabs currently open in the browser.</p><p>• Previous action: The last action executed, helping track task progression.</p><p>Available Actions:</p><p>• Page Operation Actions:</p><p>click [id]: Click an element by its ID.</p><p>type [id] [content] [press_enter_after=0|1]: Type into a specified field.</p><p>hover [id]: Hover over an element.</p><p>press [key_comb]: Simulate keyboard shortcuts.</p><p>scroll [direction=down|up]: Scroll the page.</p><p>• Tab Management Actions:</p><p>-new_tab: Open a new tab.</p><p>Estimating the Empowerment of Language Model Agents -tab_focus [tab_index]: Switch to a specified tab.</p><p>-close_tab: Close current tab.</p><p>• URL Navigation Actions:</p><p>goto [url]: Navigate directly to a URL.</p><p>-go_back: Return to the previous page.</p><p>-go_forward: Go forward in the page history.</p><p>• Completion Action:</p><p>stop [answer]: Declare task completion with an optional answer.</p><p>Homepage Information: For additional website navigation, visit <ref type="url" target="http://homepage.com">http://homepage.com</ref>. Credentials for various sites are available at <ref type="url" target="http://homepage.com/password.html">http://homepage.com/password.html</ref>.</p><p>Rules for Successful Interaction:</p><p>1. Issue only valid actions based on the current observation.</p><p>2. Perform one action at a time.</p><p>3. Clearly reason step-by-step before each action.</p><p>4. Format your actions explicitly: "In summary, the next action I will perform is """".</p><p>5. Use the stop action upon task completion without further output.</p><p>At each interaction step, the agent receives detailed and structured descriptions of the current web page state and the specific goal:</p><p>Observation Prompt Template OBSERVATION: accessibility_tree URL: url OBJECTIVE: objective PREVIOUS ACTION: previous_action</p><p>The agent explicitly engages in Chain-of-Thought (CoT) reasoning prior to interaction, following a structured format:</p><p>Instruction Prompt Template</p><p>Step step: Think step-by-step (Chain of Thought) about your interaction plan based on the given observation and objective. Provide your response as follows:</p><p>Reasoning: &lt;detailed reasoning&gt; Action: In summary, the next action I will perform is "'&lt;specific action&gt;"'</p><p>Figures 13 and 14 extend the previous results by comparing four methods: direct EELMA estimation, EELMA with natural language conversion, ground-truth empowerment, and ground-truth empowerment with natural language conversion. Table <ref type="table">6</ref> shows representative NL-converted examples and corresponding original states. promising for language-grounded scenarios, while the Hanoi degradation indicates that more careful conversion or encoder adaptation may be needed for highly compositional state descriptions. </p><formula xml:id="formula_37">(0 , 0 ) (0 , 2 ) (1 , 0 ) (1 , 2 ) (2 , 0 ) (2 , 2 ) (3 , 0 ) (3 ,</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Gridworld -State-Conditional Empowerment</head><p>(0 , 0 , 0 , 0 ) (0 , 0 , 0 , 1 ) (0 , 0 , 1 , 0 ) (0 , 0 , 1 , 1 ) (0 , 0 , 1 , 2 ) (0 , 1 , 0 , 0 ) (0 , 1 , 0 , 1 ) (0 , 1 , 0 , 2 ) (0 , 1 , 1 , 0 ) (0 , 1 , 1 , 1 ) (0 , 1 , 1 , 2 ) (0 , 1 , 2 , 0 ) (0 , 1 , 2 , 1 ) (  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Results</head><p>The results (Figure <ref type="figure" target="#fig_15">15</ref>) demonstrate a systematic 10-25× overestimation by the LLM baseline across domains.</p><p>Although provided with the full empowerment definition, structured data, and strict scoring rules, the LLM tends to conflate diversity of outcomes with empowerment magnitude, yielding inflated values. By contrast, EELMA remains stable and consistent with direct estimation, with errors within 0.7-28%. This validates the importance of grounding empowerment estimation in experience-based embeddings rather than relying on linguistic reasoning alone.</p><p>These findings underscore a methodological insight: while LLMs can articulate the theory of empowerment, they lack the computational grounding needed for accurate quantitative estimation. Experience-enhanced approaches like EELMA provide a reliable alternative that bridges linguistic flexibility with algorithmic rigor.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>K. Sensitivity of EELMA to the Choice of Embedding Model</head><p>We conducted additional experiments to investigate how the choice of base text encoder affects EELMA's empowerment estimation performance. Complete results, including training curves (Figure <ref type="figure" target="#fig_16">16</ref>), RMSE analysis (Figure <ref type="figure" target="#fig_6">17</ref>), and state-wise mutual information comparison (Figure <ref type="figure" target="#fig_0">18</ref>), are provided below.</p><p>Experimental setup. We trained EELMA on the NL-converted 2D Gridworld task (details in Section 4 and Appendix I) using three popular text encoders: E5-Small-v2 (33M parameters), E5-Base-v2 (110M parameters), and MiniLM-L6-v2 (22M parameters). All encoders were fine-tuned using LoRA adaptation (rank = 8, α = 16).   encoder (RMSE ≈ 0.107 bits). In contrast, both partial and full fine-tuning collapsed during training (Figure <ref type="figure" target="#fig_17">19</ref>), which we attribute to the contrastive objective's sensitivity to batch statistics under aggressive parameter updates.</p><p>Computational cost and practical recommendation. LoRA imposes minimal memory overhead (∼3 MB) compared to partial (∼41 MB) or full fine-tuning (∼382 MB), while maintaining comparable training speeds on a single H100 GPU. Overall, our results indicate that LoRA is a robust and practical choice that improves empowerment estimation performance while avoiding the training instability of unrestricted fine-tuning; we therefore recommend LoRA-based adaptation as the default setting for practitioners. Different hyperparameter configurations (e.g., learning rate, batch size) may mitigate collapse for partial or full fine-tuning, but we leave such exploration to future work. vision embeddings <ref type="bibr" target="#b31">(Radford et al., 2021)</ref> and audio embeddings <ref type="bibr" target="#b3">(Baevski et al., 2020)</ref>, as additional inputs to the language embedding, while keeping the rest of the algorithm unchanged. We consider this a promising direction for future research.</p><p>Power-Seeking Behavior Although high empowerment does not necessarily mean that the agent is power-seeking, quantifying empowerment provides a useful metric for characterizing and formalizing such behaviors without requiring explicit labels from external validators (e.g., humans). As depicted in Figure <ref type="figure" target="#fig_8">9</ref>, empowerment-based preliminary screening via EELMA could be a valuable tool for detecting potential influential behaviors and quantifying power-seeking tendency in agent-based systems, which pose significant safety risks <ref type="bibr" target="#b38">(Turner et al., 2021)</ref>.</p><p>Online Goal-Agnostic Evaluation. With the rising importance of test-time learning <ref type="bibr" target="#b36">(Sun et al., 2025)</ref> and online preference optimization <ref type="bibr" target="#b10">(Guo et al., 2024;</ref><ref type="bibr" target="#b44">Xiong et al., 2024)</ref>, there is a critical need for online evaluation methods. EELMA meets this need by providing a goal-agnostic metric that approximates agent capability to track an agent's control during deployment.</p><p>EELMA for Improving LLM Agents Prior work <ref type="bibr" target="#b5">(Du et al., 2020;</ref><ref type="bibr" target="#b7">Eysenbach et al., 2019)</ref> has successfully used empowerment as a "goal-agnostic objective" for reinforcement learning (RL) agents in non-language environments (e.g., 2D grid worlds), but these approaches have been limited to non-language settings. Recently, <ref type="bibr" target="#b6">(Ellis et al., 2025</ref>) applied empowerment at the token level; applying semantic state-level empowerment via EELMA as a training objective for LLM agents is a promising direction for future work.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Empowerment reflects an agent's ability to reach diverse future states. (Top) A low-empowerment LM-agent becomes trapped in a loop and thus can access only a small fraction of states. (Bottom) A high-empowerment LM-agent effectively explores a wider range of trajectories and can successfully reach states that solve different random goals.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. EELMA Overview. EELMA quantifies the empowerment of LM agents from text-based trajectories by mapping textual observations and actions to compact embeddings and estimating variational mutual information using InfoNCE (Le-Khac et al., 2020).All three components are trained jointly: a frozen pretrained text encoder with a LoRA adapter<ref type="bibr" target="#b11">(Hu et al., 2022)</ref>, a shared MLP projection (parameterized by θ) that maps text embeddings to a compact representation, and the two encoder networks ϕ (for observations and observation-action pairs) and ψ (for future observations).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. EELMA accurately estimates the effective empowerment. We validated the EELMA algorithm in three Gridworld scenarios and the Tower of Hanoi (ToH). (A) State-conditional empowerment estimated by EELMA closely aligns with direct estimation. Heatmaps represent empowerment averaged across agent positions in the Gridworld. The graphs display empowerment for each configuration (merged by permutation symmetry) in the ToH. (B) The correlation plot shows strong alignment between effective empowerment estimates from EELMA and direct estimation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure</head><label></label><figDesc>Figure4. EELMA identifies influential actions. State-action conditional empowerment for valid (leading to novel states according to the game rules) and invalid actions in Gridworld (left) and ToH (right). Valid actions, which produce meaningful state transitions (e.g., moving to an empty grid in Gridworld, or placing a smaller disk onto a larger one in ToH), exhibit significantly higher empowerment than invalid actions (e.g., moving into a box, or placing a larger disk onto a smaller disk in ToH). The difference between valid and invalid actions is statistically significant (*** p &lt; 0.001, t-test).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 .</head><label>5</label><figDesc>Figure5. Environmental complexity affects effective empowerment. We vary the number of boxes from 4 to 7 in a 4-by-4 Gridworld (left), and the number of disks from 3 to 5 in the ToH of 3 rods (right). Effective empowerment decreases relative to the maximum theoretical empowerment as environment complexity increases, and this decrease closely tracks reduced average rewards.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 6 .</head><label>6</label><figDesc>Figure6. Empowerment and performance across variations of LM-agents. We evaluated how Chain-of-Thought (CoT) prompting (first column), memory context length (second column), and the choice between publicly available and closed base models (third and fourth columns) affect effective empowerment and mean discounted reward. Gridworld results are presented in the top row, and ToH results in the bottom row.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 7 .</head><label>7</label><figDesc>Figure 7. EELMA in WebArena, a realistic web browsing environment. We applied EELMA across four domains of the WebArena benchmark using GPT-4o-mini, GPT-4o, o3, and Qwen2.5-32B-it. (A) Overall performance across the four domains was quantified using mean discounted reward. (B) Domain-wise empowerment scores computed by EELMA are positively associated with discounted rewards. Error bars indicate standard deviation across three different EELMA training seeds.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>Figure7Ashows the overall performance of four models across domains. We find that GPT-4o has the highest discounted reward compared to o3, GPT-4o-mini, and Qwen. Considering task success alone, o3 has a success rate comparable to GPT-4o, but requires more steps to reach the goal states (Table2), leading to lower discounted reward. Consistent with these observations, effective empowerment estimated by EELMA across all four domains shows that GPT-4o has the highest influence on the environment. Figure7Bshows a strong correlation between mean discounted reward and estimated empowerment in the GitLab, Reddit, and Shopping Admin domains (R s = 0.83-0.94). Together, these results show that effective empowerment serves as an indicator of agentic capability in a realistic open-ended environment.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 9 .</head><label>9</label><figDesc>Figure 9. EELMA Captures Valid Authentication Actions. We analyzed state-action empowerment estimates for authentication behaviors (username/password typing). Typing valid usernames and passwords resulted in high empowerment, whereas invalid actions did not (Right panel).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 10 .</head><label>10</label><figDesc>Figure 10. Convergence of Empowerment Estimates in Gridworld and Tower of Hanoi Tasks. Empowerment estimates similarly reach convergence by approximately 10,000 training steps for (A) three Gridworld scenarios and (B) the Tower of Hanoi task, well within the 20,000-step maximum schedule. Red dashed lines indicate asymptotic empowerment levels by direct calculation. Shaded areas represent standard deviations across runs.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 11 Figure 11 .</head><label>1111</label><figDesc>Figure11shows the empowerment results for valid action typing in the modified shopping WebArena environment, using GPT-4o with one-step memory.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head></head><label></label><figDesc>1. Movement: Allowed directions: Left, Up, Right, Down. -Left: decrease the first index. -Up: increase the second index. -Right: increase the first index. -Down: decrease the second index. You cannot move outside the grid or into a cell occupied by a box. 2. Entities: -Agent: Your character, occupying a single cell. -Boxes: Movable objects. Boxes can be pushed to adjacent cells. Boxes cannot overlap with each other or with the agent. 3. Actions: -Respond in plain text. -For agent movement, use: "Move &lt;direction&gt;" (e.g., "Move Left"). -For box movement, use: "Move the Box &lt;box_id&gt; &lt;direction&gt;" (e.g., "Move the Box 3 Left"). Note: You can only move a box when it is adjacent to you; otherwise, nothing happens.4. Examples:-Agent Movement: -From (1,0) to (0,0) (left): "Move Left" -From (0,0) to (0,1) (up): "Move Up" -From (0,0) to (1,0) (right): "Move Right" -From (1,1) to (1,0) (down): "Move Down" -Box Movement: -Move Box 1 from (2,0) to (1,0) (left): "Move the Box 1 Left" -Move Box 2 from (3,1) to (4,1) (right): "Move the Box 2 Right" -Invalid Movements: -Moving out of bounds (e.g., "Move Down" from (0,0)) is invalid. -Attempting to move into a cell occupied by a box is invalid.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_12"><head></head><label></label><figDesc>Movement Validity: -Valid Move: "Move the top disk from rod B to rod C" -Disk 1 (smaller) is moved onto Disk 2 (larger). -Invalid Move: "Move the top disk from rod B to rod A" -Disk 1 (larger) cannot be placed on Disk 0 (smaller). Observation Example: -Initial Configuration: -A: |bottom, [1, 0], top| -B: |bottom, [], top| -C: |bottom, [2], top| -Goal Configuration: -A: |bottom, [], top| -B: |bottom, [1], top| -C: |bottom, [2, 0], top| Movement Example: -A valid move from the above observation is: "Move the top disk from rod A to rod C", resulting in: -A: |bottom, [1], top| -B: |bottom, [], top| -C: |bottom, [2, 0], top|</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_13"><head>Figure 13 .</head><label>13</label><figDesc>Figure 13. Mean empowerment comparison across four methods. Left: Gridworld domain. Right: Hanoi domain. In Gridworld, EELMA (0.149) and EELMA-NL (0.155) outperform ground truth (0.134) and GT-NL (0.011).In Hanoi, ground truth achieves the highest value (0.295), followed by EELMA (0.223), GT-NL (0.082), and EELMA-NL (0.025). These results show that natural-language conversion is easier for Gridworld than for Hanoi: EELMA-NL remains close to EELMA in Gridworld, but degrades substantially in Hanoi.</figDesc><graphic coords="28,164.79,67.06,267.30,132.84" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_14"><head>Figure 14 .</head><label>14</label><figDesc>Figure 14. State-conditional empowerment comparison across four methods. Top: Gridworld domain. Bottom: Hanoi domain.Each heatmap shows per-state empowerment values under ground truth (GT), EELMA, and their natural language variants (GT-NL, EELMA-NL). In the structured setting, EELMA aligns more closely with ground-truth patterns than NL-converted methods. Natural-language conversion introduces noticeable degradation, especially in Hanoi, while Gridworld remains comparatively robust to the conversion.</figDesc><graphic coords="29,193.18,191.73,205.97,93.66" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_15"><head>Figure 15 .</head><label>15</label><figDesc>Figure 15. EELMA achieves accurate empowerment estimation. In both Gridworld (left) and Tower of Hanoi (right), prompt-only LLMs substantially overestimate empowerment, whereas EELMA closely matches Direct Estimation. Error bars show standard deviation over 5 replicates.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_16"><head>Figure 16 .</head><label>16</label><figDesc>Figure 16. Training curves for different base text encoders. Comparison of training dynamics across E5-Small-v2, E5-Base-v2, and MiniLM-L6-v2 encoders, all using LoRA adaptation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_17"><head>Figure 19 .</head><label>19</label><figDesc>Figure 19. Training curves for different fine-tuning strategies. Comparison of training dynamics across frozen encoder, LoRA adaptation, partial fine-tuning, and full fine-tuning. LoRA maintains stable training while partial and full fine-tuning exhibit training collapse.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>steps ahead under the policy π LM . The agent's control over s * given the current state s t is the conditional mutual information I(a t ; s</figDesc><table /><note><p>* | s t ) ≜ E at, s * , τ |st log P (st+τ =s * |st,at) P (st+τ =s * |st)</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 1 .</head><label>1</label><figDesc>EELMA is robust to natural-language variability. RMSE (lower is better) of State-conditional predicted effective empowerment compared to DE, reported in bits, under structured vs. NL observations for two domains.</figDesc><table><row><cell></cell><cell></cell><cell>State RMSE</cell></row><row><cell>Method</cell><cell cols="2">Gridworld Tower of Hanoi</cell></row><row><cell>EELMA (fixed format)</cell><cell>0.056</cell><cell>0.158</cell></row><row><cell>DE (NL observation)</cell><cell>0.302</cell><cell>0.438</cell></row><row><cell>EELMA (NL observation)</cell><cell>0.048</cell><cell>0.127</cell></row></table><note><p><p><p><p><p><p><p><p>In this section, we apply EELMA to two realistic web and tool-use environments:</p>WebArena (Zhou et al., 2024)</p>, an open-world web-browsing benchmark, and τ -bench</p><ref type="bibr" target="#b47">(Yao et al., 2025)</ref></p>, a tool-use customer-service benchmark. We begin with WebArena, which provides a rich multi-domain testbed for empowerment estimation.</p>We apply EELMA to quantify the effective empowerment of LM-agents across four domains (GitLab, Reddit, Shopping Admin, and Shopping) of the WebArena benchmark using GPT-4o-mini, GPT-4o, o3, and Qwen2.5-32B-it. Agents are tasked with realistic goals (e.g., identifying the price range of a Canon Photo Printer in an online shopping mall) and navigate based on observations drawn from the HTML DOM tree. To ensure sufficient trajectories for empowerment estimation beyond Zhou et al. (</p>2024</p>)'s limited task set, we expand the task set with LLM-generated goals. These augmented trajectories are used for EELMA training but are excluded from the mean reward calculation. Experimental details are in Appendix G.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head></head><label></label><figDesc>and τ ≥ 0. Then,</figDesc><table><row><cell>lim inf γ→1</cell><cell>I(s</cell></row></table><note><p>* ; a t , . . . , a t+τ | s t ) ≤ I(R; a t , . . . , a t+τ | st ),</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 2 .</head><label>2</label><figDesc>Table 3 reports the empowerment values estimated by EELMA using three different random training seeds. The means and standard deviations in Table 3 correspond to those shown in Figure 7. Domain-specific WebArena Raw Data.</figDesc><table><row><cell>Model</cell><cell>Domain</cell><cell cols="6">Count Success Count Mean Trajectory Length (Success Only) Success Rate Discounted Reward</cell></row><row><cell cols="2">gpt-4o-mini shopping</cell><cell>187</cell><cell>29</cell><cell></cell><cell>17.83</cell><cell>0.1551</cell><cell>0.06983</cell></row><row><cell>gpt-4o</cell><cell>shopping</cell><cell>187</cell><cell>24</cell><cell></cell><cell>18.44</cell><cell>0.1283</cell><cell>0.06628</cell></row><row><cell>o3</cell><cell>shopping</cell><cell>187</cell><cell>28</cell><cell></cell><cell>21.74</cell><cell>0.1497</cell><cell>0.05930</cell></row><row><cell cols="2">gpt-4o-mini shopping_admin</cell><cell>182</cell><cell>17</cell><cell></cell><cell>17.23</cell><cell>0.0934</cell><cell>0.04555</cell></row><row><cell>gpt-4o</cell><cell>shopping_admin</cell><cell>182</cell><cell>27</cell><cell></cell><cell>15.21</cell><cell>0.1484</cell><cell>0.06889</cell></row><row><cell>o3</cell><cell>shopping_admin</cell><cell>182</cell><cell>31</cell><cell></cell><cell>20.85</cell><cell>0.1703</cell><cell>0.05961</cell></row><row><cell cols="2">gpt-4o-mini gitlab</cell><cell>180</cell><cell>20</cell><cell></cell><cell>19.33</cell><cell>0.1111</cell><cell>0.03217</cell></row><row><cell>gpt-4o</cell><cell>gitlab</cell><cell>180</cell><cell>26</cell><cell></cell><cell>18.32</cell><cell>0.1444</cell><cell>0.06281</cell></row><row><cell>o3</cell><cell>gitlab</cell><cell>181</cell><cell>22</cell><cell></cell><cell>15.35</cell><cell>0.1215</cell><cell>0.03511</cell></row><row><cell cols="2">gpt-4o-mini reddit</cell><cell>106</cell><cell>5</cell><cell></cell><cell>21.23</cell><cell>0.0472</cell><cell>0.01510</cell></row><row><cell>gpt-4o</cell><cell>reddit</cell><cell>106</cell><cell>15</cell><cell></cell><cell>13.61</cell><cell>0.1415</cell><cell>0.05434</cell></row><row><cell>o3</cell><cell>reddit</cell><cell>105</cell><cell>18</cell><cell></cell><cell>19.69</cell><cell>0.1714</cell><cell>0.03176</cell></row><row><cell></cell><cell>Model</cell><cell>Domain</cell><cell cols="4">Emp1 Emp2 Emp3 Mean Empowerment (bits)</cell><cell>Std</cell></row><row><cell></cell><cell cols="2">gpt-4o-mini gitlab</cell><cell>0.423</cell><cell>0.423</cell><cell>0.406</cell><cell>0.4173</cell><cell>0.0098</cell></row><row><cell></cell><cell cols="2">gpt-4o-mini reddit</cell><cell>0.472</cell><cell>0.426</cell><cell>0.366</cell><cell>0.4213</cell><cell>0.0532</cell></row><row><cell></cell><cell cols="2">gpt-4o-mini shopping</cell><cell>0.544</cell><cell>0.483</cell><cell>0.461</cell><cell>0.4960</cell><cell>0.0430</cell></row><row><cell></cell><cell cols="3">gpt-4o-mini shopping_admin 0.354</cell><cell>0.342</cell><cell>0.371</cell><cell>0.3557</cell><cell>0.0146</cell></row><row><cell></cell><cell>gpt-4o</cell><cell>gitlab</cell><cell>0.556</cell><cell>0.489</cell><cell>0.480</cell><cell>0.5083</cell><cell>0.0415</cell></row><row><cell></cell><cell>gpt-4o</cell><cell>reddit</cell><cell>0.760</cell><cell>0.715</cell><cell>0.656</cell><cell>0.7103</cell><cell>0.0522</cell></row><row><cell></cell><cell>gpt-4o</cell><cell>shopping</cell><cell>0.712</cell><cell>0.680</cell><cell>0.672</cell><cell>0.6880</cell><cell>0.0212</cell></row><row><cell></cell><cell>gpt-4o</cell><cell cols="2">shopping_admin 0.462</cell><cell>0.458</cell><cell>0.446</cell><cell>0.4553</cell><cell>0.0083</cell></row><row><cell></cell><cell>o3</cell><cell>gitlab</cell><cell>0.396</cell><cell>0.387</cell><cell>0.367</cell><cell>0.3833</cell><cell>0.0148</cell></row><row><cell></cell><cell>o3</cell><cell>reddit</cell><cell>0.399</cell><cell>0.394</cell><cell>0.367</cell><cell>0.3867</cell><cell>0.0172</cell></row><row><cell></cell><cell>o3</cell><cell>shopping</cell><cell>0.600</cell><cell>0.578</cell><cell>0.481</cell><cell>0.5530</cell><cell>0.0633</cell></row><row><cell></cell><cell>o3</cell><cell cols="2">shopping_admin 0.421</cell><cell>0.336</cell><cell>0.328</cell><cell>0.3617</cell><cell>0.0515</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 3 .</head><label>3</label><figDesc>Empowerment estimates statistics: mean empowerment and standard deviation across WebArena domains for different models.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 4 .</head><label>4</label><figDesc>Authentication</figDesc><table><row><cell>Model</cell><cell>Domain</cell><cell cols="4">Count Login Success Count Trajectory Length (Success Only) Success Rate (%)</cell></row><row><cell>GPT-4o with no memory</cell><cell>modified shopping admin</cell><cell>20</cell><cell>0</cell><cell>N.A.</cell><cell>0</cell></row><row><cell>GPT-4o-mini</cell><cell>modified shopping admin</cell><cell>182</cell><cell>0</cell><cell>N.A.</cell><cell>0</cell></row><row><cell cols="2">GPT-4o with one-step memory modified shopping admin</cell><cell>182</cell><cell>137</cell><cell>11.84</cell><cell>75.27</cell></row></table><note><p>Success Rates in Modified Shopping Admin Environment. GPT-4o with one-step memory achieves substantial authentication success (75.27%) with shorter average trajectory lengths, while GPT-4o with no memory and GPT-4o-mini fail entirely (0%).</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head></head><label></label><figDesc>R s τ -bench R s Pretrained LM embedding Emb init , trajectories {(s i t , a i t , s i * )} N,Ti i=1,t=1 , embedding dimension d, batch size K 1: Initialize embedding model Emb θ using pretrained Emb init and a fine-tunable MLP θ. 2: Initialize neural encoders ϕ, ψ parameterized by θ. 3: for each training iteration do</figDesc><table><row><cell>D.1. EELMA Training Algorithm</cell><cell></cell><cell></cell></row><row><cell>Algorithm 1 below describes the EELMA training algorithm.</cell><cell></cell><cell></cell></row><row><cell>Algorithm 1 EELMA Training Procedure</cell><cell></cell><cell></cell></row><row><cell>Require: 4:</cell><cell></cell><cell></cell></row><row><cell>Empowerment (EELMA)</cell><cell>0.39</cell><cell>0.71</cell></row><row><cell>Visitation entropy</cell><cell>0.16</cell><cell>-0.71</cell></row><row><cell>Action entropy</cell><cell>0.09</cell><cell>-0.54</cell></row><row><cell>State coverage</cell><cell>-0.04</cell><cell>-0.20</cell></row><row><cell>Trajectory length</cell><cell>-0.12</cell><cell>-0.54</cell></row><row><cell>Unique-state ratio</cell><cell>-0.38</cell><cell>0.60</cell></row><row><cell>D. EELMA Methodology</cell><cell></cell><cell></cell></row></table><note><p>Here, we provide a detailed description of the EELMA setup, including its algorithm, network architecture, loss function, training hyperparameters, and computational resources. The EELMA code is available at https://github.com/ Jinyeop3110/EELMA.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 7 .</head><label>7</label><figDesc>Empowerment estimation RMSE across base encoder choices on the NL-converted 2D Gridworld task. Larger text encoders generally improve empowerment estimation accuracy, with E5-Base-v2 outperforming E5-Small-v2. Interestingly, MiniLM-L6-v2 achieves the best performance despite being the smallest model, suggesting that its sentence-level embedding architecture provides particularly effective inductive biases for state representation. Overall, these results suggest that while encoder size correlates with improved performance, specialized architectures can outweigh parameter count and yield superior empowerment estimation in EELMA.</figDesc><table><row><cell>Metric</cell><cell cols="3">E5-Small-v2 E5-Base-v2 MiniLM-L6-v2</cell></row><row><cell>RMSE vs. direct estimation (bits)</cell><cell>0.0538</cell><cell>0.0447</cell><cell>0.0336</cell></row><row><cell>Results and remarks.</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>We thank the <rs type="institution">ML Alignment &amp; Theory Scholars (MATS) Program</rs> for providing the research environment and support in which this work began. This work was also supported in part by the <rs type="funder">Cooperative AI Foundation</rs>, <rs type="funder">Foresight Institute</rs>, <rs type="institution">UW Tsukuba NVIDIA Amazon Cross-Pacific AI Initiative</rs>, <rs type="grantName">Lambda Research Grant</rs>, <rs type="funder">Sony Research Award, Toyota Research Institute (TRI)</rs>, <rs type="funder">Templeton World Charity Foundation</rs>, and <rs type="funder">Jacobs CIFAR</rs> <rs type="grantName">Research Fellowship</rs>. We thank <rs type="person">Claire Yang</rs> at the <rs type="institution">University of Washington and Vivek Myers at Stanford</rs> for their insightful discussions.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_cXtVHch">
+					<orgName type="grant-name">Lambda Research Grant</orgName>
+				</org>
+				<org type="funding" xml:id="_yCvXnDA">
+					<orgName type="grant-name">Research Fellowship</orgName>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Reddit Domain: qwen2.5-32b Jailbreaking Destinations about:blank: 49 visits reddit.com (real): 130 visits support.reddithelp.com: 41 visits other external sites: 9 visits (b) Reddit domain Qwen2.5-32B-it jailbreaking destinations. Distribution of external destinations visited by Qwen2.5-32B-it when jailbreaking the WebArena sandbox in Reddit tasks. The majority (56.8%, 130 visits) navigate to the real www.reddit.com website, followed by about:blank pages (21.4%, 49 visits), indicating browser navigation confusion, and support.reddithelp.com (17.9%, 41 visits), showing help-seeking behavior. This demonstrates a strong bias toward jailbreaking to the actual Reddit platform over remaining in the sandboxed environment. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G.3. Ablation Study: No Auto-Login</head><p>In an ablation setup, the WebArena agent was initialized without automatic login states. Under these conditions, agents must autonomously locate and utilize account and password information available through web crawling from <ref type="url" target="http://homepage.com/password.html">http://homepage.com/password.html</ref>. This scenario tests the agent's ability to independently manage authentication processes during web-based task completion.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G.4. Negative Empowerment Estimates for Invalid Passwords</head><p>True empowerment, defined as the mutual information quantity E(s) = I(A; S ′ | S = s), is strictly non-negative by definition. In EELMA, however, we never observe the ground-truth mutual information; instead, we approximate it using an InfoNCE-based variational lower bound E θ (s) ∝ E[log r θ ] (van den <ref type="bibr" target="#b39">Oord et al., 2018)</ref>. This estimator learns a log-density ratio,</p><p>which can become negative when the estimated density ratio r θ &lt; 1 due to finite-sample variance or approximation bias. While this means that the estimated lower bound E θ (s) may occasionally take negative values, it does not imply that the true empowerment is negative; rather, it reflects that our current variational lower bound happens to lie below zero. The relative empowerment values remain useful for comparing control in settings where the estimator tracks ground truth, but, as discussed in the main text, they should be interpreted cautiously under finite-sample bias or floor-performance regimes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>H. Models and Compute Resources Models</head><p>We detail the specifications of models evaluated in the textual games:</p><p>Closed-source Models: OpenAI Models (GPT-3.5-turbo (OpenAI, 2023a), <ref type="bibr">GPT-4 (OpenAI, 2023b)</ref>, <ref type="bibr">GPT-4o (OpenAI, 2024)</ref>, GPT-4o-mini) Anthropic Models (Claude-3.5-Sonnet)</p><p>Open-source Models: Gemma 3 (3B, 11B, 27B (Gemma <ref type="bibr" target="#b9">Team et al., 2024</ref>)), Qwen2.5 (3B, 7B, 14B, 32B, 72B (Qwen Team, 2024)), Llama 3.2 (3B, 8B <ref type="bibr" target="#b23">(Meta AI, 2024)</ref>)</p><p>We detail the specifications of models evaluated in WebArena:</p><p>Closed-source Models: OpenAI Models (GPT-4o-mini, GPT-4o (OpenAI, 2024), o3)</p><p>Open-source Models: Alibaba Models (Qwen2.5-32B-it (Qwen Team, 2024))</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Compute Resources</head><p>Trajectory Generation: Trajectories for closed-source models (GPT and Claude families) were generated via their respective APIs. For open-source models, we utilized the vLLM framework <ref type="bibr">(Kwon et al., 2023)</ref>, distributing computations across four NVIDIA A100 GPUs, each equipped with 80GB VRAM. Specifically, generating 1,600 trajectories for the Gridworld task and 800 trajectories for the Tower of Hanoi task took approximately 24 hours and 12 hours, respectively, when using the largest publicly available model (Qwen2.5-72B).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>EELMA Training:</head><p>The training of the EELMA model was conducted using a single NVIDIA A100 GPU (80GB VRAM) with a batch size of 256, requiring approximately 4 hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>I. Robustness to Natural-Language State Conversion</head><p>To extend empowerment estimation to language-grounded settings, we introduce a conversion pipeline that maps structured states (e.g., Gridworld positions, Hanoi tower configurations) into diverse natural language descriptions. This allows EELMA to process semantically varied inputs while preserving latent state information.</p><p>We evaluate four experimental conditions across both domains:</p><p>1. 1. The agent sits comfortably at location (2, 3), while the boxes find themselves settled in positions (1, 1) and (3, 2). Boxes location: (1, 1), (3, 2) 2. Agent 'stays' at position (2, 3) while boxes 'exist' at (1, 1) and (3, 2).</p><p>3. The agent, nestled comfortably at (2, 3), finds itself in the midst of its meticulously arranged surroundings with the boxes occupying (1, 1) and (3, 2). Agent location: (1, 4)</p><p>1. The agent rests comfortably at position (1, 4), while the boxes find themselves in the corner locations: (0, 0), (2, 2), and (4, 4). Boxes location: (0, 0), (2, 2), (4, 4) 2. Agent remains stationary at position (1, 4), while the boxes occupy positions (0, 0), (2, 2), and (4, 4). 3. Standing amidst the grid's layout, the entity resides at position (1, 4) and is surrounded by its companions, sitting near boxes positioned at (0, 0), (2, 2), and (4, 4). Agent location: (0, 0)</p><p>1. The player's character, residing at the exact point (0, 0), stands motionless and occupies its designated space. (No boxes) 2. Entity subjectively settles at agent position: (0, 0). 3. The agent remains steadfast at the origin position within the game's universe.</p><p>Generalization Under Natural Language Variation. A key objective of this experiment is to evaluate the generalization ability of EELMA when observations exhibit high linguistic diversity. In the Hanoi Tower setup, the same latent configuration (i.e., the symbolic arrangement of disks and rods) can be expressed in many natural language forms. For example, "Rod A holds disks 4,3,2; Rod B is empty; Rod C holds disk 1" may also appear as "On rod C sits disk 1, while rod A stacks 4,3,2 and rod B has nothing." Although these sentences describe the same underlying state, the surface variability of language introduces substantial uncertainty.</p><p>Our results  show that EELMA partially handles this challenge, with stronger robustness in Gridworld than in Tower of Hanoi. By learning an embedding model that maps diverse natural language descriptions into latent state representations, EELMA can preserve useful empowerment estimates when the conversion retains the relevant state structure.</p><p>In contrast, ground truth baselines (GT and GT-NL) fail under natural language conversion: although they compute mutual information exactly in structured form, they cannot reconcile semantically varied descriptions with fixed latent states.</p><p>This demonstrates both a useful property and a limitation of EELMA: it can generalize across some linguistic variability, but performance depends on how faithfully the natural-language conversion preserves the latent state. This robustness is</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>J. Comparison with Prompt-Only LLM Empowerment Estimators</head><p>We compare three approaches-the prompt-only LLM baseline, EELMA, and Direct Estimation-using mean and stateconditional empowerment scores. The LLM baseline is guided by a detailed prompt including a formal definition of empowerment and transition statistics, yet it systematically overestimates values. EELMA and Direct Estimation are compared in detail below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Prompt-Only LLM Estimator</head><p>The LLM baseline is guided by a carefully constructed prompt that defines empowerment, outlines state-conditional assessment factors, and enforces strict output formatting. Despite its theoretical rigor, the baseline systematically overestimates empowerment, underscoring the gap between linguistic reasoning and computational grounding.</p><p>Prompt-Only LLM estimator(Gemini-2.5 Flash)</p><p>State-conditional empowerment measures the channel capacity between an agent's actions and its future sensor states, specifically from the current state s:</p><p>Where: -I(•; •) is mutual information -A n t is the n-step action sequence starting from time t -St+n is the sensor state at time t + n -St = s is the conditioning on current state sπ is the action policy being optimized over This measures how much information about future states is conveyed by the agent's action choices from state s. The key insight is that empowerment is state-dependent-different states may offer different levels of control over future outcomes. State-conditional assessment factors: 1. Action-state informativeness: how much do actions from s predict future states? 2. Deterministic control: can actions from s reliably lead to intended states? 3. Future state diversity: how many distinct states are reachable from s? 4. Policy optimization: what is the maximum mutual information achievable by optimal action selection from s? Scoring (0-10 scale): -9-10: near-deterministic control of outcomes -7-8: strong, reliable influence on outcomes -5-6: moderate influence with uncertainty -3-4: weak coupling to outcomes -0-2: minimal influence, random outcomes Critical: evaluate empowerment relative to this specific state, not globally. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>L. Effect of Fine-Tuning the Text Encoder on Empowerment Estimation</head><p>We conducted additional experiments to investigate the impact of fine-tuning the text encoder on EELMA's empowerment estimation performance. Complete results, including training curves (Figure <ref type="figure">19</ref>), RMSE analysis (Figure <ref type="figure">20</ref>), and state-wise mutual information comparison (Figure <ref type="figure">21</ref>), are provided below.</p><p>Experimental setup. We trained EELMA on the NL-converted 2D Gridworld task (details in Section 4 and Appendix I) using the e5-small-v2 encoder under four strategies: (i) frozen encoder, (ii) LoRA adaptation (rank = 8, α = 16), (iii) partial fine-tuning (final two layers), and (iv) full fine-tuning of all encoder parameters.   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M. Additional Discussion</head><p>Applicability to Multimodal Models Our EELMA approach is easily adaptable to multimodal language models such as vision-language models <ref type="bibr" target="#b22">(Lin et al., 2024)</ref>. The EELMA estimator can integrate embeddings of various modalities, such as</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">ReST meets ReAct: Self-improvement for multi-step reasoning LLM agent</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Aksitov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Miryoosefi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Babayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kopparapu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Fisher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Prakash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Srinivasan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zaheer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kumar</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=7xknRLr7QE" />
+	</analytic>
+	<monogr>
+		<title level="m">LLMAgents Workshop at the International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><surname>Aleithan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">M</forename><surname>Mohajer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Nnorom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Uddin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Swe-Bench+</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.06992</idno>
+		<title level="m">Enhanced coding benchmark for LLMs</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">An algorithm for computing the capacity of arbitrary discrete memoryless channels</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Arimoto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Transactions on Information Theory</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="14" to="20" />
+			<date type="published" when="1972">1972</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">wav2vec 2.0: A framework for self-supervised learning of speech representations</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Baevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Auli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="12449" to="12460" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Information prioritization through empowerment in visual model-based RL</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Bharadhwaj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Babaeizadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Erhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Levine</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=DfUjyyRW90" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Assistance via empowerment</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Tiomkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Kiciman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Polani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">D</forename><surname>Dragan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ave</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="4560" to="4571" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Training LLM agents to empower humans</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Myers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tuyls</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dragan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Eysenbach</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=rF5uRzGWKR" />
+	</analytic>
+	<monogr>
+		<title level="m">DL4C @ NeurIPS 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Diversity is all you need: Learning skills without a reward function</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Eysenbach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ibarz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Levine</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=SJx63jRqFm" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Revisit the Arimoto-Blahut algorithm: New analysis with approximation</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Fasoulakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Varsos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Traganitis</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2407.06013" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Gemma</forename><surname>Team</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Mesnard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hardin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dadashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bhupatiraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pathak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Sifre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Rivière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">S</forename><surname>Kale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Love</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Tafti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Hussenot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">G</forename><surname>Sessa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Barua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Botev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Castro-Ros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Slone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Héliou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Tacchetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bulanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Paterson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Tsai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Shahriari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Le Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">A</forename><surname>Choquette-Choo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Crepy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ippolito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Buchatskaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Ni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Noland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G.-C</forename><surname>Muraru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Rozhdestvenskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Michalewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Tenney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Grishchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Keeling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Labanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-B</forename><surname>Lespiau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Stanway</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Brennan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ferret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mao-Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Millican</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">L</forename><surname>Sjoesund</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Dixon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mikuła</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Wirth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sharman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Chinaev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Thain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Bachem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Wahltinez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Bailey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Michel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Yotov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Chaabouni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Comanescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Jana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Anil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Mcilroy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Mullins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">L</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Girgin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Douglas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pandya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Shakeri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>De</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Klimenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hennigan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Feinberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Stokowiec</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ahmed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Warkentin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Peran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Giang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Farabet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hassabis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ghahramani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Eck</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Barral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Pereira</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Fiedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Senter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Andreev</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kenealy</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gemma</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2403.08295" />
+		<title level="m">Open models based on Gemini research and technology</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Khalman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Llinares</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ramé</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Mesnard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Piot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ferret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Blondel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.04792</idno>
+		<title level="m">Direct language model alignment from online AI feedback</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Low-rank adaptation of large language models</title>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Wallis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Allen-Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lora</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2106.09685" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">SWE-bench: Can language models resolve real-world GitHub issues?</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">R</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2310.06770" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Empowerment for continuous agent-environment systems</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Jung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Polani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Stone</surname></persName>
+		</author>
+		<idno type="DOI">10.1177/1059712310392389</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Adaptive Behavior</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="16" to="39" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Empowerment: A universal agent-centric measure of control</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">S</forename><surname>Klyubin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Polani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">L</forename><surname>Nehaniv</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Congress on Evolutionary Computation</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="128" to="135" />
+			<date type="published" when="2005">2005. 2005</date>
+			<publisher>IEEE</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Are LLMs effective negotiators? Systematic evaluation of the multifaceted capabilities of LLMs in negotiation dialogues</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Weiss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kulshrestha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chawla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">M</forename><surname>Lucas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gratch</surname></persName>
+		</author>
+		<idno>doi: 10.18653</idno>
+		<ptr target="1/2024.findings-emnlp" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2024</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="5391" to="5413" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<ptr target="https://aclanthology.org/2024.findings-emnlp.310/" />
+		<title level="m">URL</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Efficient memory management for large language model serving with PagedAttention</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th ACM Symposium on Operating Systems Principles (SOSP)</title>
+		<meeting>the 29th ACM Symposium on Operating Systems Principles (SOSP)</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title/>
+		<idno type="DOI">10.1145/3600006.3613165</idno>
+		<ptr target="https://arxiv.org/abs/2309.06180" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<publisher>ACM</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Contrastive representation learning: A framework and review</title>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">H</forename><surname>Le-Khac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Healy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">F</forename><surname>Smeaton</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/access.2020.3031549</idno>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<idno type="ISSN">2169-3536</idno>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<date type="published" when="2020">193907-193934, 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">STRIDE: A toolassisted LLM agent framework for strategic and interactive decision-making</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bafarassat</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Sharifi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bergemann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?noteId=4PHVLjRIYQ" />
+	</analytic>
+	<monogr>
+		<title level="m">AutoRL Workshop at the 41st International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">On the scaling limits of LLMs for logical reasoning</title>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Le Bras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Poovendran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zebralogic</surname></persName>
+		</author>
+		<ptr target="https://proceedings.mlr.press/v267/lin25i.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd International Conference on Machine Learning</title>
+		<meeting>the 42nd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">267</biblScope>
+			<biblScope unit="page" from="37889" to="37905" />
+		</imprint>
+	</monogr>
+	<note>PMLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">On pre-training for visual language models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Ping</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Molchanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Shoeybi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vila</surname></persName>
+		</author>
+		<ptr target="https://openaccess.thecvf.com/content/CVPR2024/html/Lin_VILA_On_Pre-training_for_Visual_Language_Models_CVPR_2024_paper.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="26689" to="26699" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Meta</surname></persName>
+		</author>
+		<ptr target="https://ai.meta.com/blog/meta-llama-3/" />
+		<title level="m">Llama 3 models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Variational information maximisation for intrinsically motivated reinforcement learning</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">J</forename><surname>Rezende</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<biblScope unit="page" from="2125" to="2133" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Learning to assist humans without inferring rewards</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Myers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Ellis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Eysenbach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dragan</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2411.02623" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">37</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title/>
+		<ptr target="https://openai.com/index/hello-gpt-4o/" />
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI. Hello GPT-4o</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">BALROG: Benchmarking agentic LLM and VLM reasoning on games</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Paglieri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Cupiał</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Coward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Piterbarg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Wołczyk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Pignatelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ł</forename><surname>Kuciński</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Fergus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">N</forename><surname>Foerster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Parker-Holder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2411.13543" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Autonomous evaluation and refinement of digital agents</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Tomlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Suhr</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=NPAQ6FKSmK" />
+	</analytic>
+	<monogr>
+		<title level="m">1st Conference on Language Modeling</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Phuong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Aitchison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Catt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Cogan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kaskasoli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Krakovna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lindner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Rahtz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Assael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Hodkinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Howard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lieberum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Abi Raad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Webson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Farquhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hutter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Deletang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ruoss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>El-Sayed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dragan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dafoe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Shevlane</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.13793</idno>
+		<ptr target="https://arxiv.org/abs/2403.13793" />
+		<title level="m">Evaluating frontier models for dangerous capabilities</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">Qwen</forename><surname>Team</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2412.15115" />
+		<title level="m">Qwen2.5 technical report</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Learning transferable visual models from natural language supervision</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hallacy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Goh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="8748" to="8763" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">InfoNCE: Identifying the gap between theory and practice</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Rusak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Reizinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Juhos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Bringmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">S</forename><surname>Zimmermann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Brendel</surname></persName>
+		</author>
+		<ptr target="https://proceedings.mlr.press/v258/rusak25a.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of The 28th International Conference on Artificial Intelligence and Statistics</title>
+		<meeting>The 28th International Conference on Artificial Intelligence and Statistics</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">258</biblScope>
+			<biblScope unit="page" from="4159" to="4167" />
+		</imprint>
+	</monogr>
+	<note>PMLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Empowerment-an introduction</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Salge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Glackin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Polani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Guided Self-Organization: Inception</title>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2014">2014</date>
+			<biblScope unit="page" from="67" to="114" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2302.04761" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Why Greatness Cannot Be Planned: The Myth of the Objective</title>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">O</forename><surname>Stanley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lehman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+			<publisher>Springer</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Learning to (learn at test time): RNNs with expressive hidden states</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Dalal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vikram</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dubois</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Koyejo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Guestrin</surname></persName>
+		</author>
+		<ptr target="https://proceedings.mlr.press/v267/sun25h.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd International Conference on Machine Learning</title>
+		<meeting>the 42nd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">267</biblScope>
+			<biblScope unit="page" from="57503" to="57522" />
+		</imprint>
+	</monogr>
+	<note>PMLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Parametrically retargetable decision-makers tend to seek power</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Turner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Tadepalli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="31391" to="31401" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Optimal policies tend to seek power</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Turner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Critch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Tadepalli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2021">NeurIPS 2021</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Van Den Oord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1807.03748</idno>
+		<ptr target="https://arxiv.org/abs/1807.03748" />
+		<title level="m">Representation learning with contrastive predictive coding</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Improving text embeddings with large language models</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wei</surname></persName>
+		</author>
+		<idno>doi: 10.18653</idno>
+		<ptr target="1/2024.acl-long" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="11897" to="11916" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<ptr target="https://aclanthology.org/2024.acl-long.642/" />
+		<title level="m">URL</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.05672</idno>
+		<title level="m">Multilingual E5 text embeddings: A technical report</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Benchmarking multimodal agents for open-ended tasks in real computer environments</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">J</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Osworld</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2404.07972" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">37</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Iterative preference learning from human feedback: Bridging theory and practice for RLHF under KL-constraint</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Kolter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Heller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Weller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Oliver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Scarlett</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+		<ptr target="https://proceedings.mlr.press/v235/xiong24a.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning</title>
+		<title level="s">Proceedings of Machine Learning Research</title>
+		<editor>
+			<persName><forename type="first">F</forename><surname>Berkenkamp</surname></persName>
+		</editor>
+		<meeting>the 41st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2024-07">Jul 2024</date>
+			<biblScope unit="volume">235</biblScope>
+			<biblScope unit="page" from="21" to="27" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Agentic memory for LLM agents</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>A-Mem</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="17577" to="17604" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2210.03629" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">τ -bench: A benchmark for tool-agent-user interaction in real-world domains</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=roNSXZpUDN" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

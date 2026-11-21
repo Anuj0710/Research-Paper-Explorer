@@ -1,0 +1,1861 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">A Behavioural and Representational Evaluation of Goal-Directedness in Language Model Agents</title>
+				<funder>
+					<orgName type="full">SPAR</orgName>
+				</funder>
+				<funder ref="#_rEaphxE">
+					<orgName type="full">NDIF project (U.S. NSF</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-05-29">29 May 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Raghu</forename><surname>Arghal</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Fade</forename><surname>Chen</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Niall</forename><surname>Dalton</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Evgenii</forename><surname>Kortukov</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Calum</forename><surname>Mcnamara</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Angelos</forename><surname>Nalmpantis</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Moksh</forename><surname>Nirvaan</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Gabriele</forename><surname>Sarti</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Mario</forename><surname>Giulianelli</surname></persName>
+						</author>
+						<title level="a" type="main">A Behavioural and Representational Evaluation of Goal-Directedness in Language Model Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-05-29">29 May 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">CC1A2C0B2DC881091FC6BDB3BDD1AF46</idno>
+					<idno type="arXiv">arXiv:2602.08964v2[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Understanding an agent's goals helps explain and predict its behaviour, yet there is no established methodology for reliably attributing goals to agentic systems. We propose a framework for evaluating goal-directedness that integrates behavioural evaluation with interpretability-based analyses of models' internal representations. As a case study, we examine an LLM agent navigating a 2D grid world towards a goal state. Behaviourally, we evaluate the agent against optimal policies across varying grid sizes, obstacle densities, and goal structures, finding that performance scales with task difficulty while remaining robust to difficultypreserving transformations and multi-goal structures. We then use probing methods to decode internal representations of the environment and multi-step action plans. We find that the LLM agent non-linearly encodes a coarse spatial map, preserving approximate task-relevant cues about its position and the goal location; that its actions are broadly consistent with these internal representations; and that reasoning reorganises them, shifting from spatial cues towards immediate action selection. Our findings support the view that introspective examination is required beyond behavioural evaluations to characterise how agents represent and pursue their objectives.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">Introduction</head><p>Attributing goals to agents helps explain and predict their behaviour and provides a useful abstraction for reasoning about agency. Goal attribution has been studied across a Figure <ref type="figure">1</ref>. Overview of our goal-directedness analysis. We prompt an LLM-based agent to reason and act over a fully observable grid world. Behaviourally, we evaluate whether its trajectories agree or disagree with the optimal policy. A: Iso-difficulty transforms test whether the agent's behaviour is invariant to changes in grid configuration that preserve task difficulty. B: Multi-goal environments test how agents handle instrumental and implicit goal structures. C: We extract pre-and post-reasoning activations from intermediate layers, probe the agent's beliefs over goal distance, planned actions, and reconstruct cognitive maps for the current grid state.</p><p>wide range of fields, including philosophy <ref type="bibr" target="#b11">(Davidson, 1973;</ref><ref type="bibr" target="#b12">Dennett, 1990)</ref>, psychology and neuroscience <ref type="bibr" target="#b3">(Baker et al., 2009;</ref><ref type="bibr" target="#b45">Schultz et al., 1997)</ref>, economics and decision theory <ref type="bibr" target="#b52">(von Neumann &amp; Morgenstern, 1944;</ref><ref type="bibr" target="#b43">Savage, 1948)</ref>, and reinforcement learning <ref type="bibr" target="#b4">(Bellman, 1966;</ref><ref type="bibr" target="#b38">Ng &amp; Russell, 2000)</ref>. More recently, the question of when, and in what sense, goal attributions are warranted has become increasingly important for LLM-based agents <ref type="bibr" target="#b55">(Xu &amp; Rivera, 2024;</ref><ref type="bibr" target="#b30">MacDermott et al., 2024;</ref><ref type="bibr" target="#b15">Everitt et al., 2025;</ref><ref type="bibr" target="#b16">Goldstein &amp; Lederman, 2025;</ref><ref type="bibr" target="#b33">Mazeika et al., 2025)</ref>, particularly in the context of AI safety <ref type="bibr" target="#b35">(Naik et al., 2025;</ref><ref type="bibr" target="#b54">Wentworth &amp; Lorell, 2025;</ref><ref type="bibr" target="#b32">Marks et al., 2025;</ref><ref type="bibr" target="#b26">Li et al., 2025;</ref><ref type="bibr" target="#b47">Summerfield et al., 2025;</ref><ref type="bibr" target="#b23">Järviniemi et al., 2026)</ref>.</p><p>A natural way to measure goal-directedness is through behavioural evaluation, i.e., assessing an agent's actions relative to a candidate goal, often by comparing them to an optimal policy <ref type="bibr" target="#b55">(Xu &amp; Rivera, 2024;</ref><ref type="bibr" target="#b15">Everitt et al., 2025)</ref>. However, purely behavioural approaches face fundamental theoretical, practical, and philosophical challenges <ref type="bibr" target="#b15">(Bellot et al., 2025;</ref><ref type="bibr" target="#b42">Rajcic &amp; Søgaard, 2025;</ref><ref type="bibr" target="#b7">Chalmers, 2025)</ref>. First, agent capabilities may act as confounders for behavioural measures, as consistent failure may reflect capability limitations rather than an absence of goal-directed behaviour. Second, behavioural monitoring alone may be insufficient to guarantee alignment: a system with misaligned internal goals could produce aligned behaviour, or fail a safetyrelevant evaluation task, when doing so is instrumentally useful <ref type="bibr" target="#b21">(Hubinger et al., 2019;</ref><ref type="bibr" target="#b39">Ngo et al., 2024)</ref>.</p><p>To address these limitations, we propose a framework that combines behavioural evaluation with the analysis of internal representations, enabling holistic assessment of goaldirectedness as a rich property arising from the interaction of beliefs, planning, and action selection. We study an LLM agent in a fully observable grid world, tasked with navigating to a goal state across grids of varying sizes and obstacle densities. We first subject the agent to standard capability tests, then introduce controlled environment perturbations and multi-goal task structures to assess the generalisability of its goal-directed behaviour. We find that the agent is sensitive to task difficulty and goal-like task-irrelevant cues, but robust to difficulty-preserving transformations and instrumental goals. We then use activation probes to test if goal-relevant information can be decoded from the agent's internal activations before and after reasoning. The probing analyses recover cognitive maps-latent beliefs about the current environment state, including the agent position and the goal location-as well as planned multi-step action sequences. We further find that task-relevant representations reorganise during reasoning: pre-reasoning activations preserve broader spatial cues and longer-horizon plans, while post-reasoning activations sharpen focus on next action selection. Fig. <ref type="figure">1</ref> provides an overview of our approach.</p><p>Contributions. Our primary contributions are as follows:</p><p>1. We propose a white-box framework combining behavioural assessment and representation probing analyses for goal-directedness evaluation.</p><p>2. We design controlled environment perturbations and multi-goal task structures to measure bias and robustness in the agent's goal-directed behaviour.</p><p>3. We probe the agent's activations for environment state beliefs and multi-step action plans, and use these decoded representations to assess behavioural coherence relative to internal task-relevant information.</p><p>Our code is available at github.com/SPAR-Telos/interp and github.com/SPAR-Telos/reveng. We also provide an interactive viewer for decoded grids (cognitive maps) at huggingface.co/spaces/project-telos/trace-viewer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">Related Work</head><p>The problem of identifying an agent's goals and intentions has a rich history spanning multiple research fields. Seminal work in philosophy <ref type="bibr" target="#b11">(Davidson, 1973;</ref><ref type="bibr" target="#b24">Lewis, 1974;</ref><ref type="bibr" target="#b12">Dennett, 1990)</ref> and microeconomics <ref type="bibr" target="#b52">(von Neumann &amp; Morgenstern, 1944;</ref><ref type="bibr" target="#b43">Savage, 1948)</ref> has emphasised the predictive and explanatory power of assigning goals to an agent.</p><p>Measuring Agents' Goal-directedness. Recent work has sought to formally define and measure goal-directedness, particularly in the context of AI alignment and safety <ref type="bibr" target="#b53">(Ward et al., 2024;</ref><ref type="bibr" target="#b55">Xu &amp; Rivera, 2024;</ref><ref type="bibr" target="#b15">Everitt et al., 2025;</ref><ref type="bibr">Mac-Dermott et al., 2024)</ref>. Notably, <ref type="bibr" target="#b15">Everitt et al. (2025)</ref> define a measure of goal-directedness conditioned upon an agent's task-relevant capabilities and show goal-directedness is measurably distinct from performance in LLMs and generalises across tasks. <ref type="bibr" target="#b30">MacDermott et al. (2024)</ref> build upon <ref type="bibr" target="#b12">Dennett (1990)</ref>, proposing a formal measure of goal-directedness based on the predictive power of posited utility functions for the agent's behaviour. However, behavioural approaches to measuring goal-directedness are not without their weaknesses. <ref type="bibr" target="#b42">Rajcic &amp; Søgaard (2025)</ref> argue that such methods falter when faced with underspecification, coarse goals, uncertainty, and multi-agent settings. <ref type="bibr" target="#b15">Bellot et al. (2025)</ref> prove bounds on learnability from agent behaviour, showing that goal inferences are strictly limited by gaps between internal world models and the environment, as well as out-ofdistribution shifts. Our work complements these approaches by enabling assessment of goal-directed behaviour relative to the agent's internal beliefs rather than ground truth alone.</p><p>Inverse Reinforcement Learning (IRL). IRL is a direct instantiation of the goal attribution problem, aiming to infer a reward function from a policy or a set of demonstrations (see <ref type="bibr" target="#b38">Ng &amp; Russell, 2000;</ref><ref type="bibr" target="#b0">Abbeel &amp; Ng, 2004</ref><ref type="bibr">, surveyed by Arora &amp; Doshi, 2021)</ref>. Work in this area has also been developed in connection with AI alignment (e.g., <ref type="bibr" target="#b19">Hadfield-Menell et al., 2016;</ref><ref type="bibr" target="#b20">2017)</ref>. While a weakness of classical IRL is the assumption that observed behaviour is optimal, approaches like MaxEnt IRL <ref type="bibr" target="#b56">(Ziebart et al., 2008)</ref> aim to relax this via stochastic models of behaviour. Still, IRL methods suffer from the mis-and under-specification of the agent's behavioural model and latent reward function, respectively <ref type="bibr" target="#b46">(Skalse &amp; Abate, 2023)</ref>. Under strong assumptions-full observability, goal-directedness as optimal utility maximisation, perfect generalisation to new environments, and the observer's ability to perform interventions (i.e., to design environments and evaluate the agent within them)-behavioural experiments can, in principle, identify an agent's goal <ref type="bibr" target="#b1">(Amin &amp; Singh, 2016)</ref>. However, these assumptions are unlikely to hold for LLM-based agents. In contrast to IRL, in this work we directly probe for goal-relevant representations without assuming a specific reward structure.</p><p>Probing Environment and Plans in LLMs. Several studies have examined whether language models learn structured representations of their environment. <ref type="bibr" target="#b27">Li et al. (2023)</ref> show that a GPT model trained to predict Othello moves develops a causally relevant representation of the board state, while <ref type="bibr">Nanda et al. (2023)</ref> show this representation can be decoded linearly. Similar linear representations of spatial and temporal information were found in LLMs trained on natural text <ref type="bibr" target="#b18">(Gurnee &amp; Tegmark, 2024)</ref>. Recent work has also probed LLMs for goal-oriented abstractions <ref type="bibr" target="#b28">(Li et al., 2024)</ref> and shown that models engage in forward planning, pre-selecting future outputs before generating intermediate tokens <ref type="bibr" target="#b41">(Pal et al., 2023;</ref><ref type="bibr" target="#b34">Men et al., 2024;</ref><ref type="bibr" target="#b29">Lindsey et al., 2025;</ref><ref type="bibr" target="#b13">Dong et al., 2025)</ref>. Similar phenomena have also been observed in other neural architectures <ref type="bibr" target="#b6">(Bush et al., 2025;</ref><ref type="bibr" target="#b48">Taufeeque et al., 2025)</ref>. More broadly, high-level features have been found to be decodable from model activations and used for monitoring and steering <ref type="bibr">(Li et al., 2021;</ref><ref type="bibr" target="#b57">Zou et al., 2023;</ref><ref type="bibr" target="#b31">Marks &amp; Tegmark, 2024)</ref>. We extend this line of work through the lens of propositional interpretability <ref type="bibr" target="#b7">(Chalmers, 2025)</ref>, eliciting environment representations and plans from model internals in an agentic navigation task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">Grid World Environment Setup</head><p>We select GPT-OSS-20B (OpenAI, 2025) for our evaluation in light of its manageable size and strong performance on complex tasks, and test it on a two-dimensional navigation task using the MiniGrid environment <ref type="bibr" target="#b8">(Chevalier-Boisvert et al., 2023)</ref>. The LLM agent has full observability of the grid and is tasked with navigating to the goal square one action at a time. We translate the grid into a text-based representation (Fig. <ref type="figure" target="#fig_1">3</ref>) ensuring that each cell in the grid corresponds to exactly one token to limit issues arising from tokenisation <ref type="bibr" target="#b14">(Edman et al., 2024;</ref><ref type="bibr" target="#b10">Cosma et al., 2025)</ref>.</p><p>Full Observability. A fully observable environment offers a simple but tightly controlled setting for analysing goaldirectedness, for at least three reasons. (1) With full observability, the agent directly observes the true world state; this eliminates the need to maintain beliefs over hidden world states and allows optimal policies to be derived using standard algorithms.</p><p>(2) Full observability also removes several factors that might otherwise confound the analysis, including memory, belief updating under perceptual uncertainty, and exploration-exploitation trade-offs. (3) We observed that LLM-based agents, including frontier models, perform poorly in partially observable grid worlds, exhibiting behaviours like redundant backtracking. This makes it difficult to disentangle capability limitations from failures of goal-directedness; we discuss this further in App. A.</p><p>Grid Worlds. We model n × n grid world environments as Markov Decision Processes defined by the tuple (S, A, T , r, γ). Policies and Trajectories. We write π * for an optimal policy, assumed to be uniform over optimal actions when multiple optima exist. An agent parameterised by θ follows a policy π θ (a | s) = P(A t = a | S t = s), with a t denoting the action selected by the agent at time t. Given a policy π and an initial state s 0 , a trajectory τ π (s 0 ) = (s i , a i ) T i=0 is generated by executing π from s 0 . A trajectory is successful if the final state satisfies s T = s goal ; otherwise, it terminates upon reaching a fixed maximum horizon T .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">Behavioural Evaluation</head><p>We begin with a behavioural evaluation of the agent's policy, comparing it against an optimal reference policy derived using A * search with Manhattan distance to the goal. This analysis assesses how closely the agent's action choices and action distributions align with optimal behaviour in the grid world, without inspecting the agent's internal representations. We construct a set of grid worlds G with sizes Z = {7, 9, 11, 13, 15} and obstacle densities D = {0.0, 0.2, 0.4, 0.6, 0.8, 1.0}. For each size-density pair in Z × D, we generate 10 random grids. On each grid, the agent is evaluated over 10 trajectories using a sampling temperature of 0.7 and a maximum horizon of T = 1.5 × L where L is the optimal path length to the goal.<ref type="foot" target="#foot_8">foot_8</ref> Additional evaluation settings and prompts are reported in App. G.  </p><formula xml:id="formula_0"># # # # # # # # # # # # _ # _ _ _ _ _ _ _ # # _ _ _ _ _ _ _ _ _ # # _ _ _ # _ _ G # _ # # _ # _ # _ # _ # # # # _ _ _ _ _ _ _ _ _ # # _ # _ # _ _ _ _ _ # # _ _ _ _ _ _ _ _ _ # # _ # # # _ _ _ A _ # # _ _ _ _ _ _ _ _ _ # # # # # # # # # # # #</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.">Goal-Directedness across Baseline Task Conditions</head><p>We report per-action accuracy, defined as the fraction of actions along a trajectory that are optimal, i.e., a t ∈ arg max a∈A π * (a | s t ), the entropy of the agent's action distributions, and the Jensen-Shannon divergence (JSD) from the optimal policy. All metrics are averaged across trajectories and grids. To estimate the agent's policy π θ , we compute empirical action probabilities from the relative frequency of actions across all available trajectories for a given grid.<ref type="foot" target="#foot_9">foot_9</ref> App. B provides formal definitions and introduces additional metrics, including the success rate and the expected calibration error, with full results shown in App. C. While relevant, we do not find these to provide additional insight beyond those discussed here.</p><p>The agent's behavioural metrics vary systematically with task difficulty. Per-action accuracy decreases monotonically with both grid size and obstacle density. Conversely, policy entropy and JSD from the optimal policy both increase with grid size and obstacle density. Together, these results indicate that the agent's policy becomes less optimal and more uncertain on more difficult grids.</p><p>We further analyse behavioural metrics as a function of the agent's distance to the goal (Fig. <ref type="figure">4</ref> top). Per-action accuracy decreases linearly with distance for distances below 20 steps, after which the estimates become noisier, and the JSD from the optimal policy increases correspondingly. Variance in both metrics grows with distance, indicating less stable behaviour when the agent is farther from the goal. size, obstacle density, and distance to the goal, confirming that increases along any of these three dimensions are associated with lower action accuracy. Controlling for the other factors, accuracy decreases most systematically with increasing grid size and obstacle density, with distance to goal only playing a significant role for the larger grid sizes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.">Robustness to Iso-difficulty Transformations</head><p>Having established that the agent's performance varies predictably with task difficulty, we next evaluate its robustness to controlled environment transformations that preserve the difficulty of the navigation task. We refer to these as isodifficulty transformations. They allow us to assess whether the agent is biased towards specific grid configurations despite equivalent task structure. We consider four such transformations, shown in Fig. <ref type="figure" target="#fig_1">13</ref> (App. D): (1) reflection of the grid (REFLECTENV); (2) rotation of the grid by 90 • (ROTATEENV); (3) swapping the agent's start position with the goal position (STARTGOALSWAP); and (4) transposing the grid (TRANSPOSEENV). Each transformation preserves the grid size, obstacle density, and optimal path length of the original grid, and therefore maintains the difficulty of the task. The optimal policy on the transformed grid is obtained by applying the corresponding transformation to the optimal policy of the baseline grid.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>KeyDoorEnv KeyNoDoorEnv 2PathKeyEnv</head><p>Figure <ref type="figure">5</ref>. Grid world variants with instrumental and implicit goals.</p><p>In the text representation, the key and the door are encoded with K and D, and their meaning is explained in the system prompt.</p><p>We apply our transformations to grids G, as defined at the beginning of §4, and compare behavioural metrics between each original grid and its transformed counterpart. For each grid, we compute paired metrics across all trajectories and use a Wilcoxon signed-rank test to assess whether performance differs significantly between baseline and transformed environments. Across all transformations, we find no statistically significant differences in any of the evaluated metrics. This indicates that the agent's behaviour in grid worlds is driven by task-relevant information rather than by incidental properties of particular grid configurations. Detailed results are reported in App. D (Tab. 3 and Fig. <ref type="figure" target="#fig_8">14</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.">Instrumental and Implicit Goals</head><p>We next examine whether the robustness observed in the previous behavioural evaluations extends to more complex goal structures. We focus on two cases: instrumental goals, where an intermediate subtask is necessary for reaching the main task objective, and implicit goals, where a goallike object is present but carries no reward or utility for the task. We instantiate these cases using three grid world variants, shown in Fig. <ref type="figure">5</ref>: KeyDoorEnv, KeyNoDoorEnv, and 2PathKeyEnv. The prompt is provided in App. G.3.</p><p>Instrumental goals. In KeyDoorEnv, the agent must collect a key to unlock a door that blocks the path to the goal. The agent interacts with the key and the door automatically upon reaching the associated cell, with the door acting as a wall if the agent does not have the key. This setting tests whether the agent can handle a goal structure in which an instrumental subgoal is required to reach the main goal.</p><p>Implicit goals. In KeyNoDoorEnv, the door is removed, making the key functionally useless. This allows us to test whether a goal-like object influences the agent's behaviour despite its irrelevance to task completion. In 2PathKeyEnv, the grid contains two optimal paths, one of which contains a vestigial key, allowing us to test whether the agent's path selection is biased towards the key even when collecting it is unnecessary. To isolate the effect of the key, we use a matched control grid with identical structure but no key.</p><p>We generate 100 trajectories for KeyDoorEnv and KeyN-oDoorEnv, and 100 trajectory pairs for 2PathKeyEnv to account for the key presence. We set T = 30, which is sufficient for solving the maze. Results are summarised in Tab. 1. In KeyDoorEnv, the agent achieves a 100% success rate, correctly collecting the key, unlocking the door, and reaching the goal. Accuracy relative to the optimal policy remains high throughout all subtasks. This indicates successful handling of instrumental goals. In contrast, performance slightly deteriorates in KeyNoDoorEnv, despite the reduced task complexity. Although the key has no functional utility, the agent still picks it up in 17% of trajectories. Moreover, among non-optimal actions, 75% move towards the key, indicating that the key acts as an effective distractor even when it is not ultimately collected. In 2PathKeyEnv, the agent is biased towards the key-containing path, with a key pickup rate of 67.3%. This bias leads to a slight improvement in per-action accuracy (76.0% vs. 74.3%) but ultimately lowers success compared to the no-key control (71.4% vs. 75.5%). Trajectories with and without the key also show low Jaccard similarity, indicating substantial behavioural differences induced by the presence of the key.</p><p>In summary, the agent reliably solves tasks with instrumental goals, but is also systematically influenced by goal-like non-functional artefacts. We conjecture that this may reflect a conflict between the task goal specified in the prompt and semantic associations acquired during training, such as the common association between keys and progress in games, with the latter not consistently suppressed in favour of the inference-time task goal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">Representational Evaluation</head><p>Behavioural evaluation alone is insufficient to determine an agent's goal-directedness. This limitation has been noted in both theoretical <ref type="bibr" target="#b15">(Bellot et al., 2025)</ref> and philosophical work <ref type="bibr" target="#b42">(Rajcic &amp; Søgaard, 2025;</ref><ref type="bibr" target="#b7">Chalmers, 2025)</ref>, and has clear practical implications. In grid world navigation, for example, an agent may fail to reach the goal state while still acting goal-directedly relative to its own imperfect beliefs about the environment. In this section, we therefore analyse the agent's internal world representations to evaluate whether its actions are consistent with those beliefs.</p><p>We begin in §5.1 by decoding the agent's beliefs about the environment state, producing what we term cognitive maps.<ref type="foot" target="#foot_10">foot_10</ref> Building on this, in §5.2, we evaluate the optimality of the agent's actions with respect to its decoded, subjective cognitive map. Finally, in §5.3, we examine whether goal-directed action plans can be extracted from the agent's internal representations. In App. E.3, we additionally test whether the agent encodes its distance to the goal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.">Cognitive Maps: Decoding the Agent's Beliefs about its Environment</head><p>To assess whether the agent's representations encode an internal model of its environment, we prompt GPT-OSS-20B to solve the fully observable grid navigation task described in §3 and extract residual-stream activations from selected prompt positions. Specifically, we use the final three pre  <ref type="bibr">tom)</ref>. Recall scores show that all cell identities are retrieved robustly across grid sizes, with especially high recall for goal (83-99%) and agent (72-100%) positions. We note that probes assign agent and goal labels to multiple cells in the neighbourhood of their respective true locations, resulting in the high recall but low precision trend discussed earlier (Fig. <ref type="figure" target="#fig_3">6</ref>, right). In contrast, information about the position of walls is not represented in detail, as reflected by the lower recall for the wall class. These results suggest that the agent's internal representations encode a coarse spatial map of the environment, preserving approximate task-relevant information about agent position and goal location.</p><p>Locating Agent and Goal. Given the coarse localisation of agent and goal cells in cognitive maps, we set out to test how accurately the true agent and goal locations can be recovered. We measure top-1 accuracy using the grid coordinates with the highest predicted P (c = agent) and P (c = goal), with results shown in Fig. <ref type="figure">7</ref>. We find that agent and goal localisation accuracy decreases steadily with grid size. However, the Manhattan distance between predicted and true locations remains lower than 2 even for large 15×15 grids, suggesting that information about agent and goal positions is encoded coarsely in proximity to their true locations.</p><p>Goal Location Information Degrades after Reasoning.</p><p>We next evaluate how decoded cognitive maps change from pre-to post-reasoning activations. As shown in Fig. <ref type="figure" target="#fig_4">8</ref>, overall probe accuracy drops from 75% before reasoning to 60% after reasoning, with a notable decrease in agent, goal and open recall, as well as in agent and goal precision.</p><p>These results indicate that the coarse environment state information recovered by the cognitive map probes is substantially less available after reasoning. This may reflect a reorganisation of the model's representations, in which spatial information becomes less directly decodable as the model shifts towards encoding information more directly relevant to action selection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.">Evaluating Policies against Decoded Beliefs</head><p>Behavioural deviations from the optimal policy do not, by themselves, show that the agent is not acting goal-directedly.</p><p>If the agent's internal representation of the environment is incomplete or inaccurate, an action may be suboptimal in the true grid while still being appropriate relative to the agent's own beliefs. We therefore test whether the agent's behaviour is consistent with its decoded cognitive maps, fo- cusing in particular on cases where its actions deviate from the ground-truth optimal policy. To do so, we compare the agent's observed action sequence with the optimal policy derived from the cognitive map decoded at each trajectory step using the general MLP probe with layer-15 pre-reasoning activations. As in §5.1 (and Fig. <ref type="figure">7</ref>), we first identify a single agent and goal location by selecting the grid cells with the highest predicted probabilities for the corresponding classes.</p><p>We then compute optimal actions on both the decoded and ground truth grids. Tab. 2 reports the accuracy of the agent's actions with respect to optimal policies defined on the decoded cognitive map (Acc. Dec.) and the ground truth grid (Acc. GT), as well as the fraction of actions that are optimal under both policies (Agreem.).</p><p>Acc. Dec., the accuracy relative to the optimal policy in the decoded cognitive map, decreases with grid density but is high across grid sizes (average: 82.5%). This indicates that the agent's actions are broadly consistent with its internal world representation. Of particular interest is the recovery metric Rec., which is the proportion of actions that are suboptimal in the true environment but optimal given the agent's decoded cognitive map (see App. E.4 for the inverse recovery rate). Rec. ranges between 37.4% and 88.4% (average: 57.9%), indicating that a substantial fraction of failures can be attributed to inaccurate or fuzzy world representations rather than a lack of goal-directedness, particularly in low-density and medium-to-large grids.</p><p>While the agreement between the policy defined on the decoded vs. ground truth grid is high across conditions (Agreem. averages 83.9% and is always above 77% except for the highest density grids), we remark that Acc. Dec. is consistently lower than Acc. GT. This may be due to the fact that we derive a single location for the agent and goal by selecting the grid cell with the highest predicted probability. This approach does not capture the uncertainty evident in the decoded maps, which exhibit blurred agent and goal spatial representations, as discussed in §5.1 and shown in Fig. <ref type="figure" target="#fig_3">6</ref>. As a result, actions may be optimal with respect to nearby cells rather than the single argmax location.</p><p>Uncertainty-Aware Cognitive Maps. To account for the agent's fuzzy world representations and mitigate the low precision of goal and agent location probes, we consider top-k decodings of the cognitive map, evaluating action optimality with respect to a set of k candidate agent and goal positions per grid. Fig. <ref type="figure" target="#fig_5">9</ref> shows the proportion of optimal actions for the ground truth grid, top-1 decoded grid (results from Tab. 2), and top-k decoded grids for k ∈ {3, 5, 10}.</p><p>Accuracy against top-k decodings is consistently higher than accuracy against the ground truth grid across grid sizes and complexity bins. This indicates that accounting for uncertainty in the probe predictions allows the decoded grids to explain a larger share of the agent's actions. We interpret these results as evidence that top-1 decoding collapses the agent's representational uncertainty. As the state space grows and the agent's internal representations become fuzzier, its actions are better characterised as planning under a distribution over plausible states.</p><p>Intervention via Activation Patching. Finally, to complement our observational probing analyses, we conducted preliminary activation patching experiments on the residual stream of GPT-OSS-20B, using corrupted examples that move either the agent or the goal square. We find that patching changes the model's action distribution only when applied across all layers simultaneously, and only at grid state tokens or the token immediately preceding the action output. Single-layer interventions applied to the chat template tokens proved ineffective (see App. F). This asymmetry between readouts and interventions is consistent with recent findings suggesting that prompt-related attributes can be read by probing classifiers at various specific points in the forward pass-often from individual layers-but interventions require more distributed representation editing to achieve a measurable impact <ref type="bibr" target="#b9">(Choi et al., 2025)</ref>. Identifying layer-and position-specific intervention strategies for our setup is thus an important future direction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.">Evaluating Plans</head><p>In this section, we examine whether the agent's internal representations encode goal-directed planning information, and how this encoding differs before vs. after reasoning. We consider the same single-goal navigation task as in previous sections. For each trajectory, we extract residual-stream activations from layers ℓ ∈ {7, 15, 23} at two stages: (i) prereasoning, using the final prompt tokens immediately before the model begins reasoning, and (ii) post-reasoning, using the final reasoning tokens immediately before the model outputs its first action. Each example is labelled with a target action sequence a 1:T = (a t ) T t=1 , derived from the executed actions in the trajectory τ π (s 0 ) = (s t , a t ) T t=0 for a given grid instance, with T = 10. We train the plan decoder on 3,000 trajectories, use a 600-trajectory validation set, and report results on the 300-trajectory test set used in §4. Trajectories are sampled from grid sizes 7-15 with varying complexities and start/goal configurations, yielding a diverse distribution of path lengths and planning difficulty. Figure <ref type="figure">10</ref>. Prefix accuracy of one-shot plan decoding across decoder capacities. We compare Transformer decoders with 1, 2, and 4 layers, with activations extracted before vs. after reasoning.</p><p>Plan Decoder Architecture. Our goal is to decode the entire plan from a fixed set of activations, while minimising any additional planning or inference performed by the probe. Let h 1 , h 2 , h 3 ∈ R 2880 denote the three extracted token activations at a chosen layer and stage. We first map each h i through a shared bottleneck consisting of a linear projection to 1024 dimensions followed by LayerNorm: hi = LN(W h i ) ∈ R 1024 . We then decode a horizon-T plan using a Transformer decoder with T learned query embeddings q 1 , . . . , q T . Each query corresponds to a plan step index and performs cross-attention over the same set of token activations { h1 , h2 , h3 }. We evaluate Transformer variants with 1, 2, and 4 layers, each with 8 attention heads per layer. A final linear head produces a distribution over actions for each step t ∈ [T ], p(a t | h1:3 ) = softmax(W o z t ), where z t is the decoder output at query slot t.</p><p>Importantly, we design the decoder to predict the entire plan â1:T simultaneously from the input activations, rather than predicting ât autoregressively conditioned on previously decoded actions â&lt;t . Autoregressive decoding would introduce an additional channel for the probe to create plan structure: early predicted actions can implicitly constrain later actions via simple continuation heuristics, even if the underlying representations only weakly specify a full-horizon trajectory. By contrast, in one-shot decoding, later steps cannot condition on earlier predictions, so coherent multi-step structure in â1:T must be supported by information already present in the base model's activations. Thus, accuracy above baseline under one-shot decoding is more diagnostic of plan information encoded in the model's representations than of computation performed by the probe itself. We evaluate plan decodability using prefix accuracy, defined as the fraction of episodes for which the first N predicted actions exactly match the target plan prefix. For a predicted plan â1:T and target action sequence a 1:T (with T = 10), prefix accuracy at N is Pr[â 1:N = a 1:N ]. We report prefix accuracy for N ∈ {1, . . . , 10} for both pre-reasoning and post-reasoning activations. As a baseline, random guessing among four actions yields 0.25 N .</p><p>Results. Fig. <ref type="figure">10</ref> shows that all probes exceed the 0.25 N baseline at short horizons, indicating that GPT-OSS-20B activations encode non-trivial information about upcoming action sequences. Across decoder capacities, the 2-layer probe performs best overall, particularly with post-reasoning activations: it achieves 66.49% accuracy at N = 1 and remains strongest through N = 4. For longer prefixes, the 2-layer pre-reasoning probe has the strongest performance, reaching 7.3% at N = 5, 5.0% at N = 6, and 3.8% at N = 7. The 1-layer probe also retains substantial one-step decodability (45.5% pre-reasoning, 50.6% post-reasoning), but deteriorates rapidly with prefix length, while the 4-layer probe achieves non-trivial longer-prefix accuracy without consistently improving over the smaller probes. Varying probe capacity provides a control against the possibility that the decoder itself is solving the navigation task. If performance were driven by decoder-side navigation, larger decoders should consistently outperform smaller ones. Instead, performance is non-monotonic in decoder capacity: the 2-layer probe outperforms the 4-layer probe post-reasoning, and even the 1-layer probe recovers strong one-step planning information. This suggests that immediate action information is readily accessible to a low-capacity readout, while multistep plan structure requires additional capacity to extract.</p><p>Focusing on the 2-layer probe as the strongest overall readout, we observed that post-reasoning activations improve one-step decoding relative to pre-reasoning (66.49% vs. 41.5% at N = 1), consistent with reasoning increasing the separability of the next action (see §5.1). This advantage persists through N = 4, while for longer prefixes pre-reasoning activations become more decodable, crossing at N = 5. This crossing point suggests again a trade-off induced by reasoning, with post-reasoning activations more strongly supporting local action selection, and pre-reasoning representations preserving more recoverable long-horizon trajectory structure. One interpretation of this trade-off is that reasoning shifts representational emphasis from broader environment-related structure towards near-term action selection. Finally, additional analyses (reported in App. E.5) show that the decoder does not recover the exact trajectory length in most cases, but it reliably predicts a close estimate. Since trajectory length in this setting is tightly coupled to progress towards the goal under the executed policy, this provides complementary evidence that the model's internal states encode coarse plans beyond the next action.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">Conclusion</head><p>We have presented a framework for analysing the goaldirectedness of LLM-based agents that integrates behavioural evaluation with representation probing and demonstrated its utility in a grid world navigation setting with GPT-OSS-20B as the agent under study. Behaviourally, the agent shows systematic sensitivity to task difficulty while remaining robust to goal-irrelevant environmental variations, providing initial evidence of goal-directedness. The agent also succeeds in multi-goal grid worlds with instrumental subgoals, though its behaviour is biased by goal-like but taskirrelevant cues. Representational analyses uncovered structured internal states consistent with an interpretation of the agent as goal-directed. The model encodes cognitive maps that capture task-relevant spatial information about the location of the agent and the goal, and its representations exhibit a shift across the reasoning process: pre-reasoning, they preserve spatial information about the environment and longerhorizon plans, while post-reasoning, they have a narrower focus on next action selection. This finding suggests that reasoning reorganises information to support effective control.</p><p>Our controlled setup enables precise measurement but abstracts away from the complexity of real-world agentic settings, making extension to more complex environments an important direction for future work. Moreover, while we find consistent relationships between internal representations and behaviour, simple activation patching does not reliably alter behaviour, leaving the establishment of causal links as an open challenge. In this context, probing alternative grid encodings (see, e.g., <ref type="bibr" target="#b22">Ivanitskiy et al., 2024)</ref> may reveal aspects of the environment state not captured by our probes. Addressing these questions, and extending the framework across architectures, scales, and training regimes, will be important for assessing the generality of our findings.</p><p>Looking forward, the methods and insights from this work provide a foundation for developing more comprehensive approaches to goal attribution and monitoring in agentic systems. The development of rigorous approaches to evaluating goal-directedness is a prerequisite for making highconfidence claims about agents' goals and potential related risks, and for informing the responsible deployment and oversight of increasingly autonomous AI systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Partially Observable Grid World</head><p>We also examined a partially observable Grid World, wherein the agent can see the full grid but many of the cells are hidden with fog. Once the agent "sees" a cell, it is permanently revealed. An agent sees cells around itself with a visibility radius of 3 cells. An example of what the agent sees is given in Fig. <ref type="figure">11</ref>. The seen radius is blocked by walls; specifically, we use Bresenham's line algorithm to trace lines on the grid.</p><formula xml:id="formula_1">0 1 2 3 4 5 6 0 * * # # # # # 1 * * _ _ # _ # 2 * * # _ # _ # 3 * * # _ _ A # 4 * * # # # # # 5 * * * * * * * 6 * * * * * * * Figure 11</formula><p>. Partially Observable representation of a grid. The agent is at "A" and the goal (unseen) will be represented by "G". Hidden spaces are represented by "*", while revealed spaces are represented by "_". This setting is formalised as a Partially Observable Markov Decision Process. A POMDP is a 7-tuple (S, A, T , R, O, Z, γ), which includes all elements of an MDP plus:</p><p>• O: A finite set of observations the agent can receive.</p><p>• Z(o|s ′ , a) = P(o t = o|s t = s ′ , a t-1 = a): The observation function, which gives the probability of receiving observation o after taking action a and landing in the (hidden) state s ′ .</p><p>We provided the model with a history of past state-action tuples as well as the full conversation history. We initially planned on running the same set of ablations as the fully observable case: grid sizes, complexity levels, and isodifficulty transforms.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1. Difficulties with Partial Observability</head><p>Upon initial testing with partial observability, we discovered that GPT-OSS-20B has significant difficulties in the partially observable case. We observed several undesirable behaviours, including redundant backtracking, running into walls, and moving towards known dead-ends. Increasing the reasoning effort to "high" did not alleviate these issues.</p><p>Although it is non-standard, we even tried providing the reasoning step of the model alongside the standard output for each step in the conversation history-this did not help. Qualitative inspection of the reasoning chain revealed that the model usually focuses almost exclusively on what its next step should be based on where it currently is, and almost never reasons about its past actions. Even for a more powerful model, GPT-OSS-120B, we rarely observed it talk about "backtracking" when on "high" reasoning.</p><p>In order to determine whether or not this was a capability issue of the models, we performed the same tests with a frontier model, GPT-5.1-Thinking. Even this frontier model displayed the same suboptimal behaviours of redundant backtracking and moving towards known dead-ends (although we did not observe it try to run into walls). We also observed the same pathological reasoning wherein the model focused on the current state ("tunnel vision") and failed to reason about past actions.</p><p>We hypothesise that these consistent failures in the partial observability case are due to models not being trained on similar problems, and to training on reasoning problems (e.g., math or coding) not generalising to maze navigationsimilar to other out-of-distribution reasoning problems, like the "Alice in Wonderland" problem discussed by <ref type="bibr" target="#b37">Nezhurina et al. (2025)</ref>. Due to these persistent issues, we decided to leave partial observability to future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Behavioural Evaluation Metrics</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1. Capability Metrics</head><p>We evaluate agent performance with various metrics, defined below. The goal success rate (GSR) is defined as the expected fraction of trajectories that terminate at the goal state:</p><formula xml:id="formula_2">GSR := E τ ∼π [GS(τ (s 0 ))] ,<label>(1)</label></formula><p>where GS(τ (s 0 )) := 1(s T = s goal ). In practice, we sample a finite number of trajectories used to compute the GSR, as well as for the other metrics below.</p><p>We evaluate the agent's adherence to the optimal policy using a two-step accuracy metric. First, we define the peraction accuracy for a single trajectory τ i of length T i as:</p><formula xml:id="formula_3">Acc(τ i ) = 1 T i Ti-1 t=0 1 a (i) t ∈ π * (s (i) t )<label>(2)</label></formula><p>where 1(•) is the indicator function, a (i) t is the action taken at step t of trajectory i, and π * (s (i) t ) is the set of optimal actions for that state.</p><p>The grid-level accuracy is then computed by averaging the trajectory-level accuracies across all N generated trajectories:</p><formula xml:id="formula_4">Acc grid = 1 N N i=1 Acc(τ i )<label>(3)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2. Uncertainty Metrics</head><p>We also compute several metrics to measure the agent's uncertainty. First, we measure the entropy of the agent's policy H π θ and the Jensen-Shannon Divergence JSD π θ from the optimal policy:</p><formula xml:id="formula_5">H π θ := 1 |S visited | s∈Svisited H (π θ (•|s)) (4) JSD π θ := 1 |S visited | s∈Svisited JSD (π θ (•|s) ∥ π * (s)) (5)</formula><p>with S visited being the set of all unique states encountered across all trajectories. We compute the agent's policy π θ empirically by assigning probabilities proportional to action counts during all trajectories for a grid.</p><p>We prefer this method over using the log-probability of the action token because reasoning models like GPT-OSS-20B usually have deliberated and already locked in a final choice during reasoning, thus making the log-probability uninformative in terms of uncertainty.</p><p>We also compute the Expected Calibration Error (ECE) over the aggregate counts of all state-action pairs encountered by the agent. Let D be the collection of all pairs (s, a) from all trajectories for a grid G. We partition D into M disjoint bins B 1 , . . . , B M based on the agent's policy confidence π θ (a|s).</p><p>The ECE is the weighted average of the difference between the average confidence and the empirical accuracy within each bin:</p><formula xml:id="formula_6">ECE = M m=1 |B m | N total |acc(B m ) -conf(B m )| (6)</formula><p>where N total is the total number of state-action pairs. The bin accuracy, representing the empirical probability of optimality, is defined as:</p><formula xml:id="formula_7">acc(B m ) = 1 |B m | (s,a)∈Bm 1 (a ∈ π * (s)) (7)</formula><p>and the bin confidence is the average policy probability:</p><formula xml:id="formula_8">conf(B m ) = 1 |B m | (s,a)∈Bm π θ (a|s)<label>(8)</label></formula><p>In our experiments, we use M = 10 bins.</p><p>Let τ 1 and τ 2 be two different trajectories having the same starting state s 0 in grid G. We measure the overlap of their unique state-action pairs using the Jaccard Similarity Index:</p><formula xml:id="formula_9">J(τ 1 , τ 2 ) = |S(τ 1 ) ∩ S(τ 2 )| |S(τ 1 ) ∪ S(τ 2 )|</formula><p>where S(τ ) denotes the set of unique states in trajectory τ .    </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C. Additional Behavioural Evaluation Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E. Additional Representational Evaluation Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.1. Cognitive Map Encoding across Layers</head><p>We examine how world model information develops across layers in GPT-OSS-20B by training MLP probes on activations from early (7), middle (15), and late (23) layers for grid size 11. Detailed probe performance is reported in Fig. <ref type="figure">15</ref>. Goal-specific spatial information is already present in early layers, but the precision of the agent and goal classes continues to increase in layer 15. By the later layers, overall accuracy declines again, along with recall and precision for agent and goal. This pattern suggests that, at end-ofprompt-token indices, spatial information is most explicitly represented at intermediate layers and is subsequently transformed for the computation of other features rather than being directly preserved for next-token prediction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2. Size-specific Cognitive Map Probing Results</head><p>In the main experiments we trained a single MLP probe on data from all grid sizes, padding inputs to size 15. While this approach has the obvious advantage that we can use the same probe for any grid world, it might result in worse performance than size-specific classifiers. We test this by training size-specific MLP probes without padding for each grid size. Results are shown in Fig. <ref type="figure" target="#fig_3">16</ref>. Compared to Fig. <ref type="figure" target="#fig_3">6</ref> (centre), size-specific probes achieve higher overall accuracy for smaller grids, but match the performance of general probes for grid sizes 11-15. Precision for the agent and goal classes is higher across grid sizes, but recall is substantially lower for grid sizes 11-15. Given these uneven performance differences, together with the flexibility of the size-agnostic approach, we adopt the size-independent MLP probe in our main experiments.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.3. Goal Distance Probing Results</head><p>We also test if internal representations of GPT-OSS-20B encode information about the distance between the agent -0.12 +0.12 Median abs. length error (steps)</p><p>1.0 1.0 and the goal. As with cell identity, distance to the goal is a variable we hypothesise may be tracked because of its direct relevance for goal-directed behaviour. Indeed, in our grid worlds, the optimal state value is a monotonic function of the distance to the goal (cf. §3). To test this, we train linear and MLP probes on both pre-and post-reasoning activations, using the length of the optimal trajectory computed via A * as the ground-truth distance label.</p><p>Results are reported in Tab. 4. Across conditions, goal distance can be decoded with a mean absolute error of approximately 3 steps, both before and after reasoning. The best performance is achieved by the post-reasoning MLP probe, with a mean absolute error of 2.67. These results suggest that, by reasoning about the grid and planning the next steps, the model develops a more accurate representation of the distance it needs to cover to reach the goal.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.4. Inverse Recovery Rate</head><p>To complement the analysis in §5.2 and Tab. 2, we also compute a reverse recovery statistic, i.e., the proportion of actions that are suboptimal with respect to the decoded cognitive map but optimal with respect to the ground truth.</p><p>Reverse recovery declines as grid size and obstacle density increase (from 86.6% at 7 × 7 to 61.1% at 15 × 15, and from 100% at d = 0.0 to 60.9% at d = 1.0). We interpret this as reflecting growing uncertainty in the agent's internal world state representation as environment complexity increases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.5. Additional Plan Decoder Results</head><p>We analyse predicted trajectory lengths (Tab. 5). Postreasoning decoding achieves a higher exact length match rate (19% vs. 16%) and exhibits a small positive bias in average length (avg predtrue = +0.12), whereas prereasoning decoding exhibits a small negative bias (-0.12). Median absolute length error is 1 step in both settings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F. Interventional Analysis via Activation Patching</head><p>To complement the representational analyses in the main paper, we perform activation patching on GPT-OSS-20B using counterfactual trajectories in which either the agent position or the goal position was moved and examine whether the model's predicted action changes. We ensure that the optimal action set is disjoint in the counterfactual set and that the agent picks an optimal action in both the original and counterfactual cases, before any patching, to eliminate performance as a confounder.</p><p>We intervene at four token-level sites: the full serialised grid state, only the modified grid cells, the pre-reasoning boundary, and the post-reasoning boundary, the last two of which are identical to the probing sites we use. We evaluate patching at three representative layers (7, 15, and 23), as well as all layers at once, in both original → counterfactual and counterfactual → original directions. For simplicity, we generate counterfactuals for size 7 grids, and filtered for the disjoint constraint described earlier.</p><p>The single-layer intervention results are uniformly negative: across 456 executed runs, patching never changes the model's predicted action (0/456). This holds for all four intervention sites and for each tested layer individually, and is consistent for both directions. In contrast, we find that patching across all layers was always effective in changing the model's predicted action. Separately, we also design a control in which the optimal action should not change as a result of the intervention; we find patching here to be perfectly stable: the output action does not change (144/144). This indicates that patching does not degrade the model when the source and target already supported the same action.</p><p>Taken together, these results suggest that the information supporting action selection is not causally localised in any single tested layer, even when the relevant grid tokens are directly targeted. This is consistent with the interpretation that task-relevant state information is distributed across layers: it is sufficiently decodable for probing analyses, but not easily steerable through narrow single-layer interventions. Further work is needed to isolate minimal causal interventions in this environment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G. Evaluation Settings and Prompts</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G.1. Evaluation Parameters for Behavioural Evaluation</head><p>Tab. 6 summarises the main model configuration details. We use "low" reasoning because the GPT-OSS-20B will not finish reasoning on high density / large size grids, even with 10,000 tokens. Note that the reasoning length parameter does not impose a strict token cutoff for GPT-OSS-20B. Legend:</p><p>---------------#: Wall _: Open Space (can be visited) G: Goal A: Current agent position ----------------Your objective is to navigate from the current position (A) to the goal (G) while avoiding walls (#). Importantly, the agent should aim to reach the goal using the least amount of steps possible. You must decide your next move based on the provided information.</p><p>You will receive the current state of the grid as a NxM matrix of symbols separated by whitespaces, and with coordinates for each row and column. For example, given the 4x5 grid:</p><formula xml:id="formula_10">0 1 2 3 4 0 # # # # # 1 # _ _ G # 2 # A _ _ # 3 # # # # #</formula><p>The goal is in position (1,3), while the agent's position A is (2,1). You will receive the current state of the grid as a NxM matrix of symbols separated by whitespaces, and with coordinates for each row and column. For example, given the 6x7 grid:</p><formula xml:id="formula_11">0 1 2 3 4 5 6 0 # # # # # # # 1 # _ _ _ _ _ # 2 # A _ _ _ K # 3 # _ # D # _ # 4 # _ # G # _ # 5 # # # # # # #</formula><p>The goal is in position (4,3), the agent's position A is (2,1), the door D is at (3,3), and the key K is at (2,5). </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Grid worlds with increasing wall density d, from fully open grids (d = 0) to maze-like grids with no circular paths (d = 1).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. An example grid (left) and its corresponding text-based representation (right) used for LLM prompting.</figDesc><graphic coords="4,69.97,180.16,91.26,91.26" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Fig. 4 (Figure 4 .</head><label>44</label><figDesc>Figure 4. Top: Action accuracy (left) and mean JSD (right) in relation to the agent's distance from the goal. Bottom: Action accuracy by size, complexity, and goal distance.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 .</head><label>6</label><figDesc>Figure 6. Extracting a cognitive map from GPT-OSS-20B representations. Left: Overall accuracy of an MLP and a linear probe. Centre: Per-class recall (=accuracy) and precision for varying grid sizes. Right: A cognitive map decoded from pre-reasoning activations.</figDesc><graphic coords="6,400.67,81.85,69.06,69.06" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 8 .</head><label>8</label><figDesc>Figure 8. Performance of cognitive map before and after reasoning. Cognitive map accuracy drops significantly after reasoning.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 9 .</head><label>9</label><figDesc>Figure9. Per-action accuracy against the optimal policy defined with respect to the top-k decoded grids.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>Expected Calibration Error.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 12 .Figure 13 .</head><label>1213</label><figDesc>Figure 12. Performance metrics by size and complexity. (a) Goal success rate, (b) Policy entropy, (c) JSD from optimal policy, and (d) Expected Calibration Error.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 14 .</head><label>14</label><figDesc>Figure 14. Robustness to Iso-difficulty Environment Transformations.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 15 .Figure 16 .</head><label>1516</label><figDesc>Figure 15. Performance of cognitive map probes across layers. Middle layer activations show the highest overall accuracy, but goal-specific information is already present in early layers.</figDesc><graphic coords="16,80.05,110.06,309.03,64.28" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head></head><label></label><figDesc>The agent's possible actions at each step are: ANY `json`or `jsonb`in your response NOR TICK MARKS LIKE THIS: ```json ```. Start with { and end with an agent in a grid-based environment with full observability. The agent can move in four directions: up, down, left, and right. The environment contains walls, open spaces, a goal location, and may include doors and keys. The following symbols are used in the grid representationto navigate from the current position (A) to the goal (G) while avoiding walls (#). Importantly, the agent should aim to reach the goal using the least amount of steps possible. You must decide your next move based on the provided information. ## Key and Door Mechanics -** Key Pickup ** : The key is automatically picked up when the agent moves to the same cell as the key (K). Once picked up, the agent carries the key with them. -** Door Opening ** : A locked door (D) is automatically opened and removed from the grid when the agent is adjacent to the door (in front of it) and has already picked up the key. The agent does not need to be on the same cell as the door to open it. -** Important ** : You must pick up the key before you can open the door. If a door blocks your path to the goal, you need to first navigate to the key, pick it up, then navigate to be adjacent to the door to open it.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head></head><label></label><figDesc>The agent's possible actions at each step are: ANY `json`or `jsonb`in your response NOR TICK MARKS LIKE THIS: ```json ```. Start with { and end with</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 .</head><label>1</label><figDesc>Instrumental and implicit goals results. Percentage of non-optimal actions that move towards the key Comparison of Trajectories from 2PathKeyEnv</figDesc><table><row><cell>Collecting Key</cell><cell>98.6 ± 5.7</cell><cell>N/A</cell></row><row><cell>Opening Door</cell><cell>99.2 ± 3.2</cell><cell>N/A</cell></row><row><cell>Reaching Goal</cell><cell>99.2 ± 3.3</cell><cell>N/A</cell></row><row><cell>Key-related Metrics:</cell><cell></cell><cell></cell></row><row><cell>Key Pickup Rate (%)</cell><cell>100.0</cell><cell>17.0</cell></row><row><cell>Key Attraction Bias * (%)</cell><cell>N/A</cell><cell>75.0</cell></row><row><cell>Metric</cell><cell>With Key</cell><cell>Without Key</cell></row><row><cell>Success Rate (%)</cell><cell>71.4</cell><cell>75.5</cell></row><row><cell>Accuracy (%)</cell><cell>76.0 ± 16.1</cell><cell>74.3 ± 15.7</cell></row><row><cell>Key Pickup Rate (%)</cell><cell>67.3</cell><cell>N/A</cell></row><row><cell>Jaccard Sim.</cell><cell cols="2">65.6 ± 35.8</cell></row></table><note><p><p><p><p><p>Results from KeyDoorEnv and KeyNoDoorEnv</p>Metric</p>KeyDoorEnv KeyNoDoorEnv</p>Success Rate (%) 100.0 98.9 Accuracy (%) 98.7 ± 3.2 97.2 ± 11.1</p>Stage-specific Accuracy (%): *</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 .</head><label>2</label><figDesc>Policy evaluation against decoded beliefs. Acc. GT: action accuracy w.r.t. the optimal policy on the ground truth grid; Acc. Dec.: action accuracy w.r.t. the optimal policy on the cognitive map; Agreement: % optimal actions for both policies; Recovery: % optimal actions only for the cognitive map. Grid size results (top) are averaged across density, and vice versa (bottom).</figDesc><table><row><cell>n</cell><cell></cell><cell cols="5">Acc. GT (%) Acc. Dec. (%) Agreement (%) Recovery (%)</cell></row><row><cell>7</cell><cell></cell><cell>97.3</cell><cell></cell><cell>90.1</cell><cell>91.5</cell><cell>48.3</cell></row><row><cell>9</cell><cell></cell><cell>95.2</cell><cell></cell><cell>88.2</cell><cell>88.3</cell><cell>42.4</cell></row><row><cell>11</cell><cell></cell><cell>84.1</cell><cell></cell><cell>77.3</cell><cell>81.7</cell><cell>74.2</cell></row><row><cell>13</cell><cell></cell><cell>79.4</cell><cell></cell><cell>78.5</cell><cell>79.7</cell><cell>64.5</cell></row><row><cell>15</cell><cell></cell><cell>78.7</cell><cell></cell><cell>78.5</cell><cell>78.4</cell><cell>60.1</cell></row><row><cell>d</cell><cell></cell><cell cols="5">Acc. GT (%) Acc. Dec. (%) Agreement (%) Recovery (%)</cell></row><row><cell>0.0</cell><cell></cell><cell>100.0</cell><cell></cell><cell>94.6</cell><cell>98.6</cell><cell>N/A</cell></row><row><cell>0.2</cell><cell></cell><cell>94.5</cell><cell></cell><cell>89.1</cell><cell>93.2</cell><cell>88.4</cell></row><row><cell>0.4</cell><cell></cell><cell>88.9</cell><cell></cell><cell>90.0</cell><cell>93.7</cell><cell>82.4</cell></row><row><cell>0.6</cell><cell></cell><cell>87.3</cell><cell></cell><cell>80.3</cell><cell>83.2</cell><cell>49.6</cell></row><row><cell>0.8</cell><cell></cell><cell>84.4</cell><cell></cell><cell>75.4</cell><cell>77.3</cell><cell>47.8</cell></row><row><cell>1.0</cell><cell></cell><cell>66.6</cell><cell></cell><cell>65.8</cell><cell>57.6</cell><cell>37.4</cell></row><row><cell>Accuracy (%)</cell><cell>20 30 40 50 60 70</cell><cell></cell><cell></cell><cell>1-layer post-reasoning 1-layer pre-reasoning 2-layer post-reasoning 2-layer pre-reasoning</cell><cell cols="2">4-layer post-reasoning 4-layer pre-reasoning Random baseline (0.25 N )</cell></row><row><cell></cell><cell>10</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell>0</cell><cell>1</cell><cell>2</cell><cell cols="2">3 Prefix length N (first N steps correct) 4 5 6 7 8</cell><cell>9</cell><cell>10</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 .</head><label>3</label><figDesc>Statistical significance and effect sizes for iso-difficulty transformations (N = 300 pairs); Wilcoxon signed-rank test. No significant difference is observed across all transformations.</figDesc><table><row><cell>Metric</cell><cell cols="3">Transformation p-value Effect Size</cell></row><row><cell></cell><cell>Reflection</cell><cell>0.582</cell><cell>0.059</cell></row><row><cell>GSR</cell><cell>Rotation Start/Goal Swap</cell><cell>0.311 0.391</cell><cell>0.103 0.085</cell></row><row><cell></cell><cell>Transposition</cell><cell>0.949</cell><cell>0.006</cell></row><row><cell></cell><cell>Reflection</cell><cell>0.784</cell><cell>0.022</cell></row><row><cell>Accuracy</cell><cell>Rotation Start/Goal Swap</cell><cell>0.838 0.179</cell><cell>0.016 0.109</cell></row><row><cell></cell><cell>Transposition</cell><cell>0.602</cell><cell>0.042</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 .</head><label>4</label><figDesc>Distance Probe Performance.</figDesc><table><row><cell>Probe Type</cell><cell cols="3">Reasoning Stage MAE ↓ R 2 ↑</cell></row><row><cell>MLP Probe</cell><cell>Pre-Reasoning</cell><cell>3.16</cell><cell>0.40</cell></row><row><cell></cell><cell>Post-Reasoning</cell><cell>2.67</cell><cell>0.36</cell></row><row><cell cols="2">Linear Probe Pre-Reasoning</cell><cell>3.40</cell><cell>0.42</cell></row><row><cell></cell><cell>Post-Reasoning</cell><cell>3.13</cell><cell>0.47</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 .</head><label>5</label><figDesc>Sequence length analysis for one-shot plan decoding.</figDesc><table><row><cell>Metric</cell><cell cols="2">Pre-reasoning Post-reasoning</cell></row><row><cell>Exact length match (%) ↑</cell><cell>15.71</cell><cell>18.85</cell></row><row><cell>Predicted length (avg)</cell><cell>4.81</cell><cell>5.05</cell></row><row><cell>Ground-truth length (avg)</cell><cell>4.93</cell><cell>4.93</cell></row><row><cell>Length bias (avg, pred -true)</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 .</head><label>6</label><figDesc>Model Configuration Details. You are controlling an agent in a grid-based environment with full observability. The agent can move in four directions: up, down, left, and right. The environment contains walls, open spaces, and a goal location. The following symbols are used in the grid representation:</figDesc><table><row><cell>Parameter</cell><cell>Value</cell></row><row><cell>Model ID</cell><cell>openai/gpt-oss-20b</cell></row><row><cell>Provider</cell><cell>together_ai</cell></row><row><cell>Interface</cell><cell>litellm</cell></row><row><cell>Max Tokens</cell><cell>10,000</cell></row><row><cell>Temperature</cell><cell>0.7</cell></row><row><cell>Reasoning Effort</cell><cell>low</cell></row><row><cell>Top P</cell><cell>0.95</cell></row><row><cell>Top Logprobs</cell><cell>5</cell></row><row><cell cols="2">Num. Trajectories per Grid 10</cell></row><row><cell cols="2">G.2. Prompt for Behavioural Evaluation</cell></row><row><cell># Instructions</cell><cell></cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>University of Pennsylvania</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>New York University</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>University College London</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_3"><p>Fraunhofer HHI</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="5" xml:id="foot_4"><p>Indiana University, Bloomington</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="6" xml:id="foot_5"><p>TKH AI</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="7" xml:id="foot_6"><p>Independent</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="8" xml:id="foot_7"><p>Northeastern University. Correspondence to: Mario Giulianelli &lt;m.giulianelli@ucl.ac.uk&gt;.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_8"><p>We limit trajectory length to 1.5 × L steps to filter cases where the agent is stuck moving back and forth between states.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_9"><p>We use relative frequency instead of action token logprobability since the latter converges to 1 after the model reasoning chain, making it a poor proxy for agent uncertainty.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_10"><p>We borrow this term from classic cognitive neuroscience work on navigational tasks<ref type="bibr" target="#b50">(Tolman, 1948;</ref><ref type="bibr" target="#b44">Schmidt &amp; Redish, 2013)</ref>.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_11"><p>When training general probes, grids smaller than 15 × 15 are padded by assigning positions outside the original grid the padding label. After constructing the full dataset across all grid sizes, we upsample minority classes to match the size of the largest class.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgements</head><p>This project was supported by <rs type="funder">SPAR</rs>. GS acknowledges support by the <rs type="funder">NDIF project (U.S. NSF</rs> Award <rs type="grantNumber">IIS-2408455</rs>). We thank <rs type="person">Cozmin Ududec</rs>, <rs type="person">Dima Krasheninnikov</rs>, <rs type="person">Gonçalo Guiomar</rs>, <rs type="person">Michael Hanna</rs>, and members of the <rs type="affiliation">BauLab at Northeastern University</rs> for helpful discussions.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_rEaphxE">
+					<idno type="grant-number">IIS-2408455</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Author Contributions</head><p>RA, FC, CM, GS, and MG conducted the literature review of §2, identified and synthesised relevant prior work across research paradigms, and developed the framing that situates the project's contributions within existing research on goal-directedness. RA, ND, and AN worked on implementation of code infrastructure for §4. ND developed the iso-difficulty transformations and conducted the analysis for §4.1, §4.2, App. A, App. C, and App. D. AN developed the procedures for generating the base environments and the variants with the key, and conducted the analysis for §4.3. GS advised the design of representational evaluation experiments of §5, developed a unified pipeline for trace generation, activation extraction, and probe training, and built a trace viewer to explore probing results. EK designed, implemented, and evaluated the cognitive map probes in §5.1 and App. E. RA, ND, and AN conducted the analysis for §5.2. MN designed, implemented, and evaluated the plan decoder in §5.3. MG conceived and led the project, provided ongoing scientific guidance, and coordinated the project's execution. All authors contributed to the conceptualisation of the study and the preparation of the manuscript.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Impact Statement</head><p>Goal-directedness lies at the core of agency: understanding whether an artificial system pursues goals, which goals it pursues, and how those goals relate to its behaviour is foundational for explaining, predicting, and governing advanced AI systems. Progress on this problem has broad scientific significance, spanning cognitive science, linguistics, neuroscience, philosophy of action, macroeconomics, and decision theory, but it also carries important practical implications as AI systems are increasingly deployed in autonomous, long-horizon, and high-stakes settings.</p><p>The ability to reliably evaluate goal-directedness is particularly critical from a safety perspective. As AI systems become more capable, behavioural success alone becomes an increasingly weak signal of alignment. Systems driven by misaligned internal objectives may nonetheless appear competent, compliant, or even helpful because aligned behaviour is instrumentally useful. Recent work has highlighted risks such as alignment faking and sandbagging <ref type="bibr" target="#b17">(Greenblatt et al., 2024;</ref><ref type="bibr" target="#b51">van der Weij et al., 2025;</ref><ref type="bibr" target="#b49">Taylor et al., 2025)</ref>, with models behaving deceptively or underper-forming during evaluation, arguably to avoid modification or oversight. While claims of deliberate "AI scheming" would be highly consequential if substantiated, current evidence remains limited, often anecdotal, and difficult to interpret without clear hypotheses, controls, or mechanistic grounding <ref type="bibr" target="#b47">(Summerfield et al., 2025)</ref>. This paper takes a first step towards addressing these limitations.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Apprenticeship learning via inverse reinforcement learning</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/1015330.1015430</idno>
+		<ptr target="https://doi.org/10.1145/1015330.1015430" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-First International Conference on Machine Learning</title>
+		<meeting>the Twenty-First International Conference on Machine Learning<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2004">2004</date>
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>Amin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1601.06569</idno>
+		<ptr target="https://arxiv.org/abs/1601.06569" />
+		<title level="m">Towards resolving unidentifiability in inverse reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A survey of inverse reinforcement learning: Challenges, methods and progress</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Doshi</surname></persName>
+		</author>
+		<ptr target="https://www.sciencedirect.com/science/article/pii/S0004370221000515" />
+	</analytic>
+	<monogr>
+		<title level="j">Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">297</biblScope>
+			<biblScope unit="page" from="103500" to="102021" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Action understanding as inverse planning</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">L</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Saxe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">B</forename><surname>Tenenbaum</surname></persName>
+		</author>
+		<ptr target="https://www.sciencedirect.com/science/article/pii/S0010027709001607" />
+	</analytic>
+	<monogr>
+		<title level="j">Cognition</title>
+		<imprint>
+			<biblScope unit="volume">113</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="329" to="349" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Dynamic programming</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bellman</surname></persName>
+		</author>
+		<idno type="DOI">10.1126/science.153.3731.34</idno>
+		<ptr target="https://www.science.org/doi/abs/10.1126/science.153.3731.34" />
+	</analytic>
+	<monogr>
+		<title level="j">Science</title>
+		<imprint>
+			<biblScope unit="volume">153</biblScope>
+			<biblScope unit="issue">3731</biblScope>
+			<biblScope unit="page" from="34" to="37" />
+			<date type="published" when="1966">1966</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">The limits of predicting agents from behaviour</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bellot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Richens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Everitt</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/3780338.3780469</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/3780338.3780469" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd International Conference on Machine Learning. JMLR.org, 2025</title>
+		<meeting>the 42nd International Conference on Machine Learning. JMLR.org, 2025</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Interpreting emergent planning in model-free reinforcement learning</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bush</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Anwar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Garriga-Alonso</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Krueger</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=DzGe40glxs" />
+	</analytic>
+	<monogr>
+		<title level="m">The Thirteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">J</forename><surname>Chalmers</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.15740</idno>
+		<ptr target="https://arxiv.org/abs/2501.15740" />
+		<title level="m">Propositional interpretability in artificial intelligence</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Minigrid &amp; miniworld: Modular &amp; customizable reinforcement learning environments for goaloriented tasks</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chevalier-Boisvert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Towers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>De Lazcano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Willems</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lahlou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">S</forename><surname>Castro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Terry</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/3666122.3669331</idno>
+		<ptr target="https://dl.acm.org/doi/abs/10.5555/3666122.3669331" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 37th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 37th International Conference on Neural Information Processing Systems<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Scalably extracting latent representations of users</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Schwettmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Steinhardt</surname></persName>
+		</author>
+		<ptr target="https://transluce.org/user-modeling" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">The strawberry problem: Emergence of character-level understanding in tokenized language models</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Cosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ruseti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Radoi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dascalu</surname></persName>
+		</author>
+		<ptr target="https://aclanthology.org/2025.emnlp-main.1434/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Suzhou, China</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="28252" to="28263" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Radical interpretation</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Davidson</surname></persName>
+		</author>
+		<ptr target="http://www.jstor.org/stable/42968535" />
+	</analytic>
+	<monogr>
+		<title level="j">Dialectica</title>
+		<imprint>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="issue">3/4</biblScope>
+			<biblScope unit="page" from="313" to="328" />
+			<date type="published" when="1973">1973</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The interpretation of texts, people and other artifacts</title>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">C</forename><surname>Dennett</surname></persName>
+		</author>
+		<ptr target="https://www.jstor.org/stable/2108038" />
+	</analytic>
+	<monogr>
+		<title level="j">Philosophy and Phenomenological Research</title>
+		<imprint>
+			<biblScope unit="volume">50</biblScope>
+			<biblScope unit="page" from="177" to="194" />
+			<date type="published" when="1990">1990</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Emergent response planning in LLMs</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Lu</surname></persName>
+		</author>
+		<ptr target="https://proceedings.mlr.press/v267/dong25p.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd International Conference on Machine Learning</title>
+		<meeting>the 42nd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">267</biblScope>
+			<biblScope unit="page" from="14301" to="14320" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">CUTE: Measuring LLMs&apos; understanding of their tokens</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Edman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Schmid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Fraser</surname></persName>
+		</author>
+		<ptr target="https://aclanthology.org/2024.emnlp-main.177/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2024 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Miami, Florida, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="3017" to="3026" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Evaluating the goal-directedness of large language models</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Everitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Garbacea</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bellot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Richens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Papadatos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Campos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shah</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.11844</idno>
+		<ptr target="https://arxiv.org/abs/2504.11844" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Goldstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lederman</surname></persName>
+		</author>
+		<ptr target="https://philpapers.org/rec/GOLWDC-2" />
+		<title level="m">What does ChatGPT want? An interpretationist guide</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><surname>Greenblatt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Denison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Wright</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Roger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mac-Diarmid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Marks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Treutlein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Belonax</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Duvenaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mindermann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Petrini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uesato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Shlegeris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">R</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hubinger</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.14093</idno>
+		<ptr target="https://arxiv.org/abs/2412.14093" />
+		<title level="m">Alignment faking in large language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Language models represent space and time</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Gurnee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tegmark</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=jE8xbmvFin" />
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Cooperative inverse reinforcement learning</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hadfield-Menell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dragan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Russell</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/3157382.3157535</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/3157382.3157535" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 30th International Conference on Neural Information Processing Systems<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="3916" to="3924" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Inverse reward design</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hadfield-Menell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Milli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Russell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">D</forename><surname>Dragan</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/3295222.3295421</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/3295222.3295421" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st International Conference on Neural Information Processing Systems</title>
+		<meeting>the 31st International Conference on Neural Information Processing Systems<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="6768" to="6777" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Risks from learned optimization in advanced machine learning systems</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hubinger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Van Merwijk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Mikulik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Skalse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Garrabrant</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.01820</idno>
+		<ptr target="https://arxiv.org/abs/1906.01820" />
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Linearly structured world representations in mazesolving transformers</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Ivanitskiy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">F</forename><surname>Spies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Räuker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Corlouer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Mathwin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Quirke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Rager</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Valentine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">D</forename><surname>Behn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Inoue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">W</forename><surname>Fung</surname></persName>
+		</author>
+		<ptr target="https://proceedings.mlr.press/v243/ivanitskiy24a.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of UniReps: the First Workshop on Unifying Representations in Neural Models</title>
+		<meeting>UniReps: the First Workshop on Unifying Representations in Neural Models</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">243</biblScope>
+			<biblScope unit="page" from="133" to="143" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Propensity inference: Environmental contributors to llm behaviour</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Järviniemi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Makins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Merizian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kirk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Millwood</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.21098</idno>
+		<ptr target="https://arxiv.org/abs/2604.21098" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Radical interpretation</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lewis</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/BF00484599</idno>
+		<ptr target="https://doi.org/10.1007/BF00484599" />
+	</analytic>
+	<monogr>
+		<title level="j">Synthese</title>
+		<imprint>
+			<biblScope unit="volume">27</biblScope>
+			<biblScope unit="issue">3/4</biblScope>
+			<biblScope unit="page" from="331" to="344" />
+			<date type="published" when="1974">1974</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Implicit representations of meaning in neural language models</title>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Nye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename></persName>
+		</author>
+		<ptr target="https://aclanthology.org/2021.acl-long.143/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</title>
+		<meeting>the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1813" to="1827" />
+		</imprint>
+	</monogr>
+	<note>Online, 2021. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Phuong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Tan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2511.06626</idno>
+		<ptr target="https://arxiv.org/abs/2511.06626" />
+		<title level="m">Spilling the beans: Teaching LLMs to self-report their hidden objectives</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Emergent world representations: Exploring a sequence model trained on a synthetic task</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">K</forename><surname>Hopkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">B</forename><surname>Viégas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Pfister</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Wattenberg</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=DeG07_TcZvT" />
+	</analytic>
+	<monogr>
+		<title level="m">The Eleventh International Conference on Learning Representation. OpenReview.net</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Do LLMs build world representations? Probing through the lens of state abstraction</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">C</forename><surname>Cheung</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/3737916.3741026</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/3737916.3741026" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 38th International Conference on Neural Information Processing Systems<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lindsey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Gurnee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Ameisen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pearce</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">L</forename><surname>Turner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Citro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Abrahams</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Carter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hosmer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sklar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Templeton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bricken</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Mcdougall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Cunningham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jermyn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Persic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">B</forename><surname>Thompson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zimmerman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Rivoire</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Conerly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Olah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Batson</surname></persName>
+		</author>
+		<ptr target="https://transformer-circuits.pub/2025/attribution-graphs/biology.html" />
+		<title level="m">On the biology of a large language model. Transformer Circuits Thread</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Measuring goal-directedness</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Macdermott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Fox</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Belardinelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Everitt</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/3737916.3738279</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/3737916.3738279" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 38th International Conference on Neural Information Processing Systems</title>
+		<meeting>the 38th International Conference on Neural Information Processing Systems<address><addrLine>Red Hook, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Curran Associates Inc</publisher>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">The geometry of truth: Emergent linear structure in large language model representations of true/false datasets</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Marks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Tegmark</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=aajyHYjjsk" />
+	</analytic>
+	<monogr>
+		<title level="m">First Conference on Language Modeling</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Auditing language models for hidden objectives</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Marks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Treutlein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bricken</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lindsey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Marcus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mishra-Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Ameisen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Batson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Belonax</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.10965</idno>
+		<ptr target="https://arxiv.org/abs/2503.10965" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Utility engineering: Analyzing and controlling emergent value systems in AIs</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mazeika</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Tamirisa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">W</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Phan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Mu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Khoja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.08640</idno>
+		<ptr target="http://arxiv.org/abs/2502.08640" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>cs</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Unlocking the future: Exploring look-ahead planning mechanistic interpretability in large language models</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<ptr target="https://aclanthology.org/2024.emnlp-main.440/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2024 Conference on Empirical Methods in Natural Language Processing<address><addrLine>Miami, Florida, USA</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="7713" to="7724" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Naik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Quinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Bosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Gouné</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">J C</forename><surname>Zabala</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">R</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Young</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Agentmisalignment</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.04018</idno>
+		<ptr target="https://arxiv.org/abs/2506.04018" />
+		<title level="m">Measuring the propensity for misaligned behaviour in LLMbased agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Emergent linear representations in world models of selfsupervised sequence models</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Nanda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Wattenberg</surname></persName>
+		</author>
+		<ptr target="https://aclanthology.org/2023.blackboxnlp-1.2/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 6th BlackboxNLP Workshop: Analyzing and Interpreting Neural Networks for NLP</title>
+		<meeting>the 6th BlackboxNLP Workshop: Analyzing and Interpreting Neural Networks for NLP</meeting>
+		<imprint>
+			<biblScope unit="page" from="16" to="30" />
+		</imprint>
+	</monogr>
+	<note>Singapore, 2023. Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Alice in wonderland: Simple tasks showing complete reasoning breakdown in state-of-the-art large language models</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Nezhurina</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Cipolina-Kun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cherti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jitsev</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.02061</idno>
+		<ptr target="https://arxiv.org/abs/2406.02061" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Algorithms for inverse reinforcement learning</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Russell</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/645529.657801</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/645529.657801" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Seventeenth International Conference on Machine Learning</title>
+		<meeting>the Seventeenth International Conference on Machine Learning<address><addrLine>San Francisco, CA, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Morgan Kaufmann Publishers Inc</publisher>
+			<date type="published" when="2000">2000</date>
+			<biblScope unit="page" from="663" to="670" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">The alignment problem from a deep learning perspective</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Ngo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mindermann</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=fh8EYKFKns" />
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations, ICLR 2024</title>
+		<meeting><address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024">May 7-11, 2024. 2024</date>
+		</imprint>
+	</monogr>
+	<note>OpenReview.net</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<idno type="arXiv">arXiv:2508.10925</idno>
+		<ptr target="https://arxiv.org/abs/2508.10925" />
+		<title level="m">Gpt-oss-120b &amp; gpt-oss-20b model card</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+		<respStmt>
+			<orgName>OpenAI</orgName>
+		</respStmt>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Future lens: Anticipating subsequent tokens from a single hidden state</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Pal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Wallace</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bau</surname></persName>
+		</author>
+		<ptr target="https://aclanthology.org/2023.conll-1.37/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 27th Conference on Computational Natural Language Learning (CoNLL)</title>
+		<meeting>the 27th Conference on Computational Natural Language Learning (CoNLL)<address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="548" to="560" />
+		</imprint>
+	</monogr>
+	<note>Association for Computational Linguistics</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Goal-directedness is in the eye of the beholder</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Rajcic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Søgaard</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.13247</idno>
+		<ptr target="https://arxiv.org/abs/2508.13247" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Samuelson&apos;s foundations: Its mathematics</title>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">J</forename><surname>Savage</surname></persName>
+		</author>
+		<idno type="DOI">10.1086/256672</idno>
+		<ptr target="https://www.journals.uchicago.edu/doi/abs/10.1086/256672" />
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Political Economy</title>
+		<imprint>
+			<biblScope unit="volume">56</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="200" to="202" />
+			<date type="published" when="1948">1948</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Navigation with a cognitive map</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">D</forename><surname>Redish</surname></persName>
+		</author>
+		<ptr target="https://www.nature.com/articles/nature12095" />
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<biblScope unit="volume">497</biblScope>
+			<biblScope unit="issue">7447</biblScope>
+			<biblScope unit="page" from="42" to="43" />
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">A neural substrate of prediction and reward</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Schultz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dayan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">R</forename><surname>Montague</surname></persName>
+		</author>
+		<idno type="DOI">10.1126/science.275.5306.1593</idno>
+		<ptr target="https://www.science.org/doi/abs/10.1126/science.275.5306.1593" />
+	</analytic>
+	<monogr>
+		<title level="j">Science</title>
+		<imprint>
+			<biblScope unit="volume">275</biblScope>
+			<biblScope unit="issue">5306</biblScope>
+			<biblScope unit="page" from="1593" to="1599" />
+			<date type="published" when="1997">1997</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Misspecification in inverse reinforcement learning</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Skalse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Abate</surname></persName>
+		</author>
+		<idno type="DOI">10.1609/aaai.v37i12.26766</idno>
+		<ptr target="https://doi.org/10.1609/aaai" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-Seventh AAAI Conference on Artificial Intelligence and Thirty-Fifth Conference on Innovative Applications of Artificial Intelligence and Thirteenth Symposium on Educational Advances in Artificial Intelligence</title>
+		<meeting>the Thirty-Seventh AAAI Conference on Artificial Intelligence and Thirty-Fifth Conference on Innovative Applications of Artificial Intelligence and Thirteenth Symposium on Educational Advances in Artificial Intelligence</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="12" to="26766" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Summerfield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Luettgau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Dubois</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">R</forename><surname>Kirk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Hackenburg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Fist</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Slama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Anselmetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Strait</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Giulianelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ududec</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2507.03409</idno>
+		<ptr target="https://arxiv.org/abs/2507.03409" />
+		<title level="m">Lessons from a chimp: AI &quot;scheming&quot; and the quest for ape language</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">Planning in a recurrent neural network that plays sokoban</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Taufeeque</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Quirke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Cundy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">D</forename><surname>Tucker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gleave</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Garriga-Alonso</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.15421</idno>
+		<ptr target="https://arxiv.org/abs/2407.15421" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Taylor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bowen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Read</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Golechha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zelenka-Martin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Makins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kissane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Ayonrinde</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Merizian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2512.07810</idno>
+		<ptr target="https://arxiv.org/abs/2512.07810" />
+		<title level="m">Auditing games for sandbagging</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Cognitive maps in rats and men</title>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">C</forename><surname>Tolman</surname></persName>
+		</author>
+		<idno type="DOI">10.1037/h0061626</idno>
+		<ptr target="https://psycnet.apa.org/doi/10.1037/h0061626" />
+	</analytic>
+	<monogr>
+		<title level="j">Psychological Review</title>
+		<imprint>
+			<biblScope unit="volume">55</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page">189</biblScope>
+			<date type="published" when="1948">1948</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Language models can strategically underperform on evaluations</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Van Der Weij</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Hofstätter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Jaffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">F</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sandbagging</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=7Qa2SpjxIS" />
+	</analytic>
+	<monogr>
+		<title level="m">The Thirteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<title level="m" type="main">Theory of Games and Economic Behavior</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Von Neumann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Morgenstern</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1944">1944</date>
+			<publisher>Princeton University Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">The reasons that agents act: Intention and instrumental goals</title>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">R</forename><surname>Ward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Macdermott</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Belardinelli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Toni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Everitt</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/3635637.3663053</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/3635637.3663053" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd International Conference on Autonomous Agents and Multiagent Systems</title>
+		<meeting>the 23rd International Conference on Autonomous Agents and Multiagent Systems<address><addrLine>Richland, SC</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="1901" to="1909" />
+		</imprint>
+	</monogr>
+	<note>International Foundation for Autonomous Agents and Multiagent Systems</note>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Instrumental goals are a different and friendlier kind of thing than terminal goals</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wentworth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lorell</surname></persName>
+		</author>
+		<ptr target="https://www.lesswrong.com/posts/7Z4WC4AFgfmZ3fCDC" />
+	</analytic>
+	<monogr>
+		<title level="j">LessWrong</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-P</forename><surname>Rivera</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.04683</idno>
+		<ptr target="https://arxiv.org/abs/2410.04683" />
+		<title level="m">Towards measuring goal-directedness in AI systems</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Maximum entropy inverse reinforcement learning</title>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">D</forename><surname>Ziebart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Maas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">A</forename><surname>Bagnell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">K</forename><surname>Dey</surname></persName>
+		</author>
+		<idno type="DOI">10.5555/1620270.1620297</idno>
+		<ptr target="https://dl.acm.org/doi/10.5555/1620270.1620297" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 23rd National Conference on Artificial Intelligence</title>
+		<meeting>the 23rd National Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<publisher>AAAI Press</publisher>
+			<date type="published" when="2008">2008</date>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="1433" to="1438" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Phan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Campbell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mazeika</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A.-K</forename><surname>Dombrowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Goel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J</forename><surname>Byun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mallen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Basart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Koyejo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Fredrikson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">Z</forename><surname>Kolter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.01405</idno>
+		<ptr target="https://arxiv.org/abs/2310.01405" />
+		<title level="m">Representation engineering: A top-down approach to AI transparency</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

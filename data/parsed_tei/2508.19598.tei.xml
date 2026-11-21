@@ -1,0 +1,1582 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Encouraging Good Processes Without the Need for Good Answers: Reinforcement Learning for LLM Agent Planning</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2025-08-27">27 Aug 2025</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Zhiwei</forename><surname>Li</surname></persName>
+							<email>zhiweili.jay@foxmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="laboratory">WeChat</orgName>
+								<orgName type="institution">Tencent Inc</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yong</forename><surname>Hu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="laboratory">WeChat</orgName>
+								<orgName type="institution">Tencent Inc</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Wenqing</forename><surname>Wang</surname></persName>
+							<email>wangwenqing@stu.pku.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="laboratory">WeChat</orgName>
+								<orgName type="institution">Tencent Inc</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="department">School of Software &amp; Microelectronics</orgName>
+								<orgName type="institution">Peking University</orgName>
+								<address>
+									<addrLine>In Ans Act 1 Obs 1 Act 1 Obs 1 Act 2 Obs 2</addrLine>
+									<settlement>Beijing</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Comp</forename><surname>Checker</surname></persName>
+						</author>
+						<title level="a" type="main">Encouraging Good Processes Without the Need for Good Answers: Reinforcement Learning for LLM Agent Planning</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2025-08-27">27 Aug 2025</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">8FC64520294A4970EDDB319596125F0A</idno>
+					<idno type="arXiv">arXiv:2508.19598v1[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>
+					<term>A</term>
+					<term>Cold Start B</term>
+					<term>Tool-Use Completeness Calculation C</term>
+					<term>Multi-Turn RL Frozen Trainable</term>
+				</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The functionality of Large Language Model (LLM) agents is primarily determined by two capabilities: action planning and answer summarization. The former, action planning, is the core capability that dictates an agent's performance. However, prevailing training paradigms employ end-to-end, multi-objective optimization that jointly trains both capabilities. This paradigm faces two critical challenges: imbalanced optimization objective allocation and scarcity of verifiable data, making it difficult to enhance the agent's planning capability. To address these challenges, we propose Reinforcement Learning with Tool-use Rewards (RLTR), a novel framework that decouples the training process to enable a focused, single-objective optimization of the planning module. Crucially, RLTR introduces a reward signal based on tool-use completeness to directly evaluate the quality of tool invocation sequences. This method offers a more direct and reliable training signal than assessing the final response content, thereby obviating the need for verifiable data. Our experiments demonstrate that RLTR achieves an 8%-12% improvement in planning performance compared to end-to-end baselines. Moreover, this enhanced planning capability, in turn, translates to a 5%-6% increase in the final response quality of the overall agent system.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large Language Models (LLMs) have achieved significant advancements in natural language processing, including code generation <ref type="bibr" target="#b35">(Wang and Chen, 2023)</ref>, question answering <ref type="bibr" target="#b26">(Shailendra et al., 2024)</ref>, and reasoning <ref type="bibr" target="#b38">(Wei et al., 2022)</ref>. These breakthroughs have spurred interest in developing agents based on LLMs <ref type="bibr" target="#b1">(Cheng et al., 2024;</ref><ref type="bibr" target="#b29">Shen, 2024)</ref>. A typical agent workflow consists of two main stages: the planning stage, in which tool calls are made to gather information, and the summary stage, where the collected information is synthesized to generate the final response <ref type="bibr" target="#b36">(Wang et al., 2024)</ref>. Between the two, the planning stage is crucial in the agent system. The accuracy of the agent's final output heavily depends on the comprehensive information collected through complete tool calls.</p><p>Currently, the dominant end-to-end reinforcement learning (RL) paradigm for agents in LLMs performs multi-objective optimization for both the planning and summary policies. It uses the final summary's answer as the reward to update both policies simultaneously <ref type="bibr" target="#b40">(Yang et al., 2025;</ref><ref type="bibr" target="#b6">GLM et al., 2024)</ref>. Integrated optimization effectively enables end-to-end LLMs to provide comprehensive agent capabilities. However, tightly coupled multi-objective RL optimization presents data and training challenges when fine-tuning for industrial business scenarios, as outlined below: Challenge 1: Lack of Effective Rewards for Predominant Data. As illustrated in Figure <ref type="figure" target="#fig_0">1</ref>(A), current advanced end-to-end agent RL methods <ref type="bibr" target="#b14">(Jin et al., 2025;</ref><ref type="bibr" target="#b3">Feng et al., 2025;</ref><ref type="bibr">Li et al., 2025a)</ref> rely on training data with verifiable answers to compute accurate rewards. However, in real-world scenarios, such data is scarce and requires costly manual annotation <ref type="bibr" target="#b39">(Wu et al., 2025)</ref>. For the vast majority of non-verifiable data, a reward model based on the final answer is typically used to validate the output <ref type="bibr" target="#b40">(Yang et al., 2025;</ref><ref type="bibr" target="#b8">Guo et al., 2025)</ref>, which is prone to reward hacking <ref type="bibr" target="#b5">(Gao et al., 2024)</ref>, leading to inaccurate rewards. As a result, most data lacks effective RL optimization methods.</p><p>Challenge 2: Competing Objectives and Credit Assignment Difficulty. As depicted in Figure <ref type="figure" target="#fig_0">1(B)</ref>, the gradients for the planning and summary modules are often in opposition, making it non-trivial to balance their respective objectives. This issue is further exacerbated in RL, where the reward structure is tightly coupled: the evaluation of the final summary determines the reward for the entire trajectory, which in turn guides the end-to-end policy update. Such a mechanism results in difficult credit assignment <ref type="bibr" target="#b22">(Nguyen et al., 2018)</ref>, whereby correct actions within the trajectory may be unduly penalized for errors originating in the final response. Ultimately, this impedes the optimization of planning capabilities.</p><p>The challenges arise from multi-objective optimization that aims to improve both planning and summarization. To address this, we focus solely on optimizing the agent's core planning component (Planner), simplifying the task into a singleobjective optimization and mitigating issues related to competing objectives and credit assignment (Challenge 2). To tackle this focused optimization problem, we propose the Reinforcement Learning with Tool-use Rewards (RLTR) framework. We initialize the Planner using knowledge distillation and rejection sampling, then replace the complex final-answer correctness reward with the simpler, more reliable tool-use completeness reward. This reward focuses solely on the action sequence, eliminating the need for final answer verification and addressing data scarcity issues (Challenge 1). The Planner is subsequently optimized using these completeness rewards within a multi-turn RL environment. The optimized Planner is modular and can be paired with any LLM as a summarizer to form a complete agent. Experimental results show that an Planner trained via RLTR improves action performance by 8%-12% compared to its end-to-end trained counterpart. Without training a dedicated summary component, this enhancement in the planning stage still leads to a 5%-6% improvement in the agent's end-to-end response performance.</p><p>Our contributions can be summarized as follows:</p><p>• We analyze the challenges inherent in applying end-to-end optimization for agents in industrial scenarios, and propose a targeted single-objective paradigm that focuses on optimizing the agent's core planning component.</p><p>• We design a novel reward function based on tool-use completeness, which provides a highfidelity score for action quality and effectively addresses the challenge of insufficient reward signals in reinforcement learning for the majority of data in industrial scenarios.</p><p>• Our approach enables stable and effective training of the Planner during both the supervised fine-tuning (SFT) and reinforcement learning (RL) phases, yielding an 8%-12% improvement in planning performance. We further demonstrate that enhancing the agent's planning capability benefits the overall system, translating into a 5%-6% average increase in end-to-end response accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Problem Formulation</head><p>We define the multi-objective optimization for an end-to-end agent and the single-objective optimization focusing on actions. In both cases, the task is modeled as a sequential decision process, where a single interaction for a given query is represented as a trajectory τ = (s 0 , a 0 , . . . , s T , a T ), with T being the termination step. The state includes the query q and the history of tool interactions H t , and the action space consists of K tools from T and the terminal action ANSWER. The optimization objective for the end-to-end agent π e employs the final answer reward function R e and integrates planning with summary generation, and is defined as follows:</p><formula xml:id="formula_0">π * e = arg max πe E τ ∼πe R e (π e (a T ), y * )</formula><p>Our approach optimizes the Planner policy π p using an action planning score function R. Once the Planner is sufficiently optimized and outputs the planning trajectory, the Summarizer π s generates the final end-to-end response y. The overall process is formally defined as follows:</p><formula xml:id="formula_1">π * p = arg max πp E τ ∼πp [R(τ )], y = π s (τ )</formula><p>, where τ ∼ π * p .</p><p>(1) 3 Framework</p><p>We begin by performing cold-start initialization of the Planner using knowledge distillation and rejection sampling. Subsequently, we introduce the calculation of tool-use completeness, which serves as the primary reward signal, and employ multiturn reinforcement learning to optimize the Planner. Finally, we utilize a LLM as a Summarizer, which receives the Planner's plan and the corresponding information to generate the final end-toend response.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Cold Start</head><p>As shown in Figure <ref type="figure" target="#fig_1">2</ref>(A), we utilize a state-of-theart LLM as the teacher model to perform knowledge distillation <ref type="bibr" target="#b7">(Gou et al., 2021)</ref> for cold-starting the Planner. Initially, we sample multiple agent action trajectories from the teacher LLM by providing agent simulation commands and questions as input. Subsequently, we apply rejection sampling using the same teacher model to select the trajectories, retaining the best-of-n as the training data. We use the question as input and the teacher LLM's action trajectories as output to perform supervised fine-tuning (SFT) of the Planner for cold-starting, thereby enhancing the model's ability to handle the latest planning task formats.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Tool-Use Completeness Calculation</head><p>For most industrial data with unverifiable outcomes, validation requires assessing both action sufficiency and summary accuracy, complicating reward reliability. Figuring out if something can be done is easier; ensuring it's done correctly is harder. By shifting the reward focus to the Planner, we decouple these factors and directly evaluate action sequence integrity, enabling simpler and more effective agent assessment (see Section 4.6). To formalize this, we introduce a completeness-checking function γ : S → {0, 1}, where γ(s) indicates whether the action sequence at state s is complete (1) or incomplete (0). This function is implemented using a verification LLM (Comp. Checker) with a check instruction, as detailed in Appendix B. The invocation completeness is computed by averaging the results over N samples, as follows:</p><formula xml:id="formula_2">R comp = 1 N N i=1 γ i (τ )<label>(2)</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Multi-Turn Reinforcement Learning</head><p>We first compute the overall tool-use reward, denoted as R total . Initially, we verify whether the agent's trajectory format is correct. If the format is incorrect, we immediately assign a reward of -1; otherwise, we proceed to calculate the tooluse completeness reward R comp . Additionally, we incorporate rule-based rewards to stabilize training, including a negative repetition reward R repeat to discourage redundant tool calls, and a negative reward R error as a penalty for incorrect tool usage. These negative rewards are aggregated as R rule = R repeat + R error . The total reward is defined as follows:</p><formula xml:id="formula_3">R total = -1, if trajectory format is invalid, R comp + R rule , otherwise.</formula><p>(3) Then, we employ this tool-use reward function for scoring. During multi-turn template construction, we mask the tool-use results to exclude them from the loss computation. This prevents gradient signal dilution and ensures that the agent remains focused on optimizing tool invocation behavior. The detailed template construction process is provided in Appendix A.1. We further refine the Planner's optimization objective (Equation <ref type="formula">1</ref>) to the standard RL formulation:</p><formula xml:id="formula_4">π * p = arg max πp E x∼D,a∼πp(•|x;T ) [R(x, a)] -βD KL [π θ (a|x; T )|π ref (a|x; T )]<label>(4)</label></formula><p>where x denotes data sampled from distribution D, a indicates tool-use actions sampled from the policy, β controls the KL regularization strength, and π ref is the reference model. We optimize this objective through an online RL process. First, the current policy model π a generates a batch of tooluse trajectories, which are then evaluated using the action reward function R. First, the reward signal is used to compute value estimates, and these estimates then guide policy updates to increase the likelihood of high-reward behaviors. Consequently, this "Generate-Evaluate-Optimize" loop is repeated until policy convergence. The complete algorithm is detailed in Appendix A.2. Finally, we construct the complete agent pipeline. Either a trained or untrained LLM can be used as the Summarizer π s . The input query is first passed to the optimized Planner π * p , which uses tools to collect information and form a trajectory τ ∼ π * p . This trajectory is subsequently input into the Summarizer, which generates the final response: y = π s (τ ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head><p>Similar to DeepResearch<ref type="foot" target="#foot_0">foot_0</ref> , our environment integrates both a search tool for information retrieval and a code tool for computational tasks, with detailed tool descriptions provided in Appendix C.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets</head><p>The datasets we use include both in-house industry datasets for training and testing, and open-source datasets as additional test sets. Industry Dataset We have collected an industrylevel Chinese agent dataset supporting training on both search and code tools. The dataset includes approximately 4k training samples and 0.5k test samples, with the test set categorized into normal and hard levels, providing a rigorous challenge for assessing action performance on difficult queries. Open-source Dataset Since our focus is on Chinese scenarios, we utilize the ChineseSim-pleQA <ref type="bibr" target="#b10">(He et al., 2024)</ref> open-source Chinese QA dataset for additional performance evaluation. To rigorously assess the agent's capabilities, we exclude samples that can be correctly answered by DeepSeek-R1 <ref type="bibr" target="#b8">(Guo et al., 2025)</ref> or Qwen3-235B-A22B <ref type="bibr" target="#b40">(Yang et al., 2025)</ref> without tool invocation. This filtering results in a challenging test set of 855 samples that require tool invocation for accurate resolution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Baselines</head><p>We selected the leading LLMs in the agent field, Qwen3-235B-A22B and DeepSeek-R1, for testing and comparison. We also included commonly used end-to-end agent optimization approaches. One is supervised fine-tuning of both actions and answers (E2E SFT). The other is reinforcement learning, where the final answer serves as the reward (E2E RL), as in Qwen3 <ref type="bibr" target="#b40">(Yang et al., 2025)</ref>. To ensure a fair comparison, all models were trained and tested within the same interaction environment (see Appendix C) and on the same dataset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Experiment Setup</head><p>Training In the SFT stage, the end-to-end agent incorporates the answer into the trajectory, while the decoupled agent independently fine-tunes the Planner using only actions. In the RL stage, we follow RLAIF <ref type="bibr">(Lee et al.)</ref> and use the original Qwen3-30B-A3B <ref type="bibr" target="#b40">(Yang et al., 2025)</ref>  Bolded values indicate the optimal performance for the 1.7B and 8B models.</p><p>based on the correctness of the final response using answer verification instructions (Appendix B), while RLTR uses tool-completeness verification instructions (Appendix B) to calculate the reward for the Planner's tool completeness. Further implementation details are provided in Appendix A.3.</p><p>Evaluation Planning evaluation focuses solely on the action sequence itself. For final response evaluation, we consider two settings: (1) for the endto-end agent, the final response state is selected as the answer;</p><p>(2) for the Planner, the original Qwen3-1.7B and Qwen3-8B models serve as summarizers, receiving all actions and observations generated by the Planner as input, and their output is used as the answer for evaluation. All metrics are computed using the Qwen3-235B-A22B model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Metrics</head><p>Planning Metric Tool-use completeness (Com.), as defined in Equation <ref type="formula" target="#formula_2">2</ref>, is employed as the evaluation metric for planning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Final Response Metrics</head><p>For open-source data with ground-truth answers, we use the matching accuracy (Match) between the ground-truth answers and the agent-generated responses to evaluate the quality of the final response. For industry data lacking standard answers, we use common metrics such as helpfulness (Hel.) and relevance (Rel.) <ref type="bibr" target="#b9">(Guo et al., 2023)</ref> to assess the final response.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Main Results</head><p>A. B. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Planning Performance Results</head><p>As shown in Table 1(Industry), the Planner demonstrates superior planning optimization performance compared to the end-to-end agent in both the SFT and RL stages for the 1.7B and 8B models, with the primary tooluse completeness metric exhibiting an average improvement of approximately 8%-12%. This improvement is particularly pronounced on the hard subset, underscoring the critical importance of targeted planning capability optimization for addressing complex problems. This improvement can be further explained by the loss and average number of turns observed during the training process. As shown in Figure <ref type="figure" target="#fig_2">3</ref>(A), during the SFT phase, the Planner achieves faster convergence and lower loss than the end-to-end agent, reflecting more effective gradient optimization of the planning process. In the RL phase (Figure <ref type="figure" target="#fig_2">3</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Different RL Algorithms Results</head><p>As shown in Table <ref type="table">2</ref>, all three RL algorithms, PPO <ref type="bibr" target="#b25">(Schulman et al., 2017)</ref>, GRPO <ref type="bibr" target="#b27">(Shao et al., 2024)</ref>, and RE-INFORCE++ <ref type="bibr" target="#b12">(Hu et al., 2025)</ref>, that leverage our RLTR framework, yield consistent performance improvements compared to end-to-end RL using PPO, thereby demonstrating the robustness of our framework. The primary training metrics for each algorithm are reported in detail in Appendix A.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Experiment on Reward Function</head><p>To evaluate the accuracy of our tool-use completeness reward function, we sampled 925 cold-start Planner trajectories and their corresponding final answers, generated by the original Qwen3-8B as the Summarizer, and manually annotated them for correctness. These samples were then evaluated by Qwen3-235B-A22B using both the conventional final answer-based reward and our proposed tool-use completeness reward. The results were compared for alignment with human annotations.</p><p>Reward ACC F1 Answer 65.30 76.17 Tool-Use <ref type="bibr">Comp. 74.59 84.64</ref> Table <ref type="table">3</ref>: Classification results on manually labeled samples using different reward functions. We convert the output values of the reward function {0, 1} into predicted labels to compute classification metrics.</p><p>As shown in Table <ref type="table">3</ref>, our tool-use completeness reward surpasses the answer reward in both accuracy and F1 score, indicating that it provides more reliable sample evaluation and leads to more stable and effective training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Works</head><p>The development of LLM based agents has witnessed significant advancements, enabling complex task automation by interacting with external tools and environments. In this section, we provide a review of the key related works. We begin by discussing the two primary paradigms for constructing LLM agents: prompt-based and fine-tuning-based approaches. Subsequently, we delve into the burgeoning field of agentic reinforcement learning, which aims to overcome the limitations of earlier methods. We examine current RL strategies and highlight the challenges, such as reward hacking, which our proposed method aims to address.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">LLM Agents</head><p>LLM-based agents can be broadly categorized into prompt-based and fine-tuning-based approaches <ref type="bibr" target="#b21">(Luo et al., 2025;</ref><ref type="bibr" target="#b10">Huang et al., 2024)</ref>. Prompt-based agents rely on in-context learning to guide the LLM in following tool-use paradigms and interacting with the environment <ref type="bibr" target="#b28">(Shen et al., 2023;</ref><ref type="bibr" target="#b11">Hong et al.;</ref><ref type="bibr" target="#b32">Suzgun and Kalai, 2024)</ref>. For example, ReAct improves agent performance by prompting the model to first reason and then perform tool calls <ref type="bibr" target="#b41">(Yao et al., 2023)</ref>. However, prompt-based methods are heavily dependent on the capabilities of the underlying base model and are difficult to adapt to specific scenarios. In contrast, fine-tuningbased approaches enhance agent capabilities by updating the LLM's parameters <ref type="bibr" target="#b17">(Li et al., 2023;</ref><ref type="bibr" target="#b23">Qiao et al., 2024;</ref><ref type="bibr" target="#b24">Ruan et al., 2023)</ref>. Imitation learning is a common method for rapidly improving agent performance; for instance, ToolAlpaca enhances tool-use ability through supervised finetuning (SFT) on high-quality tool-use data <ref type="bibr" target="#b33">(Tang et al., 2023)</ref>. However, imitation learning often struggles to generalize to out-of-distribution (OOD) queries, which has led to increasing interest in reinforcement learning for agent training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Agentic Reinforcement Learning</head><p>Reinforcement learning (RL) <ref type="bibr" target="#b15">(Kaelbling et al., 1996)</ref> optimizes agents by enabling them to interact with the environment and using the obtained rewards as gradient signals. AgentPRM <ref type="bibr" target="#b2">(Choudhury, 2025)</ref> introduces a process-level reward model that scores entire trajectories to guide agent optimization. However, such reward models are susceptible to reward hacking, making it challenging to provide reliable and effective supervision. Inspired by DeepSeek-R1 <ref type="bibr" target="#b8">(Guo et al., 2025)</ref>, recent work has shifted focus to using verifiable rewards for agent training <ref type="bibr" target="#b31">(Song et al., 2025;</ref><ref type="bibr" target="#b0">Chen et al., 2025;</ref><ref type="bibr">Wang et al., 2025a)</ref>. For example, Search-R1 <ref type="bibr" target="#b14">(Jin et al., 2025)</ref> assigns rewards based on the correctness of the final answer to optimize the search trajectory. RAGEN <ref type="bibr">(Wang et al., 2025b)</ref> further extends this idea by leveraging multi-turn interactions, where the final output is verified and used as reward feedback. This enables self-evolving training and facilitates more effective reasoning. ToRL <ref type="bibr">(Li et al., 2025b)</ref> enables agents to autonomously utilize computational tools through reinforcement learning, allowing the model to explore and discover optimal tool-use strategies.</p><p>However, in industrial settings, verifiable questions constitute only a small fraction of real-world queries, which significantly limits the applicability of such methods. Therefore, mainstream LLMs, such as DeepSeek-R1 <ref type="bibr" target="#b8">(Guo et al., 2025)</ref> and Qwen3 <ref type="bibr" target="#b40">(Yang et al., 2025)</ref>, still employ general reinforcement learning, where a scoring model is used to assign rewards to the final answers. Nevertheless, reward models are prone to reward hacking <ref type="bibr" target="#b4">(Fu et al., 2025;</ref><ref type="bibr" target="#b20">Liu et al., 2024)</ref>, resulting in inaccurate rewards. Our approach focuses on assigning rewards based solely on the planning process itself, rather than the final answer, thereby mitigating this issue.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we address the key challenges of unreliable rewards and optimization difficulties in end-to-end agent training. We introduced the Rein-forcement Learning with Tool-use Rewards (RLTR) framework, which decouples the problem by focusing on a single-objective optimization of the agent's planning component. By leveraging a novel and more reliable reward signal based on tool-use completeness, our approach circumvents the need for verifiable final answers. Our experiments show that RLTR leads to more stable training and improves action performance by 8%-12%. This enhancement directly translates to a 5%-6% increase in the accuracy of the agent's final responses. Our work offers a novel perspective for agent optimization in industrial applications.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Since our deployment scenario is primarily in Chinese, we did not conduct experiments in other major languages such as English or French. Additionally, this work mainly focuses on the optimization of agent planning. Therefore, we employed an untrained LLM as the Summarizer and did not specifically investigate optimization strategies for the Summarizer component. In future work, we plan to construct agent datasets that include more languages to enhance the effectiveness of our approach across different linguistic contexts. We also intend to explore methods for optimizing the Summarizer to further improve the overall performance of the agent system.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Training</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Training Template</head><p>As shown in Figure <ref type="figure" target="#fig_3">4</ref>, we utilize the native inference and tool-use templates from Qwen. For the Planner, we focus training exclusively on the action component and the reasoning phase just before the final answer. We mask the loss from non-answer parts, allowing the Planner to concentrate on optimizing tool calls, thereby stabilizing the training process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Training Algorithm</head><p>As shown in Algorithm 1, our RL framework supports three common RL algorithms: PPO <ref type="bibr" target="#b25">(Schulman et al., 2017)</ref>, GRPO <ref type="bibr" target="#b27">(Shao et al., 2024)</ref>, and REINFORCE++ <ref type="bibr" target="#b12">(Hu et al., 2025)</ref>. All three algorithms utilize the tool-use completeness we proposed as the primary action reward metric. The process follows a generate-evaluate-optimize cycle until the Planner's policy converges.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Implementation Details</head><p>In the cold-start phase, we utilize Qwen3-32B <ref type="bibr" target="#b40">(Yang et al., 2025)</ref> as the teacher LLM for knowledge distillation. We adopt verl <ref type="bibr" target="#b30">(Sheng et al., 2024)</ref> as our reinforcement learning framework and apply its recommended hyperparameters for PPO, GRPO, and REINFORCE++. All RL training experiments are conducted on 2 × 8 H20 GPUs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 RL Training Metric</head><p>As shown in Figure <ref type="figure" target="#fig_4">5</ref>, both the tool calling reward and the total reward exhibit an upward trend as &lt;|im_start|&gt;user How many days until the next Summer Olympics?&lt;|im_end|&gt; &lt;|im_start|&gt;assistant &lt;think&gt;\n I need to search for information about the next Summer Olympics date to get accurate results. \n&lt;/think&gt; &lt;tool_call&gt;\n{"name":"search","arguments":{"query":"Next Summer Olympics date"}}\n&lt;/tool_call&gt;&lt;|im_end|&gt; &lt;|im_start|&gt;user &lt;tool_response&gt;\n [{\"event\":\"Next Summer Olympics\",\"name\":\"2028 Los Angeles Olympics\",\"dates\":\"July 14 to July 30, 2028\",\"host_city\":\"Los Angeles, USA\",\"hosting_history\":\"Third time hosting (previously in 1932 and 1984)\",\"announcement\":\"Awarded by the IOC on September 13, 2017\"}] \n&lt;/tool_response&gt;&lt;|im_end|&gt; &lt;|im_start|&gt;assistant &lt;think&gt;\n Now I know that the next Summer Olympics will be the 2028 Los Angeles Olympics, which will take place from July 14 to July 30. I need to use code tools to accurately calculate the number of days from now until July 14, 2028.\n&lt;/think&gt; &lt;tool_call&gt;\n {"name":"code","arguments":{"query":"Days until July 14, 2028."}}\n&lt;/tool_call&gt;&lt;|im_end|&gt; &lt;|im_start|&gt;user &lt;tool_response&gt;\n{"script": "from datetime import datetime\nprint <ref type="bibr">((datetime(2028,7,14)</ref>-datetime.now()).days)","result": "1118"}\n&lt;/tool_response&gt;&lt;|im_end|&gt; &lt;|im_start|&gt;assistant &lt;think&gt;\n I got the information about the next Summer Olympics, and I calculated the number of days from now to the next Summer Olympics. Now I can sort out the answers and answer them. \n&lt;/think&gt; &lt;answer&gt;&lt;|im_end|&gt;   the number of RL training steps increases, while the calling error penalty gradually decreases. Simultaneously, the number of calls and the response length also increase, indicating that the Planner progressively improves its tool calling completeness and thereby acquires more comprehensive information. Additionally, we observed that, compared to PPO and REINFORCE++, GRPO did not demonstrate significant growth in either the number of calls or the response length. This phenomenon can be attributed to the unique Group Normalization mechanism employed by GRPO. Specifically, the normalization mechanism in GRPO shifts the optimization objective toward achieving the relatively highest score among multiple responses generated from the same prompt. As a result, the direct correlation between response length and the final reward signal is reduced, meaning the model no longer needs to rely on increasing the number of calls for optimization. Instead, it focuses on refining the tool calling parameters to initiate more accurate calls, leading to a more gradual increase in both response length and the number of calls.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Prompt C Agent Environment C.1 Tools</head><p>• Search A real-time search tool using the Sogou API<ref type="foot" target="#foot_1">foot_1</ref> , tailored for Chinese language scenarios.</p><p>• Code A tool that converts natural language instructions into Python code and executes it within a secure sandbox.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Case Study</head><p>Tool-Use Completeness Reward is More Accurate than Final Answer Correctness Reward. As shown in Figure <ref type="figure">7</ref> (A), the task is to calculate the temperature difference between Beijing and Shanghai. To solve this, the agent must use a search tool to retrieve weather data for both cities and then employ a code tool to compute the temperature difference. When the reward is based solely on the correctness of the final answer, the agent is incorrectly given a positive reward, as it appears to have answered the question correctly. However, the weather data for Shanghai is fabricated by the agent.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Two main challenges in end-to-end agent training for industry scenarios: (A) Lack of effective rewards for predominant data; (B) Optimization competition and difficulties in credit assignment.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Our RL with Tool-use Rewards (RLTR) framework. Initially, we perform (A) knowledge distillation and rejection sampling to cold-start the Planner. In (B), we compute the tool-use completeness reward for the Planner's action sequence using an existing LLM. Finally, in (C), we optimize the Planner's tool use through multi-turn reinforcement learning. The complete training template corresponding to the example in (C) can be found in Appendix A.1. "Comp." denotes "Completeness."</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: (A) Loss trends and (B) average number of turns for the end-to-end agent and Planner during the SFT and RL training stages.</figDesc><graphic coords="5,413.60,398.50,109.60,109.72" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Our RLTR training template. The labels in the blue sections are masked during training to prevent loss calculation, ensuring training stability. Unlike full-agent training, the Planner terminates upon outputting to "&lt;answer&gt;" and does not generate subsequent responses.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Trends of main metrics for PPO, REINFORCE++, and GRPO algorithms during general reinforcement learning on Qwen3-8B.</figDesc><graphic coords="10,374.17,622.52,153.99,80.99" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>as the scoring model to calculate rewards. E2E RL computes the reward</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>Industry</cell><cell></cell><cell>Open-</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Normal</cell><cell>Hard</cell><cell>source</cell></row><row><cell>Model</cell><cell>PO</cell><cell>Method</cell><cell cols="3">Com. Hel. Rel. Com. Hel. Rel. Match</cell></row><row><cell>Qwen3-235B</cell><cell>✘</cell><cell>DIRECT</cell><cell cols="2">67.2 71.5 72.7 50.5 47.4 46.4</cell><cell>45.8</cell></row><row><cell cols="2">DeepSeek-R1 ✘</cell><cell>DIRECT</cell><cell cols="2">68.8 71.2 76.0 49.7 57.5 51.5</cell><cell>49.5</cell></row><row><cell></cell><cell>✘</cell><cell>DIRECT</cell><cell cols="2">44.9 41.9 46.7 22.4 30.4 32.5</cell><cell>29.8</cell></row><row><cell></cell><cell>✘</cell><cell>E2E SFT</cell><cell cols="2">56.3 59.2 62.4 30.1 35.3 37.7</cell><cell>37.1</cell></row><row><cell>Qwen3-1.7B</cell><cell>✔</cell><cell>SFT</cell><cell cols="2">60.1 61.3 64.5 35.3 38.6 41.4</cell><cell>39.4</cell></row><row><cell></cell><cell>✘</cell><cell>E2E RL</cell><cell cols="2">62.4 63.5 65.6 37.5 41.4 45.2</cell><cell>40.0</cell></row><row><cell></cell><cell cols="4">✔ RLTR(Ours) 70.2 68.4 72.6 45.4 48.4 49.4</cell><cell>45.6</cell></row><row><cell></cell><cell>✘</cell><cell>DIRECT</cell><cell cols="2">51.5 53.8 65.2 35.3 36.3 37.4</cell><cell>35.3</cell></row><row><cell></cell><cell>✘</cell><cell>E2E SFT</cell><cell cols="2">66.0 65.4 70.2 40.4 45.5 44.8</cell><cell>41.4</cell></row><row><cell>Qwen3-8B</cell><cell>✔</cell><cell>SFT</cell><cell cols="2">67.2 70.1 71.3 46.4 48.4 51.4</cell><cell>44.4</cell></row><row><cell></cell><cell>✘</cell><cell>E2E RL</cell><cell cols="2">69.6 71.2 76.7 44.4 47.4 53.5</cell><cell>45.2</cell></row><row><cell></cell><cell cols="4">✔ RLTR(Ours) 82.7 76.7 80.9 54.5 61.6 65.6</cell><cell>51.6</cell></row></table><note><p><p><p>Table</p>1</p>: Performance of different models using various optimization methods. "PO" denotes optimization of the Planner only, not the end-to-end agent (including both planning and summary). "DIRECT" indicates directly using the original LLMs for tool calls and answers. The values represent percentages, with the "%" symbol omitted.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Algorithm 1: Multi-Turn Reinforcement Learning for Planner Optimization Input: Initial Planner policy π p , Reference policy π ref , Data distribution D, Set of tools T , KL-divergence weight β. Output: Optimized Planner policy π * p . rule,i ← R repeat,i + R error,i 14 R total,i ← R comp,i + R rule,i arg max πp E x∼D,a∼πp [R total (x, a)] -βD KL (π p (a|x; T ) ∥ π ref (a|x; T ))</figDesc><table><row><cell cols="3">1 Initialize Planner parameters θ p</cell></row><row><cell cols="2">2 while not converged do</cell><cell></cell></row><row><cell></cell><cell cols="2">/* Phase 1: Generate</cell></row><row><cell></cell><cell>Trajectories</cell><cell></cell><cell>*/</cell></row><row><cell>3</cell><cell cols="3">Sample a batch of queries {x i } B i=1 from</cell></row><row><cell></cell><cell>D</cell><cell></cell></row><row><cell>4</cell><cell cols="3">Generate a batch of tool-use trajectories</cell></row><row><cell></cell><cell cols="2">{τ i } B i=1 where τ i ∼ π p (•|x i ; T )</cell></row><row><cell></cell><cell cols="3">/* Phase 2: Evaluate and Compute</cell></row><row><cell></cell><cell>Rewards</cell><cell></cell><cell>*/</cell></row><row><cell>8</cell><cell>end</cell><cell></cell></row><row><cell>9</cell><cell>else</cell><cell></cell></row><row><cell></cell><cell cols="3">// Calculate completeness</cell></row><row><cell></cell><cell cols="2">reward using a</cell></row><row><cell></cell><cell cols="2">verification LLM</cell></row><row><cell>10</cell><cell>R comp,i ← 1 N</cell><cell>N j=1 γ j (τ i )</cell></row><row><cell></cell><cell cols="2">// Calculate rule-based</cell></row><row><cell></cell><cell>penalties</cell><cell></cell></row><row><cell>11</cell><cell cols="2">R repeat,i ← -λ T t=2 I(a t =</cell></row><row><cell></cell><cell>a t-1 )</cell><cell></cell></row><row><cell>12</cell><cell cols="2">R error,i ← -µ T t=1 I(a t / ∈ A  *  t )</cell></row><row><cell>15</cell><cell>end</cell><cell></cell></row><row><cell>16</cell><cell>end</cell><cell></cell></row><row><cell></cell><cell cols="2">/* Phase 3: Optimize Policy</cell><cell>*/</cell></row><row><cell>17</cell><cell cols="3">Update the Planner's parameters θ p by</cell></row><row><cell></cell><cell cols="2">optimizing the objective:</cell></row><row><cell cols="2">19 end</cell><cell></cell></row><row><cell cols="2">20 return π  *  p ← π p</cell><cell></cell></row></table><note><p><p><p>5</p>for each trajectory τ i in the batch do 6 if trajectory format of τ i is invalid</p>then 7 R total,i ← -1 13 R 18</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://openai.com/index/introducing-deep-research/</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://data.open.sogou.com/</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>You are an agent expert, committed to fully meeting query needs through precise tool combinations. When the tool returns unsatisfactory results, you must adjust the parameters and try a new call again. Ultimately, the output should be 0, indicating a missing invocation, and 1, indicating completeness. Tool List: {tools} # input query: {query} agent_action: {trajection}</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Tool-Use Completeness</head><p>You are an agent expert. Determine whether the agent's summary is actually helpful to the query. Output 0 means no help, output 1 means help.  In contrast, the tool-use completeness reward successfully identifies the missing steps-specifically, searching for Shanghai's weather data and calculating the final temperature difference-and thus assigns the correct negative reward for the incomplete trajectory. Optimized Planner Can Improve Summarizer Performance. As shown in Figure <ref type="figure">7</ref> (B), for a complex factual query, the unoptimized Planner fails to make complete tool calls, resulting in insufficient information for the Summarizer to generate an accurate summary, and ultimately leads to an incorrect response. In contrast, the optimized Planner initiates further searches when information is incomplete, eventually obtaining accurate data. This enables the Summarizer to organize the answer based on reliable information, thereby producing a correct response. function: &lt;think&gt;Need to first obtain Beijing weather data&lt;/think&gt; {"name":"search","arguments":{"query":"Beijing weather"}} 3.</p><p>observation: [{"title":"Beijing Weather Forecast","temperature":"16 ~ 29℃","weather":"Sunny"},…] 4.</p><p>summary : &lt;think&gt;Currently have Beijing weather data (16~29℃ sunny), Shanghai weather data is typically 24~32℃ cloudy&lt;/think&gt; The minimum temperature difference is +8℃ (Shanghai 24℃ minus Beijing 16℃), maximum temperature difference is -3℃ (Beijing 29℃ minus Shanghai 32℃). </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mingyang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianpeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoze</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenzheng</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haofen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.19470</idno>
+		<title level="m">Learning to reason with search for llms via reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yuheng</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ceyao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangrui</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekai</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junhua</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2401.03428</idno>
+		<title level="m">Exploring large language model based intelligent agents: Definitions, methods, and prospects</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sanjiban</forename><surname>Choudhury</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.10325</idno>
+		<title level="m">Process reward models for llm agents: Practical framework and directions</title>
+		<meeting>ess reward models for llm agents: Practical framework and directions</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Retool: Reinforcement learning for strategic tool use in llms</title>
+		<author>
+			<persName><forename type="first">Jiazhan</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shijue</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingwei</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ge</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baoquan</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengquan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinxin</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanjun</forename><surname>Zhong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.11536</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuandong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengyuan</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanghua</forename><surname>Xiao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.18770</idno>
+		<title level="m">Reward shaping to mitigate reward hacking in rlhf</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jiaxuan</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shusheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenjie</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weilin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuyi</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyu</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guangju</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.15115</idno>
+		<title level="m">On designing effective rl reward at training time for llm reasoning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Glm</forename><surname>Team</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aohan</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenhui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Da</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>Rojas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanyu</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanlin</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12793</idno>
+		<title level="m">Chatglm: A family of large language models from glm-130b to glm-4 all tools</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Knowledge distillation: A survey</title>
+		<author>
+			<persName><forename type="first">Jianping</forename><surname>Gou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosheng</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><forename type="middle">J</forename><surname>Maybank</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dacheng</forename><surname>Tao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Computer Vision</title>
+		<imprint>
+			<biblScope unit="volume">129</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page" from="1789" to="1819" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Dejian</forename><surname>Daya Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruoyu</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runxin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihao</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shirong</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.12948</idno>
+		<title level="m">Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zishan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renren</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linhao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bojian</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deyi</forename><surname>Xiong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.19736</idno>
+		<title level="m">Evaluating large language models: A comprehensive survey</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Chinese simpleqa: A chinese factuality evaluation for large language models</title>
+		<author>
+			<persName><forename type="first">Yancheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shilong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingshui</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weixun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingyuan</forename><surname>Bu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangyu</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengwei</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boren</forename><surname>Zheng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2411.07140</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Metagpt: Meta programming for a multi-agent collaborative framework</title>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchen</forename><surname>Zhuge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiawu</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuheng</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinlin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ceyao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zili</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Ka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shing</forename><surname>Yau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zijuan</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Rein-force++: An efficient rlhf algorithm with robustness to both prompt and reward models</title>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><forename type="middle">Klein</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Shen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiwen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaolong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingmei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Defu</forename><surname>Lian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasheng</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.02716</idno>
+		<title level="m">Ruiming Tang, and Enhong Chen. 2024. Understanding the planning of llm agents: A survey</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Bowen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hansi</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenrui</forename><surname>Yue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinsung</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sercan</forename><surname>Arik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamed</forename><surname>Zamani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.09516</idno>
+		<title level="m">Search-r1: Training llms to reason and leverage search engines with reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning: A survey</title>
+		<author>
+			<persName><forename type="first">Leslie</forename><surname>Pack</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaelbling</forename><surname>Michael L Littman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">W</forename><surname>Moore</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of artificial intelligence research</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="page" from="237" to="285" />
+			<date type="published" when="1996">1996</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Rlaif vs. rlhf: Scaling reinforcement learning from human feedback with ai feedback</title>
+		<author>
+			<persName><forename type="first">Harrison</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samrat</forename><surname>Phatale</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hassan</forename><surname>Mansoor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Mesnard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Johan</forename><surname>Ferret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kellie</forename><forename type="middle">Ren</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Colton</forename><surname>Bishop</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Hall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Carbune</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Rastogi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-first International Conference on Machine Learning</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Api-bank: A comprehensive benchmark for tool-augmented llms</title>
+		<author>
+			<persName><forename type="first">Minghao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingxiu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feifan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiyang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhoujun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongbin</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="3102" to="3116" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">2025a. Torl: Scaling tool</title>
+		<author>
+			<persName><forename type="first">Xuefeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyang</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>integrated rl</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xuefeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyang</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengfei</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.23383</idno>
+		<title level="m">Torl: Scaling tool-integrated rl</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tianqi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lichang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junru</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishabh</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaming</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianhe</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.13156</idno>
+		<title level="m">Rrm: Robust reward model training mitigates reward hacking</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Junyu</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusheng</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junwei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiyang</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bohan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyue</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingqing</forename><surname>Long</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.21460</idno>
+		<title level="m">Large language model agent: A survey on methodology, applications and challenges</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Credit assignment for collective multiagent rl with global rewards</title>
+		<author>
+			<persName><forename type="first">Akshat</forename><surname>Duc Thien Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hoong Chuin</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lau</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page">31</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Autoact: Automatic agent learning from scratch for qa via self-planning</title>
+		<author>
+			<persName><forename type="first">Shuofei</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ningyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runnan</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujie</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wangchunshu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengfei</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajun</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3003" to="3021" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jingqing</forename><surname>Ruan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yihong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianpeng</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoqing</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiwei</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangyu</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyue</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingyu</forename><surname>Zeng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.03427</idno>
+		<title level="m">Tptu: large language model-based ai agents for task planning and tool usage</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Filip</forename><surname>Wolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oleg</forename><surname>Klimov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.06347</idno>
+		<title level="m">Proximal policy optimization algorithms</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Survey of large language models for answering questions across various fields</title>
+		<author>
+			<persName><forename type="first">Pasi</forename><surname>Shailendra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rudra</forename><surname>Chandra Ghosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rajdeep</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitin</forename><surname>Sharma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2024 10th International Conference on Advanced Computing and Communication Systems (ICACCS)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="520" to="527" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhihong</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runxin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">K</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.03300</idno>
+		<title level="m">Deepseekmath: Pushing the limits of mathematical reasoning in open language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Hugginggpt: Solving ai tasks with chatgpt and its friends in hugging face</title>
+		<author>
+			<persName><forename type="first">Yongliang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaitao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiming</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yueting</forename><surname>Zhuang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="38154" to="38180" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhuocheng</forename><surname>Shen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.18807</idno>
+		<title level="m">Llm with tools: A survey</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">Guangming</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zilingfeng</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xibin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ru</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanghua</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuan</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.19256</idno>
+		<title level="m">Hybridflow: A flexible and efficient rlhf framework</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">R1-searcher: Incentivizing the search capability in llms via reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Huatong</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinhao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingqian</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhipeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wayne</forename><forename type="middle">Xin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Wen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.05592</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mirac</forename><surname>Suzgun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Tauman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalai</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2401.12954</idno>
+		<title level="m">Meta-prompting: Enhancing language models with task-agnostic scaffolding</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Toolalpaca: Generalized tool learning for language models with 3000 simulated cases</title>
+		<author>
+			<persName><forename type="first">Qiaoyu</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziliang</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianpei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boxi</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2306.05301</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Hongru</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanjun</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiusi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shijue</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengdi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kam-Fai</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+		<title level="m">Optimal tool calls via reinforcement learning</title>
+		<imprint>
+			<biblScope unit="page">2504</biblScope>
+		</imprint>
+	</monogr>
+	<note>arXiv e-prints</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A review on code generation with llms: Application and evaluation</title>
+		<author>
+			<persName><forename type="first">Jianxun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixiang</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2023 IEEE International Conference on Medical Artificial Intelligence (MedAI)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="284" to="289" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">A survey on large language model based autonomous agents</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueyang</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingsen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiakai</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers of Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page">186345</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Ragen: Understanding self-evolution in llm agents via multi-turn reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kangrui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qineng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pingyue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengyuan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kefan</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minh</forename><forename type="middle">Nhat</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Licheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eli</forename><surname>Gottlieb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiping</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kyunghyun</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajun</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lijuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manling</forename><surname>Li</surname></persName>
+		</author>
+		<imprint>
+			<biblScope unit="volume">2025</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="24824" to="24837" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jialong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baixuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runnan</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbiao</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengwei</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dingchu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengjun</forename><surname>Xie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.22648</idno>
+		<title level="m">Webdancer: Towards autonomous information seeking agency</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anfeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenxu</forename><surname>Lv</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.09388</idno>
+		<title level="m">Qwen3 technical report</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

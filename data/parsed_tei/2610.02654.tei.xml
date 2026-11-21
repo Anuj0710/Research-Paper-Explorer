@@ -1,0 +1,950 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Coherence-Driven Belief Formation and Population Dynamics of Contagion in LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-02">2 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Tathagata</forename><surname>Banerjee</surname></persName>
+							<email>tathagata.banerjee@takeda.com</email>
+							<affiliation key="aff0">
+								<orgName type="department">Takeda Pharmaceuticals</orgName>
+								<orgName type="institution">Northeastern University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Nima</forename><surname>Moghaddas</surname></persName>
+							<email>moghaddas.n@northeastern.edu</email>
+							<affiliation key="aff0">
+								<orgName type="department">Takeda Pharmaceuticals</orgName>
+								<orgName type="institution">Northeastern University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Coherence-Driven Belief Formation and Population Dynamics of Contagion in LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-02">2 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">F94766CE64FF16B3CCFD3C758DC62656</idno>
+					<idno type="arXiv">arXiv:2610.02654v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Models of social contagion usually assume how individuals adopt beliefs and derive population behavior from it. We instead empirically measure belief adoption in language model agents, quantifying the probability an agent adopts a claim given how many peers endorse it. We find this adoption kernel to be sigmoid, a characteristic of complex contagion, with a threshold that is sensitive to three sources: the claim's plausibility, the source's reliability, and the agent's disposition. These three dimensions are well approximated by a single effective dimension which we propose can be understood as the coherence of the incoming belief with the LLM agent's prior beliefs. Further, we observe a characteristic of complex contagion in the collective dynamics of belief adoption in a system of AI agents: further spread on clustered than random networks. These systems also exhibit a bifurcating cascade window, and self-sustaining hysteretic consensus which lead to consensus being far harder to remove than to establish.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>AI agents increasingly operate in multi-agent teams, conversing, exchanging information, and reaching decisions collectively <ref type="bibr" target="#b0">[1]</ref>. Their beliefs are shaped not only by one another but by the surrounding online information ecosystem; a recent large-scale study estimates that roughly one third of newly published web text is now AI-generated or AI-assisted <ref type="bibr" target="#b1">[2]</ref>. When agents act on what other agents have concluded, erroneous or manipulated beliefs can propagate through the system, spreading directly between agents or indirectly through AI-generated text, an issue that recent opinion-simulation studies have begun to surface <ref type="bibr" target="#b2">[3]</ref>.</p><p>A substantial body of work has studied social contagion in human networks. Theory distinguishes simple contagion, which spreads through a single interaction, from complex contagion, which requires reinforcement from multiple peers <ref type="bibr" target="#b3">[4]</ref>. Empirical studies document peer effects on individual behavior, most notably in observational studies of health behaviors spreading through social ties <ref type="bibr" target="#b4">[5]</ref>, and show that individuals jointly weigh consistency with prior beliefs and perceived source reliability when adopting a claim <ref type="bibr" target="#b5">[6,</ref><ref type="bibr" target="#b6">7]</ref>. These dynamics have been modeled: from threshold and epidemic-style contagion models <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b8">9]</ref>, to opinion-averaging and bounded-confidence frameworks <ref type="bibr" target="#b9">[10,</ref><ref type="bibr" target="#b10">11,</ref><ref type="bibr" target="#b11">12]</ref>, to Bayesian and confirmation-bias models of how priors and source reliability shape adoption <ref type="bibr" target="#b12">[13,</ref><ref type="bibr" target="#b13">14]</ref>. AI agents differ fundamentally from the agents in these models, which follow predefined update rules often grounded in an assumption of rationality <ref type="bibr" target="#b2">[3]</ref>. AI agents can read, interpret, and reason about a claim's content and source before adopting it, and can be conditioned to reproduce fine-grained, demographically realistic human responses <ref type="bibr" target="#b14">[15]</ref>, making them candidates for more realistic behavioral models. This has motivated a growing line of work using AI agents to simulate social behavior, including generative agent societies with emergent coordination <ref type="bibr" target="#b15">[16]</ref> and multi-agent debate in which agents revise answers after seeing others' reasoning <ref type="bibr" target="#b16">[17]</ref>.</p><p>Here, we study the factors that influence whether an AI agent adopts a belief and how it spreads through a network. Rather than assuming an adoption rule, we measure the probability an agent adopts a claim as a function of how many peers endorse it. We show that this adoption kernel is a sigmoidal threshold response, sensitive to three factors: the plausibility of the claim, the disposition of the adopting agent, and the reliability of its source. Each acts by modifying the coherence between the model's prior beliefs and the incoming claim, and the three are well approximated by a single dimension, suggesting one underlying axis of coherence along which the model assesses new claims. The collective dynamics of belief adoption in a system of AI agents exhibits a characteristic of complex contagion: it spreads further on clustered than random networks <ref type="bibr" target="#b17">[18]</ref>. These systems also exhibit a bifurcating cascade window, and self-sustaining hysteretic consensus which lead to consensus being far harder to remove than to establish.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Social contagion and social influence. Studies of social contagion have shown that phenomena such as health behaviors cluster and spread across social ties <ref type="bibr" target="#b4">[5]</ref>. To explain how such spreading works, a key theoretical distinction separates simple contagion, which a single neighbor can transmit, from complex contagion, which requires reinforcement from multiple neighbors <ref type="bibr" target="#b3">[4]</ref>. Experimental evidence has supported this account demonstrating socially reinforced behaviors spread further on clustered networks than on random ones <ref type="bibr" target="#b17">[18]</ref>. Recent work, however, shows that this clusterednetwork advantage is conditional. It emerges when adoption without reinforcement is very low and adoption with reinforcement is very high <ref type="bibr" target="#b18">[19]</ref>. In parallel, research on persuasion has shown that perceived credibility, prior beliefs, and source expertise jointly determine whether a claim is accepted, from foundational studies of source credibility <ref type="bibr" target="#b5">[6]</ref> to recent factorial experiments finding consistency with prior belief and source expertise to be the strongest predictors of perceived credibility online <ref type="bibr" target="#b6">[7]</ref>. The literature identifies four recurring factors: social reinforcement, claim credibility, source expertise, and prior belief. We ask whether these same factors organize belief adoption in LLM agents.</p><p>Classical agent-based models of opinion dynamics. A parallel line of work formalizes belief change as agents updating a numerical opinion from their neighbors. In the DeGroot model an agent's opinion is a weighted average of its neighbors' <ref type="bibr" target="#b9">[10]</ref>, and bounded-confidence models add that agents ignore neighbors who are too dissimilar <ref type="bibr" target="#b10">[11,</ref><ref type="bibr" target="#b11">12]</ref>. Closest to our framing, a cognitive model of interacting beliefs <ref type="bibr" target="#b19">[20]</ref> yields both simple-and complex-contagion adoption curves as an emergent property rather than by assumption, tested on the same clustered-versus-random paradigm as <ref type="bibr" target="#b17">[18]</ref>. Although these models capture consensus, polarization, and fragmentation, they represent updating as a fixed rule applied regardless of the content or source of the information. We instead replace this rule with an LLM agent that reasons over a claim's content, source, and persona, asking whether the same regularities emerge from a content-sensitive mechanism.</p><p>Belief updating in language models. The stated positions of LLMs are sensitive to social input in ways that resemble, but are not identical to, human belief dynamics. RLHF-trained models often shift toward a user's opinion regardless of its correctness, an effect known as sycophancy <ref type="bibr" target="#b20">[21,</ref><ref type="bibr" target="#b21">22]</ref>. More directly, networked agents have been shown to update beliefs as a sigmoidal, threshold-like function of the number of disagreeing neighbors, reminiscent of complex contagion, however they did not study how this varies with credibility, expertise, or clustering <ref type="bibr" target="#b22">[23]</ref>. Other work has found that assigning personas to agent communities changes their resilience to injected misinformation depending on prior belief and source reliability <ref type="bibr" target="#b23">[24]</ref>, <ref type="bibr" target="#b24">[25]</ref>. We differ by bringing all of these factors into a single factorial design, and by studying their effect on the adoption probability and the population level belief dynamics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Agents and the adoption kernel</head><p>An agent was a language model conditioned on a system prompt (its persona) and a user prompt which presented a claim and a summary of the opinions of its peers. For example, for a claim endorsed by k of n=10 peers, the prompt stated "k of your 10 peers have already accepted this as true; the other 10 -k have not weighed in". Finally, the agent was prompted to give its own belief by answering with a single word, ADOPT or DECLINE. Unless stated otherwise we used a canonical peer-sensitive but non-credulous persona (full prompt templates in App. C).</p><p>We measured the probability of adoption directly from the logits ℓ A , ℓ D of the first sub-word tokens of the two decisions and calculated p adopt (k) = σ(ℓ A -ℓ D ). Sweeping k ∈ {0, . . . , 10} yielded the adoption kernel. For further analysis, we summarized the kernel by its threshold θ, the linearly interpolated k at which p adopt crosses 0.5 (defining θ=11 if it never crossed, θ=0 if it began above).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Beliefs and coherence manipulations</head><p>We considered belief statements about next-day Boston temperatures of the form "Tomorrow it will be T • C in Boston." Although simple, this type of claim had three advantages: it was (1) an unverifiable prediction the model could not resolve from stored knowledge, (2) free of moral or ethical content that could have swayed the model, and (3) easy to make more or less plausible by varying T . We replicated the results on a second claim type: next-day commute times (App. B).</p><p>We manipulated the coherence between the incoming belief and the model's prior beliefs along three axes. First, we varied the plausibility of the claim by changing T . Second, we varied the reliability of the source, from a domain expert to an unreliable source. Third, we varied the disposition of the focal agent, from credulous (highly socially attuned and trusting) to hardened (highly skeptical and independent). See App. C for prompting details.</p><p>To test whether these three axes acted by modifying the coherence between the incoming belief and the model's priors, we installed an explicit prior belief in context and measured how the adoption threshold shifted. The adoption threshold is defined as the number of endorsing peers required to raise the adoption probability to 50%. A claim prior installed a belief relevant to the claim (e.g., an ongoing heat-wave vs. a cold-snap), altering the claim's coherence while the claim itself is unchanged; a source prior installed a belief about the source's track record; and a disposition prior installed a belief about how strongly the agent weights its own priors against social input.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Low-dimensional approximation</head><p>We tested whether these three axes of coherence (claim plausibility, source reliability, and agent disposition) could be reduced to a single effective dimension. To do this, we measured the full 3×3×3 grid of claim×source×persona kernels, yielding a threshold tensor Θ ∈ R 3×3×3 , and analyzed it two ways. (1) Dimensionality: we unfolded Θ along its claim mode into a 3 × 9 matrix (rows: the three claim levels; columns: the nine source×persona combinations), mean-centered each row, and took its singular value decomposition, recording the variance captured by each principal component.</p><p>(2) Additivity: we fitted a main-effects model θijk = θ + α i + β j + γ k (no interaction terms) and recorded its R 2 .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Population model</head><p>We then asked what collective behavior emerged when multiple agents, each governed by the measured kernel, influenced one another. We placed N =30 agents on a network and seeded a fraction ρ 0 as initial believers, leaving the rest undecided, and used the kernel as the local update rule. At each step, an undecided agent i computed the fraction of its neighbors that believed and expressed it as a count out of ten peers, k i , and the agent then adopted with probability p adopt (k i ) from a live forward pass. Because each decision was an actual model call rather than an averaged response, this was an agent-driven simulation. We took the final believing fraction as the cascade outcome.</p><p>For the clustering experiments we tested a characteristic of complex contagion: that contagion spreads further on clustered networks than on random ones of equal density <ref type="bibr" target="#b17">[18]</ref>. We generated Watts-Strogatz networks of fixed mean degree and vary only the rewiring probability p. At p=0 the network is a clustered ring lattice (high clustering coefficient C); at p=1 essentially random (low C). We statistically compared the cascade size between these two configurations.</p><p>For the hysteresis experiments we tested whether a consensus, once reached, sustained itself after the pressure that created it is withdrawn. This requires agents that can lose a belief as well as gain one, so we measure a second retention kernel p retain (k) using the analogous prompt for an agent that already holds the belief and a MAINTAIN/ABANDON decision. Undecided agents adopt with p adopt (k i ) as before, while current believers abandon with 1 -p retain (k i ). A fraction of agents are permanent zealots, who never abandon;ramping the zealot fraction up and then back down applies a controlled external pressure, and comparing the up-and down-paths traces the hysteresis loop.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Models</head><p>Our primary model is Qwen2.5-3B-Instruct <ref type="bibr" target="#b25">[26]</ref>, with the pipeline replicated on Mistral-7B-Instruct-v0.3 <ref type="bibr" target="#b26">[27]</ref> (App. A). Full prompts, per-model tokens, plausibility mappings, network parameters, and replicate counts appear in App. C. <ref type="foot" target="#foot_0">2</ref></p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Individual belief adoption</head><p>We first characterized how a single agent adopts a belief under social pressure. The adoption kernels were sigmoidal, and were sensitive to three axes, each modifiable in a graded way. Further, the variation in adoption thresholds due to these axes were well approximated by a single effective dimension.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Belief adoption is driven by coherence</head><p>More plausible claims required less social reinforcement to be adopted, though even implausible claims were adopted under sufficient social pressure (Fig. <ref type="figure" target="#fig_4">1a</ref>). Source reliability shifted the threshold independently of the claim: a plausible claim that needed only 3 endorsing expert peers required 9.4 unreliable peers (interpolated threshold) before being accepted (Fig. <ref type="figure" target="#fig_4">1b</ref>). Agent persona had a strong effect: credulous agents adopted both plausible and implausible claims from a single peer, while hardened and skeptical agents were immune (never adopted regardless of plausibility or social reinforcement), and only trusting agents were sensitive to the claim's plausibility (Fig. <ref type="figure" target="#fig_4">1c,</ref><ref type="figure">d</ref>). Together, these show that an agent weighs attributes of the belief, of its source, and perception of itself when deciding whether to adopt.</p><p>Next we sought to demonstrate whether the influence from these attributes were fixed or whether their effect was altered by an agents prior beliefs. We found strong evidence that prior beliefs affect adoption thresholds (Fig. <ref type="figure" target="#fig_4">1e-g</ref>). Further, prior beliefs moved thresholds in the direction expected if the agent were adopting based on coherence of incoming beliefs with its priors. For example, 22 • C had a relatively low threshold under a normal prior, but when the model expected a heat wave or a cold snap, the threshold for adopting belief in this temperature was substantially higher (Fig. <ref type="figure" target="#fig_4">1e</ref>). Prior beliefs about the reliability of the source influenced adoption thresholds of information coming from individuals who were described as having a fixed reliability (Fig. <ref type="figure" target="#fig_4">1f</ref>). Lastly, prior beliefs about the relative value of personal knowledge versus social input spanned the full range of adoption thresholds for all levels of plausibility considered (Fig. <ref type="figure" target="#fig_4">1e</ref>). These results provide evidence that coherence between prior and incoming beliefs is driving adoption in LLM agents. Coherence is determined by the effective distance between a prior belief and the new one and can be manipulated by installing a particular prior or by modifying each of the three axes of claim plausibilit, source reliability or agent persona.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Reduction to a one-dimensional effective coherence</head><p>That adoption is coherence-driven raises the question of how the three axes are represented internally. Three results indicated that the LLM collapses them onto a single dimension. First, kernels generated by manipulating different sources of coherence, once shifted by their own thresholds, collapsed onto a single master curve of common shape (Fig. <ref type="figure" target="#fig_4">1h</ref>). Second, applying dimensionality reduction to the threshold tensor Θ, the first principal component accounted for 98% of the variance in thresholds. Third, a main-effects model with no interaction terms achieved R 2 = 92% (Fig. <ref type="figure" target="#fig_4">1i</ref>). Together, these indicate that the three nominally distinct axes act through one effective, coherence-based dimension.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Population dynamics of belief adoption</head><p>Having established that belief adoption is well approximated by a single effective coherence dimension, we placed agents on a network, let them influence one another, and characterized their collective dynamics. We swept claim plausibility as a proxy for the single coherence dimension and record the final fraction of believing agents. A belief is considered to have ignited if this fraction exceeds 0.5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">The cascade window and its bifurcation</head><p>When we swept coherence via claim plausibility, the population underwent a sharp transition from full adoption to low adoption: ignition probability dropped steeply through a saddle-node-like transition that closed the cascade window (Fig. <ref type="figure" target="#fig_1">2a</ref>). Away from the transition the population was monostable, within it the outcome distribution was bimodal, so the same claim under identical conditions produced qualitatively different collective outcomes across replicates (Fig. <ref type="figure" target="#fig_1">2b</ref>). The steep drop in ignition probability together with these bimodal outcomes is the signature of an underlying bistability. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Complex contagion: cascade size on clustered networks</head><p>We showed that the individual adoption kernel is characteristic of complex contagion (Fig. <ref type="figure" target="#fig_0">1</ref>). Such contagions are expected to produce larger cascades on clustered networks than on random networks of equal density <ref type="bibr" target="#b17">[18,</ref><ref type="bibr" target="#b3">4]</ref>. This advantage is not universal, but it holds in precisely our regime: when adoption without social reinforcement does not occur (0 in our case) and adoption with reinforcement is very probable (1 in our case). We tested this on Watts-Strogatz networks of fixed mean degree, varying only the rewiring probability so the clustering coefficient fell from C=0.60 (ring lattice) to C=0.20 (essentially random). In the marginal regime, clustered networks produced significantly larger cascades than random networks of the same degree (mean final size 0.67 vs. 0.43; one-sided Mann-Whitney U , p = 2.7e-6, rank-biserial effect 0.37) (Fig. <ref type="figure" target="#fig_1">2c</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Hysteresis: consensus is self-sustaining</head><p>A bistable system exhibits hysteresis meaning its state depends on how it was reached. We ramped an external pressure, the fraction of permanent believers (zealots) up from zero and back down, with agents free to adopt (via the adoption kernel) and abandon (via the retention kernel) at each step (Fig. <ref type="figure" target="#fig_1">2d-f</ref>). The up-path required substantial pressure to ignite, but once the population reached consensus the down-path remained locked at full adoption even as all pressure was removed. The loop widened with implausibility (area 0.067, 0.096, 0.252 for plausible, borderline, and implausible claims), because the gap between the ignition threshold and near-total retention is largest for the least plausible claims. The safety implication is direct: a false belief is far harder to establish than to maintain, persisting with no continued support once it reaches consensus. This lock-in is a genuine property of the agent-driven dynamics, arising from the measured retention kernel rather than a mean-field artifact. The general structure of the results transferred without exception. In every condition the adoption kernel was sigmoidal with the same plausibility ordering, the three axes were modifiable coherence relations, and the threshold tensor was one-dimensional and additive. At the population level, all three conditions showed the cascade bifurcation with bimodal outcomes, the complex-contagion clustering signature, and self-sustaining consensus with hysteresis loops that widened with implausibility.</p><p>What varied was calibration, not mechanism. For example, Mistral tended to weight its own priors over social pressure more than Qwen, manifesting as a wider plausibility range, a sharper bifurcation, and wider hysteresis loops. Beliefs in the traffic domain tracked the temperature results closely.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>We show that LLM agents are susceptible to contagion, with adoption kernels that take the sigmoidal form underlying complex contagion. These kernels are sensitive to claim plausibilit, source reliability, agent persona, and the agent's prior beliefs. When probed, these factors appear to act on the model through a single dimension of effective coherence between its priors and the incoming belief. At the collective level, beliefs spread further on clustered networks, and the population exhibits a cascade bifurcation and hysteresis: once a belief is established, it is harder to dislodge than it was to prevent.</p><p>Our results have implications for the safety and controllability of multi-agent systems. On one hand, a consensus reached by a population of agents (even a false one) may be hard to correct once established. On the other, belief adoption in naive agents is relatively easy to steer: installing a simple prior tunes an agent across the full behavioral range, from readily accepting social input to never accepting it. Such prior installation could protect agents against adopting misinformation.</p><p>Finally, our work speaks to the mechanistic basis of these behaviors. A growing literature on the linear representation hypothesis holds that LLMs encode many high-level semantic concepts as linear directions in their internal representation space <ref type="bibr" target="#b27">[28]</ref>. Our reduction is a behavioral analogue: three factors that are conceptually distinct and independently manipulated collapse onto a single effective dimension of adoption behavior. While we measure behavior rather than internal representations, this one-dimensionality is consistent with, and raises the question of whether, the model's internal basis for belief adoption is itself lower-dimensional than the space of factors that influence it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7.1">Limitations and Future Directions</head><p>Our work characterizes coherence in behavior, not in the model's internal representations, a limitation that also points to future work. In non-LLM agents, a model of belief dynamics built on signed, weighted belief networks reproduces both simple-and complex-contagion dynamics, depending on how well an incoming belief coheres with an agent's priors <ref type="bibr" target="#b19">[20]</ref>. Installing LLM agents with explicit networks of prior beliefs could connect our behavioral findings to an internal mechanism of belief adoption.</p><p>We also consider a single belief spreading in isolation, with no competing claims. A natural extension is competing contagions, and the question of how to suppress an undesirable belief while allowing a desirable one to spread. Finally, our populations are small (N =30) and our networks stylized, and we study only two models and two belief domains; this separates model effects from domain effects but cannot establish the pattern across scales or model families. Because our claims are unverifiable predictions, the results may also not carry over to factual, morally charged, or multi-claim beliefs, where fact retrieval and cross-claim consistency would introduce dynamics absent here.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Full Temperature domain with Mistral results</head><p>This appendix reports the complete replication of the pipeline of §4-5 on Mistral-7B-Instruct-v0.3, holding the temperature domain and all prompts fixed. Every result reproduces qualitatively, with quantitative differences from the primary Qwen results tracing to a single property: Mistral weights its priors and sources more categorically than Qwen. This manifests consistently as a wider plausibility range, an all-or-nothing source axis, a sharper cascade bifurcation, and wider hysteresis loops while leaving the mechanisms themselves intact. Decision tokens were recomputed and verified for Mistral, and the persona was folded into the user turn, as Mistral does not accept a system role ( §3.1, App. C).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Individual belief adoption</head><p>The three axes (Fig.</p><p>A.1 panels a-d). The adoption kernel is sigmoidal with the same plausibility ordering as Qwen, but with a wider dynamic range: thresholds of 2.1, 5.2, and 9.9 peers for plausible, borderline, and implausible claims, versus Qwen's narrower spread. Mistral adopts plausible claims more readily yet resists implausible ones more strongly. Source authority again compensates for implausibility and orders experts &lt; ordinary &lt; unreliable at every claim; unlike Qwen, an unreliable source produces near-total rejection (threshold at the ceiling) even for plausible claims, reflecting Mistral's more categorical weighting of source reliability. The resilience ladder (immune → sensitive → credulous) is preserved, with one model-specific feature: even the credulous persona retains a prior-based floor on the implausible claim, so plausibility discriminates across a wider range of dispositions than for Qwen.</p><p>Coherence tests (Fig.</p><p>A.1 panels e-g). All three axes are modifiable coherence relations, and the manipulations are sharper than for Qwen. Installing a world prior moves each claim's threshold to a near-perfect coherence diagonal: each claim adopts only under the prior that makes it cohere and resists completely otherwise. Installing a source-reliability belief swings the threshold from the ceiling (unreliable, never adopts) to near zero (reliable, adopts with minimal pressure), a swing of up to 8.9 peers from editing a single belief. Instructing the coherence-weighting reproduces the immune-sensitive-credulous ladder with no personality descriptors, though the descent is steeper and later than Qwen's, consistent with Mistral's stronger default prior-weighting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>The reduction (Fig. A.1 panels h-i).</head><p>The central result holds: the threshold tensor is onedimensional, with the first principal component capturing 96% of the variance. The additive model explains 80% of the variance, lower than Qwen's 92%, because Mistral's more categorical (thresholds pinned at the ceiling or near zero) behavior introduces more interaction. The one-dimensional reduction is thus model-invariant.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Population dynamics of belief adoption Bifurcation (Fig. A.2 panels a-b). The cascade window closes through a bifurcation, sharper than</head><p>Qwen's: ignition probability drops from one to zero over a narrow plausibility interval, with the transition at ∼34 • C. The outcome distribution is monostable on either side and bimodal within the (correspondingly narrow) transition zone. Mistral's sharper transition leaves a narrower marginal regime than Qwen's, an observation that matters for the clustering experiment below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Clustering (Fig. A.2 panel c).</head><p>The complex-contagion signature holds: at matched degree, clustered networks produce larger cascades than random networks (mean final size 0.83 vs. 0.65; one-sided Mann-Whitney U , p = 4.1e-3, rank-biserial effect +0.21). The effect is moderate and smaller than Qwen's, because Mistral's higher baseline ignition in the marginal regime compresses the headroom for topology to discriminate, consistent with, and explained by, its sharper bifurcation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Hysteresis (Fig. A.2 panels d-f).</head><p>Consensus is self-sustaining and the down-path remains locked at full adoption as pressure is removed. The hysteresis loop widens with implausibility (loop area 0.000, 0.159, 0.248 for plausible, borderline, and implausible), wider than Qwen's for the borderline claim and comparable for the implausible one: Mistral resists establishing an implausible belief more strongly on the up-path while consensus locks equally firmly on the down-path, so the up-down gap is larger. The plausible loop is near zero because Mistral adopts plausible claims so readily that the up-path itself saturates immediately.</p><p>Summary. Every result reproduces on Mistral. The mechanisms: coherence-driven resistance, its reduction to one effective scalar, the cascade bifurcation, the clustering signature, and self-sustaining consensus, are model-invariant; the magnitudes and the identity of the dominant resistance axis are model-specific and are all accounted for by Mistral's stronger, more categorical weighting of priors and sources.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Full traffic-domain with Qwen results</head><p>This appendix reports the complete replication of the pipeline of §4-5 on a second claim domain, holding the model fixed as Qwen2.5-3B-Instruct. Claims are next-day commute times of the form "Tomorrow morning's commute on I-93 into Boston will take about [duration]" with plausibility set by the stated duration, an unverifiable prediction with a graded prior, like temperature, but with a softer ceiling (long delays remain conceivable, so the implausible level sits at a multi-hour commute). Every result reproduces. The traffic results track the temperature results closely, including nearly identical reduction statistics and hysteresis loop areas, confirming that the mechanism is not an artifact of the temperature substrate. We map three plausibility levels (a normal, a long, and an absurd commute) onto durations whose kernels match temperature's plausible / borderline / implausible thresholds, with an additional impossible value for the source experiments (App. C).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Individual belief adoption</head><p>The three axes (Fig. <ref type="figure">B</ref>.1) panels a-d. The adoption kernel is sigmoidal with the same plausibility ordering: thresholds of 3.3, 3.6, and 7.1 peers for the plausible, borderline, and implausible commutes, closely matching temperature's plausible/implausible spread. (The borderline level is softer than temperature's, sitting nearer the plausible end, because the model finds a wide range of commute durations believable, the one substantial domain difference.) Source authority compensates for implausibility and orders experts &lt; ordinary &lt; unreliable at every claim, and an authoritative source moves even the impossible commute toward adoption, reproducing the plausibility-wall breach seen for temperature. The resilience ladder (immune → sensitive → credulous) is preserved, with plausibility discriminating only in the sensitive band.</p><p>Coherence tests (Fig. <ref type="figure">B</ref>.1 panels e-g). All three axes are modifiable coherence relations. Installing a road-condition prior (clear, normal, or gridlock) moves a fixed claim's threshold in the coherencepredicted direction: a gridlock prior lowers the threshold for long commutes while raising it for short ones, and vice versa for a clear-roads prior. This provides a second, independent demonstration of the coherence mechanism in a distinct domain, complementing the bidirectional temperature result of §4 (Fig. <ref type="figure" target="#fig_4">1e</ref>). Installing a source-reliability belief swings the threshold from the ceiling to near zero, and instructing the coherence-weighting reproduces the immune-sensitive-credulous ladder with no personality descriptors. Summary. Every result reproduces on the traffic domain, with quantities that closely match the temperature primary throughout. Together with the model replication of App. A, this establishes </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Reproducibility details</head><p>This appendix specifies all prompts, tokens, mappings, and parameters needed to reproduce our results. All measurements use a single, sampling-free forward pass in half precision: we read the decision logits directly rather than generating tokens. Every reported quantity is deterministic given the prompt and the random seed (which fixes graph generation, initial seeding, and all Bernoulli adoption/abandonment draws). The models we use (Qwen2.5-3B-Instruct and Mistral-7B-Instruct-v0.3) are released under the Apache 2.0 license. Code and configuration are available at <ref type="url" target="https://anonymous.4open.science/r/multi-agent-llm-contagion-F402">https: //anonymous.4open.science/r/multi-agent-llm-contagion-F402</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.1 Prompt templates</head><p>Prompts consist of a system prompt (the persona) and a user prompt. For models without a system role (e.g. Mistral), the persona is prepended to the user prompt, separated by a blank line. Placeholders are written in {braces}.</p><p>Canonical persona (system prompt). The {social} line is, for k &gt; 0, "{k} of your 10 peers {who} have already accepted this as true; the other {10-k} have not weighed in.", and for k = 0, "None of your 10 peers have expressed a view on this." The optional {who} inserts a source descriptor ("--{source} --") in the source experiments and is empty otherwise. The optional {prior} prepends an installed belief (below) in the coherence experiments and is empty otherwise. At k=10 this template produces the degenerate phrasing "...the other 0 have not weighed in." This does not distort the measured kernels: p adopt (10) lies on the smooth continuation of the kernel through k=9 in every condition, with no discontinuity at the endpoint. For most conditions the 0.5 crossing falls well below k=9, so the threshold does not depend on this point; for the few whose crossing falls between k=9 and k=10, the interpolated threshold does depend on it, but its value is consistent with the rest of the kernel and with the ordering across conditions. For ceiling conditions (θ=11), the threshold reflects only that p adopt (10) &lt; 0.5, adoption remains a minority even at full peer count,not its exact value, and is therefore robust to the endpoint phrasing. The retention template special-cases k=10 because retention is evaluated at full consensus, where that endpoint is load-bearing throughout.</p><p>Retention kernel (user prompt). Used for the reversible (hysteresis) dynamics, for an agent that already holds the belief:</p><p>You currently believe this claim: "{claim}" {social} Do you maintain this belief? Answer with exactly one word: MAINTAIN or ABANDON.</p><p>Here {social} reports how many peers still accept the claim: for 0 &lt; k &lt; 10, "{k} of your 10 peers still accept this as true; the other {10-k} have dropped it."; for k = 10, "All 10 of your peers still accept this as true."; for k = 0, "None of your 10 peers accept this anymore; all have dropped it."</p><p>Coherence manipulations. Each installs a belief via the {prior} slot (world prior, source reliability) or by replacing the persona (coherence weighting). Representative installed beliefs, with the level label used in the figures given in brackets:</p><p>• Claim prior (temperature).</p><p>"You know that Boston has been in a record heat wave this week, with temperatures well above normal, around 40°C (104°F)." (analogously, [cold-snap] and [normal] statements).</p><p>• Claim prior (traffic).</p><p>"You know that a major snowstorm has hit Boston, roads are severely backed up, and there are multiple accidents causing hours-long delays." (analogously, [clear] and [normal] statements).</p><p>• Source prior. "You know that these {source} have an excellent track record and are almost always right." (analogously, [unreliable] and [no-belief]).</p><p>• Disposition prior. "You are a person deciding whether to adopt beliefs. You weigh your own prior knowledge and judgment very heavily. You almost never adopt a claim based on peer opinion alone; peers barely move you."</p><p>(graded through <ref type="bibr">[balanced]</ref> to [all-social]: "... You weigh peer consensus almost entirely...").</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Personas (resilience experiments).</head><p>The resilience ladder uses four system prompts: hardened ("highly skeptical and independent... peer opinion barely affects you"), skeptical ("cautious... need very strong social consensus"), trusting (the canonical persona above), and credulous ("highly socially attuned and trusting... you readily accept it too"). Full strings are in the released config.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 Decision tokens</head><p>We read the logits of the first sub-word token of each decision word, recomputed per model. Table <ref type="table" target="#tab_2">2</ref> lists the token identifiers; each pair was verified to be distinct and to match greedy decoding on a clear prompt. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 plausibility mappings</head><p>Table <ref type="table" target="#tab_3">3</ref> gives the specific claim values used for each plausibility level in each domain, chosen so that the plausible and implausible kernels are well separated; the impossible value is used only in the source experiments (plausibility-wall test). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.4 Source and reliability descriptors</head><p>Source experiments use three descriptors: expert ("professional meteorologists" for temperature; "traffic authorities and the state transportation department" for traffic), ordinary (no descriptor), and unreliable ("people known for spreading rumors"). The sourcereliability coherence test ( §3.2) holds the source label fixed ("professional meteorologists" / "traffic reporters") and varies only the installed reliability belief.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Belief adoption is coherence-driven and reduces to one effective dimension. (a) Adoption kernels p adopt (k) for plausible / borderline / implausible claims; less plausible claims require more endorsing peers, raising the threshold. (b) Adoption threshold across claim plausibility and source reliability: expert sources lower the threshold and compensate for implausibility, while an unreliable source raises it.(c, d) Kernels for four personas at two plausibility levels, tracing the resilience ladder from hardened (ignores peers) through trusting to credulous (adopts at minimal pressure). (e-g) The three axes are modifiable coherence relations: installing (e) a world prior, (f) a source-reliability belief, or (g) a coherence-weighting instruction moves the threshold in the direction a coherence account predicts. (h) Kernels shifted by their own threshold collapse onto a single master curve (individual conditions in colour, mean in black), and (i) an additive model predicts the threshold across the 3×3×3 grid. The threshold tensor is one-dimensional (first PC 98%) and additive (92%).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Population dynamics of the measured kernel. (a) Ignition probability and mean final cascade size vs. claim plausibilit; the cascade window closes through a saddle-node-like transition as plausibility falls. (b) Per-condition final belief fraction: outcomes are monostable on either side of the transition and bimodal within it. (c) Complex contagion: at matched degree, clustered networks (ring, C=0.60) produce larger cascades than random networks (C=0.20), points are individual runs, black shows the mean with 95% bootstrap CI (d-f) Hysteresis for plausible, borderline, and implausible claims: Consensus is self-sustaining; the down-path stays locked at full adoption and the loop (shaded) widens with implausibility.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure A. 1 :</head><label>1</label><figDesc>Figure A.1: Mistral: Belief adoption is coherence-driven and reduces to one effective dimension.(a) Adoption kernels for plausible / borderline / implausible claims; the threshold rises with implausibility. (b) Adoption threshold across claim plausibility and source reliability; expert sources lower the threshold, but an unreliable source pins it at the ceiling for every claim, a more categorical source axis than Qwen. (c) Kernels per persona at a fixed plausibility level and (d) the same under a stronger claim, tracing the resilience ladder from hardened (never adopts) to credulous. (e-g) The three axes as editable coherence relations: installing (e) a world prior (temperature), (f) a source-reliability belief, and (g) a coherence-weighting instruction each moves the threshold in the coherence-predicted direction. (h) Kernels shifted by their own threshold collapse onto one master curve (individual conditions in colour, mean in black). (i) Additive prediction vs. observed threshold across the 3×3×3 grid. The threshold tensor is one-dimensional (first PC 96%) and additive (80%)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>The reduction (Fig. B.1 panels h-i). The central result holds and closely matches the temperature primary: the threshold tensor is one-dimensional, with the first principal component capturing 97% of the variance (versus 98% for temperature), and the additive model explains 91% (versus 92%).B.2 Population dynamics of belief adoptionBifurcation (Fig.B.2 panels a-b). The cascade window closes through a clean, monotonic transition: ignition probability falls from one for short commutes to zero for absurd ones, crossing 0.5 at a commute of approximately four hours. The transition is if anything cleaner than temperature's, as the traffic plausibility gradient is smooth over this range. The outcome distribution is monostable on either side and bimodal within the transition zone, reproducing the bistability signature.Clustering (Fig. B.2 panel c).The complex-contagion signature holds: at matched degree, clustered networks produce larger cascades than random networks (mean final size 0.62 vs. 0.48; one-sided Mann-Whitney U , p = 7.1e-3, rank-biserial effect +0.20), measured in the marginal regime identified by the bifurcation.Hysteresis (Fig. B.2 panels d-f).Consensus is self-sustaining and the down-path remains locked at full adoption as pressure is removed. The hysteresis loop widens with implausibility (loop area 0.065, 0.080, 0.248 for plausible, borderline, and implausible), nearly identical to the temperature loop areas (0.067, 0.096, 0.252).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure B. 1 :</head><label>1</label><figDesc>Figure B.1: Traffic domain, Belief adoption is coherence-driven and reduces to one effective dimension. (a) Adoption kernels for plausible (35 min) / borderline (3 h) / implausible (6 h) commutetime claims; the threshold rises with implausibility. (b) Adoption threshold across claim plausibility and source reliability; expert sources lower the threshold while an unreliable source pins it near the ceiling, reproducing the plausibility wall. (c) Kernels per persona at a fixed plausibility level and (d) the same under a stronger claim, tracing the resilience ladder from hardened (never adopts) to credulous.(e-g) The three axes as editable coherence relations: installing (e) a road-condition prior (clear / normal / gridlock), (f) a source-reliability belief, and (g) a coherence-weighting instruction each moves the threshold as a coherence account predicts; the road-condition prior acts bidirectionally, lowering the threshold for long commutes and raising it for short ones. (h) Kernels shifted by their own threshold collapse onto one master curve (individual conditions in colour, mean in black). (i) Additive prediction vs. observed threshold across the 3×3×3 grid. The threshold tensor is onedimensional (first PC 97%) and additive (91%), closely matching the temperature primary.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Central quantities across the primary condition and two robustness axes. The reduction (dimensionality), the clustering contrast, and the hysteresis loop ordering reproduce in every condition.Our results so far used one model on one domain. To establish robustness, we replicated along two independent axes: a second model (Mistral-7B-Instruct-v0.3, temperature domain) and a second domain (next-day commute time, same model). Every result of §4-5 reproduced in both; Table1summarizes the central quantities, with full results in Apps. A and B.</figDesc><table><row><cell></cell><cell cols="3">Qwen / temp. Mistral / temp. Qwen / traffic</cell></row><row><cell>Reduction: 1st PC (%)</cell><cell>98</cell><cell>96</cell><cell>97</cell></row><row><cell>Reduction: additivity R 2 (%)</cell><cell>92</cell><cell>80</cell><cell>91</cell></row><row><cell>Clustering: p (MW U )</cell><cell>2.7e-6</cell><cell>4.1e-3</cell><cell>7.1e-3</cell></row><row><cell>Clustering: effect</cell><cell>+0.37</cell><cell>+0.21</cell><cell>+0.20</cell></row><row><cell>Hysteresis loop (plaus.)</cell><cell>0.067</cell><cell>0.000</cell><cell>0.065</cell></row><row><cell>Hysteresis loop (implaus.)</cell><cell>0.252</cell><cell>0.248</cell><cell>0.248</cell></row><row><cell cols="2">6 Robustness across models and domains</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>You are Morgan, a reasonable person. You weigh what your peers think. If enough trusted peers accept a claim, you tend to accept it too, unless it is clearly false.</figDesc><table><row><cell>Adoption kernel (user prompt).</cell></row></table><note><p>{prior}Claim: "{claim}" {social} Do you accept this claim? Answer with exactly one word: ADOPT or DECLINE.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>First sub-word token identifiers per model.</figDesc><table><row><cell>Model</cell><cell>Decision</cell><cell>Token</cell><cell>ID</cell></row><row><cell></cell><cell>ADOPT</cell><cell>ADO</cell><cell>28814</cell></row><row><cell>Qwen2.5-3B-Instruct</cell><cell>DECLINE MAINTAIN</cell><cell>DECL MA</cell><cell>21817 4835</cell></row><row><cell></cell><cell>ABANDON</cell><cell>AB</cell><cell>1867</cell></row><row><cell></cell><cell>ADOPT</cell><cell>AD</cell><cell>10772</cell></row><row><cell>Mistral-7B-Instruct-v0.3</cell><cell>DECLINE MAINTAIN</cell><cell>DE MA</cell><cell>5330 7308</cell></row><row><cell></cell><cell>ABANDON</cell><cell>AB</cell><cell>19090</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Claim values by plausibility level and domain.</figDesc><table><row><cell cols="3">plausibility level Temperature (Boston) Traffic (I-93 commute)</cell></row><row><cell>plausible</cell><cell>22 • C</cell><cell>35 min</cell></row><row><cell>borderline</cell><cell>35 • C</cell><cell>3 hours</cell></row><row><cell>implausible</cell><cell>45 • C</cell><cell>6 hours</cell></row><row><cell>impossible</cell><cell>75 • C</cell><cell>24 hours</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>Code: https://anonymous.4open.science/r/multi-agent-llm-contagion-F402/.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Consensus is self-sustaining; the down-path stays locked at full adoption and the loop (shaded) widens with implausibility, with loop areas nearly identical to the temperature primary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.5 Population and network parameters</head><p>Please see Table <ref type="table">4</ref>. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.7 Compute</head><p>All experiments run on a single NVIDIA L4 GPU (24 GB) in half precision. The full pipeline for one (model, domain) condition, all kernel measurements and population simulations, completes in approximately one GPU-hour; the population simulations dominate, as each cascade step requires one forward pass per distinct believing-neighbor count.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">AutoGen: Enabling next-gen LLM applications via multi-agent conversation</title>
+		<author>
+			<persName><forename type="first">Qingyun</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagan</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jieyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beibin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erkang</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaokun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiale</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Awadallah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryen</forename><forename type="middle">W</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doug</forename><surname>Burger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.08155</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Delving into: The quantification of AI-generated content on the internet (synthetic data)</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">R</forename><surname>Dirk</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Spennemann</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.08755</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yun-Shiuan</forename><surname>Chuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Agam</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikunj</forename><surname>Harlalka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddharth</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Hawkins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sijia</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dhavan</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><forename type="middle">T</forename><surname>Rogers</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.09618</idno>
+		<title level="m">Simulating opinion dynamics with networks of LLM-based agents</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Complex contagions and the weakness of long ties</title>
+		<author>
+			<persName><forename type="first">Damon</forename><surname>Centola</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Macy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">American Journal of Sociology</title>
+		<imprint>
+			<biblScope unit="volume">113</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="702" to="734" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">The spread of obesity in a large social network over 32 years</title>
+		<author>
+			<persName><forename type="first">Nicholas</forename><forename type="middle">A</forename><surname>Christakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><forename type="middle">H</forename><surname>Fowler</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">New England Journal of Medicine</title>
+		<imprint>
+			<biblScope unit="volume">357</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="370" to="379" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">The influence of source credibility on communication effectiveness</title>
+		<author>
+			<persName><forename type="first">Carl</forename><forename type="middle">I</forename><surname>Hovland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Walter</forename><surname>Weiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Public Opinion Quarterly</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="635" to="650" />
+			<date type="published" when="1951">1951</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Revealing complexities when adult readers engage in the credibility evaluation of social media posts</title>
+		<author>
+			<persName><forename type="first">Miikka</forename><surname>Kuutila</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carita</forename><surname>Kiili</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reijo</forename><surname>Kupiainen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emma</forename><surname>Huusko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simo</forename><surname>Hosio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mika</forename><surname>Mäntylä</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julie</forename><surname>Coiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristian</forename><surname>Kiili</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computers in Human Behavior</title>
+		<imprint>
+			<biblScope unit="volume">151</biblScope>
+			<biblScope unit="page">108017</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Threshold models of collective behavior</title>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Granovetter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">American Journal of Sociology</title>
+		<imprint>
+			<biblScope unit="volume">83</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<date type="published" when="1978">1978</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A simple model of global cascades on random networks</title>
+		<author>
+			<persName><forename type="first">Duncan</forename><forename type="middle">J</forename><surname>Watts</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the National Academy of Sciences</title>
+		<imprint>
+			<biblScope unit="volume">99</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="5766" to="5771" />
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Reaching a consensus</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Morris</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Degroot</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of the American Statistical Association</title>
+		<imprint>
+			<biblScope unit="volume">69</biblScope>
+			<biblScope unit="issue">345</biblScope>
+			<biblScope unit="page" from="118" to="121" />
+			<date type="published" when="1974">1974</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Mixing beliefs among interacting agents</title>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Deffuant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Neau</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frédéric</forename><surname>Amblard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gérard</forename><surname>Weisbuch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Complex Systems</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1-4</biblScope>
+			<biblScope unit="page" from="87" to="98" />
+			<date type="published" when="2000">2000</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Opinion dynamics and bounded confidence: Models, analysis, and simulation</title>
+		<author>
+			<persName><forename type="first">Rainer</forename><surname>Hegselmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ulrich</forename><surname>Krause</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Artificial Societies and Social Simulation</title>
+		<imprint>
+			<biblScope unit="volume">5</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<date type="published" when="2002">2002</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Bayesian learning in social networks</title>
+		<author>
+			<persName><forename type="first">Daron</forename><surname>Acemoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Munther</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilan</forename><surname>Dahleh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Asuman</forename><surname>Lobel</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ozdaglar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">The Review of Economic Studies</title>
+		<imprint>
+			<biblScope unit="volume">78</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="1201" to="1236" />
+			<date type="published" when="2011">2011</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Opinion dynamics with confirmation bias</title>
+		<author>
+			<persName><forename type="first">Armen</forename><forename type="middle">E</forename><surname>Allahverdyan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aram</forename><surname>Galstyan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">PLoS One</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Out of one, many: Using language models to simulate human samples</title>
+		<author>
+			<persName><forename type="first">Lisa</forename><forename type="middle">P</forename><surname>Argyle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><forename type="middle">C</forename><surname>Busby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nancy</forename><surname>Fulda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><forename type="middle">R</forename><surname>Gubler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Rytting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Wingate</surname></persName>
+		</author>
+		<idno type="DOI">10.1017/pan.2023.2</idno>
+	</analytic>
+	<monogr>
+		<title level="j">Political Analysis</title>
+		<imprint>
+			<biblScope unit="volume">31</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="337" to="351" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Generative agents: Interactive simulacra of human behavior</title>
+		<author>
+			<persName><forename type="first">Sung</forename><surname>Joon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">C</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carrie</forename><forename type="middle">J</forename><surname>O'brien</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meredith</forename><forename type="middle">Ringel</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Morris</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><forename type="middle">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bernstein</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology (UIST &apos;23)</title>
+		<meeting>the 36th Annual ACM Symposium on User Interface Software and Technology (UIST &apos;23)</meeting>
+		<imprint>
+			<biblScope unit="page">2023</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Improving factuality and reasoning in language models through multiagent debate</title>
+		<author>
+			<persName><forename type="first">Yilun</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antonio</forename><surname>Torralba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><forename type="middle">B</forename><surname>Tenenbaum</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Mordatch</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.14325</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">The spread of behavior in an online social network experiment</title>
+		<author>
+			<persName><forename type="first">Damon</forename><surname>Centola</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science</title>
+		<imprint>
+			<biblScope unit="volume">329</biblScope>
+			<biblScope unit="issue">5996</biblScope>
+			<biblScope unit="page" from="1194" to="1197" />
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Diffusion of complex contagions is shaped by a trade-off between reach and reinforcement</title>
+		<author>
+			<persName><forename type="first">Allison</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christoph</forename><surname>Riedl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Lazer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Proceedings of the National Academy of Sciences</title>
+		<imprint>
+			<biblScope unit="volume">122</biblScope>
+			<biblScope unit="issue">28</biblScope>
+			<biblScope unit="page">2422892122</biblScope>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Emergence of simple and complex contagion dynamics from weighted belief networks</title>
+		<author>
+			<persName><forename type="first">Rachith</forename><surname>Aiyappa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Flammini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong-Yeol</forename><surname>Ahn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science Advances</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="issue">15</biblScope>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Ringer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kamilė</forename><surname>Lukošiūtė</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karina</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edwin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><surname>Heiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Pettit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Catherine</forename><surname>Olsson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandipan</forename><surname>Kundu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurav</forename><surname>Kadavath</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.09251</idno>
+		<title level="m">Discovering language model behaviors with model-written evaluations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mrinank</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meg</forename><surname>Tong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomasz</forename><surname>Korbak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Duvenaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Newton</forename><surname>Bowman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Esin</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zac</forename><surname>Durmus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Scott</forename><forename type="middle">R</forename><surname>Hatfield-Dodds</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shauna</forename><surname>Johnston</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Kravec</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Maxwell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kamal</forename><surname>Mccandlish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oliver</forename><surname>Ndousse</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rausch</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.13548</idno>
+		<title level="m">Towards understanding sycophancy in language models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">When your AI agent succumbs to peer pressure: Studying opinion-change dynamics of LLMs</title>
+		<author>
+			<persName><forename type="first">Aliakbar</forename><surname>Mehdizadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Hilbert</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.19107</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">You can&apos;t fool us: Understanding the resilience of LLM-driven agent communities to misinformation</title>
+		<author>
+			<persName><forename type="first">Chenxi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijie</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kangbo</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weijan</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongbin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihui</forename><surname>Ying</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhanzhan</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.17353</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Belief coevolution in a social network of generalist and specialist large language models</title>
+		<author>
+			<persName><forename type="first">Germans</forename><surname>Savcisens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samantha</forename><surname>Dies</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Courtney</forename><surname>Maynard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tina</forename><surname>Eliassi-Rad</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.27512</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">An</forename><surname>Qwen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengyuan</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.15115</idno>
+		<title level="m">Qwen2.5 technical report</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Albert</forename><forename type="middle">Q</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Sablayrolles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Mensch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Bamford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devendra</forename><surname>Singh Chaplot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>De Las Casas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Bressand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gianna</forename><surname>Lengyel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucile</forename><surname>Saulnier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renard</forename><surname>Lélio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Anne</forename><surname>Lavaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Lachaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Stock</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibaut</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Lavril</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothée</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">El</forename><surname>Lacroix</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sayed</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.06825</idno>
+		<title level="m">Mistral 7B</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">The linear representation hypothesis and the geometry of large language models</title>
+		<author>
+			<persName><forename type="first">Kiho</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yo</forename><surname>Joong Choe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Veitch</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning (ICML)</title>
+		<meeting>the 41st International Conference on Machine Learning (ICML)</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="39643" to="39666" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

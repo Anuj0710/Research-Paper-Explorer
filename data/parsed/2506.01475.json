@@ -1,0 +1,265 @@
+{
+  "arxiv_id": "2506.01475",
+  "title": "PGPO: Enhancing Agent Reasoning via Pseudocode-style Planning Guided Preference Optimization",
+  "abstract": "Large Language Model (LLM) agents have demonstrated impressive capabilities in handling complex interactive problems. Existing LLM agents mainly generate natural language plans to guide reasoning, which is verbose and inefficient. NL plans are also tailored to specific tasks and restrict agents' ability to generalize across similar tasks. To this end, we explore pseudocode-style plans (P-code Plan) to capture the structural logic of reasoning. We find that P-code Plan empowers LLM agents with stronger generalization ability and more efficiency. Inspired by this finding, we propose a pseudocode-style Planning Guided Preference Optimization method called PGPO for effective agent learning. With two planning-oriented rewards, PGPO further enhances LLM agents' ability to generate high-quality P-code Plans and subsequent reasoning. Experiments show that PGPO achieves superior performance on representative agent benchmarks and outperforms the current leading baselines. Analyses reveal the advantage of PGPO in reducing action errors and omissions during reasoning. 1 † Work done during an internship at Alibaba Group.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Recent advances in large language models have promoted the development of LLM agents (Wang et al., 2024a;Xi et al., 2025). Planning serves as a critical component of agent reasoning (Huang et al., 2024), allowing agents to break down complex problems into manageable subtasks. By prompting strategies (Wang et al., 2023;Prasad et al., 2024;Roy et al., 2024), task-specific fine-tuning (Qiao et al., 2024a,b) or external classical planners (Liu et al., 2023a;Arora et al., 2024), LLM agents are equipped with basic planning abilities. Due to To complete the task, first check nearby tables for the tissue box, then locate desklamp to view tissue box under it.\n\nThought: First, I need to locate the book. I will start by checking the nearby location … Action: go to drawer 1 Thought: First, I should go to the nearest table to find one tissue box ... Action: go sidetable 1 examine the book with the desklamp examine the tissuebox with the desklamp I should go to each drawer and desk to find the book first, then go to the receptacle with the desklamp to examine the book.\n\n1. object_name, location_name = locate_object(candidate_locations_1); 2. take(object_name, location_name); 3. desklamp_name = find_desklamp(candidate_locations_2); 4. examine(desklamp_name, object_name). the dominance of natural language (NL) in agent reasoning (Wei et al., 2022;Yao et al., 2023), existing researches mainly focus on generating NL plans. However, semantic ambiguities and undesired verbosity in NL may not be beneficial to agent planning, leading to low precision and inefficiency. Meanwhile, NL plans are too specific to help LLM agents generalize to other unseen yet similar tasks. Therefore, it still remains underexplored whether alternative plan formats could elicit more efficient and generalized LLM agents.\n\nPrior work (Wang et al., 2024c) demonstrates the advantage of executable code as agent's action over text or JSON format. Inspired by this, we explore using pseudocode to represent plan, given that plans can be considered as high-level abstraction of actions while pseudocode outlines code. Our work starts by distilling pseudocodestyle plans (denoted as P-code Plan) from existing ReAct-style (Yao et al., 2023) datasets, adhering to predefined format requirements. We observe that through fine-tuning with P-code Plan incorporated, LLM agents exhibit improved out-of-distribution generalization. As shown in Figure 1, abstract plan- We first extract the thought part from existing ReAct-style datasets. Then, we prompt GPT-4o to summarize the thought process into high-level plans. Pseudocode-style plans are finally structured with predefined formats, followed by manual verification to ensure accuracy.\n\nning steps in P-code Plan can capture generalizable task knowledge while NL plans focus on specific knowledge and may suffer from overfitting. Moreover, agent's planning ability learned from concise P-code Plan facilitates a more efficient reasoning process with fewer interactions.\n\nBuilding upon these insights, we further propose a pseudocode-style Planning Guided Preference Optimization method named PGPO for agent capability enhancement. Specifically, we first utilize supervised fine-tuning to build a base agent. Then, PGPO contains two iterative phases: (1) the base agent performs exploration on expert trajectories to construct contrastive trajectory datasets based on two designed planning-oriented rewards; (2) direct preference optimization is employed to refine the base agent's pseudocode-style planning ability for task guidance. Through experiments with four LLMs, PGPO outperforms various strong baselines by relative 11.6% performance gain averaged across three representative agent benchmarks. In summary, our contributions are as follows:\n\n• We investigate the effectiveness of pseudocodestyle plans in agent reasoning, which are more concise and structured than NL plans. P-code Plan demonstrates its superiority in boosting the generalization ability of LLM agents.\n\n• We further introduce PGPO, a preference optimization method that empowers LLM agents with enhanced reasoning capabilities under the guidance of pseudocode-style plans.\n\n• Experimental results reveal that our PGPO achieves state-of-the-art performance on representative agent benchmarks, especially when dealing with more complex agent tasks.",
+      "n_words": 624
+    },
+    {
+      "heading": "Pseudocode-style Plan is Beneficial",
+      "section_type": "other",
+      "text": "In this section, we first define the structural representation of P-code Plan and then introduce a plan generation pipeline, followed by preliminary experiments to show the advantage of P-code Plan.",
+      "n_words": 30
+    },
+    {
+      "heading": "Definition of P-code Plan",
+      "section_type": "introduction",
+      "text": "In this paper, we mainly focus on LLM agents' multi-step reasoning usage: LLM agents interact with the environment to accomplish complex tasks, which can be represented as a set of Thought-Action-Observation tuples {(t, a, o)} n . At each interaction, the LLM agent gives the inner thoughts t and takes an action a based on the observation o from the environment. n denotes the number of interaction turns. Following this task formalization, we define the format of our pseudocode-style plans. and concise. This format helps agent better generalize to unseen tasksfoot_0 , where unseen tasks may share similar planning steps with seen tasks but initialize different planning entities.",
+      "n_words": 108
+    },
+    {
+      "heading": "Plan Generation Pipeline",
+      "section_type": "introduction",
+      "text": "Initially, we have ReAct-style dataset D where each instance d consists of one task instruction u with its collected expert trajectory τ\n\nThen, with LLM and human participation, as illustrated in Figure 2, our P-code Plan generation pipeline is outlined as follows:\n\n• Thought Extraction. We first extract agent thoughts {t} n from expert trajectories, which involves task-specific knowledge for planning.\n\nThe relationship between agent thoughts and task plans can be viewed as one of abstraction.\n\nThe plan distills the essentials of thoughts while omitting specifics, as an abstract summary does. • Plan Distillation. Subsequently, to improve the quality of distilled plans and obtain more accurate abstract knowledge, we employ a powerful model (e.g., GPT-4o) for generation. Given the task instruction u with agent thoughts {t} n , we instruct the LLM to summarize the step-by-step plan in natural language. Next, due to the effectiveness of few-shot prompting strategy for structural generation (Valmeekam et al., 2024;Liu et al., 2023a), demonstrations of pseudocodestyle plans paired with corresponding tasks are taken as input, converting natural language plans into P-code Plans. See Appendix B.2 for the prompt we used to guide plan distillation. follow the format requirements described in Section 2.1. In order to guarantee accuracy and knowledge consistency, minor manual refinement are also needed.",
+      "n_words": 212
+    },
+    {
+      "heading": "P-code Plan Improves Generalization",
+      "section_type": "introduction",
+      "text": "We adopt supervised fine-tuning (SFT) to equip base LLMs with agent abilities and then investigate whether LLM agents can benefit from our designed pseudocode-style plans. Our experiments are based on four popular LLMs: Llama-2-7B/13B (Touvron et al., 2023), Llama-3-8B (Dubey et al., 2024) and Mistral-7B-v0.3 (Jiang et al., 2023). For the agent tasks, we choose two representative datasets: ALF-World (Shridhar et al., 2021) and WebShop (Yao et al., 2022). We employ the average reward as metric to reflect the agent performance. Note that ALFWorld comprises both seen and unseen test sets in order to evaluate the in-distribution and outof-distribution generalization of the agents. Please ref to Appendix B.1 and B.4 for more details. We first collect ReAct-style training expert trajectories following Xiong et al. (2024) and then use the above plan generation pipeline (Section 2.2) to As shown in Figure 3, with the help of P-code Plan, LLM agents generally have higher average reward (10 out of 12 scenarios). Compared to naive expert trajectories (w/o Plan), integrating plans into training data (regardless of format) empowers LLM agents with basic planning ability, which is beneficial to the following agent reasoning. Regarding planning format, although w/ P-code Plan brings weaker performance than w/ NL Plan for Llama-2-7B and Llama-3-8B on the seen ALFWorld tasks (2 out of 12 scenarios), it consistently achieves better generalization to unseen ALFWorld tasks for all four models. We consider this can be attributed that abstract planning steps in P-code Plan capture generalizable meta-knowledge guiding task solution but natural language plans are prone to overfitting. We also analyze whether executable code format could lead to higher performance (in Appendix C.2) and find verbose plans pose a greater challenge for generation, thereby negatively affect reasoning.\n\nMoreover, we further calculate the average number of interaction turns on all evaluated instances. In Table 1, LLM agents w/ P-code Plan surprisingly reduce the average interaction turns compared to the other two settings. This underscores the superiority of P-code Plan in preventing blind exploration when dealing with agent tasks. Another interesting finding is handling unseen tasks requires more interactions than seen tasks, but the increase from LLM agents w/ P-code Plan is relatively low. This phenomenon also demonstrates our designed P-code Plan is suitable for agent generalization.\n\nOverall, the advantage of P-code Plans over NL plans can be summarized into two aspects: (1) abstract pseudocode format helps LLM agents better generalize to unseen tasks; (2) concise and structured pseudocode facilitates a more efficient agent reasoning process with fewer interactions.",
+      "n_words": 416
+    },
+    {
+      "heading": "P-code Plan-Guided Agent Learning",
+      "section_type": "method",
+      "text": "Despite widespread use in open LLM agents (Chen et al., 2023;Zeng et al., 2024;Yin et al., 2024), supervised fine-tuning approach has its drawback, that is, the limited generalization ability due to overreliance on expert trajectories (Song et al., 2024;Fu et al., 2025). Recent works focus on Direct Preference Optimization (DPO) (Rafailov et al., 2024) and its variants to develop LLM agents with contrastive trajectory dataset (Yang et al., 2024b;Song et al., 2024;Xiong et al., 2024;Shi et al., 2024). Inspired by our findings in Section 2.3, we propose a method for improving agents' pseudocodestyle planning ability, called PGPO, standing for Planning Guided Preference Optimization. The overview of our method is depicted in Figure 4.",
+      "n_words": 113
+    },
+    {
+      "heading": "Planning-oriented Trajectory Collection",
+      "section_type": "method",
+      "text": "We start off training the base agent π θ via SFT on the expert dataset D s = {(u, p, τ ) (i) } |Ds| i=1 with Pcode Plans p generated in Section 2.2. We denote new plan-incorporated trajectory as τ ′ = (p, t 1 , a 1 , o 1 , ..., o n-1 , t n , a n , o n ) and the loss function can be formulated as:\n\nwhere τ j-1 = (t 1 , a 1 , o 1 , ..., a j-1 , o j-1 ) represents the interaction history of previous j-1 rounds. The obtained base agent π θ base is used for exploration on the expert trajectory to collect contrastive action pairs. Oriented towards planning, we design two rewards for contrastive trajectory construction: 1) plan-driven reward; 2) plan-following reward.\n\nPlan-driven Reward r d evaluates the influence of P-code Plans on the entire trajectory. Given each task instruction u, we use base agent to generate the P-code Plan p ∼ π θ base (•|u) and subsequent reasoning steps τ ∼ π θ base (•|u, p). In our experiments, agent stops exploration when task completes or the maximum number of interaction rounds is exceeded. Then, the environment will give the outcome reward r o , which is positively correlated with the quality of exploration trajectory. For simplicity, we use this outcome reward as r d . By comparing r d (p, τ ) and r d (p, τ ) for expert trajectory and exploration trajectory, we get our first contrastive trajectory dataset D p = (u, p w , τ w , p l , τ l ) (i) |Dp| i=1 . We use (p w , τ w ) ≻ (p l , τ l ) | u to represent the situation where (p w , τ w ) with higher reward is preferred over (p l , τ l ) with lower reward.\n\nPlan-following Reward r f assesses the extent to which agents comprehend the structured intentions behind P-code Plans and their proficiency in following these plans during task execution. Given the first expert interaction round (u, p, τ 1 ) as historical trajectory, we query base agent to continue exploration τ2:m ∼ π θ base (•|u, p, τ 1 ). m denotes the total interaction rounds. Here, we select the first two interaction rounds τ2 as representative to analyze the alignment between plans and executed actions. Inspired by Monto Carlo Tree Search (Kocsis and Szepesvári, 2006), we quantify it as the potential to complete task successfully. It is intuitive that when the quality of P-code Plan is guaranteed, subsequent reasoning steps that closely adhere to the plan are likely to yield higher outcome rewards. Therefore, we use one scorer agent to generate new subsequent trajectory τ s 3:m ′ ∼ π θscorer (•|u, p, τ2 ). By sampling N new trajectories, the average outcome reward r o from the environment estimates the plan-following reward:\n\nIn our approach, we use π θ base as π θscorer . Then, similar to the construction of D p , we contrast subsequent trajectory τ w 2:n ≻ τ l 2:m | (u, p, τ 1 ) based on r f (u, p, τ 2 ) and r f (u, p, τ2 ), establishing our second contrastive trajectory dataset",
+      "n_words": 555
+    },
+    {
+      "heading": "Planning-guided Agent Learning",
+      "section_type": "method",
+      "text": "After collecting preference data, DPO method is utilized to optimize our base agent. First, based on dataset D p , agent learns to generate high-quality P-code Plans along with subsequent reasoning by minimizing the following loss:\n\nwhere σ denotes the logistic function, β controls the weight of the preference for the reference model\n\nMeanwhile, agent refines its parameters to develop the plan-following ability gathered from dataset D f , which can be formulated as:\n\nOne issue of standard DPO is that log probability of chosen trajectories may decrease over training steps, leading to sub-optimal performance. Following previous works (Pang et al., 2024;Xiong et al., 2024), we add SFT loss to mitigate this issue:\n\nFinally, the optimization objective of PGPO is:\n\nThe updated agent will be used as new base agent for exploration and iterate the above learning process until exceeding the maximum iterations. The overall procedure of PGPO is summarized in Appendix A Algorithm 1.",
+      "n_words": 155
+    },
+    {
+      "heading": "Experimental Settings",
+      "section_type": "experiments",
+      "text": "Datasets and Metrics. Besides ALFWorld for embodied household tasks and WebShop for online shopping (as described in Section 2.3), we also include one game benchmark TextCraft (Prasad et al., 2024) for crafting Minecraft items. ALF-World and TexCraft provide binary rewards to indicate task success while WebShop provides dense rewards from 0 to 1 to measure the task completion level. For all datasets, we choose the average reward as evaluation metric. Detailed statistical information of the datasets are in Appendix B.1. Baselines. We compare PGPO with naive SFT and other two leading agent learning methods: (1) ETO (Song et al., 2024) applies DPO loss to improve the agent from its exploration failures; (2) IPR (Xiong et al., 2024) introduces step-wise process supervision into LLM agent training. For fair comparison, we also select Llama-2-7B/13B, Llama-3-8B and Mistral-7B-v0.1 as backbone models and use the same training data. Additionally, we include two strong closed-source LLMs: GPT-3.5-Turbo and GPT-4, utilizing two prompt-based methods ReAct (Yao et al., 2023) and ADaPT (Prasad et al., 2024) for comparison.\n\nImplementation Details. During the SFT phase, we set the learning rate as 2e-5 and the batch size as 48 across 3 training epoches. The cosine scheduler is employed with a 3% warm-up ratio. In the trajectory collection stage, the base agent explores the environment using a temperature of 0. To construct contrastive pairs, we sample N =5 times Second, for prompt-based baselines, traditional ReAct paradigm using GPT-3.5-Turbo exposes poor performance on all agent datasets. Although ADaPT+GPT-3.5 gains a performance boost via recursive task decomposition, it still underperforms our method. In particular, PGPO+Llama-2-7B surpasses ADaPT+GPT-3.5 by relative margins of 9.5% and 17% points on WebShop and TextCraft. While prompting methods with GPT-4 improve the agent performance, PGPO+Llama-3-8B alleviates the need for few-shot context and achieves comparable or even better results. This demonstrates smaller open-source models can be effective agents through iterative training, rivaling or exceeding the agent capabilities of strong closed-source models.\n\nFinally, we focus on the effectiveness of PGPO across different base models on various datasets.\n\n(1) Generalization on different models: Besides the LLaMA family of models, we also include Mistral-7B in Table 2 andQwen2.5 series in Appendix C.3. Regardless of model sizes and families, our method consistently exhibit the advantage of P-code Plans guiding agent reasoning. (2) Generalization on diverse unseen tasks: To comprehensively assess its capability in out-of-distribution scenarios, we conduct additional experiments on ScienceWorld (Wang et al., 2022) in Appendix C.4 Table 13. PGPO outperforms the ETO and IPR baselines in generalizing to unseen tasks, where the performance gap is larger when dealing with more complex interactive tasks.",
+      "n_words": 432
+    },
+    {
+      "heading": "Ablation Study",
+      "section_type": "results",
+      "text": "Approach Ablations. Table 4 illustrates that the performance of PGPO obviously declines after removing certain key components. We observe that the most significant performance drop comes from the removal of SFT loss (-L s ), which is consistent with previous findings (Pang et al., 2024). To demonstrate the advantage of P-code Plans over NL plans, we specifically replace P-code Plans with NL plans (generation pipeline is same with Section 2.3) in training data and then employ PGPO.\n\nAs expected, the results indicate even with subsequent iterative preference optimization, the performance upper bound brought by P-code Plans is still superior to that of NL plans. Additionally, the effect of using plan-following reward to include L f in optimization loss is better than -L f , indicating the necessity of plan-following rewards.\n\nAblation on Optimization Iterations. Figure 5 shows the iteration ablation results from two aspects: (a) With optimization iterations increase, all methods first exhibit performance improvements and then deteriorate due to excessive iterations. Among them, PGPO consistently achieves the high-for location in [\"fridge 1\", \"drawer 1\", \"drawer 2\", \"cabinet 1\", \"cabinet 2\", \"cabinet 3\", \"cabinet 4\", \"cabinet 5\", \"cabinet 6\", \"cabinet 7\", \"cabinet 8\", \"cabinet 9\", \"cabinet 10 \", \"a countertop 1\"]: res = goto(location) if \"apple\" in res: apple_location = location break take_from(res, apple_location) goto(\"microwave 1\") heat(res, \"microwave 1\") goto(\"diningtable 1\") put(res, \"diningtable 1\") You are in the middle of a room. Looking quickly around you, you see a cabinet 10, a cabinet 9, a cabinet 8, a cabinet 7, a cabinet 6, a cabinet 5, a cabinet 4, a cabinet 3, a cabinet 2, a cabinet 1, a coffeemachine 1, a countertop 1, a diningtable 1, a drawer 2, a drawer 1, a fridge 1, a garbagecan 1, a microwave 1, a sinkbasin 1, a stoveburner 4, a stoveburner 3, a stoveburner 2, a stoveburner 1, and a toaster 1. Your task is to: heat some apple and put it in diningtable.",
+      "n_words": 323
+    },
+    {
+      "heading": "Task Instruction:",
+      "section_type": "other",
+      "text": "NL Plan:\n\nExecode Plan (Python format):\n\nStep 1. look for the apple in the environment;\n\nStep 2. take the apple;\n\nStep 3. go to a microwave or other suitable appliance;\n\nStep 4. heat the apple using microwave or other suitable appliance;\n\nStep 5. go to the diningtable;\n\nStep 6. put the heated apple in/on the diningtable.",
+      "n_words": 56
+    },
+    {
+      "heading": "P-code Plan:",
+      "section_type": "other",
+      "text": "Abstract planning steps:\n\nStep 1. object_name, location = locate_object(candidate_locations);\n\nStep 2. take(object_name, location);\n\nStep 3. go_to(microwave);\n\nStep 4. heat(object_name, microwave);\n\nStep 5. go_to(diningtable);\n\nStep 6. put(object_name, diningtable).\n\nTask-specific entities: object = apple candidate_locations = fridge 1, cabinets est peak performance. We consider that this can be attributed to the excellent starting point (i.e., iter=0) in PGPO since the incorporation of P-code Plans into SFT data effectively enhances the agent reasoning capability. (b) Despite different base models, the peak performance of PGPO can be achieved within 4 iterations. However, the performance variation trend across them quite differs, which reflects the distinct extent of each model grasping the metaknowledge inherent in P-code Plans. Furthermore, as depicted in Figure 6, agent achieves optimal performance during iterative optimization when the number of its exploration trajectory surpassing expert trajectory reaches a peak.",
+      "n_words": 137
+    },
+    {
+      "heading": "Analysis",
+      "section_type": "results",
+      "text": "Analysis on training time efficiency. We compare the time consumption of PGPO with two training-based baselines on WebShop. Under the same resource constraints, ETO, IPR and PGPO first undergo a 1-hour SFT phase and additionally require 1.5h, 4.5h and 3.2h per optimization itera-tion, respectively. Therefore, PGPO delivers a 9% performance improvement while maintains reasonable training efficiency, requiring less than twice the time cost of ETO.\n\nP-code Plan guidance can reduce the incidence of action errors and omissions in reasoning. Taking ALFWorld as an example, we calculate the proportion of trajectories containing invalid actions for each method on Llama-2-7B in Table 5. The results demonstrate PGPO decreases action errors with the help of P-code Plans. Then we analyze the action omissions of agents via the task success rate.\n\nSince WebShop provides dense rewards, the trajectory is considered success only when final reward is 1.0, i.e., agent has selected all necessary product attributes without any omissions. From Table 6, it can be observed that PGPO achieves the highest success rate, indicating guidance from P-code Plans indeed reduces the agent's action omissions.\n\nStep-wise reward does not necessarily elicit better LLM agents. Regarding the design of planfollowing reward in PGPO, we only consider the alignment between the first step (containing the generated plans) and the second step to construct contrastive trajectory pairs. Since step-level process supervision has been effectively utilized in reasoning tasks (Lightman et al., 2024), we evaluate whether introducing step-wise reward to our PGPO could further facilitate agent reasoning. Fol-lowing IPR (Xiong et al., 2024), we add step-level rewards into our method (denoted PGPO+). It can be observed from Figure 7 that step-wise reward negatively impacts the PGPO performance. To speculate on the reason behind, we manually check the quality of training data collected by PGPO+ and find that although step-level process supervision increases the data scale, some constructed preference pairs may be ambiguous, which poses a potential risk of reward hacking (Gao et al., 2023). Therefore, it is still challenging to accurately determine the contribution of the intermediate step, thus introducing step-wise reward instead plays a negative role in agent reasoning (Guo et al., 2025).",
+      "n_words": 354
+    },
+    {
+      "heading": "Case Study",
+      "section_type": "results",
+      "text": "In Figure 8, we show the generated P-code Plan compared with other two plan formats within the same task in ALFWorld. First, NL plans are less structured than plans in pseudocode or executable code format since elements such as articles and conjunctions may have no role in complex reasoning logic. Second, as described in Appendix C.2, Execode Plan is more verbose than P-code Plan. In this case, the Execode Plan lists almost all of locations for agent to explore, guaranteeing the solvability of this agent task. However, this may introduce unnecessary context and lead to blind trial-and-error, resulting in task failure due to exceeding the maximum interaction turns. By contrast, our P-code Plan strikes a balance between structural rigor and concision, thereby facilitating agent reasoning.",
+      "n_words": 125
+    },
+    {
+      "heading": "Limitations",
+      "section_type": "limitations",
+      "text": "This paper focuses on incorporating pseudocodestyle plans to guide agent preference optimization. Despite its new SOTA performance, we acknowledge the following limitations of our work: 1) Our method deploys Monte Carlo sampling to estimate plan-following reward, incurring additional inference costs compared to the ETO baseline. However, sampling only needs to be conducted for one step per iteration, which is more efficient than the design of step-wise reward in IPR baseline. And ablation studies in Section 4.3 demonstrates the necessity of plan-following rewards. 2) Our method designs structured P-code Plan to enhance agent reasoning. Although powerful GPT-4o guarantees the plan quality to a certain extent, it is still necessary to research how to verify plans automatically beyond human verification.\n\nIn the future, we plan to conduct research on rule-based rewards (Guo et al., 2025) since the structured nature of our P-code Plan provides an interpretable scaffold for automating rule-based reward design. Furthermore, we explore extending our method to a multi-task training scenario, which can contribute to more generalized LLM agents.",
+      "n_words": 169
+    },
+    {
+      "heading": "A PGPO Algorithm",
+      "section_type": "method",
+      "text": "We summarize the workflow of PGPO in Algorithm 1. Our algorithm starts by a Supervised Fine Tuning (SFT) stage. In this stage, expert dataset with P-code Plans generated in Section 2.2 is utilized to equip the base LLM with agent capabilities. Next, the algorithm proceeds with the data preparation stage. For each expert trajectory, the planfollowing reward is calculated via Monte Carlo sampling method. Then, the base agent explores on expert trajectories to collect new trajectory data. Based on two planning-oriented rewards, two contrastive trajectory datasets are constructed. Finally, in the preference optimization stage, the base agent refines its parameters to improve its reasoning capability. The above data preparation and preference optimization stage will be repeated until exceeding the maximum iterations.",
+      "n_words": 121
+    },
+    {
+      "heading": "B.1 For Datasets",
+      "section_type": "experiments",
+      "text": "Table 7 summarizes the statistics information of the three agent datasets. For ALFWorld and WebShop, we choose the ReAct-style expert trajectories collected by Xiong et al. (2024). For TextCraft, we primarily use the train set from AgentTraj-L (Xi et al., 2024). Note that unseen tasks in ALFWorld ref to new task instances with possibly known objectreceptacle pairs, but always in unseen rooms with different receptacles and scene layouts than in training data.\n\n[log π θ (t j |u, p, τ j-1 ) + log π θ (a j |u, p, τ j-1 , t j )] + log π θ (p|u)};\n\nGiven the first two expert interaction rounds τ 2 = (t 1 , a 1 , o 1 , t 2 , a 2 , o 2 ) as historical trajectory, use scorer agent to sample N subsequent trajectories: (L p + L f + L s ) using Eq. 3, Eq. 3 and Eq. 5;\n\n18 return the enhanced LLM agent π θ .\n\nGPT-4o to summarize the step-by-step plan following our predefined P-code Plan format via few-shot prompting strategy. For each expert trajectory, only one P-code Plan is generated since we use greedy inference (temperature=0) in GPT-4o. One example prompt for plan distillation is shown below:",
+      "n_words": 209
+    },
+    {
+      "heading": "B.3 For Human Verification",
+      "section_type": "other",
+      "text": "To guarantee the quality of generated P-code Plans, we ask three NLP researchers to check the plan formats and their consistency with original trajecto-According to statistic, only nearly 15% of the generated data need to be refined by human, while 85% are well structured. This demonstrates the reliability of our automatic P-code Plan generation pipeline, enabling scalable and quality-controlled data synthesis.",
+      "n_words": 61
+    },
+    {
+      "heading": "B.4 For SFT Stage",
+      "section_type": "other",
+      "text": "First, after distilling P-code Plans from agent thoughts, we need to incorporate these plans into original ReAct-style datasets. As described in Section 2.3, they are added into the first step of original trajectories. We prefix the plans with \"First, I devise a plan for solving the task:\" for incorporation and list one example of new constructed training data as below:\n\nSFT Data Example { \"from\": \"human\", \"value\": \"<task_description>\" },{ \"from\": \"gpt\", \"value\": \"OK\" },{ \"from\": \"human\", \"value\": \"<task>\" },{ \"from\": \"gpt\", \"value\": \"Thought: First, I devise a plan for solving the task: <distilled P-code Plan> Now, I need to first check ... Action: go to toiletpaperhanger 1\" },{ \"from\": \"human\", \"value\": \"Observation: On the toiletpaperhanger 1, you see ...\" }, ... Next, we choose full-parameter fine-tuning for all models using FastChat framework. We detail the hyperparameters for SFT stage in Table 8.",
+      "n_words": 142
+    },
+    {
+      "heading": "B.5 For Baselines",
+      "section_type": "experiments",
+      "text": "In this section, we provide a detailed introduction to the baselines, as well as our reproduction details.\n\n• ETO (Song et al., 2024): This framework comprises two training phases: (1) behavior cloning stage, wherein the agent undergoes fine-tuning on expert trajectory data, followed by (2) learn- ing from failures, which employs DPO (Rafailov et al., 2024) for subsequent policy refinement.\n\n• IPR (Xiong et al., 2024): The iterative steplevel process refinement framework enhances agent learning through step-by-step guidance. Via step-level reward estimation, IPR identifies discrepancies between agent-generated trajectories and the expert trajectories, thereby boosting the agent performance.\n\nTo reproduce experimental results, we maintain all the default hyperparameters in their public codefoot_1 and carefully extend them to TextCraft dataset.\n\n• ReAct (Yao et al., 2023): ReAct first integrates Chain-of-Thought (CoT) into LLM agent systems through a structured Thought-Action-Observation reasoning format. For the ReAct implementation, we adopt one-shot prompting for agent reasoning.\n\n• ADaPT (Prasad et al., 2024): ADaPT dynamically decomposes complex tasks through recursive planning, automatically adjusting decomposition depth based on real-time feedback to align LLM competencies with evolving task demands.\n\nIn our paper, we constrain the maximum interaction turns for fair comparison and directly use the open-source code for reproductionfoot_2 .\n\nRegarding other traditional prompting methods like Plan&Solve (Wang et al., 2023) and Reflexion (Shinn et al., 2024), we do not include them for comparison in Table 3 because our chosen ADaPT baseline is enough strong and substantially outperforms them (see Table 9 for reference).",
+      "n_words": 245
+    },
+    {
+      "heading": "B.6 For Benchmark Evaluation",
+      "section_type": "experiments",
+      "text": "Our evaluation framework follows previous works (Song et al., 2024;Xiong et al., 2024) and extends it to TextCraft benchmark. The maximum number of steps for ALFWorld, WebShop and TextCraft is set to 20, 10 and 20, respectively.",
+      "n_words": 37
+    },
+    {
+      "heading": "C Additional Experimental Results",
+      "section_type": "results",
+      "text": "C.1 Using Self-generated P-code Plan\n\nAs described in Section 2.2, we use one powerful closed-source LLM (i.e.,",
+      "n_words": 17
+    },
+    {
+      "heading": "C.3 Results on Qwen Series",
+      "section_type": "results",
+      "text": "To further validate the generalization of our method on more models, we test PGPO on Qwen2.5-7B and Qwen2.5-14B model (Yang et al., 2024a). Taking WebShop as an example, Table 12 shows that when applying to Qwen2.5 series, our method still achieves the best performance. PGPO SF T represents the SFT model in our pipeline, which still has an advantage over the naive SFT baseline due to the incorporation of our designed P-code Plans. Since IPR baseline requires enormous inference costs for step-wise reward estimation, we are unable to reproduce them due to limited time constraints. We leave comprehensive comparisons as future work.",
+      "n_words": 102
+    },
+    {
+      "heading": "C.4 Evaluation on ScienceWorld",
+      "section_type": "experiments",
+      "text": "ScienceWorld (Wang et al., 2022) is one agent benchmark for testing scientific reasoning abilities, which provides dense rewards from 0 to 1. For training, we use the expert trajectories collected from Song et al. (2024), comprising 1483 instances. For evaluation, we includes the development set (ScienceWorld-seen) with 194 seen scenarios and the test set (ScienceWorld-unseen) consisting of 211 new unseen task scenarios. The ScienceWorldseen set can assess in-distribution capability while the ScienceWorld-unseen set can measure out-ofdistribution generalization of the agents. Since its evaluation pipeline runs relatively slowly, we only conduct comparative experiments on the Llama2-7B model. Table 13 shows the average reward and success rate of PGPO and baselines on Science-World. We can observe that PGPO maintains better performance than ETO and IPR, further indicating the advantage of P-code Plan guidance. Moreover, IPR baseline even falls short compared to the ETO baseline on ScienceWorld-Unseen, which once again confirms that step-wise reward does not necessarily elicit better LLM agents.",
+      "n_words": 158
+    },
+    {
+      "heading": "C.5 Using Smaller Training Data Subsets",
+      "section_type": "method",
+      "text": "We supplement the PGPO experiments about training Llama2-7B on smaller subsets (10%, 30%, 50%, 70%, 100%). Taking ALFWorld benchmark as an example, the evaluation results are shown in Table 14. The results indicate with 30% of training data, the in-distribution performance of our method is already strong. However, the out-of-distribution performance continues to improve as the dataset size increases, demonstrating its scalability. This aligns with expectations since OOD tasks are more challenging, but with the full dataset, our method achieves significantly better performance.",
+      "n_words": 83
+    },
+    {
+      "heading": "C.6 Collected Contrastive Trajectory Dataset Distribution over Iterations",
+      "section_type": "experiments",
+      "text": "Figure 6 illustrates a connection between the trajectories collected and the performance of the agent over optimization iterations. It indicates that for the agent, maintaining an increasingly number of winning trajectories leads to improved average rewards during the optimization process. Thus, we can utilize this finding to select our optimal optimization iterations.",
+      "n_words": 52
+    },
+    {
+      "heading": "D Case Study",
+      "section_type": "other",
+      "text": "We present one trajectory example for each agent benchmark compared with the current leading baseline IPR in Figure 9, 10, 11 and 12, respectively. • In the WebShop example, we find IPR baseline tends to select the product item located in the first position of one page, which is sub-optimal.\n\nIn contrast, our PGPO agent carefully browses through the whole page and successfully selects the optimal product located in the middle position of the page. • In the ALFWorld example, our PGPO agent quickly locates the pencil with the guidance of generated P-code Plan, thus completing the task with the minimum interaction turns. Nevertheless, IPR agent blindly searches for the pencil in the shelves and drawers and fails to find the desired pencil due to exceeding the maximum interaction turns. • In the TextCraft example, we observe IPR agent made a mistake in the thinking process, thereby ending in a collapse. On the contrary, guided by the generated P-code Plan, PGPO agent efficiently complete the crafting task.\n\nTask Instruction: You are in the middle of a room. Looking quickly around you, you see a bed 1, a desk 2, a desk 1, a drawer 6, a drawer 5, a drawer 4, a drawer 3, a drawer 2, a drawer 1, a garbagecan 1, a laundryhamper 1, a safe 1, a shelf 6, a shelf 5, a shelf 4, a shelf 3, a shelf 2, and a shelf 1. Your task is to: put a pencil in shelf. Thought: First, I devise a plan for solving the task:\n\nStep 1. pencil_name, location_name = locate_a_pencil(candidate_locations);\n\nStep 2. take_pencil(pencil_name, location_name);\n\nStep 3. go_to_a_shelf();\n\nStep 4. put_pencil_on_shelf().\n\nThe task is to put a pencil in a shelf. I need to locate a pencil first. The desk is a common place where pencils are kept, so I should check there. Task Instruction: Crafting commands: craft 8 cyan stained glass using 8 glass, 1 cyan dye\\ncraft black stained glass pane using 8 glass pane, 1 black dye\\ncraft 8 gray stained glass using 8 glass, 1 gray dye\\ncraft 2 gray dye using 1 black dye, 1 white dye\\ncraft 1 black dye using 1 ink sac\\ncraft 1 black dye using 1 wither rose\\ncraft 8 yellow stained glass using 8 glass, 1 yellow dye\\ncraft 8 pink stained glass using 8 glass, 1 pink dye\\ncraft 8 black concrete powder using 1 black dye, 4 sand, 4 gravel\\ncraft 3 light gray dye using 1 black dye, 2 white dye\\ncraft 8 black stained glass using 8 glass, 1 black dye\\ncraft 8 black terracotta using 8 terracotta, 1 black dye\\ncraft 8 orange stained glass using Task Instruction: Crafting commands: craft 8 black stained glass pane using 8 glass pane, 1 black dye\\ncraft 2 gray dye using 1 black dye, 1 white dye\\ncraft 8 lime stained glass using 8 glass, 1 lime dye\\ncraft 16 glass pane using 6 glass\\ncraft 1 black dye using 1 wither rose\\ncraft 8 black stained glass using 8 glass, 1 black dye\\ncraft 8 orange stained glass using 8 glass, 1 orange dye\\ncraft 1 beacon using 1 nether star, 5 glass, 3 obsidian\\ncraft 8 cyan stained glass using 8 glass, 1 cyan dye\\ncraft 1 black bed using 1 white bed, 1 black dye\\ncraft 1 black dye using 1 ink sac\\ncraft 1 writable book using 1 book, 1 ink sac, 1 feather\\ncraft 8 gray stained glass using 8 glass, 1 gray dye Goal: craft black stained glass. Thought: First, I devise a plan for solving the task:\n\nStep 1. had_objects = inventory();\n\nStep 2. if \\\"black stained glass\\\" not in had_objects: find_flag = get(\\\"black stained glass\\\");\n\nStep 3. if find_flag == False: \\\"craft 8 black stained glass using 8 glass, 1 black dye\\\" = choose_crafting_commands(\\\"black stained glass\\\"), needed_ingredients = [\\\"8 glass\\\", \\\"1 black dye\\\"], get(\\\"8 glass\\\");\n\nStep 4. find_dye_flag = get(\\\"1 black dye\\\");\n\nStep 5. if find_dye_flag == False: \\\"craft 1 black dye using 1 wither rose\\\" = choose_crafting_commands(\\\"1 black dye\\\"), needed_ingredients = \\\"1 wither rose\\\", get(\\\"1 wither rose\\\");\n\nStep 6. craft 1 black dye using 1 wither rose;\n\nStep",
+      "n_words": 668
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Table 1 :",
+      "captions": "",
+      "content": "Setting | Llama-2 -7B | Llama-2 -13B | Llama-3 -8B | Mistral -7B\nALFWorld-Seen |  |  | \nw/o Plan | 12.04 | 11.38 | 11.49 | 11.45\nw/ NL Plan | 11.34 | 11.36 | 11.41 | 12.14\nw/ P-code Plan 11.33 | 11.21 | 11.29 | 10.99\nALFWorld-Unseen |  |  | \nw/o Plan | 12.93 | 12.22 | 12.59 | 12.84\nw/ NL Plan | 12.13 | 12.27 | 11.88 | 12.33\nw/ P-code Plan 12.04 | 11.87 | 11.78 | 11.57"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 :",
+      "captions": "",
+      "content": " |  |  |  | Llama-2-7B |  |  |  |  | Llama-2-13B | \nMethod | ALFWorld Seen UnSeen | WebShop TextCraft Avg. | ALFWorld Seen UnSeen | WebShop TextCraft Avg.\nSFT | 60.0 | 67.2 |  | 60.2 | 28.0 | 53.9 | 67.1 | 67.9 | 62.2 | 29.0 | 56.6\nETO | 68.6 | 72.4 |  | 67.4 | 35.0 | 60.9 | 75.0 | 69.4 | 68.9 | 42.0 | 63.8\nIPR | 70.3 | 74.7 |  | 71.3 | 34.0 | 62.6 | 75.0 | 76.9 | 72.2 | 39.0 | 65.8\nPGPO | 76.4 | 76.9 |  | 72.2 | 43.0 | 67.1 | 77.1 | 77.6 | 73.7 | 48.0 | 69.1\n |  |  |  | Llama-3-8B |  |  |  |  | Mistral-7B | \nMethod | ALFWorld Seen UnSeen | WebShop TextCraft Avg. | ALFWorld Seen UnSeen | WebShop TextCraft Avg.\nSFT | 67.1 | 72.4 |  | 61.2 | 20.0 | 55.2 | 72.1 | 68.7 | 61.8 | 31.0 | 58.4\nETO | 72.1 | 73.1 |  | 66.2 | 36.0 | 61.9 | 75.0 | 72.4 | 66.2 | 38.0 | 62.9\nIPR | 72.9 | 73.9 |  | 72.0 | 38.0 | 64.2 | 73.6 | 73.1 | 69.6 | 36.0 | 63.1\nPGPO | 75.0 | 76.9 |  | 72.3 | 46.0 | 67.6 | 75.0 | 77.6 | 69.0 | 45.0 | 66.7\nMethod |  | ALFWorld WebShop TextCraft Seen UnSeen |  |  |  |  | \nReAct+GPT-4 | 42.9 38.1 | 63.2 | 28.0 |  |  |  |  | \nReAct+GPT-3.5 | 7.9 | 10.5 | 62.4 | 20.0 |  |  |  |  | \nADaPT+GPT-4 | 75.0 69.4 | 64.8 | 48.0 |  |  |  |  | \nADaPT+GPT-3.5 | 70.3 71.6 | 62.7 | 26.0 |  |  |  |  | \nPGPO+Llama-2-7B 76.4 76.9 | 72.2 | 43.0 |  |  |  |  | \nPGPO+Llama-3-8B 75.0 76.9 | 72.3 | 46.0 |  |  |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 3 :",
+      "captions": "",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 :",
+      "captions": "",
+      "content": " | ALFWorld Seen UnSeen | WebShop TextCraft\nPGPO | 76.4 | 76.9 | 72.2 | 43.0\n-P-code 75.7↓ 0.7 71.6↓ 5.3 69.6↓ 2.6 40.0↓ 3.0\n-L f | 74.3↓ 2.1 75.4↓ 1.5 70.4↓ 1.8 41.0↓ 2.0\n-L s | 69.3↓ 7.1 68.7↓ 8.2 64.8↓ 7.4 35.0↓ 8.0\nwith temperature=1 to calculate the plan-following\nreward. During the following preference optimiza-\ntion phase, we tune the learning rate from 5e-7 to\n5e-6 and test two values for β in the DPO loss: 0.01\nand 0.1. The maximum number of iterations is set\nto 4. All training experiments are conducted on 8\nNVIDIA A100 80 GB GPUs. See Appendix B.4-\nB.6 for more details. |  |  | \n4.2 Main Results |  |  | \nTable 2 and 3 show the evaluation results of PGPO\nand baselines on three agent benchmarks. First,\ncompared with training-based baselines, PGPO sig-\nnificantly increases the average reward across all\nthe datasets. Specifically, PGPO with Llama-2-"
+    },
+    {
+      "kind": "table",
+      "label": "Table 5 :",
+      "captions": "Invalid action rate on ALFWorld.",
+      "content": "Method Webshop\nETO | 37.5\nIPR | 40.5\nPGPO | 41.0"
+    },
+    {
+      "kind": "table",
+      "label": "Table 6 :",
+      "captions": "Success rate on WebShop.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Base π θ , Expert Dataset D s = {(u, p, τ ) (i) } |Ds| i=1 : τ = (t 1 , a 1 , o 1 , ..., t n , a n , o n ),Training Epoch T 1 for Supervised Fine Tuning, Training Epoch T 2 for Preference Optimization, Sampling Number N for Reward Estimation, Maximum Number of Iterations I Output: The Enhanced LLM agent π θ // Supervised Fine Tuning Stage 1",
+      "content": "Dataset #Train | #Test | #Turns\nALFWorld 2851 274 (140-Seen, 134-Unseen) 7.97\nWebShop 1624 | 200 (200-Seen) | 3.64\nTexrtCraft | 373 | 100 (100-Unseen) | 7.86\nTable 7: Statistics information of ALFWorld, WebShop\nand TextCraft. \"#Turns\" denotes the average number of\niteraction turns for the expert trajectories. | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Stage for Planning-oriented Trajectory Collection Get the P-code Plan and subsequent reasoning steps from base agent: p ∼ π θ base (•|u), τ ∼ π θ base (•|u, p);",
+      "content": "9 | for u ∈ D s do\n10 | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "guided Agent Learning Stage",
+      "content": "16 | for epoch = 1 to T 2 do\n17 | π θ ← arg min\n | π θ"
+    },
+    {
+      "kind": "table",
+      "label": "Table 8 :",
+      "captions": "Detailed hyperparameters used in SFT stage.",
+      "content": "Name | Value\nnum_train_epochs | 3\ntrain_batch_size | 48\nper_device_train_batch_size | 4\nper_device_eval_batch_size | 4\ngradient_accumulation_steps | 2\nlearning_rate | 2e-5\nweight_decay | 0.\nwarmup_ratio | 0.03\nlr_scheduler_type | \"cosine\"\nmodel_max_length | 4096"
+    },
+    {
+      "kind": "table",
+      "label": "Table 9 :",
+      "captions": "Comparative experiments on PGPO with more prompt-based baselines. The best and second-best results are marked in bold and underline.",
+      "content": "Method | ALFWorld WebShop TextCraft Seen UnSeen\nPlan&Solve+GPT-3.5 43.3 | 61.8 | 22.0\nReflexison+GPT-3.5 56.4 57.5 | 62.4 | 25.0\nADaPT+GPT-3.5 | 70.3 71.6 | 62.7 | 26.0\nPGPO+Llama-2-7B 76.4 76.9 | 72.2 | 43.0\nMethod | ALFWorld Seen UnSeen | WebShop\nw/o Plan | 72.1 | 68.7 | 61.8\nw/ NL Plan | 70.7 | 69.4 | 63.0\nw/ P-code Plan 75.0 | 72.4 | 63.6"
+    },
+    {
+      "kind": "table",
+      "label": "Table 10 :",
+      "captions": "Comparative experiments using P-code Plans generated by the model itself.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 11 :",
+      "captions": "Comparison between w/ P-code Plan and w/o Plan, w/ Execode Plan on ALFWorld. Bold indicates the best results of each model.",
+      "content": "to generate P-\ncode Plans from existing ReAct-style datasets for\ngood quality control. To further demonstrate the\nformat advantage of P-code Plan in agent reason-\ning, not knowledge distillation from other strong\nmodels, we conduct supplementary experiments\nthat uses the plans generated by the model itself\nto construct new SFT data. Taking Mistral-7B\nas an example, Table 10 shows SFT w/ P-code\nPlan maintains its advantage over w/o Plan and w/\nNL Plan, even when utilizing self-generated plans.\nThis proves that the enhanced agent reasoning capa-\nbilities should be attributed to the structured nature\nof P-code Plan, rather than knowledge distillation\nfrom other models.\nC.2 Compared with Executable Code Format\nSimilar to the generation of P-code Plan, we first\nmeticulously curate few Execode Plan (standing for\nplans in executable code format) demonstrations\nand then utilize GPT-4o to synthesize the plan data"
+    },
+    {
+      "kind": "table",
+      "label": "Table 12 :",
+      "captions": "Average reward on WebShop.",
+      "content": "via few-shot prompting. Taking ALFWorld as an\nexample, we report the average reward of SFT w/\nP-code Plan, w/ Execode Plan and w/o Plan across\nfour open-source LLMs in Table 11. The results\nshow that SFT w/ P-code Plan maintains better per-\nformance than SFT w/ Execode Plan. Sometimes\nSFT w/ Execode Plan even falls behind SFT w/\nPlan. Through error analysis, we attribute this to\ntwo reasons: 1) executable code generation is more\nchallenging than natural language or pseudocode\ngeneration; 2) Execode Plan is more verbose than\nP-code Plan, which may introduce some noise in-\nformation into subsequent reasoning."
+    },
+    {
+      "kind": "table",
+      "label": "Table 14 :",
+      "captions": "Average reward on ALFWorld when PGPO applied on smaller training data subsets.",
+      "content": " |  | ScienceWorld | \nMethod |  | Seen | Unseen\n | AR SR(%) AR SR(%)\nSFT | 67.7 | 70.1 | 52.4 | 57.8\nETO |  | 70.7 | 56.8 | 66.8\nIPR | 70.2 | 70.6 | 54.4 | 61.6\nPGPO 75.5 | 75.8 | 66.2 | 76.8\nTable 13: Evaluation results of PGPO and baselines on\nScienceWorld. Experiments are based on Llama-2-7B.\nThe evaluation metrics are the average reward (AR) and\nsuccess rate (SR). |  |  |  | \nDataset Size |  | 10% 30% 50% 70% 100%\nALFWorld-Seen 55.0 70.7 71.4 75.0 76.4\nALFWorld-Unseen 45.5 61.9 63.4 69.4 76.9"
+    }
+  ],
+  "n_words": 5704,
+  "quality_flags": [
+    "no_conclusion"
+  ]
+}

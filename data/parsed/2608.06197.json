@@ -1,0 +1,215 @@
+{
+  "arxiv_id": "2608.06197",
+  "title": "ENVACE: INTERNALIZING ENVIRONMENT DY-NAMICS VIA WORLD REHEARSAL FOR AGENTIC RE-INFORCEMENT LEARNING",
+  "abstract": "Training large language model agents for long-horizon tool use typically relies on interactions with real or synthesized executable environments, whose construction and verification are costly, or on external simulators that are difficult to ground. We introduce EnvACE, an agentic reinforcement learning method that replaces external environment interaction during training with world rehearsal. The policy alternates between acting and rehearsal: it first generates a tool call, then plays the role of the environment to produce the response induced by that action, and conditions subsequent decisions on the rehearsed response. Both roles are jointly optimized end-to-end using task-success rewards. Through world rehearsal, the policy internalizes the relationship between actions and their environment responses in its parameters, yielding an agent world model that directly supports decision making. Across BFCL-v4, τ 2 -Bench, VitaBench, and FinMCP-Bench, EnvACE achieves strong and transferable performance, outperforming environment-scaling baselines in the overall evaluation. Controlled studies further show that world rehearsal consistently improves policy learning across model scales. At test time, the internalized world model enables private rehearsal before committed execution, yielding further gains under a moderate rehearsal budget without additional external interaction. Our findings establish world rehearsal as a new path toward scaling LLM agent training beyond the constraints of external environments. Our code is available at https://github.com/Within-yao/EnvACE.",
+  "sections": [
+    {
+      "heading": "INTRODUCTION",
+      "section_type": "introduction",
+      "text": "Large language models (LLMs) are increasingly expected to serve as agents in real-world applications, interacting with users to gather information and invoking tools to query or update the state of a specific environment (Z.ai, 2026;OpenAI, 2025;Team et al., 2026). Success in such settings requires effectively combining dialogue and tool use, adapting actions based on environment feedback, and operating over long interaction horizons. To develop such ability, we expect to expose LLMs to a sufficiently diverse range of tools and user requests while providing effective optimization signals.\n\nTo expose LLMs to rich and diverse tool-interactive environments, early work collected trajectories of tool use and user interaction for supervised fine-tuning (Zeng et al., 2024;Liu et al., 2025;Qin et al., 2024). Following the success of reinforcement learning with verifiable rewards (RLVR) (Lambert et al., 2024;Guo et al., 2025a), recent work has automatically synthesized executable environments in which agents generate on-policy trajectories through interaction and learn from verifiable task rewards (Dong et al., 2026;Tu et al., 2026), To provide more informative training signals, some methods additionally train the policy to predict the observations resulting from its own actions as an auxiliary objective (Lu et al., 2026a;Guo et al., 2025b). However, scaling such environments relies on costly and complex synthesis pipelines, while their correctness becomes harder to verify as complexity grows. LLM-based simulators provide a less costly and more flexible alternative by directly generating environment responses, including tool outputs and user feedback, without requiring a fully executable environment (Li et al., 2025b;Ruan et al., 2024). However, their responses may be inaccurate or inconsistent, and grounding them still requires supervision from real environments. Consequently, existing approaches remain fundamentally dependent on access to real environments, either for generating executable interactions or for grounding and validating simulated ones.\n\nAs illustrated in Figure 1, existing training paradigms obtain the responses needed to continue a rollout from either an external environment or a separate simulator. In both cases, the policy learns to act on externally supplied responses, leaving environment modeling outside the acting policy. We argue that an effective agent policy should not only act to accomplish the task but also model how the environment responds to its actions. Inspired by the success of learned world models (Zuo et al., 2026;Chen et al., 2025), we realize this idea by assigning the policy two roles: an actor that interacts with the environment and an environment that provides feedback to the actor, without external real-environment interaction. Rather than merely consuming or predicting externally supplied observations, the policy itself enacts the environment's responses, thereby internalizing the relationship between actions and their induced responses into its own parameters.\n\nToward this end, we propose EnvACE, an agentic RL method that trains a single policy to both act and rehearse its environment. At each turn, the policy first issues a tool call, then rehearses the environment response that the tool call would induce, and conditions its next action on this rehearsal. A trajectory is therefore no longer a dialogue with an external environment, but a process unfolded by the policy itself. The acting and rehearsal behaviors are jointly optimized end-to-end using a task-success reward. We call this process world rehearsal: the world modeling capability that prior work assigns to a separate simulator is absorbed into the policy and executed inline, enabling the policy to internalize how its actions shape environment responses while acting and world modeling unfold as a unified process.\n\nExtensive experiments across a wide range of agentic benchmarks, including BFCL-v4, τ 2 -Bench, VitaBench, and FinMCP-Bench, show that EnvACE consistently outperforms strong baselines. Through the joint optimization of acting and rehearsal, EnvACE captures the relationship between actions and the environment responses they induce, internalizing these dynamics within the policy to support more generalizable decision making. At test time, this internalized world model allows the policy to rehearse candidate actions before real execution, anticipate their outcomes, avoid costly mistakes, and gather useful experience without additional interaction with the external environment. Our experiments further examine how performance varies with the number of rehearsal attempts and show that a moderate rehearsal budget improves test-time performance.\n\nOverall, our contributions can be concluded as follows:\n\n• We introduce world rehearsal, in which a policy plays the role of the environment by generating the response induced by an agent action, allowing environment dynamics to be internalized without querying an external environment.\n\n• We propose EnvACE, an agentic RL method that interleaves acting with world rehearsal in self-unfolded trajectories. EnvACE uses a shared policy for both roles and jointly optimizes their behaviors end-to-end using task-success rewards.",
+      "n_words": 755
+    },
+    {
+      "heading": "RELATED WORK",
+      "section_type": "related_word",
+      "text": "2.1 AGENTIC REINFORCEMENT LEARNING Increasingly realistic benchmarks have been developed to evaluate language agents through longhorizon interactions with real-world environments (Xie et al., 2024;Jimenez et al., 2024;Chen et al., 2026b). Reinforcement learning has substantially improved language-model reasoning, with recent work further advancing its efficiency and extending it to search and tool-augmented reasoning (Guo et al., 2025a;Yao et al., 2026;Jin et al., 2025;Feng et al., 2025a;Li et al., 2025a). Building on interfaces that interleave reasoning, actions, and observations (Yao et al., 2022), agentic RL extends outcome optimization across web navigation, multi-turn tool use, GUI interaction, and software engineering (Qi et al., 2025;Singh et al., 2025;Lu et al., 2026b;Wei et al., 2025;Chen et al., 2026a). The resulting long-horizon trajectories have also motivated work on training stability, credit assignment, and role-specific advantage estimation (Feng et al., 2025b;2026;Lu et al., 2026c).",
+      "n_words": 137
+    },
+    {
+      "heading": "ENVIRONMENT MODELING FOR LLM AGENTS",
+      "section_type": "method",
+      "text": "Interactive agent training requires an environment that maps actions to responses and task outcomes. Fixed executable environments provide grounded transitions but are costly to construct and scale (Lu et al., 2025;Yao et al., 2024). Recent work instead synthesizes executable tools, databases, tasks, and evaluators (Song et al., 2026;Wang et al., 2026b;Tu et al., 2026;Dong et al., 2026;Xu et al., 2026), or uses language models to simulate environment feedback (Li et al., 2025b;Xiao et al., 2026). These approaches expand the available interaction experience while keeping environment dynamics external to the policy. Learned world models further support agents through lookahead and planning (Chae et al., 2025;Zeng et al., 2026;Liu et al., 2026), or by incorporating environmentmodeling objectives into agent training (Yu et al., 2026;Lu et al., 2026a;Wang et al., 2026a;Cai et al., 2026). Whereas these signals generally serve as auxiliary or planning signals, EnvACE directly optimizes rehearsed environment responses as part of its on-policy trajectories.",
+      "n_words": 153
+    },
+    {
+      "heading": "PRELIMINARIES",
+      "section_type": "related_word",
+      "text": "We formulate a tool-interactive task as a finite-horizon partially observable Markov decision process (POMDP) M = (S, A, O, P, R). Here, S is the space of environment states; A is the action space, including structured tool calls and final answers; O is the observation space, including tool outputs and user responses; P specifies the environment dynamics that govern state transitions and the observation returned after an action; and R is the reward function that evaluates the task outcome of a completed trajectory.\n\nEach task instance specifies an instruction x and an available tool set T . At step t, the policy observes the interaction history h t and generates an action a t ∈ A. For a tool call, the environment\n\nThe history is updated as h t+1 = h t ⊕ (a t , o t ), and a rollout terminates with trajectory τ = (x, a 1 , o 1 , . . . , a T , o T ).\n\nUpon termination, the trajectory receives a scalar reward R(τ ) that evaluates task performance. The policy is optimized to maximize\n\nWe optimize this objective with Group Relative Policy Optimization (GRPO) (Guo et al., 2025a), which estimates advantages by normalizing each trajectory reward against other rollouts sampled for the same instruction.\n\nThis formulation exposes the conventional interaction boundary: the policy produces actions, whereas the environment supplies the observations that condition subsequent decisions. EnvACE revises this boundary by assigning observation generation itself to a rehearsal role of the policy.",
+      "n_words": 251
+    },
+    {
+      "heading": "METHOD",
+      "section_type": "method",
+      "text": "Figure 2 presents an overview of EnvACE, which comprises world rehearsal, role-wise GRPO optimization, and test-time scaling. During training, the policy alternates between acting and rehearsal, appending each generated environment response to the interaction history so that the trajectory unfolds without an external environment. Role-wise GRPO uses separate baselines for the two roles while jointly updating the policy, enabling it to internalize how actions shape environment responses. At test time, the policy performs private rehearsals in parallel or sequentially, summarizes them into a rehearsal memory, and uses this memory to guide a committed execution in the external environment.",
+      "n_words": 98
+    },
+    {
+      "heading": "WORLD REHEARSAL",
+      "section_type": "method",
+      "text": "A conventional agent rollout can proceed only when an external environment or simulator provides a response after each action. Consequently, the scalability and quality of policy learning remain tied to an external response provider, while the ability to model environment responses remains outside the acting policy. World rehearsal changes this division of labor by making environment response generation an explicit role of the policy itself. This allows the policy to unfold its own training trajectories without querying an external environment.\n\nConcretely, EnvACE assigns two roles to a shared policy π θ : an acting role and a rehearsal role.\n\nGiven the interaction history h t , the acting role first generates an environment-facing action:\n\nConditioned on the history and the generated action, the rehearsal role then generates the corresponding environment response:\n\nThe generated response is appended to the interaction history,\n\nfrom which the acting role makes its next decision. Acting and rehearsal alternate in this manner until termination, so subsequent actions are conditioned on the environment responses generated by the policy itself. Through repeated rehearsal, the relationship between actions and their environment responses is absorbed into θ, enabling the policy to internalize environment dynamics as an agent world model.",
+      "n_words": 199
+    },
+    {
+      "heading": "ROLE-WISE GRPO OPTIMIZATION",
+      "section_type": "method",
+      "text": "For each instruction x, EnvACE samples a group of K rollouts {τ i } K i=1 , each receiving a trajectorylevel reward R i = R(τ i ). Depending on the task, this reward can be provided by either a verifiable outcome evaluator or a checklist-based LLM judge. Let Y i = {y i,m } Mi m=1 denote all policy outputs generated in rollout τ i , where each output is associated with a role r i,m ∈ {ACT, REHEARSE}. Every policy output in the same rollout inherits its trajectory reward R i .\n\nFor each role r, we collect all policy outputs generated under that role across the K rollouts:\n\nEnvACE computes a separate reward baseline for each role and defines the role-wise advantage A i,m of output y i,m relative to this baseline:\n\nThus, outputs from the same trajectory receive the same reward, while their advantages are computed relative to other outputs generated under the same role.\n\nThe shared policy is optimized using the clipped GRPO objective:\n\nwhere ρ i,m,ℓ (θ) is the standard GRPO likelihood ratio for the ℓ-th token of y i,m . Although the reward baselines are computed separately for the two roles, outputs from both roles jointly update the shared policy parameters θ.",
+      "n_words": 209
+    },
+    {
+      "heading": "TEST-TIME SCALING",
+      "section_type": "method",
+      "text": "After training, EnvACE uses world rehearsal to scale inference-time computation before interacting with the external environment. Let Π θ denote the rollout distribution induced by the act-rehearse loop. Given a new instruction x, EnvACE performs N private rehearsal attempts, each starting from the same initial task context. An attempt produces an imagined trajectory τ (n) , which the policy then evaluates to obtain feedback f (n) comprising an assessment and a suggestion for revision.\n\nWe consider two modes that differ in how information is shared across rehearsal attempts:\n\nIn the parallel mode, all attempts are generated independently from the same context; their feedback is retained for final aggregation but is not exposed to other attempts. In the sequential mode, each new attempt observes the previous rehearsal trajectories together with their assessments and revision suggestions, allowing it to refine earlier decisions and avoid repeated failures.\n\nAfter completing the rehearsal attempts, EnvACE summarizes all trajectories and self-evaluations into a compact rehearsal memory m x . The acting role conditions on m x during a single committed execution in the external environment. The rehearsals themselves remain private and do not alter the external environment.",
+      "n_words": 191
+    },
+    {
+      "heading": "EXPERIMENTAL SETUP",
+      "section_type": "experiments",
+      "text": "Benchmarks We evaluate EnvACE on four complementary agentic benchmarks: BFCL-v4 (Patil et al., 2025), τ 2 -Bench (Barres et al., 2025), VitaBench (He et al., 2025), and FinMCP-Bench (Zhu et al., 2026). BFCL-v4 evaluates function calling and tool use across single-turn, multi-turn, and agentic tasks. τ 2 -Bench and VitaBench evaluate agents in stateful, realistic service environments: the former covers Retail, Telecom, and Airline, while the latter includes food delivery, in-store consumption, online travel, and cross-domain scenarios. FinMCP-Bench evaluates financial agents on real-world tool-use tasks through the Model Context Protocol (MCP). We follow the official evaluation protocol of each benchmark.\n\nBaselines We compare EnvACE against Qwen3 models at different scales (1.7B, 4B, and 8B), as well as Qwen3 models trained with standard GRPO. We also include representative tool-use training methods based on environment simulation or synthesis. Simulator-8B (Li et al., 2025b) uses reasoning models to simulate environment feedback, while TOUCAN-7B (Xu et al., 2025) synthesizes large-scale trajectories from real-world MCP environments. EnvScaler-8B (Song et al., 2026) programmatically synthesizes tool-interactive environments, AWM-8B/14B (Wang et al., 2026b) builds code-driven environments with database-backed states, and ScaleEnv-8B (Tu et al., 2026) constructs interactive environments and verifiable tasks from scratch.",
+      "n_words": 195
+    },
+    {
+      "heading": "Implementation Details",
+      "section_type": "experiments",
+      "text": "We conduct experiments with Qwen3 backbones at three model scales:\n\n1.7B, 4B, and 8B (Yang et al., 2025). All models are trained on the dataset introduced by CM2 (Zhang et al., 2026). We optimize the model for 470 training steps with a learning rate of 1 × 10 -6 , a batch size of 16, and four rollouts per prompt. The KL coefficient is set to 1 × 10 -4 , and the entropy coefficient is set to 0.0. At each training step, we sample 64 instances. The maximum input and response lengths are set to 12,000 and 8,000 tokens, respectively, and each agent trajectory is allowed up to 30 interaction turns. During training, we use Qwen3-30B-A3B as the LLM judge.\n\nFor non-TTS experiments, we report Avg@4 results averaged over four independent runs. Due to the high computational cost of TTS experiments, we report results from a single run only. For the experiments in Table 3, both the acting role and the rehearsal role use a sampling temperature of 1.0 and a top-p of 1.0 to encourage reasoning diversity and broader exploration of the action space. For the remaining roles, we use a lower temperature of 0.01 to improve robustness and reproducibility. For all other experiments outside",
+      "n_words": 207
+    },
+    {
+      "heading": "MAIN RESULTS",
+      "section_type": "results",
+      "text": "Table 1 presents the main results across BFCL V4, τ 2 -Bench, and VitaBench. EnvACE achieves an Overall score of 32.91%, outperforming all environment-scaling baselines with complete results on the three benchmarks. It surpasses EnvScaler-8B and AWM-14B by 0.99% and 0.37%, respectively. This strong overall result reflects consistent performance across heterogeneous environments. On BFCL V4, EnvACE reaches 46.04%, outperforming Qwen3-8B and AWM-8B by 2.00% and 1.75%, respectively, while remaining within 1.03% of EnvScaler-8B. On τ 2 -Bench, it obtains the secondhighest average of 36.7%, exceeding EnvScaler-8B, AWM-8B, and AWM-14B by 3.8%, 5.5%, and 6.0%, respectively. On VitaBench, EnvACE achieves 16.0%, the best average among all 7B-8B methods, outperforming EnvScaler-8B and ScaleEnv-8B by 0.2% and 1.0%. where each action depends on the environment responses observed in previous turns. By jointly learning to act and rehearse these responses, the policy can better anticipate interaction dynamics and make more effective subsequent decisions.\n\nInternalizing Environment Dynamics Figure 3 The policy used for rehearsal is important. In both modes, using EnvACE for rehearsal consistently outperforms using the base model. The base model yields only a marginal improvement under the parallel mode and underperforms Non-TTS under the sequential mode. This comparison suggests that the gains do not arise from additional inference compute alone, but depend on the environmentresponse knowledge internalized through world rehearsal. These results demonstrate that world rehearsal provides an effective mechanism for test-time scaling without additional interaction with the external environment.",
+      "n_words": 237
+    },
+    {
+      "heading": "Effect of Rehearsal Budget",
+      "section_type": "other",
+      "text": "We further study the effect of the rehearsal budget on BFCL Multi-Turn performance in Figure 6. As the number of rehearsal attempts increases, the overall performance shows an upward trend. Parallel rehearsal with EnvACE exhibits stronger scaling gains, with the average score increasing from 42.12% at N = 1 to 49.50% at N = 5; sequential rehearsal also improves from 40.12% to 45.25%. Overall, rehearsal with EnvACE achieves higher performance than rehearsal with the base model, suggesting that more accurate environment rehearsal provides more useful information for the final execution. These results further show that increasing the rehearsal budget improves test-time performance, while higher-quality world rehearsal enables more effective use of additional test-time computation. Similar gains are observed on τ 2 -Bench, as shown in Figure 9.",
+      "n_words": 127
+    },
+    {
+      "heading": "CONCLUSION",
+      "section_type": "conclusion",
+      "text": "We introduced EnvACE, an agentic RL method built around world rehearsal. By assigning acting and rehearsal to a single shared policy and optimizing both roles with role-wise GRPO, EnvACE learns not only to select actions but also to generate the corresponding environment responses. Through repeated rehearsal, this knowledge is absorbed into the policy parameters, enabling the policy to internalize environment dynamics as an agent world model and use them to guide subsequent decisions. Across BFCL V4, τ 2 -Bench, VitaBench, and FinMCP-Bench, EnvACE achieves strong and transferable tool-use performance, outperforming existing environment-scaling baselines in the overall evaluation. Controlled analyses further demonstrate the effectiveness of world rehearsal, the importance of sharing parameters between acting and rehearsal, and the generalization of these benefits across model scales. Finally, the resulting agent world model enables test-time scaling through private rehearsal, improving final execution without additional interaction with the external environment. Together, these results establish world rehearsal as an effective and scalable alternative to agent training based on real-environment interaction or separate external simulators.",
+      "n_words": 169
+    },
+    {
+      "heading": "LIMITATION",
+      "section_type": "limitations",
+      "text": "Due to computational constraints, we evaluate EnvACE only up to the 8B scale, leaving its effectiveness on larger models for future investigation. In addition, our current evaluation focuses primarily on tool-interactive tasks, and extending world rehearsal to a broader range of agentic settings remains an interesting direction for future work.",
+      "n_words": 50
+    },
+    {
+      "heading": "AI USE STATEMENT",
+      "section_type": "other",
+      "text": "In this work, we used generative AI tools solely for writing assistance. Specifically, we used large language model based assistants to polish the language of the manuscript, including grammar correction, improving the clarity and conciseness of sentences we had already drafted, and suggesting alternative phrasings for titles and section headings.\n\nWe did not use generative AI tools for research ideation, the design of the proposed method, experimental design, data analysis, or the generation of scientific claims or results; these were carried out by the authors. No AI-generated text was incorporated into the manuscript without being reviewed, rewritten where necessary, and verified by the authors. All numbers, tables, figures, and experimental results were produced by our own experimental pipeline. Generative AI tools were not used in the review or evaluation of other researchers' work in connection with this submission, and they are not part of the proposed method's contribution beyond the language models explicitly described as trained policies and baselines in the paper.",
+      "n_words": 162
+    },
+    {
+      "heading": "ETHICS STATEMENT",
+      "section_type": "other",
+      "text": "This work trains and evaluates language model agents for tool use on publicly available models and benchmarks, and does not involve human subjects, personally identifiable information, or the release of new user data. All benchmarks we use (τ 2 -Bench, VitaBench, BFCL-v4, and FinMCP-Bench) are existing public benchmarks used under their intended terms, and their simulated service environments contain synthetic rather than real customer records. Because our method lets a policy rehearse environment responses internally, a rehearsed response is a model prediction and not a verified fact about the world; we therefore emphasize that rehearsal is used for training and for pre-execution deliberation, and that any deployment in a consequential domain (for example the financial tool-use setting we evaluate) should keep real execution and verification in the loop. We see no other ethical concerns specific to this work.",
+      "n_words": 138
+    },
+    {
+      "heading": "REPRODUCIBILITY STATEMENT",
+      "section_type": "other",
+      "text": "We describe the world rehearsal formulation and the role-wise optimization objective in Section 4 with the complete training procedure, and report the datasets, backbone models, baselines, and evaluation protocol of every benchmark in Section 5.1. All benchmarks are public and we follow each benchmark's official evaluation protocol without modification, so that reported numbers are directly comparable to previously published results. Full training and evaluation hyperparameters, including the learning rate, rollout configuration, sequence lengths, and the maximum number of interaction turns, are reported in Section 5.1, together with qualitative rehearsal trajectories in Appendix A that illustrate the exact prompt format used for the actor and the environment roles. Our code, prompts, and configuration files are released at the anonymized repository linked in the abstract.\n\nAs shown in Figure 8, this case illustrates how EnvACE avoids an invalid write operation through world rehearsal. The user requests to modify a flight reservation with a basic economy ticket. Although updating the reservation appears to be a reasonable next step, such a write operation is not allowed under the given environment constraints. Before execution, EnvACE performs internal world rehearsal by simulating the planned tool call and predicting its potential response. It recognizes that the required information for executing update reservation flights is incomplete and that issuing the write operation would lead to an invalid action. Therefore, EnvACE proactively replaces the unsafe action with a read-only query to obtain reservation details, avoiding any forbidden modification. In contrast, EnvScaler8B and Vanilla agents fail to anticipate the consequence of tool calls and eventually execute the invalid write operation, resulting in failure. This example demonstrates that world rehearsal enables EnvACE to anticipate tool consequences and make safer decisions before interacting with the external environment.",
+      "n_words": 285
+    },
+    {
+      "heading": "Tool Reponse",
+      "section_type": "other",
+      "text": "{\"reservation_id\": \"EUJUY6\", \"cabin\": \"basic_economy\", \"flights\": [...]}",
+      "n_words": 6
+    },
+    {
+      "heading": "Result / Check",
+      "section_type": "results",
+      "text": "No write operation was ever issued",
+      "n_words": 6
+    },
+    {
+      "heading": "Tool Call",
+      "section_type": "other",
+      "text": "search_direct_flights({\"origin\": \"IAH\", \"destination\": \"ORD\", \"date\": \"2024-05-16\"}) 6.Tool Call search_direct_flights({\"origin\": \"IAH\", \"destination\": \"ORD\", \"date\": \"2024-05-16\"}) 7.Tool Call search_direct_flights({\"origin\": \"IAH\", \"destination\": \"ORD\", \"date\": \"2024-05-16\"}) Error",
+      "n_words": 23
+    },
+    {
+      "heading": "Agent → User",
+      "section_type": "method",
+      "text": "Please confirm the new outbound and return dates.",
+      "n_words": 8
+    },
+    {
+      "heading": "User Provider Again",
+      "section_type": "other",
+      "text": "Move outbound to 2024-05-16 and return to 2024-05-18.",
+      "n_words": 8
+    },
+    {
+      "heading": "Result / Check",
+      "section_type": "results",
+      "text": "Issued a write operation on a basic_economy reservation.",
+      "n_words": 8
+    },
+    {
+      "heading": "Tool Call update_reservation_flights({...})",
+      "section_type": "other",
+      "text": "Figure 8: study of EnvACE compared with EnvScaler8B and Vanilla agents. EnvACE performs world rehearsal before tool execution, predicting that the planned write operation would fail and proactively replacing it with a safe read-only query. In contrast, baseline agents fail to anticipate the consequence of tool calls and eventually execute invalid write operations.",
+      "n_words": 53
+    },
+    {
+      "heading": "B TEST-TIME SCALING PROCEDURE",
+      "section_type": "other",
+      "text": "Algorithm 1 summarizes the rehearse-evaluate-summarize procedure used for test-time scaling. Given a task x, the policy π performs N private rehearsal attempts before interacting with the external environment. In the parallel mode, attempts are generated independently, whereas in the sequential mode, each attempt conditions on previous rehearsal trajectories and feedback for iterative refinement. All rehearsal results are summarized into a compact rehearsal memory m x , which guides a single committed execution in the real environment. Only this final execution is officially scored. In our experiments, the acting policy is EnvACE-8B, and the rehearsal model M is either Qwen3-8B or EnvACE-8B.\n\nH ← H ∪ {(τ (n) , f (n) )} 7: end for 8: m x ← SUMMARIZE(π, x, H) 9: Initialize E real from the task's initial context 10: τ ⋆ ← EXECUTE(π, x, m x , E real ) 11: r ← OFFICIALEVALUATE(x, τ ⋆ ) 12: return (τ ⋆ , r) C TEST-TIME SCALING ON τ 2 -BENCH.\n\nWe further evaluate the effect of the rehearsal budget on τ 2 -Bench in Figure 9. Performance improves overall as the number of rehearsal attempts increases under both parallel and sequential modes. With EnvACE rehearsal, the parallel score increases from 31.85% to 40.64%, while the sequential score increases from 31.80% to 38.40%. Across all evaluated budgets, EnvACE outperforms the corresponding base-model rehearsal, indicating that its internalized environment-response knowledge enables more effective test-time rehearsal.",
+      "n_words": 235
+    },
+    {
+      "heading": "Input Information",
+      "section_type": "other",
+      "text": "You will be given:\n\n• The environment description: {tool documents}\n\n• The conversation history: {history}\n\n• The agent's simulated action and returned result: {simulation} Evaluation Procedure Your tasks:\n\n1. Judge whether the agent's action is correct, helpful, and aligned with the user's task goal.\n\n2. Identify any mistakes or weaknesses in the action.\n\n3. Explain why the action failed or is suboptimal, based strictly on the environment feedback.\n\n4. Return the exact evaluation result within the <Result> and </Result> tags:\n\n• Output 1 if the action is correct.\n\n• Output 0 if the action is incorrect.\n\n5. If the action is incorrect, provide a revised action or an improved action plan for the next simulation attempt.\n\nOutput Format",
+      "n_words": 118
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "•",
+      "captions": "We evaluate EnvACE across BFCL-v4, τ 2 -Bench, VitaBench, and FinMCP-Bench, where it consistently outperforms strong baselines. Controlled analyses further demonstrate the benefits of jointly learning acting and rehearsal across model scales. At test time, world rehearsal provides additional performance gains.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Completed Trajectory � Instruction x R K R 2 R 1 Role-Wise GRPO Optimization World Rehearsal History h t Action (ACT) ɑ t Tool / API Response Rehearsal o t History h t+1 Policy π θ Test-time Scaling Rehearsal ACT Private -No Enviroment Change Joint Update Policy π θ Instruction x Rehearsal Memory m Single Roll Execution Iterative Refinement with Feedback",
+      "captions": "",
+      "content": "Instruction x |  |  | \nFind a quiet cafe near Central Park. |  |  |  | Action (ACT) ɑ t+1\n | Parallel |  | \n | Attempt 1 | Attempt 2 | Attempt n\n | Sequential |  | \n | Attempt 1 | Feedback | Attempt 2 | Feedback\nACT Group | Rehearsal Group |  |  | Attempt n"
+    },
+    {
+      "kind": "table",
+      "label": "Table 3",
+      "captions": "Multi NoLive Live Irrel. Avg. Retail Telecom Airline Avg. Cross Deliv. Inst. OTA Avg.",
+      "content": "Method |  |  |  | BFCL V4 |  |  |  |  | τ 2 -Bench | VitaBench | Overall\n | Web Mem. Open-Source Foundation Models (1.7B-8B) |  | \nQwen3-1.7B | 1.88 12.58 15.75 82.94 74.06 75.71 30.89 4.6 | 11.6 | 15.0 10.4 0.0 | 3.7 | 3.3 0.7 1.9 | 14.41\nQwen3-4B | 8.25 20.86 37.25 88.16 81.55 78.33 41.80 32.7 | 13.2 | 38.0 27.9 1.8 | 13.7 18.2 4.8 9.6 | 26.43\nQwen3-8B | 10.63 22.15 42.09 88.09 80.90 79.58 44.04 41.2 | 20.8 | 28.0 30.0 1.2 | 15.5 24.8 4.0 11.4 28.48\n |  |  |  | Open-Source Environment Scaling Methods (7B-14B) |  | \nSimulator-8B 9.38 5.65 1.47 32.46 44.30 86.54 19.78 49.3 | 15.1 | 51.0 38.5 0.0 | 1.2 | 4.8 1.0 1.8 | 20.03\nTOUCAN-7B 14.00 15.97 22.59 76.11 72.61 76.89 35.33 30.0 | 10.1 | 27.0 22.4 0.5 | 6.9 | 3.0 0.8 2.8 | 20.18\nEnvScaler-8B 15.38 19.52 52.25 86.40 81.70 76.03 47.07 48.0 | 16.2 | 34.5 32.9 6.0 | 20.8 29.5 7.0 15.8 31.92\nAWM-8B | 15.00 19.46 42.81 88.47 80.64 76.41 44.29 41.3 | 18.2 | 34.0 31.2 1.5 | 16.0 19.2 4.2 10.2 28.56\nAWM-14B | 14.88 21.88 49.06 89.46 81.41 81.59 47.32 41.9 | 19.1 | 31.0 30.7 8.0 | 24.8 33.8 11.8 19.6 32.54\nScaleEnv-8B | - | - | - | - | - | - | - | 50.9 | 27.2 | 37.5 38.5 3.0 | 26.3 23.8 7.0 15.0 | -\nEnvACE-1.7B 3.75 15.70 14.38 83.13 74.76 78.14 31.81 7.9 | 14.5 | 23.5 15.3 0.0 | 7.5 | 5.0 0.3 3.2 | 16.77\nEnvACE-4B 12.75 24.74 29.63 87.86 82.27 84.79 41.88 36.8 | 12.7 | 36.0 28.5 1.5 | 18.0 19.0 4.5 10.8 27.06\nEnvACE-8B 12.25 24.03 45.29 87.59 81.20 83.19 46.04 48.9 | 17.3 | 44.0 36.7 6.0 | 24.0 27.0 7.0 16.0 32.91"
+    },
+    {
+      "kind": "table",
+      "label": "Table 1 :",
+      "captions": "Benchmark results across BFCL V4, τ 2 -Bench, and VitaBench. Overall is the arithmetic mean of the BFCL V4 Avg., τ 2 -Bench Avg., and VitaBench Avg. Blue cells indicate the highest result in each column, while red cells indicate the second-highest distinct result.",
+      "content": "Method | TR (%) TP (%) TF1 (%)\nQwen3-8B | 43.18 | 39.47 | 41.24\nAWM-8B | 46.43 | 39.18 | 42.50\nSimulator-8B | 11.36 | 26.72 | 15.95\nEnvScaler-8B | 49.35 | 39.18 | 43.68\nEnvACE-8B | 41.23 | 54.04 | 46.78"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 :",
+      "captions": "",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 2",
+      "captions": "",
+      "content": "reports the results on FinMCP-Bench. EnvACE achieves the best TF1 score of 46.78%,\noutperforming EnvScaler-8B and AWM-8B by 3.10% and 4.28%, respectively. It also obtains the\nhighest tool precision of 54.04%. Although its tool recall is not the highest, the resulting TF1 demon-\nstrates the strongest balance between precision and recall. Taken together, these results demonstrate\nthat world rehearsal provides a more effective and scalable training paradigm than representative\nmethods relying on real-environment interaction or external simulators. By jointly learning to act\nand generate environment responses within a single policy, EnvACE acquires transferable tool-use\ncapabilities across heterogeneous and specialized scenarios.\n5.3 EFFECTIVENESS"
+    },
+    {
+      "kind": "table",
+      "label": "Table 3 :",
+      "captions": "also compares EnvACE with Per-role Policy, a variant that assigns separate policies to acting and rehearsal. Both variants generate environment responses, but only EnvACE shares parameters between the two roles. On τ 2 -Bench, parameter sharing improves the average score from 35.5% to 36.7%, a gain of 1.2%. Because acting and rehearsal update the same parameters, knowledge acquired during rehearsal about how the environment responds to actions is directly incorporated into the acting policy. This gain supports our hypothesis that parameter sharing enables the policy to internalize environment dynamics as an agent world model and use this knowledge for better decision making. Airline Retail Telecom Avg. Base Miss Func. Miss Param. Long Ctx. Avg. Test-time scaling with N = 2 on τ 2 and BFCL multi-turn. Overall is the arithmetic mean of the τ 2 -Bench Avg. and BFCL Multi-Turn Avg. Blue cells indicate the highest result in each column, while red cells indicate the second-highest result.world rehearsal remains effective as model capacity increases and can scale to stronger backbones while delivering larger performance gains.5.5 TEST-TIME SCALING WITH WORLD REHEARSALWorld Rehearsal Improves Test-Time Performance Table3reports a representative comparison with the rehearsal budget fixed to N = 2. We evaluate both parallel and sequential modes, using either the base model or EnvACE for rehearsal. Parallel rehearsal with EnvACE achieves the best Overall score of 40.9%, improving the Non-TTS result of 36.7% by 4.2%. The improvement is consistent across both benchmarks: the average score increases from 31.4% to 38.0% on τ 2 -Bench and from 41.9% to 43.9% on BFCL Multi-Turn. Sequential rehearsal with EnvACE also improves the Overall score to 38.5%, showing that world rehearsal benefits final execution under both modes.",
+      "content": "Training Dynamics Figure 5 further illustrates the optimization behavior of EnvACE. The offline\nevaluation score exhibits an overall upward trend during training, increasing from 30.0% at step 50\nto 36.7% at step 470. Although performance fluctuates at intermediate checkpoints, it recovers in\nthe later stage and reaches its highest observed score at the final checkpoint. This overall trend indi-\ncates that world rehearsal provides a sustained learning signal during RL training and progressively\nstrengthens the policy's task-solving capability.\n5.4 EFFECTS ACROSS MODEL SCALES"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "You are a senior execution advisor. Your job is to summarize multiple simulated attempts and evaluations into a single, reliable execution recommendation. You do not simulate tools or evaluate correctness. You produce a final actionable recommendation that will be executed once in a real environment.",
+      "content": "<Evaluation>\n(Detailed judgement and explanation)\n</Evaluation>\n<Result>\n1/0\n</Result>\n<Suggestion>\n(Detailed suggestion)\n</Suggestion>\nSummarization Prompt for Final Execution Recommendation\nInput Information\nYou will receive:\n• The environment description:\n{tool documents}\n• The conversation history:\n{history}"
+    }
+  ],
+  "n_words": 4028,
+  "quality_flags": []
+}

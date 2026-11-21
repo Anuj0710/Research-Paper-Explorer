@@ -1,0 +1,1145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Concurrency without Model Changes: Future-based Asynchronous Function Calling for LLMs</title>
+				<funder>
+					<orgName type="full">Accenture</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Amazon</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Guangyu</forename><surname>Feng</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Huanzhi</forename><surname>Mao</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Prabal</forename><surname>Dutta</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of California</orgName>
+								<address>
+									<settlement>Berkeley</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Concurrency without Model Changes: Future-based Asynchronous Function Calling for LLMs</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">20017406C052927C6C3810634A734747</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:07+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Function calling, also known as tool use, is a core capability of modern LLM agents but is typically constrained by synchronous execution semantics. Under these semantics, LLM decoding is blocked until each function call completes, resulting in increasing end-to-end latency. In this work, we introduce AsyncFC, a pure execution-layer framework that decouples LLM decoding from function execution, enabling overlap between model decoding and function execution as well as inter-function parallelism when dependencies permit. AsyncFC layers over existing models and unmodified function implementations, requiring no fine-tuning or changes to the standard synchronous function-calling protocol. On coding tasks, AsyncFC achieves a 1.4× end-to-end speedup while preserving task accuracy. Furthermore, these results reveal that LLMs possess a native capability to reason over symbolic futures that represent unresolved execution results, enabling an asynchronous paradigm for model-tool interaction.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Function calling (FC) has become a standard capability in modern large language model (LLM) agents <ref type="bibr" target="#b18">[19,</ref><ref type="bibr" target="#b13">14,</ref><ref type="bibr" target="#b25">26,</ref><ref type="bibr" target="#b26">27]</ref>. It enables models to interact with external APIs, retrieve information, and take actions in the world <ref type="bibr" target="#b0">[1,</ref><ref type="bibr" target="#b4">5,</ref><ref type="bibr" target="#b8">9,</ref><ref type="bibr" target="#b15">16,</ref><ref type="bibr" target="#b17">18,</ref><ref type="bibr" target="#b19">20,</ref><ref type="bibr" target="#b23">24]</ref>. Modern LLM function calling follows a standard synchronous function calling protocol: the model emits a structured function call, the runtime executes it, and the result is appended to the conversation history before the model resumes decoding. This process repeats until the model produces a final response, and each function call must be immediately followed by its corresponding result in the conversation history <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b16">17,</ref><ref type="bibr" target="#b22">23,</ref><ref type="bibr" target="#b21">22,</ref><ref type="bibr" target="#b30">31]</ref>.</p><p>In practice, most systems implement this workflow with synchronous execution semantics. After emitting a function call, model decoding blocks until the function execution completes. This serialization limits concurrency and increases end-to-end latency. Prior approaches address this bottleneck by exposing in-progress function executions to continued model generation or by shifting concurrency management complexity onto the model side, often altering the FC protocol or requiring model changes <ref type="bibr" target="#b5">[6,</ref><ref type="bibr" target="#b10">11,</ref><ref type="bibr" target="#b27">28]</ref>.</p><p>In contrast, we argue that managing execution concurrency should be offloaded from the model to the system runtime. Inspired by asynchronous programming <ref type="bibr" target="#b1">[2,</ref><ref type="bibr" target="#b12">13]</ref>, we introduce AsyncFC, an execution-layer framework with automatic schema adaptation that decouples model decoding from function execution. This design is guided by our observation that LLMs can natively operate over symbolic future placeholders representing unresolved execution results. AsyncFC enables asynchronous function calling while preserving the standard synchronous call-return semantics the model expects, requiring no modifications to the underlying models or function implementations.</p><p>To achieve this, AsyncFC exposes futures to the model by automatically transforming synchronous function schemas to support future-valued inputs and outputs, and by introducing a lightweight await_future function that allows the model to resolve futures. Upon receiving a function call, AsyncFC dispatches the underlying synchronous function implementation to a backend executor and immediately returns future placeholders to the LLM. By satisfying the expected call-return protocol, AsyncFC allows the model to continue decoding as if the function call had already returned, while the underlying function executes asynchronously in the background. Once function execution completes, results are integrated into the context at turn boundaries. Together, these capabilities accelerate the generation of subsequent function calls, thereby maximizing exploitable parallelism. To safely execute functions in parallel, AsyncFC features a scheduler that conservatively serializes execution by default, but leverages developer-supplied resource interaction annotations to unlock dependency-safe inter-function parallelism. As a result, AsyncFC enables two forms of concurrency: overlap between decoding and function execution, and dependency-safe inter-function parallelism.</p><p>Beyond accelerating the agentic workflow, AsyncFC serves as a framework to explore an LLM's reasoning capability over unresolved future representations. AsyncFC demonstrates that the model can natively operate over symbolic placeholder representations and adapt to the resolved outputs integrated in later turns. This capability-demonstrated without requiring any additional fine-tuning-brings a new interaction pattern between the model and the functions.</p><p>Because AsyncFC operates purely at the execution layer, it is applicable across off-the-shelf synchronous models. It enables models restricted to sequential function calling to achieve substantial inter-function parallelism and exceed the speedup of the parallel function-calling modes that lack such execution-layer support. Furthermore, when applied on top of models supporting native parallel function calling, AsyncFC delivers additional latency reductions beyond their native parallelism. It also provides explicit execution-order semantics that existing parallel function-calling APIs often leave underspecified, reducing failure modes caused by race conditions among same-turn stateful calls. Moreover, because AsyncFC represents all long-latency operations using the same future-based execution interface, it naturally extends beyond external functions to asynchronous thinking. Unlike asynchronous thinking approaches that train models to explicitly fork and join subqueries <ref type="bibr" target="#b3">[4]</ref>, AsyncFC exposes this parallelism through execution-layer changes alone.</p><p>In this paper, we design, implement, and evaluate AsyncFC, a protocol-compatible execution layer that brings asynchronous programming into LLM function calling. AsyncFC combines future-based decoding, event-driven result integration, and dependency-aware scheduling while preserving the standard function-calling protocol. AsyncFC delivers consistent end-to-end speedups across tool-use, software engineering, and multi-hop reasoning benchmarks, without sacrificing accuracy. Under realistic function execution latencies, it achieves a 1.26× speedup on adapted Berkeley Function Calling Leaderboard (BFCL) v4 Web Search workloads <ref type="bibr" target="#b20">[21]</ref> and a 1.40× speedup on SWE-bench Lite <ref type="bibr" target="#b9">[10]</ref> when integrated with SWE-agent <ref type="bibr" target="#b28">[29]</ref>. AsyncFC further extends to multi-hop reasoning workloads such as HotpotQA <ref type="bibr" target="#b29">[30]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Sequential and Parallel FC. Sequential FC restricts each model turn to issuing at most one function call and admits no concurrency. Parallel FC improves Sequential FC by allowing the model to issue multiple function calls, exposing within-turn parallelism but still blocking subsequent decoding until all same-turn functions return <ref type="bibr" target="#b16">[17,</ref><ref type="bibr" target="#b7">8]</ref>. However, existing Parallel FC APIs leave ambiguity in function execution order. Some model providers encourage concurrent function execution but do not specify the handling of partial failure and race conditions from concurrent execution; others imply serial execution in model-emitted order through example code rather than an explicit semantic contract, avoiding race conditions but weakening the latency benefit of Parallel FC. AsyncFC addresses this gap by making execution semantics explicit. The runtime uses dependency annotations to determine overlap and serialization across calls. On Sequential FC models, AsyncFC recovers Parallel-FC-like concurrency by allowing independent calls across turns to execute concurrently. On Parallel FC models, AsyncFC serializes conflicting calls in model-emitted order while executing dependency-safe calls concurrently. Given the model-emitted call order, this makes state updates, function returns, and the resulting model context deterministic. Its inter-turn function parallelism can also recover parallelism missed by conservative model-side grouping. In both settings, AsyncFC additionally enables decode-execution overlap.</p><p>Planning-based FC. Planning-based approaches generate a plan or dependency graph before execution, then execute independent calls in parallel <ref type="bibr" target="#b10">[11,</ref><ref type="bibr" target="#b27">28]</ref>. These approaches can expose cross-turn parallelism, but depart from the standard turn-by-turn function-calling protocol and shift dependency reasoning into the model, often requiring model modification or additional training. They also remain synchronous and block decoding until function execution completes. By contrast, AsyncFC achieves cross-turn parallelism, preserves the standard function calling protocol, derives dependencies online, and adds a complementary source of concurrency by overlapping model decoding with in-flight function execution, all without model modification.</p><p>Asynchronous Reasoning Approaches. Asynchronous reasoning approaches allow the model to continue decoding while function executions are in flight and integrate the function results after they become available <ref type="bibr" target="#b5">[6,</ref><ref type="bibr" target="#b6">7]</ref>. However, they expose incomplete function executions to the model's reasoning process, depart from the standard function-calling protocol, and require the model to reason about whether new calls are safe while previous calls remain pending. This often requires model-side protocol changes or explicit model modification. Additionally, these approaches generally do not expose function results as futures or promises, preventing unresolved results from being passed as arguments to subsequently decoded function calls. In contrast, AsyncFC shifts responsibility for enforcing dependency-safe function execution from the model to a dependency-aware scheduler. Incomplete function executions are abstracted behind symbolic futures, allowing the model to treat each function as logically complete in its context and thereby avoiding model modification. Furthermore, these symbolic futures can be passed as arguments during decoding, enabling additional decode-execution overlap.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>AsyncFC extends value-based model-function interaction to future-based interaction. To expose these futures to the model, AsyncFC automatically transforms synchronous function schemas. The runtime dispatches decoded calls asynchronously, immediately returns symbolic future identifiers to the model, and later integrates resolved results into the model context. Internally, AsyncFC tracks future-execution associations and uses a dependency-aware scheduler to execute functions concurrently when dependencies permit.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Non-Blocking Decoding</head><p>Standard function-calling protocol requires each function invocation to be immediately followed by its return value in the conversation history, effectively blocking decoding until execution completes. To remove blocking, AsyncFC dispatches the synchronous function decoded by the model to an asynchronous backend executor and immediately returns to the model a future placeholder. By providing an immediate return, this placeholder satisfies protocol constraints.</p><p>To make the return value consistent with the function schema exposed to the model, AsyncFC automatically transforms function schemas to support returning a single future object as the function output. This allows the symbolic future returned by the runtime to serve as the function's immediate return value, so the model can continue decoding subsequent calls as if the function call had already returned. To further maximize decoding before execution finishes, AsyncFC automatically transforms function inputs in the schema to accept either concrete values or future identifiers. This dual-typed schema allows the model to leverage its native capability to reason over future placeholders and decode subsequent calls with unresolved futures as arguments.</p><p>In many cases, only a subset or specific fields of a function's return value are needed as inputs to subsequent calls. To support this, AsyncFC allows developers to provide output schema annotations in example return values. When provided, the runtime automatically converts these examples into structured representations where concrete fields are replaced by symbolic future identifiers, effectively preserving the structure of the underlying function's return. Returning this structure to the model as the immediate return value gives the model fine-grained access to pending execution results when constructing downstream calls. In all transformations, function descriptions, parameter types, and return definitions are updated at the schema level, requiring no modifications to the underlying function implementation. In addition to transformed schemas, AsyncFC exposes an auxiliary function, await_future. This function allows the model to explicitly request the resolution of one or more futures when concrete values are required, providing the LLM a clear reasoning trajectory to the final answer and preventing the issuance of repetitive tool calls.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Retrieve Function Execution Results</head><p>While futures enable non-blocking decoding, the model must eventually retrieve the function execution results. A naive design where futures are always explicitly awaited via await_future introduces additional function calls and decoding turns. To mitigate this, AsyncFC proactively integrates resolved function outputs, potentially before explicit awaits become necessary. When completed function results are available, AsyncFC integrates them into the model context at turn boundaries by inserting user messages that bind future identifiers to their corresponding resolved values.</p><p>When further model decoding strictly depends on unintegrated function execution results, the model has no option but to emit an await_future call. Decoding this function incurs latency. This latency becomes overhead when the future required for subsequent decoding has already resolved after the previous turn boundary, since the runtime must wait for the call to be fully decoded before integrating the already-available result. To reduce the latency penalty, AsyncFC early-terminates decoding as soon as the await_future function name is detected and starts polling for resolved futures. Nevertheless, the runtime still needs to wait for enough tokens to recognize the await_future function name. This overhead is dominated by TTFT and token generation latency, and is especially pronounced in black-box API models such as GPT-4o, where the runtime cannot inspect internal states to predict the model's intent in advance.</p><p>To further reduce this remaining overhead, AsyncFC supports an optional parallel decoding optimization. Rather than waiting for a single decoding stream to reveal whether it will emit await_future, the runtime may initiate multiple decoding streams from different candidate integration points concurrently and select the first stream that produces the next non-await model action.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Dependency-Aware Task Scheduling</head><p>Sequential function-calling executes functions in decode order, which implicitly enforces dependencies between calls through blocking. By unblocking model decoding and integrating function execution results at the turn boundary, AsyncFC enables the model to generate subsequent function calls earlier than in the standard blocking execution setting, creating new opportunities for interfunction parallelism. However, relaxing strict decode-order execution introduces correctness risk, as naive parallelization may execute dependent calls prematurely.</p><p>To address this, AsyncFC provides a scheduler that overly conservatively serializes all function executions in decode order by default, enabling only the overlap between model decoding and function execution. To unlock additional inter-function parallelism, the system allows developers to supply optional dependency annotations that explicitly declare function resource accesses. The  scheduler uses these annotations to automatically derive function dependencies, permitting concurrent function execution only when safe.</p><p>Dependency Specification with Labeling. To enable developers to supply these annotations, AsyncFC introduces a lightweight unified labeling mechanism via decorators (Figure <ref type="figure" target="#fig_2">2</ref>). Resources are modeled as a hierarchical state space addressed by path-like identifiers, and function accesses are declared using read/write labels qualified by a scope flag. All annotations are optional; unannotated functions default to root-level read and write sets, guaranteeing correctness while still enabling decode-execution overlap. More precise annotations progressively unlock additional inter-function parallelism. Full details, including session-relative and argument-parameterized paths for dependency annotations, are in Appendix A.</p><p>Dependency Enforcement. A call depends on prior calls when it accesses overlapping state regions or when its arguments or resource paths use values produced by those prior calls. To enforce these dependencies, AsyncFC utilizes a runtime scheduler to manage concurrent function execution without modifying the synchronous LLM decoding loop. The scheduler dynamically gates function execution through a multi-stage pipeline (Figure <ref type="figure" target="#fig_2">2</ref>). The enforcement mechanism is conceptually related to region-based dependence analysis in Legion <ref type="bibr" target="#b2">[3]</ref> and scoreboarding-style scheduling <ref type="bibr" target="#b24">[25]</ref>.</p><p>Admission Barrier. Upon decoding, the function call and its metadata are enqueued into the scheduler, while the corresponding future is returned to the LLM. Admission to the State Tree follows the queue order, and a call is admitted only when it reaches the head of the queue and its referenced state paths are resolved. Calls whose paths depend on pending argument or session values remain queued until those values are available.</p><p>Conflict Analysis. When a function call is admitted, the State Tree records its read and write regions by attaching access labels, which are implemented as unresolved futures. When a new function arrives, the State Tree compares its requested region accesses against these previously registered labels. If access regions overlap and are in conflict, the State Tree attaches the futures of the prior labels as blocking dependencies for the new call. The State Tree dispatches the function to the executor when all its blocking access label futures are resolved.</p><p>Execution. The executor dispatches each admitted call to an independent worker that awaits unresolved argument futures locally before execution. This waiting is non-blocking, and a call awaiting its arguments does not prevent other ready calls from executing. Upon a function's execution completion, the executor fulfills the result future previously returned to the model and removes its access labels from the State Tree, resolving the access label futures and unblocking waiting functions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Error Handling</head><p>When a function call fails, AsyncFC cancels all subsequent function calls that are transitively dependent on the failed operation while keeping function calls that are independent of the failed operation untouched. AsyncFC then uses user messages to inject failure return messages for the failed call and all canceled calls at the turn boundary. The failure messages explicitly distinguish between an operation's own execution error and cancellation due to dependency on a failed operation. Failure messages integrated after the final decode turn trigger additional recovery turns.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Generalization to Asynchronous Thinking</head><p>Other classes of long-latency LLM operations, such as asynchronous thinking, can be realized as direct specializations of the AsyncFC execution framework. Conceptually, asynchronous thinking is a paradigm where the main model acts as a coordinator, delegating sub-tasks to independent thinking agents and asynchronously gathering their results to form a final solution. AsyncFC can enable this paradigm by treating each delegated thinking turn as a long-latency function call, where the argument encodes a subquery along with relevant context, and the return value corresponds to the thinking result.</p><p>The thinking function issues a model invocation, while the decoding, result integration, and execution of this function follow the same flow as standard functions. This design also allows asynchronous thinking to interleave with asynchronous function execution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Design Intuition</head><p>The speedup achievable by AsyncFC is governed by the task structure. We represent this structure as a Task-specific Function Dependency DAG, where nodes represent function calls, and edges represent the causal constraints required to complete the workload. These constraints arise from data and state dependencies across calls, or the necessity for the model to observe the execution result of one call before generating the next. Let T tool denote the total function execution time summed across all nodes, and let T cp denote the sum of function execution times along the critical path. Under ideal asynchronous execution, the wall-clock time spent on function execution is reduced from T tool to T cp , and this critical-path execution time fully overlaps with total decoding time T LLM . Thus, the ideal asynchronous latency is max(T LLM , T cp ), giving the theoretical maximum speedup ratio</p><formula xml:id="formula_0">R = T LLM + T tool max(T LLM , T cp )<label>(1)</label></formula><p>The necessary condition for any speedup is that the model can generate function calls without waiting for all pending executions to complete. Large speedups further require exploitable function parallelism, i.e. T tool ≫ T cp , and enough overlap between decoding and the critical-path execution duration, ideally T LLM ≈ T cp . Model decode latency also affects the realized speedup. When tool critical-path time dominates, additional decoding time can be hidden behind execution, whereas when decoding dominates, slower models reduce the attainable speedup. Finally, the total latency savings can be decomposed into the sum of decode-execution overlap and inter-function parallelism. Full derivations, model-latency sensitivity analysis, and the formal savings decomposition are provided in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Evaluation</head><p>This section evaluates AsyncFC along four dimensions: correctness, end-to-end latency, latency scaling, and annotation robustness. We further study its generality on software engineering and asynchronous-thinking workloads.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Experimental Setup</head><p>Across function-calling settings, Sequential FC and Parallel FC are the synchronous baselines using the sequential and parallel function-calling APIs, respectively. In Parallel FC, same-turn function calls  are executed concurrently, but the next decoding turn blocks until all results return. AsyncFC(S) and AsyncFC(P) apply AsyncFC on top of the sequential and parallel function-calling APIs, respectively, as pure execution-layer replacements for their corresponding baselines.</p><p>For underlying models, BFCL, annotation-robustness, and asynchronous-thinking experiments use GPT-4o. Cross-model experiments use Gemini 3.1 Pro, and SWE-bench Lite experiments use GPT-5.6 Sol in the priority tier. To limit compute costs, we disable optional parallel decoding. Results within each panel are computed from the same run. While latency and accuracy evaluate the efficiency and correctness of AsyncFC, accuracy also provides evidence that LLMs can successfully reason over unresolved future placeholders returned by functions.</p><p>Due to the model providers' ambiguity in function execution order for Parallel FC (Section 2), we adopt a parallel execution with serial semantics for Parallel FC in figures other than Figure <ref type="figure" target="#fig_3">3</ref>. Same-turn functions are executed fully in parallel, but their effects on state mutation are applied in the serial model-emitted order. This assumption is favorable to Parallel FC because it preserves the latency benefit of overlapping same-turn function executions while avoiding accuracy loss from race-dependent state updates that would otherwise produce nondeterministic function returns.</p><p>Statistical Tests. Unless otherwise stated, reported speedups compare each AsyncFC variant against its corresponding synchronous baseline under the same function-calling API; exceptions specify their reference baseline in the figure or table caption. For latency, we perform a one-sided paired t-test on per-task log speedups against the corresponding synchronous baseline and report significance value p lat for the alternative hypothesis that the geometric mean speedup exceeds 1. For accuracy, we use McNemar's χ 2 test <ref type="bibr" target="#b14">[15]</ref>, with significance value p acc , to test for statistically significant differences in paired task outcomes against the corresponding synchronous baseline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">BFCL Augmentation and Results</head><p>Speedup is fundamentally limited by workload structure. Many benchmarks use dummy backends with negligible function latency and sequential tasks that lack intrinsic concurrency, underrepresenting AsyncFC's benefits <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b21">22,</ref><ref type="bibr" target="#b31">32,</ref><ref type="bibr" target="#b32">33]</ref>. Real-world workloads, however, often involve interleaved tasks and significant function execution delays. To evaluate this, we augment BFCL in two ways. For BFCL v3 experiments, we use a filtered evaluation set of 150 multi-turn cases after removing instances with quality issues. We inject a 5s per-function delay because the original backend functions have negligible latency. To evaluate performance against a real backend, we utilize the BFCL v4 Web Search split. Because these web search tasks exhibit strong sequential dependencies, we take the 100 raw cases and compose each pair of cases into a single workload to surface inter-task parallelism. Since the composition causes some trajectories to exceed the model's context limit, we report accuracy and latency on the subset of cases that do not overflow in either the synchronous baseline or its AsyncFC counterpart.</p><p>Figure <ref type="figure" target="#fig_3">3</ref> reports the task-level accuracy and end-to-end latency results. Across all BFCL conditions, AsyncFC preserves accuracy and achieves speedups over both corresponding synchronous baselines in all settings. Latency gains are statistically significant in all but one comparison, AsyncFC(P) on BFCL v4 Web Search relative to Parallel FC due to variability in experiments. With dependency annotations, AsyncFC on BFCL v3 layered over the sequential FC API achieves a larger speedup than native Parallel FC, while the no-annotation setting still reduces latency by overlapping decoding with serialized function execution.</p><p>Latency-Sweep Analysis. To isolate where these gains come from and how they scale with function latency, we next perform a controlled latency study on BFCL v3. Following the analysis in Appendix B.2, we decompose the latency savings into their fundamental components. In net task end-to-end latency, these component savings are partially offset by AsyncFC-specific overhead. Figure <ref type="figure" target="#fig_4">4</ref> shows a two-stage trend within the evaluated latency range: decode-function execution overlap provides the initial gains and begins to saturate, after which inter-function parallelism becomes the dominant contributor as function latency increases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Generalization and Robustness</head><p>Cross-Model Generalization. We evaluate AsyncFC using Gemini 3.1 Pro on BFCL v3 Multi-Turn test cases. Because Gemini exhibits a per-turn decoding time approximately 2× slower than GPT-4o, we proportionally scale the simulated tool latency for this evaluation to 10 seconds, as characterized in Equation ( <ref type="formula" target="#formula_0">1</ref>). AsyncFC achieves speedup while maintaining accuracy (Figure <ref type="figure" target="#fig_5">5</ref>).</p><p>Annotation Robustness. Because dependency annotations act as safety contracts, any uncertainty about function resource footprints-whether due to complex function logic or a desire to minimize developer effort-is handled through conservative over-estimation. We evaluate AsyncFC robustness without user-provided annotations by falling back to root-level read and write sets, yielding a fully automatic but conservative scheduler that serializes tool execution. As shown in Figure <ref type="figure" target="#fig_3">3</ref>, AsyncFC yields speedup by overlapping model decoding with conservative function execution, while preserving baseline accuracy. We also use an external LLM to do one-time offline dependency annotation. The generated annotations recover additional parallelism over the conservative no-annotation baseline, with annotation-quality metrics and end-to-end results reported in Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Downstream Applications</head><p>Software Engineering. We extend our evaluation to SWE-bench Lite by integrating AsyncFC into the SWE-agent. We first transform the underlying function schemas to allow the model to reason about futures and equip the agent with its full original suite of functions. For safe concurrent execution, we implement a rule-based dependency analyzer that uses pattern matching over command names  For SWE-Bench Lite, displayed speedups are relative to SWE-agent for a common scale; latency significance tests compare +AsyncFC against +Par. FC. Across all settings, AsyncFC achieves statistically significant speedups, without evidence of statistically significant accuracy degradation (all p lat &lt; 0.05, all p acc &gt; 0.05).</p><p>and arguments to identify and provide dependency annotations for functions. If no rule is matched, the system conservatively falls back to locking the root directory. Furthermore, our current rules are intentionally conservative for simplicity and generalization across repositories. For example, the rule set specifies that Python and pytest lock the root path to prevent conflicts. However, because scripts invoked by these functions usually touch only a minor subset of files, real-world deployments tailored to specific repositories can provide the function with fine-grained operation metadata about file accesses to bypass these coarse root locks and unlock significantly more parallelism. These dynamically labeled functions are then dispatched using the same AsyncFC runtime and scheduler as in our BFCL experiments. Because the default SWE-agent function executor is a synchronous shell environment, we replace it with a concurrent subprocess dispatcher that executes each command as an isolated OS subprocess while preserving compatibility with the original command interface.</p><p>Using GPT-5.6 Sol on SWE-bench Lite, we compare three SWE-agent variants: SWE, the unmodified baseline that enables the Parallel FC API but uses a sequential executor; +Par. FC, which applies the Parallel FC execution semantics defined in Section 5.1; and +AsyncFC, which integrates AsyncFC. AsyncFC achieves a 1.4× speedup over the SWE-agent baseline and a statistically significant latency improvement over +Par. FC, while preserving issue-resolution rate (Figure <ref type="figure" target="#fig_5">5</ref>).</p><p>Asynchronous Thinking: Thinking as a Tool. We further evaluate AsyncFC on asynchronous thinking by treating external reasoning turns as tool invocations. We evaluate this setting on the HotpotQA benchmark, where the model decomposes each task into multiple subqueries and invokes the thinking tool with the subquery and relevant context as arguments. The tool returns the reasoning result, which is then integrated back into the ongoing decoding process. We compose 100 raw tasks into 50 paired workloads. AsyncFC preserves accuracy while providing end-to-end speedups (Figure <ref type="figure" target="#fig_5">5</ref>). These results demonstrate that AsyncFC extends beyond external functions to asynchronous thinking.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion and Limitations</head><p>Model Capability Discovery. AsyncFC requires the model to tolerate unresolved symbolic references. Across evaluations, AsyncFC preserves accuracy, providing evidence that LLMs can natively reason over unresolved future placeholders in our future-based context. We hypothesize that this behavior arises from model priors learned from large corpora of software artifacts, including asynchronous patterns (e.g., futures/promises and non-blocking I/O) that routinely involve symbolic handles that are resolved later. Such native support for asynchronous model-tool interaction unlocks a new paradigm for designing efficient and flexible agentic workflows.</p><p>Workload Dependence. As characterized in Section 4 and Appendix B, AsyncFC's speedup depends on the workload structure. Strictly sequential tasks and function calls with negligible latency limit AsyncFC's speedup. Additionally, AsyncFC can incur decoding overhead, such as when a function completes during the await_future decoding.</p><p>Application Scenarios. AsyncFC is ideal for long-latency functions where immediate execution outputs aren't needed for decode progress, such as "write-only" actions (e.g., booking tickets, sending emails). It also may benefit cyber-physical systems and robotics by overlapping reasoning with physical execution to amortize real-world delays.</p><p>Potential Optimization. While sequential models generate function calls in a fixed linear sequence, this output represents just one valid linearization of the underlying Task-specific Function Dependency DAG. Consequently, multiple decoding orders may be consistent with the task's logical constraints. A potential optimization is to employ beam search to explore these alternative trajectories in parallel. By selecting decoding paths that immediately produce executable functions-those whose dependencies are already satisfied-the system optimizes the concurrent execution throughput.</p><p>Systems Side Effects. AsyncFC can improve KV-cache utilization by reducing the duration for which request-specific KV state remains in GPU memory. By overlapping decoding with function execution, AsyncFC shortens the wall-clock lifetime of each request, thereby reducing the mean residency time of its KV cache.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>As LLM agents increasingly operate in environments with rich internal parallelism and non-negligible function latency, strict synchronous execution becomes a key bottleneck. We present AsyncFC, a future-based asynchronous function-calling execution-layer framework that decouples model decoding from function execution while preserving the standard function-calling protocol. By leveraging futures and dependency-aware scheduling, AsyncFC safely enables decoding-execution overlap and exposes inter-function parallelism when dependencies permit. Without modifying the model, protocol, or synchronous function implementation, AsyncFC reduces end-to-end task latency and preserves accuracy. Beyond these efficiency gains, our results provide evidence that modern LLMs can natively reason over future-valued placeholders. This suggests an asynchronous model-tool interaction pattern that can be leveraged for more flexible and efficient agentic workflows.</p><p>A Details for Dependency Specification with Labeling.</p><p>To enable developers to supply these annotations, AsyncFC introduces a lightweight unified labeling mechanism via decorators (Figure <ref type="figure" target="#fig_2">2</ref>). While this decorator also manages output schemas (Section 3.1), its primary role in scheduling is to provide dependency annotations.</p><p>Hierarchical Resource Paths. AsyncFC models resources as a logical, possibly hierarchical state space, structured and addressed using path-like resource identifiers. Function calls are interpreted as reading from or writing to named regions within this state space, identified by these resource paths. Accordingly, read and write labels in dependency annotation explicitly represent each function call's access intent by enumerating the regions of state that the call may observe or mutate. Each read or write label is further qualified by a scope flag that specifies whether the access applies only to the targeted resource path or conservatively extends to all descendant paths in the state space.</p><p>Robustness to Partial Annotation. All annotations are optional and may be provided independently.</p><p>For unannotated functions, the runtime defaults to root-level read and write sets, serializing function execution while still allowing model decoding to overlap with function execution. This conservative strategy guarantees out-of-the-box correctness without requiring any annotations. To move beyond this baseline, AsyncFC enables an incremental path to performance. Partial annotations unlock some inter-function parallelism, while more precise annotations progressively expose additional opportunities for concurrent execution and further speedups.</p><p>Session-Relative Paths. While many resource accesses can be expressed using absolute paths in the state space, some function calls operate on resources whose exact locations are dependent on prior operations. To support such cases, AsyncFC allows dependency labels to be expressed using session-relative paths. A session label binds a function call's access to the current session state-implicitly derived from prior function executions-enabling paths to be resolved dynamically based on the effects of earlier operations. To label session access, a function call that reads session state only declares its dependence on the current session context, whereas a function call that writes to session state additionally specifies how the session advances. This advancement induces an ordering constraint on subsequent functions that access the session.</p><p>Argument-Parameterized Paths. In addition to session-relative addressing, some function calls operate on resources whose exact locations are determined by the arguments of the current invocation. AsyncFC therefore allows dependency labels to be parameterized by function arguments, enabling read and write paths to be derived after the call is decoded and submitted to the runtime.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Design Intuition: Operation Regimes and Speedup Patterns</head><p>This section expands the speedup analysis summarized in Section 4. We model each task as a Task-specific Function Dependency DAG, where nodes represent function calls and edges represent the causal constraints required to complete the workload. Let T tool denote the total function execution time summed across all nodes, and let T cp denote the sum of function execution times along the critical path.  Maximum Speedup Bound. We restate the maximum speedup bound in Equation ( <ref type="formula" target="#formula_0">1</ref>) to support the appendix analysis. Under ideal asynchronous execution, the wall-clock time spent on function execution is reduced from T tool to T cp , and this critical-path execution time fully overlaps with total decoding time T LLM . Consequently, the end-to-end latency is max(T LLM , T cp ). By taking the ratio of the baseline synchronous latency to the asynchronous latency, the theoretical maximum speedup ratio R is:</p><formula xml:id="formula_1">R = T LLM + T tool max(T LLM , T cp )<label>(2)</label></formula><p>Conditions for Attaining Saving. A necessary condition for any speedup is that the model can generate function calls without waiting for all pending executions to complete. When this condition holds, the magnitude of the attainable speedup further depends on two factors. First, there must exist substantial parallelism in the Task-specific Function Dependency DAG (i.e. T tool ≫ T cp ), which in practice also requires that the interval between issuing independent function calls remain small relative to execution latencies, so that independent function calls can overlap in time. Second, there is sufficient decoding work and critical-path execution duration to enable substantial overlap (i.e. T LLM ≈ T cp ). The operation regimes are summarized in Table <ref type="table" target="#tab_2">1</ref>.</p><p>Figure <ref type="figure" target="#fig_6">6</ref> shows two workload traces illustrating the operation regimes and speedup patterns of AsyncFC. In the first trace, the function critical-path time and decoding time are comparable, and decoding with futures satisfies the necessary condition. In the second trace, the Task-specific Function Dependency DAG exhibits substantial parallelism, and decoding the next turn using short function returns while long function calls remain in flight satisfies the necessary condition.</p><p>B.   To explore the potential for recovering concurrency beyond conservative fallback without manual annotation effort, in this experiment we use an external LLM (Claude 4.6 Opus) to perform one-time, offline annotation prior to deployment. To evaluate dependency annotation correctness, we extract 1812 distinct, directed function pairs from BFCL Multi-Turn V3. Evaluation is restricted to function pairs within the same class where resource conflicts are theoretically possible, excluding trivial cross-class pairs. For each function pair, we compare the conflict status derived from LLM-generated annotations with that derived from human-annotated ground truth (Table <ref type="table" target="#tab_4">2</ref>, left). We also apply these annotations to end-to-end evaluation. Right panel of Table <ref type="table" target="#tab_4">2</ref> shows that they recover additional parallelism beyond the conservative fallback, achieving a speedup larger in magnitude than the no-annotation setting reported in Figure <ref type="figure" target="#fig_3">3</ref>.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Timeline of synchronous and asynchronous function calling. F1 and F2 are independent function calls, while F3 depends on the result of F2. The example is illustrated using a sequential function-calling API. (a) Under synchronous function calling, decoding is blocked until each function execution completes. (b) AsyncFC returns a future placeholder immediately after dispatch, allowing decoding and function execution to overlap. Function results are integrated into the context at turn boundaries. Dashed boxes and solid bold boxes denote future placeholders and resolved results, respectively; f i denotes the future returned by F i .</figDesc><graphic coords="2,108.00,72.00,396.01,114.47" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>vehicle/doors": True}, {"/vehicle/drive": True}, {"/vehicle/fuel": True} ], writes=[{"/vehicle/drive": True}], session_read=False, session_write=False, outputs={"engineState": "", "fuelLevel": 0.0, "batteryVoltage": 0.0} ) def startEngine(self, ignitionMode: str) \ -&gt; Dict[str, Union[str, float]]:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: AsyncFC runtime design. Left: Example of dependency and output structure annotation. Dependency annotations specify the read and write sets, and the runtime automatically infers future ID structure from example values in output schema annotations. Right: Overview of the AsyncFC execution pipeline. Model-emitted function calls are synchronously dispatched to the scheduler and enqueued with metadata. The scheduler admits function calls to the State Tree in enqueue order once their referenced state paths are resolved. The State Tree resolves read/write dependencies and dispatches dependency-resolved calls to the executor. Upon completion, function execution populates futures and state labels.</figDesc><graphic coords="5,335.19,72.00,166.32,162.78" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Main BFCL Results. Results are reported on BFCL v3 Multi-Turn (n = 150, 5s delay, GPT-4o) and BFCL v4 Web Search with real backend latency (matched non-overflow composed workloads: n = 31 for Sequential FC and n = 29 for Parallel FC, GPT-4o). AsyncFC shows no evidence of a statistically significant accuracy difference (p acc &gt; 0.05) and achieves speedups in all settings, with statistically significant latency reductions (p lat &lt; 0.05) in all but AsyncFC(P) on BFCL v4 Web Search relative to Parallel FC. Left: Accuracy and BFCL v4 speedup summaries. Right: Mean per-task end-to-end latency on BFCL v3, showing AsyncFC(S) outperforms Parallel FC while AsyncFC without annotation still reduces latency. Numbers above bars indicate speedup relative to Sequential FC, and error bars denote 95% bootstrap confidence intervals over matched cases.</figDesc><graphic coords="7,306.00,75.92,198.00,122.98" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: BFCL latency-sweep analysis. Results are reported on BFCL v3 Multi-Turn (n = 150, GPT-4o) while varying injected per-function delay. The left panel shows mean task end-to-end latency, and the right panel decomposes AsyncFC(S) savings over Sequential FC into decode-execution overlap and inter-function parallelism. Error bars denote 95% bootstrap confidence intervals obtained by resampling matched cases. AsyncFC shows no evidence of statistically significant accuracy degradation across the sweep (all p acc &gt; 0.05). The decomposition shows that decode-function overlap drives the initial gains, while inter-function parallelism dominates at larger function latencies.</figDesc><graphic coords="8,108.00,72.00,194.04,90.87" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Cross-model and downstream application evaluations. The three panels report crossmodel transfer (n = 150, Gemini 3.1 Pro, 10s delay), software-engineering results (n = 300, GPT-5.6Sol, real function latency), and asynchronous-thinking results (composed workloads, n = 50, GPT-4o, real function latency), respectively. Speedups are relative to the corresponding synchronous baseline. For SWE-Bench Lite, displayed speedups are relative to SWE-agent for a common scale; latency significance tests compare +AsyncFC against +Par. FC. Across all settings, AsyncFC achieves statistically significant speedups, without evidence of statistically significant accuracy degradation (all p lat &lt; 0.05, all p acc &gt; 0.05).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Real workload execution traces under distinct AsyncFC operation regimes. Left: Balanced model decode and function critical-path times (T LLM ≈ T cp ), where decoding with futures enables continuous decoding. Right: High inter-function parallelism (T tool ≫ T cp ), where shortlatency function calls allow decoding to proceed.</figDesc><graphic coords="13,108.00,176.45,395.99,93.19" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>B. 2</head><label>2</label><figDesc>Saving DecompositionHaving characterized when large speedups are theoretically attainable, we next analyze how these gains are realized in practice. Consider an agent trace for a single task. Let M and E denote the sequence of time intervals for model decoding and function execution, respectively. Any such sequence of time intervals can be represented as I = {[s i , e i ]}, where s i and e i denote the wall-clock start and end times of the ith interval. We define the Sequential sum S(I) =i (e i -s i ) as the cumulative duration of the intervals, and the effective unionD(I) = | i [s i , e i ]|as the total wall-clock duration covered by the merged intervals. Because model decoding is sequential within a single agent trace, intervals in M do not overlap and D(M) = S(M). In this trace, there are two distinct sources of savings. First, inter-function parallelism, ∆ F ∥F = S(E) -D(E), captures the reduction in execution time due to parallel function execution. Second, decode-execute parallelism, ∆ D∥E = D(M) + D(E) -D(M ∪ E), captures the end-to-end time reduction gained by overlapping model decoding with function execution. The total latency saving, T saving , defined as the difference between the serialized baseline and the observed end-to-end asynchronous latency, is exactly equal to the sum of these two components: T saving ≜ S(M) + S(E) -D(M ∪ E) = ∆ F ∥F + ∆ D∥E C Automatic Annotation Generation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>BFCL v3 accuracy.</figDesc><table><row><cell></cell><cell>Sync</cell><cell></cell><cell cols="2">AsyncFC</cell></row><row><cell cols="4">Seq. FC Par. FC No-Ann(S)</cell><cell>(S)</cell><cell>(P)</cell></row><row><cell>68.0%</cell><cell>67.3%</cell><cell>70.7%</cell><cell cols="3">69.3% 66.0%</cell></row><row><cell></cell><cell cols="3">BFCL v4 Web Search.</cell><cell></cell></row><row><cell>Metric</cell><cell cols="2">Seq. FC AsyncFC (S)</cell><cell cols="3">Par. FC AsyncFC (P)</cell></row><row><cell>Acc.</cell><cell>54.8%</cell><cell>53.2%</cell><cell cols="2">50.0%</cell><cell>50.0%</cell></row><row><cell>Speedup</cell><cell>-</cell><cell>1.26×</cell><cell>-</cell><cell></cell><cell>1.12×</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>AsyncFC operation regimes. These regimes are induced by inter-function parallelism and decode-function overlap, under the necessary condition that decode progress does not depend on all executing functions' results.</figDesc><table><row><cell>TLLM/TCP</cell><cell>TTOOL/TCP</cell><cell>≈ 1</cell><cell>≫ 1</cell></row><row><cell cols="2">≪ 1 OR ≫ 1</cell><cell>LITTLE</cell><cell>MODERATE</cell></row><row><cell>≈ 1</cell><cell></cell><cell cols="2">MODERATE SWEET SPOT</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>1 Sensitivity to Model Capability LLM + T tool T cp , if T cp ≥ (1 + α)T LLM T LLM + T tool (1 + α)T LLM , if (1 + α)T LLM &gt; T cpThis expression reveals two workload-dependent regimes. When the Task-specific Function Dependency DAG is deep or contains long-latency operations such that the critical path exceeds the model's</figDesc><table><row><cell cols="2">While Equation (2) defines the theoretical speedup ceiling, actual asynchronous execution introduces decoding overhead, modeled as a fractional increase α in LLM decoding time. With this overhead, the speedup ratio becomes:  Value Accuracy 0.925 Recall 0.791 Precision 0.791 Missed dependency (FN / total) 0.038 Metric Par. FC AsyncFC (LLM Ann.) Accuracy 68.0% 68.0% T Metric Over-serialization (FP / total) 0.038 Speedup -1.22×</cell></row><row><cell>R =</cell><cell>  </cell></row><row><cell></cell><cell>  </cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2 :</head><label>2</label><figDesc>LLM-generated dependency annotation results. The left table reports annotation quality on 1812 BFCL v3 Multi-Turn intra-class function pairs by comparing LLM-generated annotation against human-annotated ground truth. The right table reports end-to-end results with GPT-4o on BFCL v3 Multi-Turn under Parallel FC (n = 150, 5s delay). AsyncFC with LLM-generated annotations achieves statistically significant latency reductions relative to Parallel FC, with no evidence of statistically significant accuracy difference (p lat &lt; 0.05, p acc &gt; 0.05), and its speedup is larger in magnitude than the no-annotation setting in Figure3.total decoding time, a larger model with greater total decoding time T LLM improves the speedup. By contrast, for a workload with a shallow DAG (small T cp ), a larger model leads to a smaller speedup. Beyond decoding overhead, asynchronous function calling may occasionally introduce additional end-to-end overhead by decoding more turns than a synchronous baseline.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" xml:id="foot_0"><p>Preprint.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments and Disclosure of Funding</head><p>We would like to thank the anonymous reviewers for their constructive feedback, as well as the members of the <rs type="institution">Sky Computing Lab and Lab11</rs> for their valuable discussions. We also appreciate support from <rs type="person">James Lim</rs> for assistance in adapting AsyncFC into SWE-agent, and the assistance of <rs type="person">Yijia Wu</rs> (<rs type="affiliation">University of Rochester</rs>) and <rs type="person">Kexin Liu</rs> in expanding the experimental evaluations. Sky Computing Lab is supported by gifts from <rs type="funder">Accenture</rs>, <rs type="funder">Amazon</rs>, <rs type="affiliation">AMD, Anyscale, Broadcom, cmpnd, Google, IBM, Intel, Intesa Sanpaolo, Lambda, Lightspeed, Mibura, NVIDIA, Samsung SDS</rs>, and SAP.</p></div>
+			</div>
+			<listOrg type="funding">
+			</listOrg>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">W</forename><surname>An</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zheng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.10955</idno>
+		<title level="m">Empowering multimodal llms with external tools: A comprehensive survey</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">The incremental garbage collection of processes</title>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">C</forename><surname>Baker</surname><genName>Jr</genName></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hewitt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM SIGART Bulletin</title>
+		<imprint>
+			<biblScope unit="issue">64</biblScope>
+			<biblScope unit="page" from="55" to="59" />
+			<date type="published" when="1977">1977</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Legion: Expressing locality and independence with logical regions</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Treichler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Slaughter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Aiken</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SC&apos;12: Proceedings of the International Conference on High Performance Computing, Networking, Storage and Analysis</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2012">2012</date>
+			<biblScope unit="page" from="1" to="11" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.26658</idno>
+		<title level="m">The era of agentic organization: Learning to organize with language models</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Tinyagent: Function calling at the edge</title>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">E</forename><surname>Erdogan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Tabrizi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Moon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">R C</forename><surname>Hooper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Anumanchipalli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Keutzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gholami</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</title>
+		<meeting>the 2024 Conference on Empirical Methods in Natural Language Processing: System Demonstrations</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="80" to="88" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>-S. Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.07017</idno>
+		<title level="m">Asynchronous llm function calling</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">A</forename><surname>Ginart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kodali</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Emmons</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.21620</idno>
+		<title level="m">Asynchronous tool usage for real-time agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Function calling with the gemini api</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Google</surname></persName>
+		</author>
+		<ptr target="https://ai.google.dev/gemini-api/docs/function-calling?example=meeting" />
+		<imprint>
+			<date type="published" when="2025-01-27">2025. Jan. 27, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Crmarena: Understanding the capacity of llm agents to perform professional crm tasks in realistic environments</title>
+		<author>
+			<persName><forename type="first">K.-H</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dhawan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Laban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-S</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference of the Nations of the Americas Chapter</title>
+		<meeting>the 2025 Conference of the Nations of the Americas Chapter</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="3830" to="3850" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.06770</idno>
+		<title level="m">Swe-bench: Can language models resolve real-world github issues? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">An llm compiler for parallel function calling</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Moon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Tabrizi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">W</forename><surname>Mahoney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Keutzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gholami</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-first International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Massive-agents: A benchmark for multilingual function-calling in 52 languages</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Mazzia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gaspers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hench</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Fitzgerald</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Amazon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="20193" to="20215" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Promises: Linguistic support for efficient asynchronous procedure calls in distributed systems</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Liskov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Shrira</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Sigplan Notices</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="260" to="267" />
+			<date type="published" when="1988">1988</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">W</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.00920</idno>
+		<title level="m">Winning the points of llm function calling</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Note on the sampling error of the difference between correlated proportions or percentages</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Mcnemar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Psychometrika</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="153" to="157" />
+			<date type="published" when="1947">1947</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Moon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">E</forename><surname>Erdogan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Lim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Keutzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gholami</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.02141</idno>
+		<title level="m">Efficient and scalable estimation of tool representations in vector space</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Function calling</title>
+		<ptr target="https://platform.openai.com/docs/guides/function-calling" />
+		<imprint>
+			<date type="published" when="2025-01-27">2025. Jan. 27, 2026</date>
+		</imprint>
+		<respStmt>
+			<orgName>OpenAI</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Packer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wooders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<title level="m">Memgpt: towards llms as operating systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Accelerating earth science discovery via multi-agent llm systems</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Pantiukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Shapkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Kuznetsov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">A</forename><surname>Jost</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Koldunov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers in Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="page">1674927</biblScope>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Gorilla: Large language model connected with massive apis</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="126544" to="126565" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">The berkeley function calling leaderboard (bfcl): From tool use to agentic evaluation of large language models</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-J</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-second International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Qian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.16789</idno>
+		<title level="m">Facilitating large language models to master 16000+ real-world apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Identifying the risks of lm agents with an lm-emulated sandbox</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ruan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dubois</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Maddison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.15817</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">fall joint computer conference, part II: very high speed computer systems</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Thornton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the</title>
+		<meeting>the</meeting>
+		<imprint>
+			<date type="published" when="1964">October 27-29, 1964. 1964</date>
+			<biblScope unit="page" from="33" to="40" />
+		</imprint>
+	</monogr>
+	<note>Parallel operation in the control data 6600</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Voyager: An open-ended embodied agent with large language models</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.16291</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Function calling in large language models: Industrial practices, challenges, and future directions</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Guo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Computing Surveys</title>
+		<imprint>
+			<biblScope unit="volume">58</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page" from="1" to="37" />
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">B</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Mukherjee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.18323</idno>
+		<title level="m">Rewoo: Decoupling reasoning from observations for efficient augmented language models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Press</surname></persName>
+		</author>
+		<title level="m">Swe-agent: Agentcomputer interfaces enable automated software engineering. Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="50528" to="50652" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Hotpotqa: A dataset for diverse, explainable multi-hop question answering</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 conference on empirical methods in natural language processing</title>
+		<meeting>the 2018 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2369" to="2380" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Tooleyes: Fine-grained evaluation for tool learning capabilities of large language models in real-world scenarios</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st international conference on computational linguistics</title>
+		<meeting>the 31st international conference on computational linguistics</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="156" to="187" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Toolqa: A dataset for llm question answering with external tools</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="50117" to="50143" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

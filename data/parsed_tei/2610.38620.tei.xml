@@ -1,0 +1,904 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main"></title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-28">28 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-28">28 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">83911727F380634A074843D1BA9CA94C</idno>
+					<idno type="arXiv">arXiv:2610.38620v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>passˆ3 results from Table 2</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>LLM agents increasingly perform consequential actions through external tools, yet their proposed actions are often executed without independent verification of policy compliance or task completion. We introduce JevAct, a runtime verification framework that intercepts selected agent actions before execution and enables feedback-driven correction. JevAct compiles domain policies into executable state checks and structured questions evaluated by a prefill-only decision model, which produces probability-based judgments without relying on LLM generation. By combining deterministic verification of tool-state facts with probabilistic assessment of conversational context, the framework identifies potentially invalid actions and premature task termination, providing targeted feedback for bounded revision. JevAct operates independently of the underlying agent model and requires no modifications to its parameters or tools. We evaluate JevAct across eleven LLM agents on τ 2 -bench Airline and Telecom tasks and BFCL. Results show improvements in agent reliability across multiple models and benchmarks, with particularly consistent gains on Telecom and BFCL, while performance on Airline is more mixed. Overall, these findings suggest that combining structured * Equal contribution.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Language-model agents increasingly use tools to change records, make bookings, and guide users through multi-step procedures. A mistaken answer can sometimes be corrected in a later turn; an unauthorized write or a premature hand-off may be harder to undo. Yet many agent loops execute a proposed tool call as soon as the model produces it. This leaves a gap between generating an action and checking that it is appropriate to carry out.</p><p>ReAct agents interleave reasoning with tool use, while reflection methods such as Self-Refine and Reflexion add critique and feedback to improve later proposals or trials <ref type="bibr" target="#b24">(Yao et al., 2022;</ref><ref type="bibr" target="#b11">Madaan et al., 2023;</ref><ref type="bibr" target="#b17">Shinn et al., 2023)</ref>. These methods can improve agent behavior, but they do not by themselves verify a particular action against a domain policy immediately before execution. Runtime constraints and learned tool-call checks address this separate problem <ref type="bibr" target="#b20">(Wang et al., 2026;</ref><ref type="bibr" target="#b3">Chen et al., 2025;</ref><ref type="bibr" target="#b12">Mou et al., 2026;</ref><ref type="bibr">Kang et al., 2026a)</ref>.</p><p>A separate generative LLM could review each proposal and explain its concerns, as in LLM-asa-judge methods <ref type="bibr" target="#b26">(Zheng et al., 2023;</ref><ref type="bibr" target="#b10">Liu et al., 2023)</ref>. But free-form explanations must still be interpreted before a gate can act on them, and the cost of making this decision with a frontier model is high. Decision models instead return choices and probabilities for fixed questions, making threshold-based checks straightforward. Their probabilities are not guaranteed to be calibrated or correct, so their value has to be tested in the agent loop rather than assumed (TypeSafe AI, 2026; <ref type="bibr" target="#b5">Deußer et al., 2026)</ref>.</p><p>We present JevAct, a harness that checks selected proposals before execution. Offline, a compiler turns a domain policy into questions, rules, executable checks over tool state, and where needed, a hand-off checklist. At runtime, code checks facts available in tool records and Kev (an open sourced Jev-like (TypeSafe AI, 2026) decision model) answers questions that depend on the conversation. A passing proposal proceeds; a flagged proposal is returned to the agent with targeted feedback and a bounded chance to revise. The agent still proposes actions; Kev does not choose them. This separates JevAct from decision-centric runtimes that delegate action selection to a decision model <ref type="bibr" target="#b27">(ZJUNLP, 2026)</ref>.</p><p>Our central question in this is work is whether a decision model can serve as a probabilitythresholded verifier alongside executable tool-state checks. We compare JevAct with a ReAct harness using the same agent LLM in both arms, across Airline and Telecom tasks in τ 2 -bench and multi-turn function-calling tasks in BFCL <ref type="bibr" target="#b1">(Barres et al., 2025;</ref><ref type="bibr" target="#b15">Patil et al., 2025)</ref>. On Telecom, all eight agents improve both at-least-once success and success across all three runs. On BFCL, all nine improve in three-run success, but at-least-once results are mixed. Airline effects are smaller and vary by agent (see Figure <ref type="figure">1</ref>). Because JevAct adds compiled checks and revision opportunities, these comparisons evaluate the full harness, not the judge in isolation.</p><p>Our contributions in this work are threefold:</p><p>• We introduce JevAct, which combines executable checks over tool state with thresholded decision-model judgments of conversational context before selected actions are executed. • We lay the foundation for a workflow that compiles domain policies into questions, decision rules, executable state checks, and hand-off checklists for a decision-model gate. • We evaluate the harness against same-model ReAct baselines across three benchmark settings, with component and judge ablations alongside task-success, repeatability, and estimated judge-cost results.</p><p>2 Related Work</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">LLM Agents and Test-Time Feedback</head><p>ReAct interleaves model reasoning with environment actions <ref type="bibr" target="#b24">(Yao et al., 2022)</ref>. Self-Refine and Reflexion add test-time critique or feedback to improve later proposals and trials without updating model weights <ref type="bibr" target="#b11">(Madaan et al., 2023;</ref><ref type="bibr" target="#b17">Shinn et al., 2023)</ref>. These methods motivate giving an agent a chance to revise, but do not by themselves check whether a consequential tool call satisfies a domain policy before execution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Runtime Policy Enforcement</head><p>Several systems place explicit controls around agent execution. GuardAgent uses a separate agent to generate and execute verification code from user-defined guard requirements <ref type="bibr" target="#b22">(Xiang et al., 2024)</ref>. Zwerdling et al. compile company policies into executable guards that check compliance before tool actions <ref type="bibr" target="#b28">(Zwerdling et al., 2025)</ref>. AgentSpec represents runtime constraints as triggers, predicates, and enforcement actions; ShieldAgent derives verifiable rules from policy documents; and CUGA applies governance interventions across an execution graph <ref type="bibr" target="#b20">(Wang et al., 2026;</ref><ref type="bibr" target="#b3">Chen et al., 2025;</ref><ref type="bibr" target="#b18">Shlomov et al., 2026)</ref>. ToolSafe uses a learned guardrail to assess proposed tool calls and return feedback, while PolicyGuard and PolicyGuide use model-based verifiers for policy adherence and workflow guidance <ref type="bibr" target="#b12">(Mou et al., 2026;</ref><ref type="bibr">Kang et al., 2026a,b)</ref>. Related approaches include verifier-grounded runtime mediation, which uses executable procedural checks to select interventions <ref type="bibr" target="#b23">(Yabusaki, 2026)</ref>, and ToolFence, which combines deterministic authorization with judgebased capability grants <ref type="bibr">(Li et al., 2026a)</ref>. CaMeL instead enforces security through separation of trusted control flow and untrusted data <ref type="bibr" target="#b4">(Debenedetti et al., 2026)</ref>. JevLoop assigns action and control decisions to a decision model; JevAct leaves proposals to the ReAct LLM and places Kev, an open-source Jev-type decision model, in a separate verification step before selected actions commit <ref type="bibr" target="#b27">(ZJUNLP, 2026)</ref>. We focus on probability-thresholded verification using a fixed-choice decision model, combined with executable checks of tool-state facts and feedback-driven revision.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">LLM Judges and Decision Models</head><p>LLM-as-a-judge methods use generative models to compare responses, as in MT-Bench, or apply explicit rubrics, as in G-Eval; such judgments can also be sensitive to response order <ref type="bibr" target="#b26">(Zheng et al., 2023;</ref><ref type="bibr" target="#b10">Liu et al., 2023;</ref><ref type="bibr" target="#b21">Wang et al., 2024)</ref>. Jev introduced decision models that return typed choices, scores, and probabilities rather than generated text (TypeSafe AI, 2026). Initial evaluations study its closed-label decisions and rubric-based scoring <ref type="bibr" target="#b5">(Deußer et al., 2026)</ref>. Two recent preprints evaluate Jev as a judge: Li et al. report competitive results on preference and evidence-grounded factuality but weaker performance when derivation is required, while Rao and Callison-Burch report mixed rubric results and overlapping errors with LLM judges <ref type="bibr">(Li et al., 2026b;</ref><ref type="bibr" target="#b16">Rao and Callison-Burch, 2026)</ref>.</p><p>Those studies judge completed outputs. JevAct instead uses Kev, an open-source Jev-type model, online before selected actions execute, combining its fixed-choice judgments with programmatic state checks and feedback for revision <ref type="bibr" target="#b14">(Palmer, 2026)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Method</head><p>In this work we introduce JevAct, which augments the harness of a ReAct agent <ref type="bibr" target="#b24">(Yao et al., 2022)</ref> by inserting a selective checking stage between message proposal and execution. The checks can defer execution and request a revised proposal from the LLM with temporary feedback, subject to a fixed revision budget. The agent's LLM, base prompt, and tools remain unchanged.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Overview</head><p>Setting. At each step t, an LLM reads the conversation history and proposes a message, which may contain user-facing text, tool calls, or both. The harness normally executes the proposal and adds it and any tool results to the history. In policy-governed tasks, JevAct checks selected proposals before execution because some mistakes are hard to undo. A write call changes the environment, for example by booking, cancelling, or changing a setting. A hand-off ends the agent's attempt, either by transferring the user to a human or by telling the user that nothing more can be done. The same runtime design can also apply generic checks when no written policy is available.</p><p>Components. </p><formula xml:id="formula_0">∼ π(• | h t , f ).</formula><p>Each check has a revision budget: R = 2 for the write gate and R = 1 for the hand-off check.</p><p>While budget remains, a flagged proposal is discarded and the agent gets another chance to respond to the feedback. Once the budget is exhausted, the next proposal is committed without another check. Thus, a check cannot block the agent indefinitely, and it adds at most R extra LLM calls.</p><p>Feedback is temporary and is not added to the conversation history, so critiques of earlier steps do not accumulate in the context.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Compiler</head><p>The compiler runs offline for each domain. It uses the policy and tool schemas to build the checks; code generation and repair also use example tool outputs and calls from development logs. For each write tool, it produces:</p><p>• yes/no questions about policy requirements, the source of call arguments, user intent, and any required prior steps or confirmations;</p><p>• a Boolean rule that combines the answers and specifies when the call is allowed; and</p><p>• a Python function that computes policy-relevant facts available in tool records (such as dates, amounts, and counts) and returns any violations those records establish.</p><p>For hand-offs, it also produces the problem types covered by the policy and the steps the agent should try for each problem before giving up. Each step has a settled question: was it tried, verified, or ruled out? One instruction in the compile prompt matters most: a condition that was never discussed is not ruled out. Without it, "enable roaming" compiles to ". . . or the user is not traveling", which looks settled even though nobody asked. With it, the checklist gets its own step: ask whether the user is traveling.</p><p>For write gates, the compiler gets one repair pass using logged calls without outcome labels. Next, questions that the judge answers with a confident violation on more than 10% of a tool's development calls are dropped; this filters questions that are hard to answer from the available evidence. The handoff checklist has a separate filter: steps flagged on more than 5% of hand-offs in solved training episodes are dropped. The prompts and examples are in Section A.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Judge</head><p>For the judge in this work, we use Kev <ref type="bibr" target="#b14">(Palmer, 2026)</ref>, an open-source Jev-like decision model. Given a prompt and questions with fixed answer options, it returns a probability for each option in one forward pass, without generating text. Questions about the same prompt share that pass. We use Kev-27B, a fine-tune of Qwen3.8-27B, without further training for our setup. Its probabilities let the checks act only on confident answers, and the cost of a check does not grow with the number of questions. Because Kev is separate from the agent LLM, the agent does not judge its own proposals.</p><p>The checks divide the work by evidence source: code calculates facts available in tool records, while Kev answers focused questions that require interpreting the conversation, such as whether the user requested an action or whether a step was tried. This asks the judge to assess specific candidate items rather than diagnose an entire problem from scratch. Other models that answer the same questions can take Kev's place. We chose Kev as open source model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Checks</head><p>Write gate. The write gate runs before each write call, in three steps:</p><p>1. Code: the compiled function reads the proposed call's arguments and earlier tool results, then returns any violations established by those records.</p><p>2. Judge: Kev answers the questions for that tool using the policy, conversation, tool results (with dates annotated and list values ranked), and proposed call. An answer counts as no only when Kev is confident, meaning P (yes) ≤ 0.05; otherwise it counts as yes.</p><p>3. Rule: the call is flagged if the code finds a violation or the Boolean rule is not satisfied by the question answers.</p><p>Feedback lists the established violations and failed questions, then asks the agent to correct the call, ask the user for missing information, or explain why the request cannot be fulfilled. If the agent believes the call is already correct, it may submit it again. After a second flag, the feedback directs the agent to respond to the user rather than call the tool again.</p><p>Hand-off check. The hand-off check runs before a transfer call and before a message that gives up in words. A keyword filter first identifies possible give-up messages, which the judge then confirms.</p><p>From the conversation, Kev identifies the user's problem, whether the user says it is fixed, and whether each checklist step is settled. A step is open when the probability that the user's problem requires it is at least 0.5 and the probability that it is settled is at most 0.5. If the problem is not fixed and at least one required step is open, the check flags the hand-off and returns the open steps as feedback. The hand-off check allows one revision; after that budget is used, the next proposal is committed without another check.</p><p>Function calling without a policy. BFCL multi-turn <ref type="bibr" target="#b15">(Patil et al., 2025)</ref> has no written policy, and its user turns are fixed, so we use two generic checks. The end-of-turn check runs when the agent ends its turn while a tool error stating a requirement (for example, "needs to" or "must") remains unresolved. Kev selects the tool that meets the requirement from the tool list, or selects none. If the probability of a tool being the right one is at least 0.6, feedback directs the agent to call it rather than ask the user. The requested-action gate runs before each state-changing call and asks whether the user requested it or a tool error requires it. If Kev assigns at most 0.05 probability to "yes," the gate flags the call as unrequested and directs the agent to do only what was asked or required.</p><p>4 Experimental Setup We follow BFCL's function-calling loop (no system prompt, up to 20 steps per user turn) and score with its own multi-turn checker: an entry is solved only if every turn's end state and response match the ground truth. BFCL has no written policy, so JevAct uses its two generic checks here, the end-of-turn check and the requested-action gate (Section 3.5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Agent LLMs</head><p>We evaluate eleven agent LLMs. GPT-4.1, Claude Opus 4.6, gpt-oss-20b, gpt-oss-120b, Qwen3.8-27B, and DeepSeek-V4-Pro are tested on all three benchmark settings. Claude Haiku 4.5 and Claude Opus 5.5 are tested on Telecom only; Llama 3.3 70B, Mistral Small 3.2 24B, and Gemma 4 31B are tested on BFCL only (Table <ref type="table">2</ref>). Within each comparison, the ReAct and JevAct arms use the same agent model. Agent calls use temperature 0 and a maximum of 4,096 output tokens; the GPT-4.1 user simulator on τ 2 -bench also runs at temperature 0.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Judge and Compiler</head><p>Unless stated otherwise, every JevAct result uses the same configuration. The judge is Kev-27B, used as is, for every agent LLM and benchmark. Claude Opus 4.6 compiles the checks offline for policy-governed tasks (Section 3.3). The write gate counts an answer as no only when P (yes) ≤ 0.05 and allows R = 2 revisions. The hand-off check is active only on Telecom, with R = 1.</p><p>On BFCL, the end-of-turn check acts at P ≥ 0.6 and the requested-action gate at P ≤ 0.05. For the main results and judge-size ablation, thresholds and dropped items were set with Kev-27B. In the judge-choice ablation, each alternative LLM judge uses its own label-free dropped-question list.</p><p>Table <ref type="table" target="#tab_6">5</ref> varies judge size with the checks and thresholds fixed; Table <ref type="table" target="#tab_5">4</ref> also changes the droppedquestion list for alternative LLM judges.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Metrics</head><p>Main results and judge-comparison runs use three runs per task. The single-trial Airline component ablation is reported as passˆ1 (Table <ref type="table" target="#tab_4">3</ref>). With c of n runs of a task solved, we report, averaged over tasks <ref type="bibr" target="#b2">(Chen et al., 2021;</ref><ref type="bibr" target="#b25">Yao et al., 2024)</ref>,</p><formula xml:id="formula_1">pass@k = 1 - n-c k n k , passˆk = c k n k</formula><p>.</p><p>With n = k = 3, pass@3 is the share of tasks solved in at least one run, and passˆ3 is the share solved in all three runs. passˆ1 is the mean success rate across individual runs. Cost is reported as tokens per episode for the agent LLM and judge, along with the number of proposals sent back (Appendix able 9).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Checks Per Benchmark</head><p>Table <ref type="table" target="#tab_2">1</ref> summarizes which checks are active on each benchmark. The hand-off check is disabled on τ 2 -bench Airline because, in offline tests, it flagged 26% of hand-offs in otherwise solved episodes.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head><p>Table <ref type="table">2</ref> compares JevAct with ReAct using the same agent LLM in each pair. The results vary by benchmark: the strongest and most consistent gains appear on Telecom, while Airline and BFCL show a more mixed pattern.</p><p>On τ 2 -Telecom, all eight agents improve on both metrics. Averaged across agents, pass@3 rises by 16.0 percentage points and passˆ3 by 16.9 points. The largest change is for Opus 4.6, whose success across all three runs rises from 39.5% to 80.7%. GPT-4.1's pass@3 rises from 45.6% to 83.3%. Even the strongest ReAct baseline, Opus 5.5, improves in passˆ3 from 74.6% to 82.5%. The Telecom hand-off check is designed to catch early abandonment, so this pattern is consistent with that check addressing a frequent failure mode. The comparison evaluates the full harness, however, and does not isolate the hand-off check's effect.</p><p>On τ 2 -Airline, gains are smaller and mixed. Pass@3 improves for four of six agents, is unchanged for one, and falls for one. Success across all three runs improves for four agents and falls for two. GPT-4.1's pass@3 rises from 66.0% to 82.0%, while Opus 4.6 rises from 84.0% to 92.0%. With 50 tasks, a single task changes a score by 2 percentage points, so small differences should be read cautiously. The write gate also intervenes infrequently for some agents: it sends back 0.08 drafts per run for Opus 4.6 and 0.03 for Qwen3.8-27B (Table <ref type="table">9</ref>).</p><p>On BFCL, passˆ3 increases for all nine agents, by 0.1 to 9.6 points. Pass@3 improves for four agents and declines for five, by 0.2 to 3.6 points. Thus, higher success across all three runs does not mean that the gate expands task coverage for every agent; the pattern is instead consistent with more repeatable performance on some tasks.</p><p>Table 2: Main results (%). pass@3: tasks solved in at least one of three runs. passˆ3: tasks solved in all three runs. Both arms use the same LLM and differ only in the harness; the higher value of each pair is in bold.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>pass@3 passˆ3</head><p>Benchmark Model ReAct JevAct ReAct JevAct </p><formula xml:id="formula_2">τ 2 Airline GPT-</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Ablations</head><p>We examine three aspects of JevAct: the contribution of its verification components, the trade-off between decision models and generative LLM judges, and the effect of judge size.</p><p>Write-gate components. Table <ref type="table" target="#tab_4">3</ref> examines the contribution of different write-gate components using a single-trial Airline evaluation with GPT-4.1 as the agent. The full gate improves success from 50.0% to 72.0%, while executable checks alone achieve 68.0%. In contrast, Kev-27B questions alone reach 57.1%, suggesting that programmatic verification accounts for much of the improvement in this setting. Replacing Kev-27B with the smaller Kev-9B reduces success to 58.0%, indicating that judge choice can substantially affect performance. Reducing the revision budget from two to one has a relatively small effect (68.0%). Importantly, flagging every write call once without checking its validity gives no improvement over ReAct (50.0%), with three runs per task and a gpt-oss-120b user simulator, an unconditional re-check of every write leaves GPT-4.1's passˆ3 unchanged (26.0% to 28.0%) while the full gate raises it to 40.0% (paired 95% CI of the gain over ReAct: +2.0 to +26.0 points); for gpt-oss-120b as the agent, the same re-check, or random flags at the gate's rate, raise passˆ3 as much as the full gate (32.0% to 42.0%), so whether the judge's verdicts matter beyond the revision opportunity depends on the agent. The flag rates further show that the full gate intervenes on fewer than half of write calls, while achieving the highest success rate among the tested configurations. As these results are based on a single trial, differences between configurations should be interpreted cautiously.</p><p>Judge choice and cost. Table <ref type="table" target="#tab_5">4</ref> compares Kev with open-weight and API-based generative LLM judges. All judged configurations improve passˆ1 over their corresponding ReAct baselines by 9.4-18.7 percentage points, suggesting that the verification framework is not dependent on a particular judge architecture. Kev-27B achieves competitive performance: with GPT-4.1 as the agent, it reaches 70.0% success, compared with 67.3-72.0% for generative judges; with Haiku 4.5, it reaches 68.0%, compared with 64.7-66.0%. The main advantage of Kev is efficiency. Its estimated judge cost ranges from $0.0003 to $0.0017 per task, compared with $0.0020-$0.0040 for open-weight LLM judges and $0.0127-$0.0231 for API judges. Thus, prefill-only decision models can pro- Judge size. Table <ref type="table" target="#tab_6">5</ref> evaluates whether increasing the decision model's size improves verification. Surprisingly, larger judges do not consistently yield better downstream task performance. On Airline, Kev-27B performs best for GPT-4.1 (65.3% passˆ1, compared with 59.3% for Kev-9B and 58.0% for Kev-0.8B), but the remaining agents show no consistent preference for larger models. On Telecom, smaller judges frequently match or outperform Kev-27B, indicating that increased model capacity does not necessarily translate into more successful agent interactions. Moreover, in a replay of 609 identical hand-off states, Kev-9B agrees with Kev-27B on 97.0% of decisions, while Kev-0.8B agrees on 90.6% (Section A.2). This suggests that substantially smaller decision models can often reproduce the decisions of a larger judge.</p><p>One factor affecting judge size is input length. On Airline, 41% of write-check inputs exceed 8,192 tokens, beyond the smaller judges' validated context length. Offline analysis shows that Kev-9B misses more invalid calls on long inputs, while threshold recalibration reduces the gap on shorter inputs. Kev-0.8B remains weaker even on short inputs (Section A.3, and A.4). Together, these findings suggest that effective judge selection depends not only on model capacity, but also on context length, decision thresholds, and the type of verification required. Since downstream success also depends on the agent's response to feedback, these results should not be interpreted as direct rankings of judge accuracy.</p><p>Overall findings. The ablations highlight three observations. First, executable state checks provide a substantial part of the measured benefit on Airline, and selective verification beats indiscriminate revision for GPT-4.1 but not for gpt-oss-120b, for which a re-check alone gives the same gain. Second, prefill-only decision models offer a competitive and comparatively inexpensive alternative to generative LLM judges, reducing cost with small drop in performance. Third, larger judges are not uniformly better: smaller models can be effective when their context capacity and decision thresholds are appropriate for the verification task. These results motivate future work of a modular verification approach in which deterministic checks handle structured facts and lightweight decision models assess conversational context. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We introduced JevAct, a runtime gate that checks selected agent proposals before execution, combines executable checks over tool state with probability-based judgments of conversational context, and returns feedback for bounded revision. Compared with same-model ReAct baselines, the full harness shows its clearest gains on Telecom: all eight agents improve both at-least-once success and success across all three runs. On BFCL, all nine improve in three-run success, while at-least-once results are mixed. Airline results are smaller and mixed across agents. These findings support further study of decision-model gates, but do not establish uniform gains or isolate the judge's contribution. Two caveats apply: with a gpt-oss-120b user simulator the Telecom gain does not appear (passˆ3 changes by -1.8 points, 95% CI -7.9 to +4.4), and on 260 labelled development write calls 42 of the 101 incorrect calls break no compiled question, because the questions encode the policy rather than the user's request.</p><p>Future work. The next step is to make the gate work across agent architectures rather than tying it to one ReAct loop. A common interface to proposed actions, tool state, and execution outcomes could support different action formats and orchestration frameworks. We also aim to automate more of the setup: deriving candidate checks from policies and tool schemas, generating and validating executable checks, and selecting thresholds and revision budgets on held-out traces. Such automation should account for both missed violations and unnecessary interventions, while retaining human escalation for uncertain or high-impact decisions. Broader evaluations should include more domains and frameworks, and report end-to-end latency, cost, and safety outcomes alongside task success and repeatability. In the prompts below, text in angle brackets (&lt;...&gt;) is filled by code; everything else is sent verbatim, except that line breaks inside a paragraph are removed here for typesetting.</p><p>Step 1: questions per write tool. The prompt describes the reader the questions are for: a small model that sees the conversation, cannot compute, and answers yes/no with a probability. It asks for questions that each test one fact and together cover the policy's conditions on the call, the provenance of every argument, whether the user wants the action, and the required steps before it. Two output fields matter at run time. bad if gives the answer that means a violation, so the gate knows each question's polarity. Arguments are written as placeholders, {reservation id}, which code fills with the proposed call's values before Kev reads the question. The prompt also asks the compiler not to make the reviewer compute anything; arithmetic is left to step 3.</p><p>You are compiling a customer-service agent's policy into atomic checks that an independent reviewer will answer before each database-changing tool call runs.</p><p>The reviewer is a small reading model. It sees the whole conversation: the user's messages, the agent's messages, every tool call and its JSON result, and the policy. Dates in the conversation are annotated with their offset from the current time, and lists of options in tool results come with pre-computed rankings (lowest to highest price, etc.). It cannot do arithmetic itself and cannot see anything outside the conversation. It answers yes/no questions with a calibrated probability.</p><p>For EACH write tool below, write 12 to 20 atomic yes/no questions such that, together, they cover every policy rule and every way the call could be wrong for this user:</p><p>-conditions the policy puts on the action (eligibility, required preconditions, what must be checked first); -whether each argument value is right: grounded in a tool result, what the user actually asked for or explicitly chose (not just agreed to after the agent proposed it), and consistent with the policy's formulas; -whether the action is wanted at all (the user asked for it; not something the user declined or did not request); -required steps before acting (records retrieved, explicit confirmation of the details). Each question must test ONE fact, be answerable from the conversation, and refer to the proposed call's arguments as {arg_name} (e.g. {reservation_id}). Prefer facts read from tool results over the user's claims. Do not ask the reviewer to compute anything.</p><p>Return only JSON: {"&lt;tool name&gt;": [{"id": "&lt;short_snake_case&gt;", "question": "...", "bad_if": "yes" or "no", "rule": "&lt;the policy rule it checks, short&gt;"}, ...], ...} POLICY: &lt;the domain policy, verbatim&gt; WRITE TOOLS (OpenAI schemas): &lt;the write tools' OpenAI function schemas, as JSON&gt;</p><p>For airline this produced 86 questions over six write tools (12 to 21 per tool); for telecom, 75. Part of the compiled list for cancel reservation:</p><p>{"id": "reservation_id_correct", "bad_if": "no", "question": "Does {reservation_id} match a reservation ID associated with the user as confirmed by tool results?"} {"id": "no_flown_segments", "bad_if": "no", "question": "Based on tool results, have zero flight segments in {reservation_id} already been flown (status 'flying' or past departure)?"} {"id": "cancellation_eligible_24hr", "bad_if": "no", "question": "Was the booking for {reservation_id} made within the last 24 hours according to tool results?"} {"id": "at_least_one_cancel_condition_met", "bad_if": "no", "question": "Is at least one cancellation eligibility condition met: booked within 24hrs, airline cancelled, business cabin, or insurance-covered reason?"} {"id": "user_requested_cancellation", "bad_if": "no", "question": "Did the user actually request to cancel this reservation (not just inquire about it)?"} {"id": "user_confirmed_cancellation", "bad_if": "no", "question": "Did the agent list the cancellation details and did the user explicitly confirm (say yes) before this tool call?"}</p><p>Step 2: the decision rule. A second call reads the policy and the step-1 questions (ids and text only) and writes, per tool, one Python boolean expression over the question ids that is true when the call is allowed. This is where alternatives are combined: the policy allows a cancellation if any one of four conditions holds, which a list of independent questions cannot express.</p><p>Below is a customer-service policy and, for each database-changing tool, a list of yes/no questions an independent reviewer answers about a proposed call (each with an id).</p><p>For each tool, write the policy's decision as ONE Python boolean expression over the question ids, True when the call is allowed and correct. Each id evaluates to True if the reviewer answered yes. Use `and`, `or`, `not`and parentheses. Combine alternative eligibility conditions with `or`(e.g. any one of several cancellation conditions is enough). Leave out questions that are not needed for the decision or that ask about things the policy does not require. Return only JSON: {"&lt;tool name&gt;": "&lt;expression&gt;", ...} POLICY: &lt;the domain policy, verbatim&gt; QUESTIONS: &lt;the tool's questions from the first compile, as JSON {tool: [{id, question}, ...]}&gt;</p><p>The compiled rule for cancel reservation keeps the summary eligibility question and leaves out the four single-condition ones:</p><p>user_id_obtained and reservation_id_correct and reservation_retrieved and no_flown_segments and cancellation_reason_obtained and at_least_one_cancel_condition_met and user_requested_cancellation and user_confirmed_cancellation</p><p>At run time each id is true unless Kev answers a confident no (P (yes) ≤ 0.05), and the rule is evaluated with Python's eval and no builtins. If it is false, the feedback lists the questions that failed.</p><p>Step 3: code for what the records decide. Questions that need arithmetic or date comparisons (free baggage allowance, hours since booking, certificate amounts) are what Kev answers worst. A third call writes one Python function per write tool that reads the proposed arguments and every earlier tool result, computes the facts the policy depends on, and returns the violations the records make certain. The prompt restricts the code to the standard library; it is executed with a whitelist of builtins and imports, and an exception counts as no violation.</p><p>You are writing helper code for an independent reviewer that checks a customer-service agent's database-changing tool calls against the policy below. The reviewer is a reading model: it cannot do arithmetic, compare dates, look up tables or compute minima. Your code does that for it.</p><p>For EACH write tool listed, write a Python function def derive_&lt;tool name&gt;(args: dict, results: list) -&gt; dict:</p><p>-`args`: the proposed call's arguments.</p><p>-`results`: every earlier tool call in the conversation, oldest first, as dicts {"tool": &lt;tool name&gt;, "args": &lt;its arguments&gt;, "result": &lt;its parsed JSON result, or the raw string&gt;}. Example results of each read tool are given below, so you know the JSON shapes.</p><p>-Return a dict of COMPUTED FACTS the policy's rules for this tool depend on, as short readable strings or numbers, e.g. allowances and totals the policy defines, the value an argument should have by the policy's formula next to the value the call uses, time elapsed since a timestamp vs the policy's current time, balances vs amounts, counts, which earlier records the call's ids refer to and their relevant fields. Name each fact clearly (e.g. "expected_nonfree_baggages", "hours_since_booking").</p><p>-Also return the key "violations": a list of short strings, one per policy rule this call clearly breaks according to the RECORDS (tool results) and your computations, e.g. "nonfree_baggages should be 0 (gold, economy, 1 passenger: 3 free; total 2), call has 1", or "reservation created 312 h before now; not within 24 h, not business, no insurance, no airline cancellation: not eligible for cancellation". Step 4: one repair round. The step-3 code is run on the write calls in the logs of train-split tasks. Up to 16 calls on which it reported a violation, at most one per tool and first violation, are shown back to the compiler with the records the code read. No gold action or outcome is shown; the compiler judges each reported violation against the policy and the records and fixes the bugs it finds (for example, reading an error string such as "Error: User not found" as a user record, or using a reservation that a later tool result had superseded). On held-out airline tasks this round cut the code's false alarms from 11.3% to 1.4% of correct write calls.</p><p>Below is Python code you wrote earlier that computes, for a customer-service agent's proposed database-changing tool call, the facts the policy depends on and a list of "violations" that the records make certain.</p><p>It was run on calls from real conversations. Here are calls where it reported violations, each with the call, the violations it reported, and the earlier tool calls and results it read (oldest first, truncated). For each one, check against the policy and the records whether the reported violation is real. Where it is not (a bug: e.g. it read an error message as a record, used a stale record that a later tool result superseded, misread a field, applied the wrong rule), fix the code. Keep every check that is right. Return the complete corrected code only.</p><p>POLICY: &lt;the domain policy, verbatim&gt; CODE: ```python &lt;the compiled module from the previous step&gt; ``F LAGGED CALLS: &lt;up to 16 logged calls (train-split tasks) on which the code reported a violation, at most one per tool and first violation; each given as the call, the violations it reported, and the last 8 earlier tool calls with their results (each result cut to 700 characters)&gt;</p><p>Step 5: label-free question filter. Kev-27B answers every compiled question on every write call in the development logs, with the same state it sees online (the policy, the conversation, every tool result with dates annotated and lists ranked, and the proposed call). A question fires on a call when its answer is a confident violation. Any question that fires on more than 10% of its tool's logged calls is dropped: real violations are rare, so a question that fires that often is asking something Kev cannot read from the conversation or the policy does not require. A dropped question is never reported and counts as yes in the rule. The thresholds (P ≤ 0.05, 10%) were set once on airline and reused unchanged. This drops 17 of 86 Airline questions and 5 of 75 Telecom questions (175 logged Telecom write calls).</p><p>Step 6: the hand-off checklist. The hand-off prompt asks for the problem types the policy troubleshoots and, for each, the steps the agent must try before handing off. Each step carries a settled question, the problems that require it (prerequisites included) and the agent tools that perform it. The prompt below describes the checklist-generation call.</p><p>You are compiling a customer-service agent's policy into a checklist for an independent reviewer.</p><p>The reviewer is called at the moment the agent wants to END its attempt to solve the user's problem: hand the user off to a human agent, or tell the user nothing more can be done. The policy asks the agent to try every relevant resolution step first. The reviewer reads the conversation as the agent saw it (the user's messages, the agent's messages, the agent's own tool calls and their results) and flags a REQUIRED step that is still OPEN.</p><p>1. "problems": the kinds of problem the policy has troubleshooting for, as {"&lt;id&gt;": "&lt;one-line description&gt;"}. 2. "steps": every resolution / troubleshooting step the agent must go through (itself with a tool, or by guiding the user on their device) before handing off. Include steps that start by establishing a fact (e.g. asking the user something) when the policy's later steps depend on it: the agent cannot skip them because the user did not volunteer the fact. For each step:</p><p>-"id": short snake_case id; -"step": what the agent must do, one sentence, naming the tool or device action (and the question to ask, if any); -"problems": the problem ids it is required for, INCLUDING problems for which the policy makes it a prerequisite (e.g. a step for problem A is also required for problem B if B's troubleshooting says to fix A first); -"settled": a yes/no question, YES when the conversation shows the step is settled: it was tried, OR the setting or condition it checks was verified to be fine, OR the agent established that the step does not apply (e.g. the user answered a question that rules it out). NO when the conversation never addressed it. A condition that was never discussed is NOT ruled out: if nobody asked (e.g. whether the user is traveling), the step is open. Do not put an "or &lt;condition&gt; does not hold" escape in the question unless it says "the conversation established that"; -"agent_tools": the agent tools (names from the list below) that perform or verify the step, [] if none.</p><p>Cover the policy's own steps, in its order; skip identity verification and pure information requests.</p><p>Reply with one JSON object: {"problems": {...}, "steps": [...]}.</p><p>AGENT TOOLS: &lt;the names of the agent's tools, comma-separated&gt; POLICY: &lt;the domain policy, verbatim&gt;</p><p>Online, Kev answers in one request which problem the user has (one of the compiled types or other), whether the user confirmed the problem is fixed, and every step's settled question. A step is open if the probability of the problems that require it is at least 0.5 and P (settled) ≤ 0.5.</p><p>To select checklist steps for dropping, Kev-27B answered the checklist questions at the first handoff in each episode across six Telecom development runs (GPT-4.1 and Opus 4.6). We used the 74 train-split tasks (217 hand-offs, 36 in solved episodes): any step flagged on more than 5% of solved hand-offs was dropped, since a correct hand-off should pass. This removed seven steps: airplane mode, APN settings, SIM status, line suspension, overdue bills, contract end date, and resuming the line after payment. Both thresholds remained at 0.5. The 40 test-split tasks did not determine these seven drops. They were held out only for the filter; the checklist itself was revised after a results review (Step 6).</p><p>BFCL. Nothing is compiled for BFCL multi-turn: it has no written policy, and its two checks ask the same fixed questions on every task (Section 3.5).</p><p>A.2 Judge size on identical hand-off states (offline)</p><p>We replayed the 609 telecom hand-off states from the Kev-27B runs through each judge, holding the checklist, thresholds, and dropped steps fixed. This isolates judge differences from changes in</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>-bench<ref type="bibr" target="#b1">(Barres et al., 2025)</ref>: an agent serves a simulated user under a domain policy and calls tools that read and write a database. We use two domains. Airline (50 tasks) tests policy-compliant write calls (book, cancel, change). Telecom (the 114-task base split) tests troubleshooting, in which the agent also guides the user through actions on their own device; here the main failure is giving up too early. The user simulator is GPT-4.1, as in τ 2 -bench. Scoring is τ 2 -bench's own: the final database state and the required communication.</figDesc><table><row><cell>4.1 Benchmarks</cell></row><row><cell>τ 2</cell></row></table><note><p><p><p>BFCL multi-turn</p><ref type="bibr" target="#b15">(Patil et al., 2025)</ref></p>: 800 entries, 200 in each of four categories (base, missing function, missing parameter, long context). The user turns are fixed, so there is no user simulator.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>Checks per benchmark, with the number of compiled items (dropped items in parentheses).</figDesc><table><row><cell cols="2">Benchmark Check</cell><cell>Compiled items</cell></row><row><cell>τ 2 Airline</cell><cell>write gate</cell><cell>6 write tools, 86 questions (17)</cell></row><row><cell cols="2">τ 2 Telecom write gate</cell><cell>6 write tools, 75 questions (5)</cell></row><row><cell></cell><cell>hand-off check</cell><cell>8 problem types, checklist steps (7 dropped)</cell></row><row><cell>BFCL</cell><cell>end-of-turn check</cell><cell>-</cell></row><row><cell></cell><cell cols="2">requested-action gate -</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Single-trial write-gate ablation on Airline with GPT-4.1 as the agent. The experiment uses the same configuration as Table2(code checks, Kev-27B, and R = 2).</figDesc><table><row><cell>passˆ1 Flags per task</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>The same JevAct write gate on τ 2 -Airline with different judges answering its compiled questions. Each LLM judge uses its own label-free list of dropped questions. Judge cost per task is estimated from logged requests and tokens; see Section A.6. ReAct is run separately for each block; only the first block's baseline is shown (the GPT-4.1 baseline for the Kev-size block is 52.7%). Best judge per block and column in bold.</figDesc><table><row><cell>GPT-4.1</cell><cell>Haiku 4.5</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Judge size ablation. JevAct uses Kev-0.8B, Kev-9B or Kev-27B; compiled checks, thresholds and dropped checklist steps (all set with Kev-27B) are fixed across arms. On Airline the judge answers the write gate's questions; on Telecom it also answers the hand-off checklist. Best value of each row and metric is in bold.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>passˆ1</cell><cell></cell><cell></cell><cell>passˆ3</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>JevAct, judge:</cell><cell></cell><cell></cell><cell cols="2">JevAct, judge:</cell><cell></cell></row><row><cell cols="2">Benchmark Model</cell><cell cols="8">ReAct Kev-0.8B Kev-9B Kev-27B ReAct Kev-0.8B Kev-9B Kev-27B</cell></row><row><cell></cell><cell>GPT-4.1</cell><cell>52.0</cell><cell>58.0</cell><cell>59.3</cell><cell>65.3</cell><cell>36.0</cell><cell>40.0</cell><cell>40.0</cell><cell>46.0</cell></row><row><cell>τ 2 Airline</cell><cell>Opus 4.6 gpt-oss-120b</cell><cell>79.3 56.7</cell><cell>86.0 62.0</cell><cell>83.3 58.7</cell><cell>84.0 58.0</cell><cell>72.0 42.0</cell><cell>82.0 44.0</cell><cell>76.0 46.0</cell><cell>76.0 50.0</cell></row><row><cell></cell><cell>DeepSeek-V4-Pro</cell><cell>77.3</cell><cell>79.3</cell><cell>80.7</cell><cell>80.7</cell><cell>68.0</cell><cell>70.0</cell><cell>70.0</cell><cell>66.0</cell></row><row><cell></cell><cell>GPT-4.1</cell><cell>25.7</cell><cell>54.4</cell><cell>52.3</cell><cell>49.7</cell><cell>11.4</cell><cell>27.2</cell><cell>23.7</cell><cell>17.5</cell></row><row><cell>τ 2 Telecom</cell><cell>Opus 4.6 gpt-oss-120b</cell><cell>59.4 54.4</cell><cell>96.5 77.8</cell><cell>99.1 77.8</cell><cell>93.6 75.1</cell><cell>39.5 28.9</cell><cell>90.4 50.9</cell><cell>97.4 53.5</cell><cell>80.7 51.8</cell></row><row><cell></cell><cell>DeepSeek-V4-Pro</cell><cell>70.5</cell><cell>95.0</cell><cell>98.2</cell><cell>85.7</cell><cell>53.5</cell><cell>86.0</cell><cell>94.7</cell><cell>68.4</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>The offline compilation workflow. "Logged" calls and hand-offs come from development runs. Telecom step 6 also includes a separate prerequisite-extraction call.</figDesc><table><row><cell>Step</cell><cell>Reads</cell><cell>Writes</cell><cell>Labels</cell></row><row><cell>1. Questions</cell><cell>policy; write-tool schemas</cell><cell>questions per write tool</cell><cell>none</cell></row><row><cell>2. Rule</cell><cell>policy; step-1 questions</cell><cell>allow rule per write tool</cell><cell>none</cell></row><row><cell>3. Code</cell><cell>policy, schemas; one read result</cell><cell>derive &lt;tool&gt; function per</cell><cell>none</cell></row><row><cell></cell><cell>per tool</cell><cell>write tool</cell><cell></cell></row><row><cell>4. Repair</cell><cell>code and flags on logged calls</cell><cell>repaired code</cell><cell>none</cell></row><row><cell>5. Filter</cell><cell>Kev answers on logged write</cell><cell>questions to drop</cell><cell>none</cell></row><row><cell></cell><cell>calls</cell><cell></cell><cell></cell></row><row><cell>6a. Prerequisites</cell><cell>policy; tool names (Telecom</cell><cell>prerequisites</cell><cell>none</cell></row><row><cell></cell><cell>only)</cell><cell></cell><cell></cell></row><row><cell>6b. Hand-off check</cell><cell>policy, prerequisites; Kev's</cell><cell>problems, steps; drop steps</cell><cell>outcomes</cell></row><row><cell></cell><cell>logged answers</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head></head><label></label><figDesc>Only include a violation when the records make it certain; if a needed record is missing, or the rule depends on what the user said or wants, do not report a violation (a reviewer handles those). An empty list means no violation found.-Use only the standard library modules json, math, datetime (already imported; no other imports). Be defensive: if something is missing, skip that fact. Never raise.</figDesc><table><row><cell>Return only the Python code, no explanations.</cell></row><row><cell>POLICY:</cell></row><row><cell>&lt;the domain policy, verbatim&gt;</cell></row><row><cell>WRITE TOOLS:</cell></row><row><cell>&lt;the write tools' OpenAI function schemas, as JSON&gt;</cell></row><row><cell>EXAMPLE RESULTS OF READ TOOLS (from logs, truncated):</cell></row><row><cell>&lt;one logged call and result per read tool, as JSON {tool: {args, result}}; each result cut to 1,500</cell></row><row><cell>characters&gt;</cell></row><row><cell>An excerpt of the compiled airline code for update reservation baggages (helper functions</cell></row><row><cell>omitted):</cell></row><row><cell>free_per_pax = _free_bags_per_passenger(membership, cabin)</cell></row><row><cell>if free_per_pax is not None:</cell></row><row><cell>total_free = free_per_pax * num_passengers</cell></row><row><cell>expected_nonfree = max(0, new_total -total_free)</cell></row><row><cell>if new_nonfree != expected_nonfree:</cell></row><row><cell>violations.append(</cell></row><row><cell>f"nonfree_baggages should be {expected_nonfree} "</cell></row><row><cell>f"({membership}, {cabin}, {num_passengers} passenger(s): "</cell></row><row><cell>f"{total_free} free; new total {new_total}), call has {new_nonfree}")</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head><p>A.1 Offline compilation of the questions and checks This section expands Section 3.3: how the compiler turns a policy into questions, rules, code, and a hand-off checklist. It includes the available prompt templates and representative outputs.</p><p>Inputs and outputs. Claude Opus 4.6 makes a separate prompted call for each artifact-generation step; these are single-turn calls, though the client may retry transport failures. Steps 1, 3, 4, and the checklist call in step 6 allow up to 16,384 output tokens; the rule call allows 8,192. Telecom checklist generation also makes a separate prerequisite-extraction call with a 2,048-token limit.</p><p>Step 5 is a local filter over Kev's answers, not a Claude call. Inputs include the domain policy as the agent receives it, tool schemas, and, for code generation, one logged call and result per read tool to show the JSON shapes. Table <ref type="table">6</ref> lists the steps. Steps 1-5 build the write gate; step 6 builds the hand-off checklist.</p><p>the agent, user simulator, or episode. A catch is a flag naming a required fix that remains undone; a false alarm names a fix the task does not need. Kev-9B closely matches Kev-27B in this replay. Kev-0.8B flags less, catching fewer required fixes but also raising fewer false alarms. Neither smaller judge shows an overall decision-quality advantage that would explain its higher online Telecom scores in Table <ref type="table">5</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Judge input length</head><p>Kev-0.8B and Kev-9B are validated up to 8,192 tokens; Kev-27B is validated up to 65,536 <ref type="bibr" target="#b14">(Palmer, 2026)</ref>. In the Kev-27B runs, 41% of Airline write-check inputs exceed 8,192 tokens, compared with 4% of Telecom hand-off inputs. A write check includes the policy and tool results as well as the conversation, while a hand-off check reads the conversation and checklist.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Judge size on labeled write calls (offline)</head><p>To separate ability from calibration, we replayed the same 260 labeled Airline write calls (101 bad, 159 good) through each judge using the deployed questions and dropped-question list. Calls were split at 8,192 input tokens (180 short, 80 long). The table reports ranking quality without a threshold, catches and false alarms at the deployed threshold, and results at each judge's best threshold subject to Kev-27B's false-alarm count. These best thresholds use the labels and are therefore an upper bound for the smaller judges. On long inputs, Kev-9B catches 2 of 32 bad calls at either threshold, versus 11 for Kev-27B; its AUROC is 0.61 versus 0.85. On short inputs, recalibrating Kev-9B from 0.05 to 0.10 raises catches from 8 to 16 (Kev-27B catches 21), without adding a false alarm. Kev-0.8B ranks worse even on short inputs (AUROC 0.63 versus 0.75). These results suggest that the size gap reflects both input length and calibration, while the smallest judge also has lower ranking quality.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.5 Token usage</head><p>Table <ref type="table">9</ref> reports mean tokens per run for the main model and Kev in the runs of Table <ref type="table">2</ref>. On τ 2 -bench, usage comes from run logs; agent drafts sent back for revision are not recorded, so their count is reported separately. On BFCL, Kev requests were rebuilt from logged conversations and counted with the model tokenizer. Requests that could not be rebuilt are omitted and counted in the table. For self-hosted judges, GPU time per request was measured offline on an A100-80GB (bf16) with four concurrent requests: 0.53 seconds for Kev-0.8B, 1.22 for Kev-9B, 2.72 for Kev-27B, 4.02 for Qwen3.8-27B, and 6.10 for Gemma-4-31B. Costs use these measurements with an assumed $2 per GPU-hour and full utilization. Estimates exclude the agent, user simulator, and one-time compilation. GPU cost comparisons depend on serving stack and utilization; open LLMs ran without a thinking phase.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Pricing</surname></persName>
+		</author>
+		<ptr target="https://platform.claude.com/docs/en/about-claude/pricing" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="2026" to="2036" />
+		</imprint>
+	</monogr>
+	<note>Claude Haiku 4.5: $1 / $5 per million input / output tokens</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Barres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honghua</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soham</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xujie</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.07982</idno>
+		<title level="m">Evaluating conversational agents in a dual-control environment</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiming</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrique</forename><surname>Ponde De Oliveira Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harri</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Brockman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2107.03374</idno>
+		<title level="m">Evaluating large language models trained on code</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhaorun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mintong</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shieldagent</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.22738</idno>
+		<title level="m">Shielding agents via verifiable safety policy reasoning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Defeating prompt injections by design</title>
+		<author>
+			<persName><forename type="first">Edoardo</forename><surname>Debenedetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilia</forename><surname>Shumailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianqi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jamie</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Carlini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fabian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christoph</forename><surname>Kern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chongyang</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Terzis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Tramèr</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2026 IEEE Conference on Secure and Trustworthy Machine Learning (SaTML)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="587" to="618" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tobias</forename><surname>Deußer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lorenz</forename><surname>Sparrenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rafet</forename><surname>Sifa</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2609.37647</idno>
+		<title level="m">Evaluating and benchmarking the system one model jev</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Policyguard: A dialogue-grounded sub-agent verifier for policy adherence in llm agents</title>
+		<author>
+			<persName><forename type="first">Seongjae</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taehyung</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sung</forename><forename type="middle">Ju</forename><surname>Hwang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2606.29225</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Seongjae</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taehyung</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sung</forename><forename type="middle">Ju</forename><surname>Hwang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Policyguide</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.19861</idno>
+		<title level="m">From guarding one action to guiding the whole workflow for policy-compliant llm agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Toolfence: Fine-grained authorization for secure tool-using llm agents</title>
+		<author>
+			<persName><forename type="first">Yanjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyu</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuelong</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bin</forename><surname>Xiao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2609.37196</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Jev-as-a-judge: Accept when confident, escalate when unsure</title>
+		<author>
+			<persName><forename type="first">Yubo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yidi</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ramayya</forename><surname>Krishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rema</forename><surname>Padman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2609.26550</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">G-eval: Nlg evaluation using gpt-4 with better human alignment</title>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Iter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichong</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuohang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruochen</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenguang</forename><surname>Zhu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 conference on empirical methods in natural language processing</title>
+		<meeting>the 2023 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="2511" to="2522" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Self-refine: Iterative refinement with self-feedback</title>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niket</forename><surname>Tandon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prakhar</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Skyler</forename><surname>Hallinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wiegreffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uri</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nouha</forename><surname>Dziri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shrimai</forename><surname>Prabhumoye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="46534" to="46594" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Toolsafe: Enhancing tool invocation safety of llm-based agents via proactive step-level guardrail and feedback</title>
+		<author>
+			<persName><forename type="first">Yutao</forename><surname>Mou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangchi</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lijun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shikun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Shao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2026</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="37125" to="37153" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">GPT-4.1: $2 / $8 per million input / output tokens, standard tier</title>
+		<ptr target="https://developers.openai.com/api/docs/models/gpt-4.1" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="2026" to="2036" />
+		</imprint>
+		<respStmt>
+			<orgName>OpenAI</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">KEV: Prefill-only decision models</title>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Palmer</surname></persName>
+		</author>
+		<ptr target="https://github.com/jaredpalmer/kev" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>GitHub repository</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">The berkeley function calling leaderboard (bfcl): From tool use to agentic evaluation of large language models</title>
+		<author>
+			<persName><forename type="first">Huanzhi</forename><surname>Shishir G Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanjia</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cheng-Jie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishnu</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-second International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Delip</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2609.29769</idno>
+		<title level="m">Jev vs. llms as rubric judges: Cheaper, faster, and wrong in the same places</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Reflexion: Language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="8634" to="8652" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Governance by construction for generalist agents</title>
+		<author>
+			<persName><forename type="first">Segev</forename><surname>Shlomov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iftach</forename><surname>Shoham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alon</forename><surname>Oved</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sami</forename><surname>Marreed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harold</forename><surname>Ship</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Offer</forename><surname>Akrabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Zeltyn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avi</forename><surname>Yaeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nir</forename><surname>Mashkif</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the ACM Conference on AI and Agentic Systems</title>
+		<meeting>the ACM Conference on AI and Agentic Systems</meeting>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="1280" to="1287" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Typesafe</surname></persName>
+		</author>
+		<ptr target="https://typesafe.ai/blog/introducing-system-one-models-and-jev" />
+		<title level="m">Introducing system one models and jev</title>
+		<imprint>
+			<date type="published" when="2026-09-15">2026. September 15, 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Agentspec: Customizable runtime enforcement for safe and reliable llm agents</title>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">M</forename><surname>Poskitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2026 IEEE/ACM 48th International Conference on Software Engineering</title>
+		<meeting>the 2026 IEEE/ACM 48th International Conference on Software Engineering</meeting>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="2938" to="2950" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Large language models are not fair evaluators</title>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zefan</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binghuai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunbo</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd annual meeting of the association for computational linguistics</title>
+		<meeting>the 62nd annual meeting of the association for computational linguistics</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="9440" to="9450" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linzhi</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanjie</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyuan</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinbin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zidi</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chulin</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carl</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.09187</idno>
+		<title level="m">Safeguard llm agents by a guard agent via knowledge-enabled reasoning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Verifier-grounded runtime mediation for llm agent procedural compliance</title>
+		<author>
+			<persName><forename type="first">Hitoshi</forename><surname>Yabusaki</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2026 IEEE International Conference on Software Services Engineering (SSE)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="34" to="44" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pedram</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12045</idno>
+		<title level="m">A benchmark for tool-agent-user interaction in real-world domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Judging llm-as-a-judge with mt-bench and chatbot arena</title>
+		<author>
+			<persName><forename type="first">Lianmin</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Lin</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhanghao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonghao</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuohan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dacheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Xing</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="46595" to="46623" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Acta: A decision-centric runtime for agents</title>
+		<author>
+			<persName><surname>Zjunlp</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jevloop</surname></persName>
+		</author>
+		<ptr target="https://github.com/zjunlp/JevLoop" />
+		<imprint>
+			<date type="published" when="2026-10-14">2026. October 14, 2026</date>
+		</imprint>
+	</monogr>
+	<note>GitHub repository</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Towards enforcing company policy adherence in agentic workflows</title>
+		<author>
+			<persName><forename type="first">Naama</forename><surname>Zwerdling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Boaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ella</forename><surname>Rabinovich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Uziel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Amid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ateret</forename><surname>Anaby</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tavor</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing: Industry Track</title>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing: Industry Track</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="595" to="606" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1543 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Editing as Language: Teaching LLM Agents a Grammar for Native Context Editing</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-18">18 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yunlong</forename><surname>Deng</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The Chinese University of Hong</orgName>
+								<address>
+									<country>Kong</country>
+								</address>
+							</affiliation>
+							<affiliation key="aff2">
+								<orgName type="department">Meituan LongCat Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yan</forename><surname>Li</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">Nanyang Technological University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xing</forename><surname>Hu</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="department">Meituan LongCat Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yida</forename><surname>Zhu</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="department">Meituan LongCat Team</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Sean</forename><surname>Du</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">Nanyang Technological University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Weiyang</forename><surname>Liu</surname></persName>
+							<email>wyliu@cse.cuhk.edu.hk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The Chinese University of Hong</orgName>
+								<address>
+									<country>Kong</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Guangyi</forename><surname>Chen</surname></persName>
+							<email>guangyichen1994@gmail.com</email>
+							<affiliation key="aff3">
+								<orgName type="institution">Zayed University of Artificial Intelligence</orgName>
+							</affiliation>
+							<affiliation key="aff4">
+								<orgName type="institution">Carnegie Mellon University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Editing as Language: Teaching LLM Agents a Grammar for Native Context Editing</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-18">18 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">5798CC62056C944052D86F68260CD8E5</idno>
+					<idno type="arXiv">arXiv:2610.25550v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:03+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>A synopsis in novels folds a story into a few lines; a function in code gathers many steps with a single execution. Context editing is native to language itself. In this paper, we propose the Native Context Editing (NCE) framework, which gives language model agents a grammar for natively editing their own context. By encoding context-editing operations in a grammar of dedicated special tokens, we teach the agents to invoke edits through the language itself. We train agents on iteratively constructed trajectory segments, with each teacher edit conditioned on the evolving context. This establishes context editing as an atomic and inherent capability of LLM agents, enabling them to dynamically modify their context as they generate responses over long-horizon reasoning and interaction. Compared with context-editing methods that learn to generate tool-use code within specific external harness environments, our approach integrates context editing as an internal mechanism of the model's native generation process, enabling better generalization across diverse real-world workflows. On four longhorizon agentic benchmarks (Terminal-Bench 2.0, SWE-bench Verified, SWE-bench Multilingual, and SWE-bench Pro), NCE improves the average task success rate over the base model by 5.6 percentage points for LongCat-Flash-Lite-Sparse and by 4.5 for Qwen3.6-35B-A3B, while reducing average token usage by 36% and 15%, respectively.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large language model (LLM) agents now tackle tasks that require many rounds of reasoning, tool use, and interaction with environments <ref type="bibr" target="#b32">(Yang et al., 2024;</ref><ref type="bibr" target="#b25">Wang et al., 2025</ref><ref type="bibr" target="#b27">Wang et al., , 2026))</ref>. In these longhorizon tasks, the interactions accumulate code, tool outputs, execution feedback, and intermediate decisions into increasingly long histories <ref type="bibr" target="#b13">(Lindenbauer et al., 2025)</ref>. Long-horizon agents therefore need to maintain useful working context within a finite window: retain evidence for upcoming decisions, shorten completed investigations, and remove information that is no longer needed.</p><p>Existing approaches manage context through either predefined rules or external tools. Even the most widely deployed coding agents rely on rules. Claude Code and Codex summarize the history once it crosses a fixed token threshold <ref type="bibr" target="#b1">(Anthropic, 2025;</ref><ref type="bibr" target="#b18">OpenAI, 2025)</ref>, and simpler policies mask older observations <ref type="bibr" target="#b13">(Lindenbauer et al., 2025)</ref>. These triggers fire on context size alone and cannot tell which information the task still needs. Tool-based methods expose context management through external tool calls, letting the agent decide what to edit. Sculptor provides tools to fragment, summarize, hide, and restore the history <ref type="bibr" target="#b11">(Li et al., 2026)</ref>, and Context-Folding folds a finished sub-trajectory into a summary <ref type="bibr" target="#b24">(Sun et al., 2025)</ref>. Because the harness defines and executes these tools, the learned editing policy is bound to harness-specific interfaces and generalizes poorly across different environments.</p><p>Both families define context editing outside the model. Rules fix the policy in the harness, and tools, even when a learned policy calls them, take their meaning from schemas that the harness declares in the prompt. We therefore seek to answer:</p><p>How can we turn context editing into a native capability of language models?</p><p>We call context editing native when each edit takes its meaning from the model's own vocabulary, as the end-of-sequence token &lt;eos&gt; does. No The agent writes edits inline with its output, each naming a target block by its icon: drop removes a file it no longer needs, rewrite condenses a failing test log to one line; the runtime applies them before the agent continues. (b) Success vs. tokens per task for LongCat-Flash-Lite-Sparse (69B-A3B) on Terminal-Bench 2.0 (Table <ref type="table" target="#tab_27">2</ref>). NCE succeeds most with the fewest tokens at every budget.</p><p>prompt needs to explain &lt;eos&gt;, and it ends generation the same way in every harness. Our answer is to make editing part of the language the model speaks. Language already provides natural primitives for organizing information, e.g., a summary compresses a story into a few lines, a function name abstracts a sequence of operations, and an updated note supersedes outdated information. Guided by this intuition, we introduce Native Context Editing (NCE), a framework that equips LLM agents with an executable grammar to compress, abstract, update, and restructure their own context as reasoning unfolds (Figure <ref type="figure" target="#fig_0">1a</ref>).</p><p>Specifically, NCE organizes the context into addressable blocks, and its grammar has three components: a vocabulary of dedicated tokens, in which address tokens name blocks and operator tokens ( drop , rewrite , append ) remove, replace, or add them; composition rules that define wellformed edits; and semantics that bind each wellformed edit to exactly one transition of the context state, executed by a task-agnostic runtime. The meaning of every edit thus ships with the model and holds in every harness. Recorded trajectories contain no edits, so we annotate them with two teachers. An offline teacher reads the full trajectory and assigns each block a release point, the turn after which the block may be edited. A block is released only when the teacher can cite the event that ended its use. An online teacher then uses the previous blocks and release annotations from the offline teacher to decide when and how to edit. The edits are thus safe to learn and executable by an agent that cannot see ahead.</p><p>We then train NCE through distillation over these editing trajectories, with supervision that follows the context as it is edited. Specifically, each edit is executed at the end of the turn that issues it, and every later editing decision and task action is constructed and supervised on the resulting context. Annotating all edits on the original history would condition later decisions on text that the agent has already deleted or rewritten, a mismatch that grows with every edit. By executing each edit before the next turn is built, NCE trains the agent on contexts shaped by its earlier edits. This is exactly the condition it faces at inference time, therefore bridging the train-test gap. During inference, the model generates each turn, the runtime executes the edits it contains, and generation resumes from the edited context, so the context can evolve throughout longhorizon reasoning.</p><p>In the experiments, we have implemented NCE on LongCat-Flash-Lite-Sparse (69B-A3B) and Qwen3.6-35B-A3B and evaluated both on four long-horizon agentic benchmarks, including Terminal-Bench 2.0 <ref type="bibr" target="#b17">(Merrill et al., 2026)</ref>, SWEbench Verified <ref type="bibr" target="#b8">(Jimenez et al., 2024)</ref>, SWE-bench Multilingual <ref type="bibr">(Yang et al., 2025b)</ref>, and SWE-bench Pro <ref type="bibr" target="#b3">(Deng et al., 2025)</ref>. On LongCat at 256K, NCE improves success over the base model by 4.8 to 6.3 points and reduces token usage by 31% to 44% on every benchmark (Table <ref type="table" target="#tab_26">1</ref> and Figure <ref type="figure" target="#fig_0">1b</ref>). A toolcall editing baseline trained on the same edits trails NCE by 5.2 to 8.0 points, so the gap comes from expressing the edits natively. The gains transfer to Qwen3.6, where NCE raises the average success rate over the base model by 4.5 points and cuts average token usage by 15%.</p><p>We summarize our contributions below:</p><p>• We introduce Native Context Editing (NCE), a framework that teaches LLM agents a grammar to dynamically manage their own active context through natively generated edits. • We develop a distillation framework with evolving contexts, where an offline teacher uses release analysis in hindsight to decide which blocks to edit, and an online teacher that sees only the present makes the edits. • We evaluate NCE on four long-horizon agentic benchmarks, demonstrating its effectiveness in improving task performance while also reducing both context and token usage over the base model with harness compaction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Long-horizon LLM agents. Research on longhorizon LLM agents has investigated how interaction with external environments can support reasoning and decision-making. For example, ReAct interleaves reasoning and action, while SWE-agent and OpenHands provide interfaces for code editing and execution <ref type="bibr" target="#b34">(Yao et al., 2022;</ref><ref type="bibr" target="#b32">Yang et al., 2024;</ref><ref type="bibr" target="#b25">Wang et al., 2025)</ref>. Recent long-horizon agents learn to consolidate memory or fold their context as interactions accumulate <ref type="bibr" target="#b40">(Zhou et al., 2026;</ref><ref type="bibr" target="#b35">Ye et al., 2025)</ref>. These approaches depend on retaining useful evidence across decisions, yet longer histories do not ensure reliable evidence access <ref type="bibr" target="#b15">(Liu et al., 2024)</ref>. NCE addresses this shared challenge by maintaining the context available to ongoing reasoning and interaction.</p><p>Memory management and knowledge retrieval for LLM agents. Retrieval-augmented generation and agentic memory systems store information outside the context window and retrieve it whenever later decisions need it <ref type="bibr" target="#b10">(Lewis et al., 2020;</ref><ref type="bibr" target="#b19">Packer et al., 2023;</ref><ref type="bibr" target="#b29">Xu et al., 2026)</ref>. Memory managers decide what and when to store, update, or discard, often with database-like operations such as SQL or ADD/UPDATE/DELETE <ref type="bibr" target="#b5">(Hu et al., 2023;</ref><ref type="bibr" target="#b30">Yan et al., 2026)</ref>, and some apply these decisions to the active context through tool calls <ref type="bibr" target="#b39">(Zhang et al., 2026;</ref><ref type="bibr" target="#b16">Liu et al., 2026;</ref><ref type="bibr" target="#b36">Yu et al., 2026)</ref>. Unlike most memory management methods, NCE edits the active textual context of an ongoing task without introducing an external knowledge storage or information retrieval mechanism. Our approach is a parallel contribution to external memory, focusing specifically on active-context management within a fixed context-window budget.</p><p>Context management for LLM agents. Rulebased methods mask older tool outputs <ref type="bibr" target="#b13">(Lindenbauer et al., 2025)</ref> or summarize the history once it crosses a token threshold, as Claude Code (Anthropic, 2025) and Codex (OpenAI, 2025) do; prompt compressors keep the tokens that information scores or learned predictors rate as useful <ref type="bibr" target="#b12">(Li et al., 2023;</ref><ref type="bibr" target="#b6">Jiang et al., 2023</ref><ref type="bibr" target="#b7">Jiang et al., , 2024;;</ref><ref type="bibr" target="#b20">Pan et al., 2024;</ref><ref type="bibr" target="#b28">Xiao et al., 2025)</ref>. Such criteria track size or salience, which need not coincide with the turn at which a piece of evidence stops being needed. Toolbased methods let the agent decide what to edit and when, through tools that fragment, summarize, hide, and restore its history <ref type="bibr" target="#b11">(Li et al., 2026)</ref> or fold completed sub-trajectories into summaries <ref type="bibr" target="#b24">(Sun et al., 2025)</ref>. The harness defines these tools, which ties the learned policy to that harness. NCE represents each edit with the model's vocabulary ( §3.1) and trains on edits that modify a block only after release analysis finds it no longer needed ( §3.2).</p><p>Learning model-native capabilities. Native multimodal models learn images inside one model, as shared-vocabulary tokens or raw patches trained jointly with text <ref type="bibr" target="#b2">(Chameleon Team, 2024;</ref><ref type="bibr" target="#b26">Wang et al., 2024;</ref><ref type="bibr" target="#b4">Diao et al., 2024;</ref><ref type="bibr" target="#b23">Shukor et al., 2025)</ref>; earlier systems attach a separate encoder through an adapter <ref type="bibr" target="#b0">(Alayrac et al., 2022;</ref><ref type="bibr" target="#b14">Liu et al., 2023)</ref>. Nativeness thus keeps a capability in the model's own sequence and parameters. By this standard, learned control is only partly native: tool calls and folding directives draw meaning from external tools or prompts <ref type="bibr" target="#b22">(Schick et al., 2023;</ref><ref type="bibr" target="#b35">Ye et al., 2025)</ref>, reflection tokens trigger an external retriever <ref type="bibr" target="#b1">(Asai et al., 2024)</ref>, and reduction tokens act only on reasoning <ref type="bibr">(Yang et al., 2025a;</ref><ref type="bibr">Kontonis et al., 2026)</ref>. Following native multimodal models, NCE incorporates context editing directly into the model's vocabulary through operator and address tokens, which are processed and generated inline with text.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Native Context Editing</head><p>NCE lets an agent edit its own context by generating edits in an executable grammar ( §3.1).</p><p>Recorded trajectories contain no edits, so we derive them with two teachers ( §3.2). Each edit changes what the agent reads next, so training follows the evolving context ( §3.3).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">A Native Grammar for Context Editing</head><p>Notations. An edit must name its target, so NCE first organizes the context into addressable blocks.                           At turn t, a block b t = (α, x) pairs a persistent address α with text x, which may include system prompts, task descriptions, observations, or agentwritten notes. The agent's action at turn t, such as a tool call, is denoted by a t . Context editing at turn t is conditioned on the current state S t = (B t , A t ), where the block history B t = [b 1 , . . . , b t-1 ] contains the preceding context blocks, and the action history A t = [a 1 , . . . , a t-1 ] records the agent's earlier actions. The model reads Render(S t ), which interleaves the blocks and actions in interaction order, with each block text prefixed by its address, and generates zero or more edits e t (Figure <ref type="figure" target="#fig_1">2</ref>). When the turn ends, a task-agnostic runtime executes the edits and updates the histories with the current block b t and action a t :</p><formula xml:id="formula_0">S t+1 = Execute(S t , e t ) ⊕ (a t , b t ),<label>(1)</label></formula><p>where ⊕ appends a t to the action history A t and b t to the edited block history B t . With e t empty, Eq. ( <ref type="formula" target="#formula_0">1</ref>) is the ordinary growth of an agent's context.</p><p>Vocabulary. NCE reserves 70 dedicated tokens. Each block address is encoded as a two-token pair &lt;sid_hi_h&gt; &lt;sid_lo_ℓ&gt; , drawn from 32 highorder and 32 low-order address tokens. These 64 tokens support 1,024 distinct addresses. With addresses numbered from zero, the 72nd block is represented by &lt;sid_hi_02&gt; &lt;sid_lo_07&gt; . The model targets a block by copying its two address tokens. The remaining six tokens comprise three operators ( drop , rewrite , append ), two envelope delimiters ( &lt;ctx&gt; and &lt;/ctx&gt; ), and a marker for locked blocks.</p><p>Composition rules. An edit is one envelope around one operator:</p><formula xml:id="formula_1">e ::= &lt;ctx&gt; drop α 1 • • • α m &lt;/ctx&gt; | &lt;ctx&gt; rewrite α x &lt;/ctx&gt; | &lt;ctx&gt; append x &lt;/ctx&gt;</formula><p>where each α is a block address, m ≥ 1, and x is text represented by ordinary tokens. One turn may carry several edits, explained by a one-sentence rationale in plain text.</p><p>Semantics. Each edit denotes exactly one transition of the block history. drop removes blocks α 1 , . . . , α m and retires their addresses for good, rewrite replaces the text of block α with x while preserving its address, and append adds an editable block with text x under a fresh address. Execute checks addresses and permissions and applies the edits in e t in order. The edit instructions themselves are not retained in the context. Render(S t+1 ) contains the updated blocks and action history, and its KV cache is computed from that rendered text alone, indicating that dropped blocks are excluded from subsequent rendering and cache computation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Faithful Supervision from Two Teachers</head><p>We derive editing supervision from recorded agent trajectories, which contain no edits. A trajectory τ runs for T turns from a task, and at turn t the agent takes action a t and receives observation b t . Replaying τ through Eq. ( <ref type="formula" target="#formula_0">1</ref>) with every e t empty yields its states S 1 , . . . , S T , in which the task and each observation form a block. The central question is how long each block remains needed. A block b is needed until the last turn whose action uses it,</p><formula xml:id="formula_2">r b = max { t : a t uses b },<label>(2)</label></formula><p>and r b is the turn at which b enters if no action uses it. An edit to b after turn r b is safe because no later action reads b, and delaying it further only keeps b in context.</p><p>Offline teacher: release analysis. The offline teacher reads the whole trajectory and assigns each block a release point rb , the turn after which the block may be edited (Figure <ref type="figure" target="#fig_2">3</ref>, left). Release analysis keeps every block by default and releases one only when the teacher cites the event that ended its use, typically an action that consumed the block or an observation that superseded it. Let k b denote the turn of the cited event, with k b = T if no event is cited. A mechanical check then traces the rare literals of the block, such as paths, hashes, and line numbers, through later actions. We use λ b to denote the last turn at which one of them reappears. The release point is</p><formula xml:id="formula_3">rb = max(k b , λ b ).<label>(3)</label></formula><p>A reappearing literal counts as a use, so λ b ≤ r b . The literal check can only postpone release; premature release (r b &lt; r b ) therefore requires both an incorrect release judgment and a final use that leaves no literal trace. An omitted citation merely prolongs retention. Directly labeling r b requires identifying the exact last use, with errors leading to either premature release or unnecessary retention. Release analysis instead defaults to retention when evidence is missing, much as conservative liveness analysis keeps a value live while it may still be read.</p><p>A second pass over the complete trajectory revisits blocks retained during the first pass, including those from abandoned lines of investigation, and releases them only with a cited event and after the same literal check.</p><p>Online teacher: edit generation. The online teacher decides when and how to edit the released blocks, seeing the present blocks and block-level eligibility markers derived from offline release analysis (Figure <ref type="figure" target="#fig_2">3</ref>, right). It acts as the agent at turn t: it reads Render(S t ), in which a block becomes editable only after its release point rb from the offline teacher, and writes the edits e t , choosing the operators and the replacement text. Every summary is drawn from the context in view, so no edit relies on anything the agent has yet to see. By default, it rewrites and drops only blocks that carry no information. Decision points arise when a reminder signals that the context is nearing its budget or when a subgoal has just been completed, and the teacher may decline when little is editable. A final audit rejects edits whose removed literals reappear later and summaries that state facts absent from their source.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Distillation with Evolving Contexts</head><p>An edit changes every later rendering, so training on the recorded history would condition later turns on context the agent has already modified. We therefore build each training trajectory by running Eq. ( <ref type="formula" target="#formula_0">1</ref>) forward along τ : a t and b t are the recorded action and observation, and e t is the online teacher's output at a decision point and empty elsewhere. Each editing decision is thus made on a context shaped by the earlier ones, as the decisions of the trained agent will be, and a summary written at one decision point is what the teacher reads at the next, where it may be revised or dropped in turn.</p><p>Release analysis keeps the recorded actions valid on this edited context, since an edit removes only what the recorded continuation no longer uses. Every turn with edits closes a segment, and the next segment opens with the rendering of the state those edits produce. Each segment is an ordinary causal sequence whose prefix reflects every earlier edit, so the three editing turns in Figure <ref type="figure" target="#fig_3">4</ref> yield four training sequences. We fine-tune on these sequences with the usual next-token loss on the model's outputs, which covers actions, rationales, and edits alike; rendered prefixes and observations serve only as conditioning. Stretches where the teacher declined to edit, including whole trajectories, are trained in the same way, so the model learns when to leave its context alone as well as how to edit it.</p><formula xml:id="formula_4">b 1 b 2 b 3 b 4 op_rewrite b 2 op_drop b 3 b 1 b 2 b 3 b 4 b 5 b 1 b 2 b 3 b 4 b 5 b 6 op_append b 1 b 2 b 3 b 4 b 5 b 6 b 7 b 8 op_drop b 5 b 1 b 2 b 3 b 4 b 5 b 6 b 7 b 8 b 9 Autoregressive</formula><p>Inference. Inference runs Eq. ( <ref type="formula" target="#formula_0">1</ref>) with the model writing e t and a t and the environment returning b t : at each turn the model reads Render(S t ) and generates its output, and the runtime executes the edits and appends the action and its observation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments and Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>Benchmarks. We evaluate on Terminal-Bench 2.0 <ref type="bibr" target="#b17">(Merrill et al., 2026)</ref> (89 tasks), SWE-bench Verified <ref type="bibr" target="#b8">(Jimenez et al., 2024</ref>) (500 issues), SWEbench Multilingual <ref type="bibr">(Yang et al., 2025b)</ref> (300 issues), and SWE-bench Pro <ref type="bibr" target="#b3">(Deng et al., 2025)</ref> (731 issues in the public set). Terminal-Bench runs in Terminus-2, its reference agent, and the SWEbench variants run in Claude Code <ref type="bibr" target="#b1">(Anthropic, 2025)</ref>. Neither harness is aware of NCE: the runtime sits between the harness and the model server, executes edits there, and returns ordinary responses, so a single checkpoint serves both harnesses without any editing interface. We report two metrics: the success rate of a single run, counting runs that end without a result as failures, and token usage, the prompt and output tokens of all model calls in a task, including compaction, averaged over tasks after excluding the 10% with the highest and the 10% with the lowest usage. Such a trimmed mean is used to avoid the influence of long-tail data. All four benchmarks are evaluated with a 256K-token budget. Terminal-Bench accumulates much longer histories than SWE-bench, so we also evaluate it at 128K, 64K, and 48K.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Models and training.</head><p>We train NCE on LongCat-Flash-Lite-Sparse (69B-A3B) <ref type="bibr" target="#b38">(Zan et al., 2026)</ref> and Qwen3.6-35B-A3B (Qwen <ref type="bibr" target="#b21">Team, 2026)</ref>, two mixture-of-experts models with 3B active parameters, starting from their instruction-tuned checkpoints. We use GLM 5.3 (Z.ai, 2026) as the two teachers of §3.2 to annotate nearly 180K recorded agent trajectories on software engineering and terminal tasks, which we split into training segments ( §3.3). Each model is fully fine-tuned on these segments for three epochs. Appendix C details data, hyperparameters, and the budget configuration.</p><p>Baselines. We compare NCE with one baseline from each family of the Introduction, marked RULES and TOOLS in the tables. Harness compaction (Comp.) runs the base model that NCE is trained from, with the built-in compaction of each harness, which replaces the history with a model-written summary once it reaches the budget. Tool-call editing (Tools) is our implementation of tool-based editing following MemAct <ref type="bibr" target="#b39">(Zhang et al., 2026)</ref>. We train it on LongCat only, using the same trajectories, edit supervision, and training recipe as NCE. Each edit invokes one of three tools that mirror NCE's operators (Appendix C), enabling a controlled comparison between tool-call and native editing. Our evaluation focuses on the active context under a fixed budget, so systems that store and retrieve information outside it fall outside this comparison.</p><p>LongCat-Flash-Lite-Sparse (69B-A3B)  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Main Results</head><p>NCE achieves higher success with fewer tokens. At 256K, NCE leads both baselines on every benchmark while spending 36% fewer tokens per task than harness compaction on average (Table <ref type="table" target="#tab_26">1</ref>). The gains hold in Claude Code and Terminus-2 alike, neither of which exposes an editing interface.</p><p>Native edits outperform the same edits as tool calls. Trained on the same edits, tool-call editing falls below harness compaction in average success and saves only 6% of its tokens, while NCE saves 36%. The edits pay off only when the model writes them in its own grammar.</p><p>The gains hold at every budget. On Terminal-Bench, NCE leads both baselines at every budget from 256K down to 48K, improving success over harness compaction by 5.6 to 10.1 points with 26% to 39% fewer tokens, and NCE at 64K matches both baselines at 256K with less than 40% of their tokens (Table <ref type="table" target="#tab_27">2</ref> and Figure <ref type="figure" target="#fig_0">1b</ref>).</p><p>The gains transfer across base models. On Qwen3.6, NCE improves all four benchmarks and cuts average token usage by 15%: the same grammar and supervision teach a second model family to edit its own context.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Ablation Study</head><p>We compare NCE with other context managers, ablate how its supervision is built, and examine its edits at inference. Supervision needs both teachers and the evolving context. We build supervision for the same 40 trajectories in three ways: by one teacher in one pass, by the two teachers on the original history, and by the two teachers on the evolving context, as in NCE. We check every edit against what the agent could see when it was made (Figure <ref type="figure">6</ref>, Appendix D.2). Labeling in one pass leaks hindsight: in 30.0% of trajectories a summary uses future information. Labeling on the original history misses that earlier edits have removed part of it, a median of 37% by the fifth decision, so in 95.0% of trajectories an edit targets a block that is already gone. NCE lowers these defects to 5.0% and 0.0%, and the share of trajectories with any defective edit from 80.0% (one pass) and 100.0% (original history) to 37.5%.    NCE drops what it has used and condenses what it still needs. drop accounts for most operations, yet rewrite removes slightly more tokens (Figure <ref type="figure" target="#fig_6">7</ref>): it condenses long blocks, mostly file reads and sub-agent reports, to about a fifth of their length, while drop also clears shell output and edit results. Both harnesses show the same pattern, and 99.1% of the 73K edits NCE writes execute as written. Most edits are proactive: 89% come before any budget reminder. Editing also frees budget early: when the unedited history first fills a 48K budget, NCE's context fills only 73% of it, leaving over a quarter of the budget free (Appendix D.3).</p><p>Re-prefill does not slow the agent. An edit invalidates the KV cache from the first edited block onward. Without any overlap, re-prefilling takes only 0.2-0.4% of a task's wall-clock time. Since a turn writes its edits before its action, the runtime can start the re-prefill as soon as the last edit closes, while the action is still being generated and executed; on measured timings, this hides it entirely in 98% of editing turns under Terminus-2 and 81% under Claude Code. In compute, the edits remove 4 to 22 times as many tokens from later prompts as the re-prefill adds (Appendix D.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We introduced Native Context Editing (NCE), which makes context editing part of the language an LLM agent speaks. A grammar of dedicated tokens binds each edit to one transition of an addressable context state, so the meaning of every edit ships with the model and holds in every harness. Two teachers supply causal edits, while training follows the context produced by earlier edits. Across benchmarks, base models, and harnesses, NCE improves task success with fewer tokens and outperforms the same edits issued as tool calls. Context management thereby moves from the harness into the model's own language.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>We evaluate NCE on software engineering and terminal tasks, where long tool outputs make context editing especially consequential; extending it to other long-horizon settings, such as web navigation and deep research, is a natural next step. Both base models are mixture-of-experts models with 3B active parameters, and scaling NCE to larger models remains to be explored. NCE learns to edit through supervised distillation, and reinforcement learning on task outcomes could further refine when and how the agent edits. Finally, this study manages the active context within a fixed budget, and combining NCE with external memory and retrieval is left for future work.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethical Considerations</head><p>This work trains LLM agents on recorded trajectories of software engineering and terminal tasks and evaluates them on public benchmarks. It involves no human subjects, and we collect no personal data. We use all models and datasets in accordance with their licenses and intended research use, and we do not foresee ethical concerns beyond those common to LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>LLM Usage</head><p>We used large language models (LLMs) only to check grammar and refine the language of this paper. The research ideas, analyses, results, and conclusions are entirely the authors' own.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix</head><p>Editing as Language: Teaching LLM Agents a Grammar for Native Context Editing </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A The NCE Grammar and Runtime</head><p>This appendix specifies the grammar of §3.1 in full: the dedicated tokens (A.1), how a context state is rendered (A.2), how the runtime executes edits (A.3), the reminders it issues (A.4), and how it serves an unmodified harness (A.5).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Vocabulary</head><p>Table <ref type="table">3</ref> lists the 70 tokens NCE adds to the vocabulary of the base model. Block n, counted from zero in order of creation, receives the address &lt;sid_hi_h&gt; &lt;sid_lo_ℓ&gt; with h = ⌊n/32⌋ and ℓ = n mod 32. An address is never reused within a session, so it names the same block for as long as the block lives, and a dropped block cannot be confused with a later one. The role tags that open each block (&lt;longcat_user&gt;, &lt;longcat_observation&gt;, and so on) are the existing tokens of the base chat template.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Rendering</head><p>Render(S t ) writes each block as its two address tokens, the lock marker if the block is locked, and the block text in the chat format of the base model, opened by its role tag. No closing token is needed: the address of the next block marks where a block ends. Actions are written as ordinary assistant turns and carry no address, so an edit can reach observations, the task, and notes, and leaves the agent's own actions intact. Every tool result forms a block of its own, which lets the agent drop one result of a batch and keep the others. Figure <ref type="figure">8</ref> shows the beginning of a rendered context from a SWE-bench Multilingual task under Claude Code.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Execution</head><p>When a turn ends, the runtime extracts every envelope &lt;ctx&gt; . . . &lt;/ctx&gt; from the output and executes the edits in the order they were written. and no edit may touch the locked block. An edit that fails these checks changes nothing, with one exception: a rewrite of a block that is no longer live is applied as an append, so that its text is kept. An edit repeated verbatim within a turn executes once.</p><p>The runtime then strips the envelopes from the output, and the remaining text, the rationale and the action, enters the action history. If at least one edit executed, the next prompt is rendered afresh from the new state; otherwise it extends the previous prompt and reuses its prefix cache. Figure <ref type="figure">9</ref> traces one editing turn from the task of Figure <ref type="figure">8</ref>. After four rounds of reading and editing the same function, the agent has fixed the bug and turns to the regression test. Without a reminder, it writes a one-sentence rationale and fourteen edits before its next action. It drops the four superseded reads of the function and the four confirmations of its intermediate edits, keeps the latest read, which shows the fixed code, and rewrites four exploration results into one-line references that keep their file paths and line numbers. The context shrinks from 41.1K to 29.0K tokens, and the agent continues with the test.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Reminders</head><p>Under a budget W , the runtime appends a transient reminder to the prompt once the context reaches 70% of W (soft) or 95% of W (hard). The text contains no numbers, so the model cannot read off how much room is left, and the same text serves NCE and tool-call editing:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Soft reminder (70% of W )</head><p>[context-monitor] Your context has grown sizeable; this is a good moment to tidy it up. If anything in it is no longer needed, condense or remove all of it in one pass -clear out everything that has served its purpose and leave the rest untouched; do not trim a little and save the rest for later. If there is very little worth cleaning up, or everything is still in use, you may explain why and decline -that is a reasonable choice.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Hard reminder (95% of W )</head><p>[context-monitor] Your context is close to its limit and must be cleaned up now. Before anything else this turn, condense or remove everything that is no longer needed -clear all of it out and leave what you still rely on untouched. This is not optional; only if there is genuinely nothing that can be cleaned up may you explain why and skip it.</p><p>A soft reminder may be declined. After any reminder the runtime waits four turns before the next one, eight after a declined soft reminder, and it stops issuing soft reminders once two have been declined; hard reminders are not limited. A reminder stays in the prompt only until the next edit executes. The online teacher sees reminders of the same form when it builds the supervision (Appendix B), and at evaluation most edits are issued without any reminder (Table <ref type="table" target="#tab_42">7</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.5 Serving an Unmodified Harness</head><p>The runtime runs as a proxy between the harness and the model server and keeps one context state per agent session, including each sub-agent that Claude Code launches. For every chat request it (i) matches the request to its session and adds the new observations as blocks, (ii) appends a reminder if one is due, (iii) renders the state and forwards it to the model server, (iv) executes the edits in the re-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model output at turn 22 (abridged)</head><p>The root-cause analysis and fix for CLUSTER SHARDS are done, so I've cleaned out the exploration snippets and intermediate edit snapshots from that phase, keeping the key file/line references and the final fix as it now stands in cluster_legacy.c. Next up: writing and running the regression test.  sponse, and (v) returns the response to the harness with the envelopes removed and the action in the format of the harness. The harness therefore sees an ordinary model: its prompts, tool definitions, and compaction logic stay unchanged. Requests outside the agent loop, such as the title requests of Claude Code, pass through to the base chat template. Because the runtime holds the state, the same checkpoint serves Claude Code and Terminus-2 without any harness-specific code beyond request parsing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Building the Editing Supervision</head><p>Figure <ref type="figure" target="#fig_10">10</ref> summarizes how a recorded trajectory becomes training segments. This section gives the rules behind each stage, the two teacher prompts, an annotated example, and statistics of the resulting data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1 Pipeline</head><p>Blocks. We replay each trajectory with every e t empty and split it into blocks: the system prompt (locked), the task, every tool result, and every user message each form one block, and the block that enters before turn t has entry turn t. Reasoning and actions stay in the action history.</p><p>Offline teacher, forward pass. The teacher reads the whole trajectory, with each block labeled by its index and entry turn, and keeps every block by default. It releases a block only by citing the event that ended its use: an action that consumed the block, such as writing the file it was read from into new code, or a later observation that superseded it, such as a full read of a file that a search result only pointed to. Each release names the turn after which the block may be edited and states its cause in one sentence that names the turn and the action.</p><p>A release has one of two strengths: to summary, when the fact that the block existed and its conclusion still help navigation, and to drop, when the block carries no information, such as an operation receipt or an empty search result. The forward pass also marks at most two subgoal milestones per  trajectory, which later become decision points.</p><p>Literal check. For each released block, we extract its rare literals: paths of at least four characters, identifiers containing an underscore, integers of five or more digits, hexadecimal strings of eight or more characters, decimals with four or more fractional digits, and four-digit numbers in linenumber position, such as 1589: in a search result.</p><p>A literal is rare if it is at least four characters long and occurs at most eight times in the whole trajectory. We then scan every action after the cited turn, including tool-call arguments. If a literal reappears, the release moves to the last turn where one reappears, and a drop becomes a summary. Identifiers are traced only for drops, since a summary keeps them. Two further clamps only postpone as well: a block read from a file is not released before the last turn that edits that file, and a block that serves as the blueprint of the final solution is not released before the turn that writes the solution out.</p><p>Offline teacher, second pass. The forward pass is conservative and keeps blocks such as the outputs of abandoned lines of investigation. A second pass collects candidates from the kept blocks in three ways: the teacher nominates blocks that, looking back over the finished trajectory, sit on an abandoned or superseded branch, with recall as the goal; a mechanical rule adds tool results whose rare literals stop reappearing at least three turns before the end; and injected reminders and bare continuation messages are added as well. A strict review then judges every candidate. A release must name the turn and action that ended the use of the block, and the review must find no residual dependency in a turn-by-turn scan of the rest of the trajectory, covering literals copied into later tool arguments (such as a line offset), later code checked against the block, and candidate options of an open decision. When the reviewer claims that a later block supersedes a candidate, we verify mechanically that the distinctive lines of the candidate appear in that block and reject the release otherwise. Approved releases pass the same literal check.</p><p>Decision points. Each trajectory is assigned a context budget W from 32K, 48K, 64K, and 128K, the largest tier under which its peak context crosses the soft line while its incompressible floor still fits.</p><p>Replaying the trajectory turn by turn with exact token counts, we create a decision point when (i) the context first reaches 0.70W , which inserts a soft reminder that the agent may decline; (ii) it reaches 0.95W , which inserts a hard reminder that it may decline only when nothing is editable; or (iii) a milestone of the forward pass is reached.</p><p>Each trigger has a cool-down of two turns, and a milestone fires only if the last edit lies at least two turns back. At soft and milestone decision points, if the editable blocks together hold less than 8% of the current context, the teacher is not called and the turn becomes a declined decision. The reminder text contains no numbers, and the teacher never sees token counts.</p><p>Online teacher. At a decision point the teacher plays the agent at turn t. It sees the trigger and every block still in context, each marked editable if t &gt; rb and off-limits otherwise; it does not see release points, release reasons, or anything after turn t. Editing is all or nothing: once the teacher edits, it disposes of every editable block, rewriting by default, dropping only blocks without information, and appending a note when several blocks share a conclusion that the note consolidates. Every fact in a summary must come from the block it replaces. The teacher writes the one-sentence rationale that precedes the edits in training. If the edits free less than 8% of the context at a soft or milestone point, the whole decision is discarded and the turn is trained as a decline. The edits execute immediately, so the next decision point sees the rewritten blocks; a summary is editable again only if it is still long.</p><p>Final audit. The audit rejects an edit when (i) a number, path, identifier, or quoted string in a summary or note does not occur in its source block, or in the trajectory for a note; (ii) a literal that the edit removes reappears in a later action without having  appeared in a summary or in visible output first; or (iii) the editing turn frees less than 3% of the context. It discards a trajectory when a hard reminder ends without an edit, or when more than six turns, and more than 15% of all turns, carry edits. About 4% of annotated trajectories are discarded.</p><p>Segments. We render each surviving trajectory along the evolving context ( §3.3) and cut a segment at every turn with edits. Reminders enter as transient user messages that are kept only in the segment in which they appear.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Teacher Prompts</head><p>Figure <ref type="figure" target="#fig_11">11</ref> shows the prompt of the forward pass of the offline teacher and the prompt of the online teacher, abridged. The second pass uses two further prompts with the same output conventions: a nomination prompt that asks for high recall and a review prompt that enforces the release conditions above.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 An Annotated Example</head><p>The trajectory fixes a channel-validation bug in a Go repository in 19 turns and 20 blocks (Figure <ref type="figure" target="#fig_13">12</ref>); outputs are abridged and shown in English. The offline teacher releases two edit receipts at the turn after the edit, citing that they acknowledge an operation and nothing else. The literal check finds the edited path in a Read at a later turn and postpones both releases to that read, turning the drops into summaries. The online teacher acts at the milestone after turn 12, when all three code changes have been verified, and rewrites the original read of the edited file together with the receipts; each receipt summary keeps the path that the literal check traced. 9 10 10 14 one unit test passes Superseded by the full consumer test run at turn 14.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.4 Data Statistics</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="13">-13</head><p>Shaded: the literal check postpones the release, since the path in the receipt reappears in Read(file_path=...) at the shaded turn; the teacher proposed a drop, which becomes a summary.</p><p>(b) Online teacher: decision point after turn 12 (milestone: all three changes verified)</p><p>The three code changes are done and verified, so I condense the original file contents I read before the change and the edit receipts into key points, keep the conclusions, and move on to testing.    of the segments carry no edit at all, which teaches the model when to leave its context alone.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Experimental Details</head><p>Harnesses. The SWE-bench variants run in Claude Code (version 2.1.7) and Terminal-Bench 2.0 runs in Terminus-2 on Harbor. Both harnesses send ordinary chat requests to the NCE runtime, which serves them as described in Appendix A.5; neither harness needs any change to its prompts or tool definitions.</p><p>Context budgets. For a budget W , the compaction threshold of each harness is set to W : Claude Code through its auto-compaction setting and Terminus-2 through its context limit. Terminus-2 counts its own copy of the history, which keeps the text NCE has edited away, so it also compacts NCE runs once that copy reaches W . The runtime issues a soft reminder when the context reaches 70% of W and a hard reminder at 95% (Appendix A.4); the reminder text contains no numbers and is identical for NCE and tool-call editing.</p><p>Training data. The training trajectories, nearly 180K in total, are downsampled from agentic data that LongCat has already been trained on. Appendix B describes how we annotate them with edits.</p><p>Training. LongCat is trained with Megatron on a large-scale GPU cluster. Qwen3.6 is trained with ms-swift using AdamW (β 1 = 0.9, β 2 = 0.95, weight decay 5 × 10 -5 ) at a peak learning rate of 1 × 10 -5 , with 3% linear warmup and cosine decay to 1×10 -6 . Sequences are packed to 98,304 tokens, each global batch holds 128 packed sequences, and gradients are clipped to a norm of 1.0. Training runs in bfloat16 for three epochs (2,628 steps). For both models, the loss covers assistant tokens only. Figure <ref type="figure" target="#fig_2">13</ref>: The same two edits in NCE and in tool-call editing. NCE edits vanish once executed, while each tool call stays in the history with its result message.</p><p>Tool-call editing. The three tools take block identifiers shown in the rendered context:</p><p>drop_context(ids) removes blocks, rewrite_context(id, summary) replaces a block in place, and append_note(note) adds a note. Each call returns a result message, and a dropped or rewritten block leaves a short stub in the history. Every edit in the NCE training data is mapped to the corresponding tool call, so the two training sets contain the same edits at the same turns. Figure <ref type="figure" target="#fig_2">13</ref> shows one edit in both forms.</p><p>Decoding. All methods sample with temperature 1.0, top-p 0.95, and top-k 50, with at most 32,768 output tokens per model call. Thinking is off in every run.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Analysis</head><p>This appendix details the ablations of Section 4.3: context management (D.1), building supervision (D.2), the edits NCE writes at inference (D.3), and the cost of re-prefilling after an edit (D.4).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1 Context Management</head><p>Methods. All five methods run on Terminal-Bench 2.0 under a 128K budget. The four baselines use the LongCat base model from which NCE is trained. Harness compaction is the built-in mechanism of Terminus-2: once the history reaches the budget, the harness asks the model for a summary, lets a fresh instance ask questions about it, and continues from the summary, the questions, and their answers. The other three baselines run inside the runtime in place of harness compaction and always keep the system prompt and the task description. The sliding window drops the oldest turns once the prompt exceeds the budget, down to 75% of the budget, and leaves a one-line marker in their place. The fixed memory state drops turns the same way and adds a memory block of at most 4,096 tokens, which the base model rewrites from the previous memory and the dropped turns at every eviction. Prompt compression has the base model compress every tool output longer than 1,024 tokens to at most 256 tokens once it is older than the two most recent turns, and falls back to the sliding window when the prompt still exceeds the budget. NCE keeps harness compaction as in Table <ref type="table" target="#tab_27">2</ref>; since the harness counts its own copy of the history, it also compacts some NCE tasks.</p><p>Accounting. Tokens per task sum the prompt and output tokens of all model calls, including compaction calls. As in Table <ref type="table" target="#tab_26">1</ref>, tokens are averaged over tasks with a 10% trimmed mean. The context of a turn is the number of prompt tokens the model receives; we average the mean and the peak of each task over tasks. A reduction is one harness handoff, one eviction of the sliding window or the memory state, one compression call, or one NCE turn with an executed edit. Table <ref type="table" target="#tab_38">5</ref> lists the results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2 Building Supervision</head><p>Designs. We compare three ways to build editing supervision on 40 trajectories sampled from our long-trajectory training pool, stratified by source and by the number of editing decisions (26 terminal tasks and 14 software engineering issues, 97 decisions in total). All three use the same teacher model, decide at the same turns, and receive the same trigger signals; the decision turns are those at which the production pipeline edited. One teacher, one pass reads the whole trajectory and writes the edits of every decision in a single response; its prompt states that the agent at decision turn t has seen only the blocks and actions up to t and requires every summary to use that information alone. Two teachers, original history keeps the release points of the offline teacher and runs the online teacher at every decision on the unedited history. Two teachers, evolving context is NCE: each decision is made on the context that the earlier edits produced. The two two-teacher designs share their first decision, since no edit precedes it, and differ only from the second decision on.</p><p>Defects. We execute the edits of each design in order on the recorded trajectory and check every edit against what the agent could see at that moment. A literal is a path, file name, identifier with an underscore or an inner capital, number with at least four digits, decimal number, IPv4 address, or hexadecimal hash, of at least five characters, that occurs in fewer than 2% of 1,000 reference trajectories; the frequency filter removes strings such as os.path that an agent can write from general knowledge. An edit at turn t</p><p>• uses future information if its text contains a literal that first appears in the trajectory after turn t and is absent from the action of turn t;</p><p>• deletes evidence used later if it removes from the context a literal that a later action uses before any later observation supplies it again;</p><p>• edits a removed block if it targets a block that is no longer in the context;</p><p>• restates removed text if its text contains a literal that occurs in the original history but no longer in the context.</p><p>A trajectory has a defect of a type if at least one of its edits does. Intervals are 95% bootstrap intervals over trajectories, and p-values come from an exact paired sign test over trajectories.  Results. computed from the context lengths of the same trajectory replayed with and without its edits under the same renderer and tokenizer. Of the training trajectories, 75% have at least two editing decisions, and 47% of supervised turns follow the first edit. We exclude trajectories whose two replays already differ by more than 1% before the first edit (2,640 of 6,890 sampled, 2,582 of them from a single data batch).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.3 Editing at Inference</head><p>We read every turn the NCE runtime served in the LongCat runs of Tables <ref type="table" target="#tab_26">1</ref> and<ref type="table" target="#tab_27">2</ref>. An operation is one envelope &lt;ctx&gt; . . . &lt;/ctx&gt; ; an editing turn contains at least one operation that executes. Table <ref type="table" target="#tab_42">7</ref> reports each benchmark at 256K and Figure <ref type="figure" target="#fig_14">14</ref> summarizes the analysis.</p><p>Token cost. We count the tokens processed per task as the sum of prompt and output tokens over all model calls, including compaction calls, and average them over tasks with a 10% trimmed mean. At 256K, NCE processes 64% of the tokens of harness compaction on average across the four benchmarks, and on Terminal-Bench the ratio stays between 61% and 74% at every budget.</p><p>Editing behavior. Editing turns make up 1.7% of all turns and 8.1% of output tokens, and the edits themselves take 5.7% of output tokens. A task receives 45 operations in 1.9 editing turns on average, drop accounts for 71% of operations, and an editing turn removes 12.7K tokens on average. Of the 73,148 edits the model writes, 99.1% are well formed, address live blocks, and execute as written; the rest mostly address a block that an earlier edit already removed or repeat an edit verbatim. Tighter budgets raise the share of reminded edits: on Terminal-Bench, edits issued without a reminder fall from 72% at 256K to 27% at 48K, and editing turns rise from 2.9% to 5.0% of turns.</p><p>Compaction. Because the edited context grows more slowly, the harness rarely needs to compact.</p><p>Under Claude Code at 256K, it compacts in 3 of the 1,531 SWE-bench tasks of NCE (0.2%), against 14 of 1,531 under tool-call editing (0.9%) at the same threshold.</p><p>Evidence. Edits rarely remove evidence the agent still needs. We trace the rare literals of every block an drop or rewrite removes, with the literal definition of Appendix D.2, through the agent's later actions. Of the removed literals, 1.4% reappear in a later action, and 0.45% reappear while absent from the agent's context. Only 1.2% of drop and rewrite operations remove a literal that the agent later writes without seeing it, and 0.2% when only paths, numbers, and hashes count. Most of these are framework names the model writes from knowledge, such as django.core, or paths a rewritten sub-agent report left out.</p><p>Budget. Edits free a quarter of the budget before compaction is due. On Terminal-Bench, Terminus-2 compacts once the unedited history reaches the budget, and NCE's context is always smaller than that history, so we compare the two only before the first harness compaction of each task, where neither side has been compacted. When the unedited history first fills a budget of 48K, 64K, or 128K, the context NCE maintains fills a median of 73%, 69%, and 73% of it (Figure <ref type="figure" target="#fig_14">14a</ref>): by then NCE has freed over a quarter of the budget on its own. Over the same turns, edits lower the peak context of a task by a median of 19%.</p><p>Harnesses. The edits keep their meaning across harnesses. Claude Code and Terminus-2 differ in prompts, tools, and observation formats, yet NCE edits in 94% of SWE-bench tasks and 90% of Terminal-Bench tasks, drop leads the operation mix in both (71% and 59%), an editing turn removes 12.7K tokens in both, and 99.1% and 99.9% of edits execute as written (Figure <ref type="figure" target="#fig_14">14b</ref>). In Claude Code the removed blocks are tool results, led by shell output (31%), file reads (22%), and searches (16%); the task itself is edited in under 1% of operations. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.4 Re-prefill After an Edit</head><p>An edit changes the rendered context from the first edited block onward, so the KV cache of everything after that block must be recomputed. Edits execute when the turn ends, and every token of the next prompt except the new observation is then known. A runtime can therefore issue the re-prefill as a separate request before the harness returns the observation. We measure how much time this reprefill costs and how much of it fits into time the model server would otherwise leave idle for this agent.</p><p>Re-prefill length. For each editing turn we compare the next prompt with the sequence held in the prefix cache, the previous prompt followed by the model's output. The re-prefill spans from the first differing token to the start of the new observation; the observation itself is excluded because every method must prefill it. Turns without edits differ only in the turn delimiter, a single token, which confirms the comparison. The model edits old blocks, and the oldest blocks sit right after the task, so an edit invalidates most of the context: the median re-prefill is 23K to 58K tokens on Terminal-Bench (86-97% of the prompt) and 13K to 22K tokens on SWE-bench (45-55%, behind roughly 18K tokens of Claude Code tool declarations that are never edited).</p><p>Prefill rate. The traces record when each request was sent and answered, but no time to first token. We regress the latency of every request on its prompt length, its output length, and its re-prefill length, with a separate intercept per run Table <ref type="table">8</ref>: Share of editing turns (%) whose re-prefill fits entirely in the idle time, at four prefill rates; bold marks the rate measured from our traces. The last row gives the share of re-prefill time hidden.  tasks), an effective rate of 9.5K tokens/s under the load of our evaluation. An ordinary prompt token adds only 0.039 s per 1K, which shows that ordinary turns reuse the prefix cache. On Terminus-2 the estimate is noisier (0.044 s per 1K, CI -0.001-0.094), and we apply the Claude Code rate to both harnesses, which is conservative for Terminus-2.</p><p>Cost on our runs. Our runtime never overlaps the re-prefill with other work, so the measured cost is an upper bound. It adds 0.2-0.4% to the wallclock time of a task on every benchmark and budget (90th percentile at most 0.8%), since a task has 1.6 to 5.4 editing turns among tens to hundreds of turns.</p><p>In token terms, the re-prefill amounts to 0.7-4.8% of the tokens processed per task, while the edits remove 4 to 22 times as many tokens from the prompts of later turns.</p><p>Hiding the re-prefill. A turn writes its edits before its action, so the runtime knows the new context as soon as the last edit closes, while the model still writes the action and the harness then executes it. The idle time available to the re-prefill therefore runs from the last edit of the turn to the next request. We estimate its decoding part from the output tokens after the last edit and the measured decoding time per token, and take the rest from the harness timestamps. Starting at the last edit, the re-prefill fits entirely in 98% of editing turns under Terminus-2 and 81% under Claude Code (Table <ref type="table">8</ref>, Figure <ref type="figure" target="#fig_16">15</ref>). These shares are computed from the measured timings of our runs.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Overview of NCE. (a) The agent writes edits inline with its output, each naming a target block by its icon:drop removes a file it no longer needs, rewrite condenses a failing test log to one line; the runtime applies them before the agent continues. (b) Success vs. tokens per task for LongCat-Flash-Lite-Sparse (69B-A3B) on Terminal-Bench 2.0 (Table2). NCE succeeds most with the fewest tokens at every budget.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: An abridged excerpt of an NCE training trajectory on a Go repository. (a) The rendered context at turn t; (b) the model's output, a rationale followed by three edits and an action; (c) the blocks after execution. More detailed examples can be found in Appendix E.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Editing supervision from two teachers. Left: the offline teacher reads the whole trajectory and releases a block only by citing the event that ended its use (b i ⊆ b j : b j supersedes or consumes b i ). Right: the online teacher reads only up to b 4 and edits released blocks, here rewriting b 2 and dropping b 3 .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Distillation with evolving contexts. Each row supervises one turn (solid box) on the prefix left by all earlier edits (dotted box). Each editing turn closes a training sequence, so the five rows form four sequences (rows 1, 2-3, 4, and 5). Dropped blocks are drawn only for alignment.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :Figure 6 :</head><label>56</label><figDesc>Figure 5: Context management on Terminal-Bench 2.0 with LongCat under a 128K budget. (a) Success rate vs. tokens per task. (b) Context length vs. unmanaged history length (median and interquartile range); the drop of NCE at 128K is the harness compaction it keeps.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>(a) Operations and removed tokens</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Operator use of NCE with LongCat at 256K. (a) Claude Code pools the three SWE-bench sets, and Terminus-2 runs Terminal-Bench 2.0; append removes no tokens. (b) Each operator's removed tokens by the tool that produced the block.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Contents.</head><label></label><figDesc>The appendix follows the life of an edit: how the grammar defines it, how the teachers write it, how we train and evaluate on it, what it does at inference, and how it unfolds in complete tasks.AThe NCE Grammar and Runtime . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12 Dedicated tokens, rendering, execution of edits with a worked turn, reminders, and serving an unmodified harness. B Building the Editing Supervision . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14 Annotation pipeline, offline and online teacher prompts, an annotated trajectory, and data statistics. C Experimental Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17Harnesses, context budgets, training data and hyperparameters, the tool-call baseline, and decoding. D Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18 Context management, building supervision, editing behavior at inference, and the cost of re-prefill ( §4.3). E Case Studies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 NCE through a complete Terminal-Bench task under Terminus-2 and a SWE-bench task under Claude Code.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>The dedicated tokens of NCE. Operators are shown with the chips used throughout the paper; their token strings are &lt;op_drop&gt;, &lt;op_rewrite&gt;, and &lt;op_append&gt;.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head></head><label></label><figDesc>Exploration snippet (src/cluster_legacy.c, ~lines 5388-5459) read during root-cause analysis: clusterGenNodesSlotsInfo(int filter) at line 5392 populates slot_info_pairs [. . . ] kept only as line-number reference. &lt;/ctx&gt; &lt;ctx&gt; rewrite &lt;sid_hi_00&gt; &lt;sid_lo_05&gt; Exploration grep results: cluster.h declares clusterNodeGetPrimary at src/cluster.h:92; [. . . ] Not relevant to the fix; kept only as a one-line reference. &lt;/ctx&gt; &lt;ctx&gt; rewrite &lt;sid_hi_00&gt; &lt;sid_lo_06&gt; Pre-fix copy of addShardReplyForClusterShards (src/cluster_legacy.c, lines 5665-5693): it fetched the primary via clusterNodeGetPrimary(n) and, if the primary's slot_info_pairs was NULL, emitted an empty slots array (addReplyArrayLen(c, 0)) -the bug. Superseded by the current fixed implementation of the same function.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 10 :</head><label>10</label><figDesc>Figure10: The annotation pipeline. Only the online teacher writes edits; the offline teacher decides which blocks it may touch, and the audit removes edits that fail a mechanical check.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 11 :</head><label>11</label><figDesc>Figure 11: Teacher prompts, abridged ([...]). Placeholders filled by the annotation driver are highlighted. The online teacher sees no turn after t, no release point, and no token count.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_12"><head>&lt;ctx&gt; rewrite &lt;sid_hi_00&gt; &lt;sid_lo_02&gt;</head><label>&lt;sid_lo_02&gt;</label><figDesc>Read the original x/ccv/consumer/ibc_module.go (package consumer, before the change). [...] validateCCVChannelParams (around lines 91-99) checks portID == boundPort (else ErrInvalidPort) and version == ccv.Version (else ErrInvalidVersion). [...] &lt;/ctx&gt; &lt;ctx&gt; rewrite &lt;sid_hi_00&gt; &lt;sid_lo_09&gt; Edit receipt: /testbed/x/ccv/provider/keeper/proposal.go updated successfully. &lt;/ctx&gt; &lt;ctx&gt; rewrite &lt;sid_hi_00&gt; &lt;sid_lo_10&gt; Edit receipt: /testbed/x/ccv/consumer/ibc_module.go, first change applied. &lt;/ctx&gt; [three further rewrites: the second half of the original file read, the second receipt, and an earlier read of proposal.go]</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_13"><head>Figure 12 :</head><label>12</label><figDesc>Figure 12: Annotation of one trajectory. (a) Release points of four blocks; k b is the turn of the cited event and λ b the last turn at which a rare literal of the block reappears. (b) The online teacher's rationale and edits at a decision point, in the NCE grammar; block n has address &lt;sid_hi_00&gt; &lt;sid_lo_n&gt; .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_14"><head>Figure 14 :</head><label>14</label><figDesc>Figure 14: Editing at inference. (a) Context NCE maintains when the unedited history first fills the budget on Terminal-Bench, as a share of the budget (median and interquartile range). (b) Operation mix at 256K and share of edits executed as written. (c) Cumulative share of editing turns by re-prefill time over idle time at 9.5K tokens/s; turns left of 1 hide the re-prefill entirely.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_16"><head>Figure 15 :</head><label>15</label><figDesc>Figure 15: Re-prefill time against idle time for every editing turn at 9.5K tokens/s. Points in the shaded region are hidden entirely.</figDesc><graphic coords="21,358.25,475.38,147.68,84.52" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>• • • path to start with "/"</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head></head><label></label><figDesc>.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_17"><head></head><label></label><figDesc>Model output at turn t: edits et and action at rationale &lt;longcat_assistant&gt; The diagnosis phase just finished -the leading-slash path bug is confirmed by a failing reproduction test -so I've tidied up the leftover search and baseline-test output</figDesc><table><row><cell>• • • one more action, then block 15</cell><cell>276</cell><cell>&lt;sid_hi_00&gt; &lt;sid_lo_15&gt; unchanged</cell></row><row><cell></cell><cell>context length 29,562</cell><cell>change -3,146</cell></row><row><cell>(b)</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_20"><head></head><label></label><figDesc>• • • ). I'm moving on to implementing the fix.</figDesc><table><row><cell>77</cell></row><row><cell>rewrite &lt;ctx&gt; &lt;op_rewrite&gt; &lt;sid_hi_00&gt; &lt;sid_lo_11&gt; Baseline test run (before any fix)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_22"><head></head><label></label><figDesc>• • • every existing subtest of TestUnitTemplateResource passed ( • • • ). Final result: PASS, ok</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_23"><head></head><label></label><figDesc>• • • 9.633s. This is the clean baseline the fix must not break. &lt;/ctx&gt;</figDesc><table><row><cell></cell><cell>116</cell></row><row><cell>drop, drop &lt;ctx&gt; &lt;op_drop&gt; &lt;sid_hi_00&gt; &lt;sid_lo_12&gt; &lt;/ctx&gt; &lt;ctx&gt; &lt;op_drop&gt; &lt;sid_hi_00&gt; &lt;sid_lo_07&gt; &lt;/ctx&gt;</cell><cell>5+5</cell></row><row><cell>action &lt;longcat_tool_call&gt; Edit</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_24"><head></head><label></label><figDesc>• • • resource_template.go • • • DiffSuppressFunc:</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_25"><head></head><label></label><figDesc>• • • strings.TrimLeft(old, "/") == strings.TrimLeft(new, "/") • • •</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_26"><head>Table 1 :</head><label>1</label><figDesc>Results at a 256K budget for harness compaction (Comp.), tool-call editing (Tools), and NCE; TB 2.0 is Terminal-Bench 2.0, SWE is SWE-bench, and tokens are per task. Bold marks the best per base model. Small numbers give the success gain of NCE over the best baseline and its token change relative to harness compaction.</figDesc><table><row><cell>Qwen3.6-35B-A3B</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_27"><head>Table 2 :</head><label>2</label><figDesc>LongCat</figDesc><table /><note><p>on Terminal-Bench 2.0 as the context budget shrinks.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_30"><head></head><label></label><figDesc>Tools You have access to the following tools:[. . . ]    system prompt and tool declarations, 16.5K tokens, locked &lt;sid_hi_00&gt; &lt;sid_lo_01&gt; &lt;longcat_user&gt; I have uploaded a c code repository in the /testbed directory. Now consider the following Github issue: [BUG] CLUSTER SHARDS command returns "empty array" in slots section[. . . ]    The beginning of a rendered context. Each block opens with its address; the system prompt carries the lock marker. Actions, set in italics here, are assistant turns without an address. Contents are abridged with [. . . ].</figDesc><table><row><cell cols="2">Rendered context at turn 22 (abridged)</cell></row><row><cell>&lt;sid_hi_00&gt; &lt;sid_lo_00&gt; &lt;m_ro&gt;</cell><cell>&lt;longcat_tool_declare&gt; # task</cell></row><row><cell></cell><cell>&lt;longcat_assistant&gt; action: Task (delegates the root-cause analysis to a sub-agent)</cell></row><row><cell>&lt;sid_hi_00&gt;</cell><cell>&lt;longcat_observation&gt;&lt;longcat_tool_response&gt; Task [{"type":"text","text":"I</cell></row><row><cell>&lt;sid_lo_02&gt;</cell><cell>now have all the information needed. Here is my complete analysis. [. . . ]</cell></row><row><cell></cell><cell>&lt;longcat_assistant&gt; action: Read src/cluster_legacy.c</cell></row><row><cell>&lt;sid_hi_00&gt;</cell><cell>&lt;longcat_observation&gt;&lt;longcat_tool_response&gt; Read 5380→ } else if</cell></row><row><cell>&lt;sid_lo_03&gt;</cell><cell>(server.cluster-&gt;importing_slots_from[j]) { [. . . ]</cell></row><row><cell></cell><cell>. . .</cell></row><row><cell>&lt;sid_hi_00&gt;</cell><cell>&lt;longcat_observation&gt;&lt;longcat_tool_response&gt; Task [{"type":"text","text":"The</cell></row><row><cell>&lt;sid_lo_22&gt;</cell><cell>survey of the cluster test suite [. . . ]</cell></row><row><cell>Figure 8:</cell><cell></cell></row></table><note><p>An edit executes only if it is well formed: the envelope opens with exactly one operator, drop lists at least one address, rewrite names one address followed by its replacement text, and append carries nonempty text. Every address must name a live block,</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_31"><head>Blocks before and after the turn (tokens)</head><label></label><figDesc></figDesc><table><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_00&gt;</cell><cell cols="2">System + tools</cell><cell>16.5K</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_01&gt;</cell><cell>Task</cell><cell>2,471</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_02&gt;</cell><cell>Task</cell><cell>2,342</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_03&gt;</cell><cell>Read</cell><cell>1,452 → 114</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_04&gt;</cell><cell>Read</cell><cell>1,418</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_05&gt;</cell><cell>Grep</cell><cell>2,381 → 69</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_06&gt;</cell><cell>Read</cell><cell>729 → 101</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_07&gt;</cell><cell>Grep</cell><cell>939 → 140</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_08&gt;</cell><cell>Read</cell><cell>451</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_09&gt;</cell><cell>Grep</cell><cell>932</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_10&gt;</cell><cell>Read</cell><cell>623 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_11&gt;</cell><cell>TodoWrite</cell><cell>40 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_12&gt;</cell><cell>Read</cell><cell>623 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_13&gt;</cell><cell>Edit</cell><cell>820 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_14&gt;</cell><cell>Read</cell><cell>1,002 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_15&gt;</cell><cell>Edit</cell><cell>637 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_16&gt;</cell><cell>Read</cell><cell>1,372 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_17&gt;</cell><cell>Edit</cell><cell>1,197 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_18&gt;</cell><cell>Edit</cell><cell>651 → 0</cell></row><row><cell></cell><cell></cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_19&gt;</cell><cell>Read</cell><cell>1,215</cell></row><row><cell></cell><cell>&lt;/ctx&gt;</cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_20&gt; &lt;sid_hi_00&gt; &lt;sid_lo_21&gt;</cell><cell>Grep TodoWrite</cell><cell>490 40 → 0</cell></row><row><cell>&lt;ctx&gt;</cell><cell>drop &lt;sid_hi_00&gt; &lt;sid_lo_10&gt; &lt;/ctx&gt;</cell><cell cols="2">&lt;sid_hi_00&gt; &lt;sid_lo_22&gt;</cell><cell>Task</cell><cell>2,763</cell></row><row><cell>&lt;ctx&gt;</cell><cell>rewrite &lt;sid_hi_00&gt;</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">&lt;sid_lo_07&gt; slot_info_pairs API locations (from grep):</cell><cell>kept (9)</cell><cell cols="2">rewritten (4)</cell><cell>dropped (10)</cell><cell>41.1K → 29.0K</cell></row><row><cell cols="2">struct fields at src/cluster_legacy.h:299-300 [. . . ]</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">clusterGenNodesSlotsInfo is called from</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">clusterCommandShards at 5700. &lt;/ctx&gt;</cell><cell></cell><cell></cell><cell></cell></row><row><cell>&lt;ctx&gt;</cell><cell>drop &lt;sid_hi_00&gt; &lt;sid_lo_11&gt; &lt;/ctx&gt; . . .</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">eight more drop edits (blocks 12-18, 21)</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">Now let me look at the existing test file to understand how</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">the tests are structured [. . . ]</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">action: Read tests/cluster/tests/28-cluster-shards.tcl</cell><cell></cell><cell></cell><cell></cell></row></table><note><p><p><p>Figure 9: One editing turn, executed. Left: the output of NCE at turn 22 of a SWE-bench Multilingual task under Claude Code, with no reminder pending; the edits are typeset with the chips of Table</p>3</p>. Right: every block of the context before the turn and its size after it. Blocks 10, 12, 14, and 16 are earlier reads of the function that block 19 shows in its fixed form; blocks 13, 15, 17, and 18 confirm intermediate edits to it. Rewritten blocks keep their addresses; dropped addresses are retired.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_33"><head></head><label></label><figDesc>You are now playing the agent itself, in the middle of executing a task, at turn {{turn}} . You have just received a trigger signal and need to decide whether to edit your own context right now, and exactly how. You are the person on the scene, not an omniscient observer.[...]   </figDesc><table><row><cell>Offline teacher: release analysis (forward pass)</cell><cell>Online teacher: edit generation (decision point)</cell></row><row><cell>## SYSTEM</cell><cell>## SYSTEM</cell></row><row><cell>You are a "context release adjudicator". The input is one completed</cell><cell></cell></row><row><cell>agent trajectory, composed of INGEST blocks (numbered by block_id,</cell><cell></cell></row><row><cell>coming from the environment/tools/user) and GEN turns (numbered by</cell><cell></cell></row><row><cell>turn, model outputs). You have a full-hindsight view. [...]</cell><cell></cell></row><row><cell>The single red line is faithfulness: information that later text</cell><cell></cell></row><row><cell>still needs must never be compressed away. So by default every block is kept, and only when you explicitly confirm that the details of a block will never be used again do you emit a release event for it.</cell><cell>You can see the trigger signal and all surviving blocks, each with an "editable / off-limits" marker. Off-limits = still in use now or later (or locked); never touch it. [...]</cell></row><row><cell>&gt; Core asymmetry: missing a release event = the block is kept a little longer, which is safe; emitting a release event by mistake = later text loses information, a serious violation. [...]</cell><cell>### Available operations {"op": "rewrite", "block": &lt;id&gt;, "text": "..."}: the default first choice. Every fact in it must come from that block's original text. [...]</cell></row><row><cell>### Task one: release-event identification</cell><cell>{"op": "drop", "block": &lt;id&gt;}: high bar, zero-information blocks</cell></row><row><cell>-'to_gist' (rewrite): the verbatim details are no longer needed,</cell><cell>only. [...]</cell></row><row><cell>but "it existed, and here is its conclusion" still has navigational</cell><cell>{"op": "append", "text": "..."}: consolidates the shared</cell></row><row><cell>value. Usually: already digested [...]; already superseded (a</cell><cell>conclusions of several blocks into one note. [...]</cell></row><row><cell>locating result whose target was later fetched in full) [...] -'to_drop': zero information increment from start to finish (a pure operation acknowledgement, an empty match, an unrelated dead end). [...]</cell><cell>### Faithfulness hard limit After compressing, you can still finish the task with what remains. [...]</cell></row><row><cell>Every release event supplies block_id, after_turn (&gt;= the block's appearance turn), kind, and trigger: the causal event, naming which turn's which action digested/superseded/locked in this block. If you cannot find such a clear-cut causal point, do not release. [...]</cell><cell>### Constant compression intensity Dispose of every block that is no longer needed; leave the blocks that are still needed exactly as they are. Either compress everything that should be compressed this time, or do not compress at all. [...]</cell></row><row><cell>### Task two: sub-goal milestones At most 2 for the entire trajectory [...]</cell><cell>### Decision rules Suggested tidy-up: if editable blocks are few, declining is encouraged; a token edit is worse than no edit. Mandatory tidy-up:</cell></row><row><cell>### Output format</cell><cell>no_op only if not a single block is editable. Milestone:</cell></row><row><cell>{"skip": false, "releases": [{"block_id": &lt;int&gt;, "after_turn":</cell><cell>declinable. [...]</cell></row><row><cell>&lt;int&gt;, "kind": "to_gist|to_drop", "trigger": "..."}], "milestones": [{"after_turn": &lt;int&gt;, "description": "..."}]}</cell><cell>### Output format</cell></row><row><cell>## USER</cell><cell></cell></row><row><cell>{{meta}}</cell><cell></cell></row><row><cell>{{trajectory: blocks with appearance turns, GEN turns}}</cell><cell></cell></row></table><note><p>{"no_op": false, "note": "&lt;one or two sentences, the visible rationale&gt;", "edits": [...], "reason": "&lt;internal, for reviewers&gt;"} ## USER {{trigger}} {{surviving blocks: id, source, editable marker, content}}</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_34"><head></head><label></label><figDesc>Table 4 summarizes one annotation batch of about 50K trajectories. Decision points arise mostly at milestones and soft reminders; hard reminders are rare because edits at earlier decision points keep the context below 0.95W . Edits make up close to a third of the supervised tokens, and close to a third</figDesc><table><row><cell></cell><cell>(a) Offline teacher: release points</cell><cell></cell><cell></cell></row><row><cell cols="2">Block Content</cell><cell>Cited event (teacher, abridged)</cell><cell>k b λ b rb</cell></row><row><cell>5</cell><cell>search hits for</cell><cell>Turn 4 read provider/ibc_module.go in full; the hit</cell><cell>5 -5</cell></row><row><cell></cell><cell>validateCCVChannelParams</cell><cell>list only pointed the way.</cell><cell></cell></row><row><cell>9</cell><cell>receipt: edit to</cell><cell>Pure success receipt; turn 11 verifies the change with a</cell><cell>8 11 11</cell></row><row><cell></cell><cell>provider/keeper/proposal.go</cell><cell>Read.</cell><cell></cell></row><row><cell>10</cell><cell>receipt: edit to</cell><cell>Pure success receipt; turn 10 verifies the change with a</cell><cell></cell></row><row><cell></cell><cell>consumer/ibc_module.go</cell><cell>Read.</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_36"><head>Table 4 :</head><label>4</label><figDesc>Statistics of one annotation batch. A drop that names several blocks counts once per block.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_38"><head>Table 5 :</head><label>5</label><figDesc>Five ways to manage context on Terminal-Bench 2.0 with LongCat under a 128K budget. Solved counts are out of 89 tasks; tokens, context, reductions, and turns are per task.</figDesc><table><row><cell>Context (K)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_40"><head>Table 6 :</head><label>6</label><figDesc>Defects of three ways to build supervision on 40 trajectories. Original: two teachers on the original history.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_41"><head>Table 6</head><label>6</label><figDesc></figDesc><table><row><cell>lists all rates. Against the sin-</cell></row><row><cell>gle pass, NCE has fewer trajectories with future</cell></row><row><cell>information (2 against 12 discordant trajectories,</cell></row><row><cell>p = 0.013), with deleted evidence (2 against 16,</cell></row><row><cell>p = 0.0013), and with any defect (1 against 18,</cell></row><row><cell>p = 7.6 × 10 -5 ). Against the original history,</cell></row><row><cell>NCE has fewer trajectories with edits of removed</cell></row><row><cell>blocks (0 against 38, p = 7 × 10 -12 ) and with re-</cell></row><row><cell>stated removed text (0 against 33, p = 2 × 10 -10 ).</cell></row><row><cell>The original-history design re-edits the blocks its</cell></row><row><cell>earlier decisions already handled: 810 of its 4,229</cell></row><row><cell>edits target a removed block.</cell></row><row><cell>Drift. Figure 6b measures the drift on 4,250 anno-</cell></row><row><cell>tated training trajectories. At each editing decision,</cell></row><row><cell>the drift is the share of the tokens of the unedited</cell></row><row><cell>history that are no longer in the agent's context,</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_42"><head>Table 7 :</head><label>7</label><figDesc>Editing behavior of NCE at 256K, in percent except the two per-task counts and the tokens removed per editing turn. On Terminal-Bench, peak context reduction covers the turns before the first harness compaction.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_43"><head></head><label></label><figDesc>. Each re-prefilled token adds 0.105 s per 1K tokens on Claude Code (95% CI 0.083-0.123, bootstrap over</figDesc><table><row><cell>Prefill rate</cell><cell cols="2">Terminus-2 Claude Code</cell></row><row><cell>5K tokens/s</cell><cell>92</cell><cell>62</cell></row><row><cell>9.5K tokens/s</cell><cell>98</cell><cell>81</cell></row><row><cell>20K tokens/s</cell><cell>100</cell><cell>93</cell></row><row><cell>40K tokens/s</cell><cell>100</cell><cell>98</cell></row><row><cell>Time hidden (9.5K)</cell><cell>98</cell><cell>81</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Case Studies</head><p>Turn 40 Terminus-2 handoff Terminus-2 counts its own copy of the history, which still holds the 20.1K tokens NCE removed. That copy reaches the budget, so the harness summarizes and restarts the conversation; block addresses restart with it.</p><p>4 Turn 48 no reminder • rewrite ×7 • -2.4K tokens "The optimization task is complete (the PGS solver configuration passed eval.py twice with 50-52% of reference time), so I have compressed the intermediate exploration logs and failed solver attempts into brief conclusions . . . " &lt;ctx&gt; rewrite &lt;sid_hi_00&gt; &lt;sid_lo_09&gt; Final validated configuration, written to /app/model.xml: . . . solver=PGS, iterations=500, tolerance=1e-6, ls_iterations=10, integrator=Euler . . . speedup 2.01x, time pctg 0.50 -already passed both correctness and speed. &lt;/ctx&gt; Figure <ref type="figure">17</ref> shows the same model in Claude Code on SWE-bench Verified at a 256K budget, where it edits without any reminder.  </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Flamingo: a visual language model for few-shot learning</title>
+		<author>
+			<persName><forename type="first">Jean-Baptiste</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Donahue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pauline</forename><surname>Luc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Miech</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Iain</forename><surname>Barr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yana</forename><surname>Hasson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karel</forename><surname>Lenc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Mensch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Millican</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Malcolm</forename><surname>Reynolds</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="23716" to="23736" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Self-RAG: Learning to retrieve, generate, and critique through self-reflection</title>
+		<author>
+			<persName><forename type="first">Akari</forename><surname>Anthropic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeqiu</forename><surname>Asai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Avi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Sil</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hajishirzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on learning representations</title>
+		<imprint>
+			<date type="published" when="2024">2025. 2024</date>
+			<biblScope unit="volume">2024</biblScope>
+			<biblScope unit="page" from="9112" to="9141" />
+		</imprint>
+	</monogr>
+	<note>Claude code</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chameleon</forename><surname>Team</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.09818</idno>
+		<title level="m">Chameleon: Mixed-modal early-fusion foundation models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Da</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edwin</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yannis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kanak</forename><surname>Ide</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niklas</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Lauffer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitin</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chetan</forename><surname>Pasari</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rane</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2509.16941</idno>
+		<title level="m">SWE-Bench Pro: Can AI agents solve longhorizon software engineering tasks? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Unveiling encoder-free vision-language models</title>
+		<author>
+			<persName><forename type="first">Haiwen</forename><surname>Diao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufeng</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaotong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yueze</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huchuan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinlong</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="52545" to="52567" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chenxu</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenzhuang</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simian</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junbo</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2306.03901</idno>
+		<title level="m">ChatDB: Augmenting LLMs with databases as their symbolic memory</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">LLMLingua: Compressing prompts for accelerated inference of large language models</title>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Qiu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 conference on empirical methods in natural language processing</title>
+		<meeting>the 2023 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="13358" to="13376" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">LongLLMLingua: Accelerating and enhancing LLMs in long context scenarios via prompt compression</title>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xufang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Qiu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="1658" to="1677" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">SWE-bench: Can language models resolve real-world GitHub issues?</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024. 2024</date>
+			<biblScope unit="page" from="54107" to="54157" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<author>
+			<persName><forename type="first">Vasilis</forename><surname>Kontonis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shivam</forename><surname>Garg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingjiao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyan</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.09852</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Eric Horvitz, John Langford, and Dimitris Papailiopoulos. 2026. Memento: Teaching LLMs to manage their own context</title>
+		<title level="s">Ahmed Awadallah</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Retrieval-augmented generation for knowledge-intensive NLP tasks</title>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heinrich</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="9459" to="9474" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Sculptor: Empowering LLMs with cognitive agency via active context management</title>
+		<author>
+			<persName><forename type="first">Mo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qitai</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Long</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyong</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunxin</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="153411" to="153440" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Compressing context to enhance inference efficiency of large language models</title>
+		<author>
+			<persName><forename type="first">Yucheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Guerin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenghua</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 conference on empirical methods in natural language processing</title>
+		<meeting>the 2023 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="6342" to="6353" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tobias</forename><surname>Lindenbauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Igor</forename><surname>Slinko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Felder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Egor</forename><surname>Bogomolov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaroslav</forename><surname>Zharov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.21433</idno>
+		<title level="m">The complexity trap: Simple observation masking is as efficient as LLM summarization for agent context management</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Visual instruction tuning</title>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chunyuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingyang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong Jae</forename><surname>Lee</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="34892" to="34916" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Lost in the middle: How language models use long contexts</title>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Nelson F Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Hewitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Paranjape</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Bevilacqua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the association for computational linguistics</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="page" from="157" to="173" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xiaoyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tian</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongyang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haitao</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pinjia</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.12108</idno>
+		<title level="m">The pensieve paradigm: Stateful language models mastering their own context</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Terminal-Bench: Benchmarking agents on hard, realistic tasks in command line interfaces</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Merrill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Carlini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boxuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Raj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Bercovich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeong</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Walshe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Kelly Buchanan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="40903" to="40986" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<title level="m">Codex CLI</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Packer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wooders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivian</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.08560</idno>
+		<title level="m">MemGPT: Towards LLMs as operating systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">LLMLingua-2: Data distillation for efficient and faithful task-agnostic prompt compression</title>
+		<author>
+			<persName><forename type="first">Zhuoshi</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Menglin</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xufang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingwei</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Rühle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2024</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="963" to="981" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Qwen3.6-35B-A3B: Agentic coding power, now open to all</title>
+		<author>
+			<persName><forename type="first">Qwen</forename><surname>Team</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Scaling laws for native multimodal models</title>
+		<author>
+			<persName><forename type="first">Mustafa</forename><surname>Shukor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enrico</forename><surname>Fini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guilherme Turrisi</forename><surname>Victor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Da Costa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><surname>Cord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alaaeldin</forename><surname>Susskind</surname></persName>
+		</author>
+		<author>
+			<persName><surname>El-Nouby</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2025 IEEE/CVF International Conference on Computer Vision (ICCV)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="12" to="23" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Weiwei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miao</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhan</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuesong</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiecao</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.11967</idno>
+		<title level="m">Scaling long-horizon LLM agent via context-folding</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Open-Hands: An open platform for AI software developers as generalist agents</title>
+		<author>
+			<persName><forename type="first">Xingyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boxuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><forename type="middle">F</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangru</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchen</forename><surname>Zhuge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yueqi</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaskirat</forename><surname>Singh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">2025</biblScope>
+			<biblScope unit="page" from="65882" to="65919" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<author>
+			<persName><forename type="first">Xinlong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaosong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengxiong</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufeng</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinsheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yueze</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiying</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.18869</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Next-token prediction is all you need</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">3</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yinjie</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuyang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaolong</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengdi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ling</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.10165</idno>
+		<title level="m">OpenClaw-RL: Train any agent simply by talking</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Verbalized machine learning: Revisiting machine learning with language models</title>
+		<author>
+			<persName><forename type="first">Tim</forename><forename type="middle">Z</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Bamler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiyang</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">A-MEM: Agentic memory for LLM agents</title>
+		<author>
+			<persName><forename type="first">Wujiang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zujie</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongfeng</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="17577" to="17604" />
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Memory-R1: Enhancing large language model agents to manage and utilize memories via reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Sikuan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiufeng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zuchao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ercong</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zifeng</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zonggen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaowen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinhe</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristian</forename><surname>Kersting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 64th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="12805" to="12825" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chenxiao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Srebro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Mcallester</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.14337</idno>
+		<title level="m">Long thoughts with short memory</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">SWE-agent: Agent-computer interfaces enable automated software engineering</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="50528" to="50652" />
+			<date type="published" when="2024">2024</date>
+			<publisher>Karthik Narasimhan, and Ofir Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">2025b. Swe-smith: Scaling data for software engineering agents</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kabir</forename><surname>Khandpur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanzhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diyi</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.21798</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">ReAct: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongwang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huifeng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengwei</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yida</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liangcai</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liwen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zile</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.24699</idno>
+		<title level="m">Agent-Fold: Long-horizon web agents with proactive context management</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Agentic memory: Learning unified long-term and shortterm memory management for large language model agents</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liuyi</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuexiang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingquan</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaqi</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaliang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Libing</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 64th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="21457" to="21483" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename></persName>
+		</author>
+		<title level="m">GLM-5.3: Frontier coding with emergent cyber capabilities</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Zan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaqi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianchao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cunguang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Duyue</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanyu</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fengcun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yerui</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuchen</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xunliang</forename><surname>Cai</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.01662</idno>
+		<title level="m">LongCat sparse attention: Taming the lightning via streaming-aware hierarchical cross-layer indexing</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Memory as action: Autonomous context curation for long-horizon agentic tasks</title>
+		<author>
+			<persName><forename type="first">Yuxiang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangming</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ye</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueyuan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shangxi</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jitao</forename><surname>Sang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2026</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="19149" to="19164" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">MEM1: Learning to synergize memory and reasoning for efficient long-horizon agents</title>
+		<author>
+			<persName><forename type="first">Zijian</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ao</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaoxuan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunghwan</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alok</forename><surname>Prakash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniela</forename><surname>Rus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan Kian Hsiang</forename><surname>Low</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><surname>Liang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="58413" to="58438" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1883 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">TTHE: Test-Time Harness Evolution</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-11-04">4 Nov 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jun</forename><surname>Nie</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Hong Kong Baptist University</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">University of Science and Technology of China 3 Hong Kong Generative AI Research &amp; Development Center</orgName>
+								<orgName type="institution" key="instit2">The Hong Kong University of Science and Technology 4 TCL Corporate Research (HK) Co</orgName>
+								<address>
+									<settlement>Ltd</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yonggang</forename><surname>Zhang</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Jun</forename><surname>Song</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Hong Kong Baptist University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Qianshu</forename><surname>Cai</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">University of Science and Technology of China 3 Hong Kong Generative AI Research &amp; Development Center</orgName>
+								<orgName type="institution" key="instit2">The Hong Kong University of Science and Technology 4 TCL Corporate Research (HK) Co</orgName>
+								<address>
+									<settlement>Ltd</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Dahai</forename><surname>Yu</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Yike</forename><surname>Guo</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Xinmei</forename><surname>Tian</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution" key="instit1">University of Science and Technology of China 3 Hong Kong Generative AI Research &amp; Development Center</orgName>
+								<orgName type="institution" key="instit2">The Hong Kong University of Science and Technology 4 TCL Corporate Research (HK) Co</orgName>
+								<address>
+									<settlement>Ltd</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bo</forename><surname>Han</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Hong Kong Baptist University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">TTHE: Test-Time Harness Evolution</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-11-04">4 Nov 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">F20853D4655D76339F59D7FC571ECDA3</idno>
+					<idno type="arXiv">arXiv:2607.08124v3[cs.SE]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:07+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>The behavior of an LLM agent is determined not only by the underlying model, but also by its harness: the executable program that constructs context, invokes tools, verifies intermediate results, and recovers from failures. Existing approaches typically optimize harnesses on training or development data and freeze the resulting programs at test time, limiting adaptation to shifts in task distributions, failure modes, and tool interactions. We ask whether the harness can instead be optimized during evaluation using unlabeled execution traces. We introduce Test-Time Harness Evolution (TTHE), which treats the executable harness as the state of test-time adaptation. On each unlabeled test batch, TTHE iteratively evolves a population of candidate harnesses through agentic proposers that reason over execution traces and explore diverse edit directions. A judge selects a candidate using execution traces and execution-derived proxy signals.</p><p>The selected harness determines the current batch's outputs and initializes adaptation on the next. Crucially, the solver, proposers, and judge operate through different harnesses around the same frozen LLM, without weight updates, access to final-answer labels, or a separately trained adaptation model. Across six execution-grounded benchmarks spanning text-to-SQL, competitive programming, software engineering, data-science coding, terminal-based tasks, and agentic tool use, TTHE improves fixed ReAct-style baseline harnesses through persistent, inspectable * Corresponding authors. Code: <ref type="url" target="https://github.com/junnie00/TTHE">https://github.com/junnie00/TTHE</ref> program adaptation. These results recast test-time adaptation for LLM agents as evolution over executable control programs and identify execution-derived proxy reliability as a central challenge for robust unsupervised agent improvement.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">INTRODUCTION</head><p>Modern LLM agents are increasingly built as executable systems rather than single-call predictors. Their behavior depends not only on the model, but also on the executable harness around it-the control program that constructs context, invokes tools, verifies intermediate results, and implements recovery strategies. Following prior work on model and agent harnesses <ref type="bibr" target="#b17">[Lee et al., 2026</ref><ref type="bibr">, Zhang et al., 2026a]</ref>, we focus on this program as the object of adaptation. Its context construction and control flow determine how the model's capabilities are used. A common development workflow, however, is to inspect failures, adjust prompts and control flow, and tune tool-use logic before evaluating the resulting harness as a fixed artifact. Its operating procedure then remains unchanged even when the target workload exposes different requirements or failure modes. This convention treats evaluation as a scoring stage, even though execution itself produces rich operational evidence. Every attempted task leaves an execution trace: model calls, tool actions, intermediate outputs, database responses, test results, runtime errors, and recovery decisions. Such traces can reveal not only whether an execution satisfies available checks, but also how its operating procedure might be improved. A text-to-SQL agent may retrieve the correct table but apply an inconsistent value normalization; a coding agent may generate plausible patches without verifying them before submission; a data-science agent may compute an intermediate result but omit it from the final report. This is precisely the kind of evidence a human harness engineer would inspect when revising the scaffold. Crucially, this evidence is available during evaluation without access to gold labels.</p><p>Using this evidence to revise the harness, however, is different from using it to refine individual responses. Self-debugging and reflection use feedback to revise candidate answers or retain textual experience for later attempts <ref type="bibr" target="#b32">[Chen et al., 2024</ref><ref type="bibr" target="#b25">, Shinn et al., 2023]</ref>. Automated prompt and workflow search targets the surrounding task-solving procedure, but typically optimizes it against a training or development objective before evaluating the resulting workflow as a fixed artifact <ref type="bibr" target="#b15">[Khattab et al., 2023</ref><ref type="bibr">, Hu et al., 2025</ref><ref type="bibr">, Zhang et al., 2025b]</ref>. More recent work revises agent source code, harnesses, and configurations using execution feedback or task-level evaluation signals <ref type="bibr">[Cai et al., 2026a</ref><ref type="bibr" target="#b17">, Lee et al., 2026</ref><ref type="bibr">, Zhang et al., 2026a</ref><ref type="bibr" target="#b9">, He et al., 2025]</ref>. Building on these lines of work, we ask: can an LLM agent adapt its harness at test time using its own execution traces, without final correctness feedback?</p><p>We propose Test-Time Harness Evolution (TTHE), which treats the executable harness as the state of test-time adaptation. Rather than searching for a harness on labeled development instances and freezing it for evaluation, TTHE moves harness optimization into the evaluation process itself. On each unlabeled test batch, TTHE executes a population of candidate harnesses and iteratively refines them through traceguided proposers that explore diverse edit directions. A judge selects one candidate using the traces and execution-derived proxy signals; the selected harness determines the current batch's outputs and initializes adaptation on the next. Final correctness feedback is used only for post-selection evaluation. The solver, proposers, and judge use the same frozen LLM in different roles, so adaptation changes the executable program rather than model weights and requires no separately trained adaptation model. This evaluation-time formulation offers two practical advantages. First, it adapts at the point where the relevant evidence appears: after the agent encounters the schemas, repositories, tests, tools, and runtime constraints of the target workload. It can therefore use task-specific execution evidence without requiring an additional labeled development set tailored to that workload. Second, updating an executable program requires no gradient access and permits explicit changes to context construction, multi-sample generation, tool-mediated grounding, deterministic contract checks, and conditional recovery branches. These changes alter the procedure used to solve tasks rather than only revising an individual response.</p><p>A central challenge, however, is that execution evidence is not a correctness oracle. A query can execute successfully while answering the wrong question; code can pass visible tests while failing hidden ones. TTHE therefore presents proxy signals together with candidate code and the underlying execution traces, allowing proposers and the judge to interpret these signals in the context of how an outcome was produced rather than relying on a single surrogate score. Because an edit intended to repair a failure can also disrupt previously correct behavior, we complement this design with a conditional analysis of a class of tracetriggered harness edits, characterizing when corrective gains outweigh unintended regressions.</p><p>We evaluate TTHE on six execution-grounded benchmarks, where it improves fixed ReAct-style baselines and yields inspectable grounding, verification, and recovery policies. On the evaluated BIRD dataset, TTHE achieves 48.7% mean execution accuracy over three runs, compared with 12.7% for the fixed baseline. A separate ten-run execution-result consistencyvoting control achieves 16.0%. Harnesses selected by DeepSeek for each BIRD batch also improve MiMo V2.5 and GPT-5.5 over their respective fixedharness baselines on the corresponding batches, without further harness evolution. These results provide evidence of cross-model transfer of the evolved tasksolving procedures. Search diagnostics reveal nonmonotonic effects of search budget and distinguish candidate-availability limitations from selection errors. Together, these findings support executable harness adaptation as a practical path to test-time selfevolution in LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Contributions.</head><p>• We introduce Test-Time Harness Evolution (TTHE), a framework that recasts test-time adaptation as evolution over executable control programs. TTHE enables an LLM agent to transform its own execution experience into harness updates, without modifying model weights or accessing final correctness feedback.</p><p>• We demonstrate gains on evaluated tasks across six execution-grounded benchmarks, compare TTHE with fixed-harness repeated sampling on BIRD, and show that batch-specific evolved harnesses can benefit other execution models on the corresponding tasks. </p><formula xml:id="formula_0">( H t , O t ) = Adapt(M, H t , X t , E).<label>(1)</label></formula><p>Here O t = ( o t,1 , . . . , o t,Bt ) contains the selected candidate's cached outcomes on X t . After commitment, these outcomes are evaluated against the hidden targets Y t = (y t,1 , . . . , y t,Bt ), without re-execution or reselection:</p><formula xml:id="formula_1">J t = 1 B t Bt i=1 score( o t,i , y t,i ).<label>(2)</label></formula><p>The task-specific function score takes values in [0, 1]. </p><formula xml:id="formula_2">H t = J (X t , {(H, T t (H)) : H ∈ F t }) .<label>(3)</label></formula><p>The judge may acquire additional evidence through permitted probes in E, subject to the same information constraints. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">METHOD</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Harness as adaptation state</head><p>The adaptation state is the task harness's source, including its prompts and executable control logic. TTHE revises how the harness constructs context, invokes tools, validates intermediate results, and recovers from failures, while keeping the model and the outer proposal-and-selection procedure fixed. The baseline H 0 is a ReAct-style scaffold <ref type="bibr" target="#b35">[Yao et al., 2023]</ref>, fixed before evolution begins.</p><p>A code edit can change a prompt, introduce a database probe before generation, add a deterministic output check, or create a conditional repair branch. It can also implement multiple-sample generation and aggregation <ref type="bibr" target="#b30">[Wang et al., 2023]</ref> or execution-based selfdebugging <ref type="bibr" target="#b32">[Chen et al., 2024]</ref>. The search is therefore not confined to choosing among predeclared prompt templates or workflow settings. The distinction from response-level refinement is the object of the update: a revised query is an output, whereas a new rule for constructing and checking queries changes the procedure applied to the batch.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Execution Evidence</head><p>Executing the output executes and satisfies available format or shape checks, such as returning a scalar for a counting query.</p><p>• Round-trip consistency b ∈ [0, 1] compares the input to a description reconstructed from the output: x = RT(o) and b = match(x, x). A mismatch provides evidence of possible semantic drift without requiring a reference answer. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Evolution and Selection</head><p>Let H g r denote branch g after round r, with H g 0 = H t for all g. The loop uses three operators under the information constraints in Section 2:</p><p>Observe(H, X t ) executes harness H on every input in X t and records its execution traces, proxy signals, and cached outcomes.</p><p>Propose(A, T ) receives the active branches A and their execution records T . One coding-agent proposer per branch revises its own parent, using the active branches' code and traces for context, and returns one child.</p><p>Judge(F, T , X t ) inspects the eligible candidates' code and signals. During selection, it may acquire additional evidence through probes or candidate re-execution, then commits one harness from F .</p><p>At the start of a batch, the incoming harness is observed once, and its cached execution record is shared across the initial branches. In each round, valid children replace their parents and are executed on X t ; invalid or unloadable children leave their parents and cached records unchanged. Two design choices organize these updates. Lineage: a fixed parent-child sequence allows successive edits to build on the branch's grounding, verification, and recovery routines. Diversity: conservative-repair, exploratory, and adversarial proposer roles encourage different edit directions. Branches can use one another's execution evidence while retaining their own lineages. After R rounds, the judge selects one harness from F t = {H g R } G g=1 based on the candidates' code, execution traces, and proxy signals. The selected harness's cached outcomes determine the current batch's score in Eq. 2, and the harness initializes adaptation on the next batch.</p><p>The solver, proposers, and judge share the same frozen LLM. The solver runs within the evolving task harness, while the proposers and judge use a Claude Code scaffold for file access, code editing, execution, and prob-ing, with all model calls routed to the same backbone.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">THEORETICAL ANALYSIS</head><p>We analyze a class of trace-triggered harness edits on the current batch, rather than the outer proposal-andselection process. As conditional analyses of test-time training relate an auxiliary update to the main-task objective <ref type="bibr" target="#b26">[Sun et al., 2020]</ref>, this analysis relates corrective edits to regressions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Setup and Assumptions</head><p>Fix a nonempty batch X = {x i } B i=1 , its hidden evaluation targets, and a realized label-free construction history z, including the random choices used to construct H, H ′ and a trigger rule. Hold these programs, the trigger rule, and any inherited state fixed. Draw I uniformly from {1, . . . , B} and choose a fixed coupling κ of fresh execution records (O, τ ) and (O ′ , τ ′ ) on x I . Both joint output-trace marginals must match the corresponding fixed program's execution law in the same prescribed initial environment. Outcomes include submitted artifacts and relevant final states. With y = y I , define binary correctness and its gain by</p><formula xml:id="formula_3">C = I[O ≡ y], C ′ = I[O ′ ≡ y], e = Pr(C = 0), e ′ = Pr(C ′ = 0), ∆ X (H, H ′ ) = e -e ′ .<label>(4)</label></formula><p>Probabilities average over I and fresh execution randomness conditional on the fixed history; dependence on z and κ is suppressed. Gold defines correctness for analysis only.</p><p>Let D = d(x I , τ ) ∈ {0, 1}, where the fixed, label-free rule d identifies executions targeted by the edit. This execution-time trigger is distinct from the historical evidence that motivated the source-code revision. De-</p><formula xml:id="formula_4">fine ε = Pr(D = 0, O ′ ̸ = O).<label>(5)</label></formula><p>Exact locality means ε = 0: untriggered outcomes are preserved under κ. The value of ε depends on the execution coupling, not only on the source-code change.</p><p>For example, a prefix-preserving repair can have the form</p><formula xml:id="formula_5">O ′ = O, D = 0, Repair(x I , O, τ ; ξ), D = 1,</formula><p>where the child retains the parent execution before the repair decision and ξ supplies fresh repair randomness. Sharing that execution gives exact locality if the check leaves untriggered outcomes unchanged. This illustrates an editable program structure, not a constraint imposed by TTHE; a global prompt or grounding edit need not have this form. Locality is a behavioral condition, not a limit on edited source lines. Appendix F specifies the coupling and its assumptions.</p><p>Separate how often a trigger fires from how informative it is and what the edit does:</p><formula xml:id="formula_6">m = Pr(D = 1), π = Pr(C = 0 | D = 1), r = Pr(C ′ = 1 | C = 0, D = 1), u = Pr(C ′ = 0 | C = 1, D = 1). (6)</formula><p>Here m is trigger mass, π is its precision as an error detector, r is repair success, and u is regression after falsely triggering on a correct outcome. Rates on zeroprobability conditioning events are set to zero. The rates r, u and the locality term ε refer to the specified coupling; these are analysis quantities, not correctness scores accessible to the loop.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Conditions for Improvement</head><p>Proposition 1 (Corrective gains and unintended regressions). Under the coupled execution model,</p><formula xml:id="formula_7">|∆ X (H, H ′ ) -m[πr -(1 -π)u]| ≤ ε.<label>(7)</label></formula><p>Hence mπr &gt; m(1-π)u+ε suffices for strict improvement. With exact locality, ∆ X (H,</p><formula xml:id="formula_8">H ′ ) = m[πr -(1 - π)u]</formula><p>, so mπr &gt; m(1 -π)u is necessary and sufficient.</p><p>The balance separates successful repairs, false-trigger regressions, and off-trigger changes. The last term can help or harm; ε bounds its magnitude rather than measuring an unavoidable loss. The sufficient condition requires repairs to outweigh false-trigger regressions and worst-case off-trigger harm. Trigger precision alone does not establish repair success.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Preservation and Feedback Limits</head><p>A trigger is sound for rejection when D = 1 implies C = 0 almost surely. Violating an authoritative output contract, or failing a public test that is a necessary condition for task correctness, can provide such evidence without identifying the correct answer. An empty SQL result, a recovered intermediate exception, or low semantic consistency does not in general have this property.</p><p>Theorem 1 (Preservation and the limit of failure feedback). If the trigger is sound for rejection and the edit is exactly local, then</p><formula xml:id="formula_9">∆ X (H, H ′ ) = Pr(D = 1, C ′ = 1) = mr ≥ 0. (<label>8</label></formula><formula xml:id="formula_10">)</formula><p>No independence or positive lower bound on repair success is required.</p><p>If a label-free child check D ′ is also sound for rejection and v = Pr(D = 1, D ′ = 0) is the mass of cleared failure flags, then</p><formula xml:id="formula_11">0 ≤ ∆ X (H, H ′ ) ≤ v.<label>(9)</label></formula><p>Both endpoints are attainable with the same distribution of (D, D ′ ) under sound but incomplete checks. Thus failure-flag clearance alone cannot certify a strictly positive correctness gain.</p><p>The preservation result confines modifications to outcomes already known to be wrong; strict progress still requires successful repair. With imperfect triggers, Proposition 1 gives e ′ ≤ e + m(1 -π) + ε without a repair-quality assumption. Complete proofs, equivalent parameterizations, and sharpness constructions appear in Appendix F.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">EXPERIMENTS</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Experimental Setup</head><p>We evaluate TTHE on six execution-grounded benchmarks: BIRD <ref type="bibr" target="#b45">[Li et al., 2023]</ref>, LiveCodeBench <ref type="bibr" target="#b13">[Jain et al., 2025]</ref>, SWE-bench Verified <ref type="bibr" target="#b14">[Jimenez et al., 2024]</ref>, DS-1000 <ref type="bibr" target="#b16">[Lai et al., 2023]</ref>, Terminal-Bench 2.1, and claw-eval. These cover text-to-SQL, competitive programming, software engineering, data-science coding, terminal-based tasks, and agentic tool use. We use fixed evaluation sets, including hard task subsets selected before adaptation; their sizes and construction procedures are given in Appendix A.</p><p>We compare each task's fixed baseline harness with TTHE initialized from that harness, using deepseek-v4-flash as the frozen solver, proposer, and judge. Following Section 2, TTHE adapts to each unlabeled batch; final correctness feedback is used only to evaluate committed outputs. Metrics are task success rates for the five binary benchmarks and mean graded scores for claw-eval. Both methods are run three times per evaluation set. Figure <ref type="figure">2</ref> shows the means; individual results and mean ± sample standard deviation appear in Appendix H.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Main Results</head><p>TTHE outperforms the fixed baseline on all six benchmarks in each of the three reported runs (Figure <ref type="figure">2</ref>; Appendix H). Mean success rates increase by 8.0-36.0 percentage points on the five binary benchmarks; claweval gains 20.5 points on its 0-100 graded-score scale.</p><p>BIRD shows the largest gain, from 12.7% to 48.7% mean execution accuracy. Gains also occur on Live-CodeBench, SWE-bench Verified, and DS-1000, and </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Ablation Studies</head><p>We examine repeated sampling, search configuration, cross-batch initialization, and backbone variation on BIRD. Unless stated otherwise, the ablations and further analyses below use the main experiment's BIRD subset and deepseek-v4-flash, reporting single-run accuracy separately from the three-run main results. The reference run achieves 12.0% with the fixed baseline and 50.0% with TTHE.</p><p>Repeated sampling without evolution. We run the fixed baseline ten times per question and vote over execution-result groups rather than SQL strings. This matches TTHE's nominal 1 + GR = 10 harness executions for G = 3, R = 3: one initial execution and up to nine candidate executions. Total computation also depends on harness-specific token and tool use, as well as TTHE's proposal and judging overhead. Voting raises accuracy from 12.0% to 16.0%, versus TTHE's 50.0% (Table <ref type="table" target="#tab_5">1</ref>). The contrast is between obtaining more outputs from an unchanged procedure and adapting the procedure that produces and checks them. The tested voting strategy does not substitute for the complete harness-evolution process.</p><p>Search budget. Search breadth and depth interact (Table <ref type="table" target="#tab_6">2</ref>). Increasing G from one to three does not improve accuracy at R = 1 (46.0% versus 44.0%), but improves it at R = 3 (40.0% versus 50.0%). Moreover, G = 3, R = 1 and G = 1, R = 3 allocate the same nominal number of proposals per batch but achieve 44.0% and 40.0%, respectively. These observations suggest that search organization matters beyond proposal count, with G = 3, R = 3 the best tested setting. The branch configurations combine different search widths with branch-specific proposer roles.  The non-monotonic results show that supplying more evidence per update is not uniformly beneficial under this batch-level commitment rule.</p><p>Cross-batch accumulation. Resetting to the baseline before each batch achieves 44.0% accuracy, compared with 12.0% for the fixed baseline. Carrying the selected harness forward further improves overall accuracy to 50.0% (Table <ref type="table" target="#tab_7">3</ref>). These results indicate that current-batch adaptation yields substantial gains, while retaining evolved program structure provides a useful initialization for subsequent adaptation.</p><p>Backbone variation. We repeat evolution on BIRD with MiMo V2.5 and Kimi K2.5, using the same backbone across solver, proposer, and judge within each run (B = 10, G = 3, R = 3). Both improve over their own fixed-harness baselines: MiMo V2.5 increases from 32.0% to 52.0%, and Kimi K2.5 from 28.0% to 48.0% (Table <ref type="table" target="#tab_8">4</ref>). These within-model gains extend the evidence beyond the main backbone.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Further Analysis</head><p>Cross-model harness transfer. Executing DeepSeek's selected harness on the corresponding BIRD batch, without further evolution, improves MiMo V2.5 from 32.0% to 56.0% and GPT-5.5 from 36.0% to 68.0% (Table <ref type="table" target="#tab_9">5</ref>). Backbone variation tests The oracle over all evaluated candidates, including earlier rounds, reaches 70.0%, six points above the finalpool oracle. Both oracles use the candidate pools of the realized run. The fourteen-point gap between the judge and the final-pool oracle exceeds the six-point gain from admitting earlier candidates, highlighting selection among already generated programs as a major source of lost performance.</p><p>What strategies emerge through evolution? Inspection of the evolved harnesses reveals concrete strategies for acquiring evidence, directing repairs, and coordinating tool use. On BIRD, an evolved harness probes database values before SQL generation, grounds filter values in their stored casing, and infers the required output shape from the question. Structural violations, execution errors, and output-shape mismatches are returned as targeted feedback for subsequent attempts (Figure <ref type="figure">4</ref>). Generation is therefore coupled with explicit checks and failure-specific revision, rather than repeated without diagnosing the preceding attempt. On SWE-bench, an evolved harness adopts a reproduce-first workflow with root-cause localization, post-edit verification, and execution of existing tests, alongside an increased step budget. It also adds a recovery branch triggered when the initial rollout returns an empty patch. This branch supplies concrete starter commands and a reproduction template, turning the absence of a usable artifact into an explicit condition for changing the execution strategy (Figure <ref type="figure">5</ref>). The harness thus addresses not only how to verify a patch, but also how to resume execution when the agent fails to produce one. On LiveCodeBench, an evolved policy uses a low-cost path by default and escalates to additional verification and repair after a public-test failure. In claw-eval, the evolved instructions address how information and actions are linked across services. They specify single-line tool payloads, service chaining through exact identifiers rather than display names, and a pre-delivery completeness check requiring citations of retrieved record identifiers. They also require reported actions to be supported by executed tool calls. Across these examples, evolution changes what evidence the agent obtains before acting, which observations trigger revision, and how execution proceeds after failure. Execution experience is incorporated into the rules governing task solving, rather than used only to correct an individual answer.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">LIMITATIONS</head><p>TTHE demonstrates the potential of harness selfevolution without final task-correctness supervision. However, the feedback guiding evolution remains limited by the informativeness of execution traces and partial checks. Successful execution or agreement among candidates can coexist with semantic errors, making it difficult to distinguish effective program improvements from changes that merely satisfy available proxies. Our diagnostics show that useful candidates can already exist in the search pool yet remain unselected. This highlights a central challenge: an agent must draw on its own experience both to identify promising changes and to assess whether those changes constitute genuine progress. Developing principled mechanisms for extracting more informative feedback, guiding program exploration, and selecting beneficial updates while preserving useful behavior remains an important direction for advancing reliable unsupervised agent self-evolution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">CONCLUSION</head><p>TTHE turns test-time execution experience into updates to an agent's executable harness, without changing model weights or accessing final correctness feedback during adaptation. Across six executiongrounded benchmarks, it improves over fixed baseline harnesses on the evaluated task sets and produces inspectable grounding, verification, and recovery poli-cies. Transfer experiments further show that batchspecific evolved harnesses can benefit other execution models on the corresponding tasks. Our conditional analysis characterizes the balance between corrective gains and unintended regressions for trace-triggered edits, while search diagnostics show that generating useful candidates does not ensure that they are selected. Together, these findings support executable harness adaptation as a practical path to test-time self-evolution, with reliable selection under incomplete evidence remaining a central challenge.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A TASK CONSTRUCTION</head><p>We use fixed evaluation sets that include selected hard task subsets. The four query and code subsets were fixed before running TTHE using the criteria below; no TTHE outcome was used to select or filter instances.</p><p>Reference artifacts used for subset construction were not passed to the adaptation loop.</p><p>Table <ref type="table">6</ref>: Evaluated task counts. The main results repeat each method three times on its evaluation set. SWE-bench Verified. The 40-instance hard subset is selected by gold-patch complexity, using multi-file or large changes. The baseline is the off-the-shelf mini-swe-agent scaffold, which TTHE subsequently evolves <ref type="bibr">[Yang et al., 2024b]</ref>. Reference patches used for subset construction are not given to the adaptation loop.</p><p>DS-1000. The 50-problem hard subset is selected by reference-solution length. Reference solutions and final evaluation tests are excluded from adaptation; reported success requires passing the hidden task tests.</p><p>Terminal-Bench 2.1. The main experiment evaluates 89 tasks from Terminal-Bench 2.1. The benchmark repository is <ref type="url" target="https://github.com/harbor-framework/terminal-bench-2-1">https://github.com/harbor-framework/terminal-bench-2-1</ref>.</p><p>claw-eval. The 30-task headroom subset consists of tasks served by local deterministic mock services and selected using baseline performance. Appendix C describes the subset construction, the OpenClaw harness, graded scoring, and the information boundary. The baseline and TTHE each have three complete-run results, listed in Appendix H.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Model Access</head><p>Table <ref type="table" target="#tab_11">7</ref> lists the API base URLs for the models used in our experiments. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Dataset Licenses</head><p>Table <ref type="table" target="#tab_12">8</ref> summarizes the licensing information provided by upstream dataset cards and benchmark repositories. Third-party task content remains subject to its original license or terms of use. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B DISCOVERED HARNESS POLICIES</head><p>The evolved programs are retained as source code rather than summarized only by aggregate scores. Recurring discovered policies include:</p><p>• Text-to-SQL: value grounding through database probes, date-format repair, explicit output-shape checks, and removal of accidental limits on list queries.</p><p>• LiveCodeBench: multiple candidate programs, execution-based ranking on public tests, targeted repair from expected-versus-observed outputs, and fresh-start recovery after repeated failure.</p><p>• SWE-bench: reproduce-first debugging, root-cause localization before editing, post-edit verification, and an anti-paralysis failsafe for issues that would otherwise return an empty patch (Figure <ref type="figure">5</ref>).</p><p>• DS-1000: insertion-only output contracts, deterministic self-checks, and guards against redefining supplied variables.</p><p>• claw-eval: single-line tool payloads so write actions are recorded, per-record identifier citation with a predelivery completeness check, exact-identifier service chaining, and a prohibition on reporting unexecuted actions (see the claw-eval section below).</p><p>These policies are examples of program-level adaptation: they modify the control procedure used across instances rather than appending a one-off answer correction. Figure <ref type="figure">4</ref>: Source of an evolved Text-to-SQL harness (excerpt, lightly abridged), discovered from label-free execution traces alone. It grounds filter values against the database for exact casing, infers the expected output shape from the question, and wraps generation in an execute-and-self-debug loop that returns each failure a targeted error message-structural check, execution error, empty result, wrong column count-before a final shape fix. The baseline is a standard ReAct harness (before any test-time evolution).</p><p># Evolved SWE-bench harness (excerpt, abridged). Its header records # what the proposer synthesized from 15 traces of earlier candidates: # -reproduce-first works: 4/5 issues yield a patch once the # agent starts running commands; # -one issue yields EMPTY patches across ALL harnesses: the # agent is "paralyzed" and emits no commands at all; # -"previous attempt failed" messaging deepens the freeze; # -the first 3-5 commands decide success. # Synthesized policy: reproduce-first + anti-paralysis failsafe. If you go 5 steps without running a command you are STUCK: run ANY command to break the logjam. """ # A separate anti-paralysis phase gives a 4-command starter # (ls -&gt; check Python -&gt; find models -&gt; write repro) and a # copy-paste repro template, and never mentions prior failure.</p><p>Figure <ref type="figure">5</ref>: An evolved SWE-bench harness (excerpt, abridged), starting from the stock mini-swe-agent and discovered from label-free execution traces alone. The proposer's own comments record the failure mode it found-some issues drive the agent into "empty-patch paralysis"-and the reproduce-first workflow and antiparalysis failsafe it synthesized in response. None of this was supplied.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C THE CLAW-EVAL AGENTIC TOOL-USE DOMAIN</head><p>C.1 Task, metric, and protocol claw-eval tasks are multi-service office workflows: the solver reads mail, searches a knowledge base, looks up contacts, inspects a CRM or helpdesk, schedules meetings, and updates tickets through tool calls. The score is a per-task graded rubric in [0, 1], rather than binary execution accuracy. Each rubric combines completion, robustness, and communication criteria under a safety factor; a held-out model grader assesses the committed behavior.</p><p>The 30 tasks come from 139 agentic tasks: we retain the 112 served entirely by local deterministic mock services, then select those on which the frozen baseline scores below 0.60. The solver is deepseek-v4-flash inside the OpenClaw agent, and the proposer edits its system prompt and skills as source code. The run processes the tasks in six batches, evolving one general harness from the baseline. The grader is disabled during in-loop observation, so no task score or rubric target enters the proposer or judge; gold grading is applied only to the committed harness for measurement. The baseline and TTHE scores, 48.9% and 69.4%, are each averaged over three runs (Appendix H). The tasks are ordered by ascending baseline difficulty, so this evaluation does not isolate the effect of cross-batch accumulation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2 Discovered policies</head><p>From label-free traces alone the accumulated harness adds four general rules to the baseline: single-line tool payloads for reliable action capture; citation of every retrieved record identifier under a completeness checklist before delivery; chaining services by exact identifier (email or ID) rather than display name; and grounding every reported action in an executed tool call.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D RELATED WORK</head><p>Prompt and workflow optimization. Research on optimizing the system around a language model spans instructions, workflows, and executable programs. APE and OPRO search for instructions <ref type="bibr" target="#b46">[Zhou et al., 2023</ref><ref type="bibr">, Yang et al., 2024a]</ref>, while Promptbreeder and EvoPrompt use evolutionary prompt optimization <ref type="bibr" target="#b6">[Fernando et al., 2024</ref><ref type="bibr" target="#b8">, Guo et al., 2024]</ref>. DSPy optimizes declarative language-model pipelines against a metric <ref type="bibr" target="#b15">[Khattab et al., 2023]</ref>; ADAS and AFlow extend the search to agent designs and code-represented workflows <ref type="bibr" target="#b10">[Hu et al., 2025</ref><ref type="bibr">, Zhang et al., 2025b]</ref>. FunSearch illustrates the broader potential of executable program search <ref type="bibr">[Romera-Paredes et al., 2024]</ref>. More recently, GEPA uses natural-language reflection on reasoning and tool-use trajectories to propose prompt updates and combine complementary improvements from a Pareto frontier <ref type="bibr">[Agrawal et al., 2026]</ref>. Thus, interpreting execution traces is already an important optimization mechanism; TTHE studies its use for revising and selecting an executable harness on the current test batch without final task-correctness feedback.</p><p>Executable harness evolution. A related line modifies agent source code or accumulates executable components. STOP and the Darwin Gödel Machine revise agent scaffolds <ref type="bibr" target="#b38">[Zelikman et al., 2023</ref><ref type="bibr">, Zhang et al., 2025a]</ref>, Voyager builds a reusable skill library <ref type="bibr" target="#b29">[Wang et al., 2024]</ref>, and MOSS studies source-level rewriting from failure trajectories <ref type="bibr">[Cai et al., 2026a]</ref>. Among harness-level methods, Self-Harness validates edits through verifier-grounded evaluation and regression tests with a fixed model <ref type="bibr">[Zhang et al., 2026a]</ref>; Meta-Harness gives its proposer access to historical code, scores, and traces from a search set before held-out evaluation <ref type="bibr" target="#b17">[Lee et al., 2026]</ref>. HarnessX provides composable harness primitives and a trace-driven multi-agent evolution engine, with both harness-only adaptation and a harness-model co-evolution loop that reuses trajectories for model training <ref type="bibr" target="#b4">[Chen et al., 2026]</ref>. HASE unifies task-solution generation and harness editing in an agentic reinforcement-learning process, co-evolving model weights, harness components, and solutions <ref type="bibr" target="#b21">[Luo et al., 2026]</ref>. TTHE shares the executable-program optimization target but keeps the solver, proposers, and judge frozen, and excludes final correctness feedback from both current-batch program revision and commitment.</p><p>Transfer and reliable adoption. Beyond aggregate performance, recent work examines what evolved harnesses retain and when their updates can be trusted. One Recipe, Many Harnesses analyzes artifacts produced by a common evolution recipe across languages and models, distinguishing transferable strategies from ecosystem-specific adaptations <ref type="bibr" target="#b34">[Yang et al., 2026]</ref>. A theory of reliable harness self-evolution studies adoption conditions that balance gains on failed tasks against preservation of successful behavior, together with the limits imposed by verification and evaluation costs <ref type="bibr">[Cai et al., 2026b</ref>]. TTHE's transfer experiments instead execute batch-specific evolved programs with other backbones. Its conditional analysis concerns a class of trace-triggered edits under a fixed execution coupling.</p><p>Self-directed model adaptation. Self-improvement can also change the model itself. STaR bootstraps reasoning by fine-tuning on generated rationales that lead to correct answers <ref type="bibr" target="#b37">[Zelikman et al., 2022]</ref>; related work fine-tunes on high-confidence solutions generated from unlabeled questions <ref type="bibr" target="#b11">[Huang et al., 2023]</ref>. SEAL learns to generate its own adaptation data and update directives, using post-update performance to train the self-editing policy <ref type="bibr" target="#b48">[Zweiger et al., 2026]</ref>. AgentEvolver combines self-generated tasks, experience-guided exploration, and trajectory-level credit assignment to improve agent reinforcement learning <ref type="bibr" target="#b39">[Zhai et al., 2025]</ref>. These approaches use experience to improve parameterized capabilities or the process that trains them. In TTHE, experience instead changes the executable procedure through which an unchanged model acquires context, uses tools, verifies results, and recovers from failures.</p><p>Test-time adaptation and reinforcement learning. TTT, Tent, and MEMO adapt model parameters or normalization statistics using self-supervised, confidence-based, or augmentation-based objectives on unlabeled test inputs <ref type="bibr" target="#b26">[Sun et al., 2020</ref><ref type="bibr" target="#b28">, Wang et al., 2021</ref><ref type="bibr">, Zhang et al., 2022]</ref>. For language-model reasoning, TTRL performs reinforcement learning directly on unlabeled test data, estimating rewards from agreement with majority-voted model outputs <ref type="bibr" target="#b47">[Zuo et al., 2026]</ref>. It therefore shares the absence of ground-truth answers during adaptation, but uses the inferred rewards to update model weights. TTC-RL constructs test-time curricula from an available training pool for targeted reinforcement learning <ref type="bibr" target="#b12">[Hübotter et al., 2025]</ref>, while TTT-Discover trains on experience from a particular test problem, using continuous rewards to prioritize exceptional solutions <ref type="bibr" target="#b36">[Yuksekgonul et al., 2026]</ref>. These studies establish test-time learning as more than repeated inference. TTHE pursues a different adaptation state: the model remains fixed, while execution evidence informs program updates and candidate selection without being reduced to a scalar training objective.</p><p>Test-time memory and context evolution. Parameter-free adaptation is also studied through persistent memory and evolving contexts. Dynamic Cheatsheet maintains a self-curated memory of strategies, code snippets, and reusable insights at inference time without explicit ground-truth labels <ref type="bibr" target="#b27">[Suzgun et al., 2026]</ref>. ACE treats contexts as evolving playbooks, using generation, reflection, and curation with incremental updates; it supports both offline context optimization and online adaptation from execution feedback <ref type="bibr">[Zhang et al., 2026b]</ref>. EvoTest evolves prompts, memory, hyperparameters, and executable state-extraction logic across interactive episodes, using transcripts for updates and environment-score statistics for candidate selection <ref type="bibr" target="#b9">[He et al., 2025]</ref>. These methods already demonstrate experience accumulation beyond an isolated answer. TTHE focuses on revising the task's control program and committing a single harness whose cached outcomes are scored on the same batch, with final evaluation feedback excluded from the adaptation loop.</p><p>Response refinement and execution feedback. Chain-of-thought, self-consistency, and ReAct organize reasoning and tool use within an inference procedure <ref type="bibr" target="#b31">[Wei et al., 2022</ref><ref type="bibr">, Wang et al., 2023</ref><ref type="bibr">, Yao et al., 2023]</ref>. Self-debugging and Self-Refine revise candidate answers <ref type="bibr" target="#b32">[Chen et al., 2024</ref><ref type="bibr" target="#b22">, Madaan et al., 2023]</ref>, and Reflexion retains textual experience for later attempts <ref type="bibr" target="#b25">[Shinn et al., 2023]</ref>. Domain-specific systems incorporate these ideas into fixed procedures: DIN-SQL and DAIL-SQL use structured prompting and execution-related processing for text-to-SQL <ref type="bibr" target="#b23">[Pourreza and</ref><ref type="bibr">Rafiei, 2023, Gao et al., 2023]</ref>, while code-generation systems use tests to select candidate solutions <ref type="bibr" target="#b3">[Chen et al., 2022</ref><ref type="bibr" target="#b19">, Li et al., 2022]</ref>. Learned verifiers and LLM judges provide further evaluation signals <ref type="bibr" target="#b20">[Lightman et al., 2024</ref><ref type="bibr" target="#b45">, Zheng et al., 2023]</ref>. TTHE can express verification and repair within a harness, but adapts the program that specifies when and how these operations occur, rather than only revising a particular response.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E CROSS-DATABASE TRANSFER AND CONTINUED ADAPTATION</head><p>TTHE targets adaptation to the current unlabeled batch. As a complementary evaluation, we examine whether an evolved harness transfers to databases excluded from its adaptation stage, and whether continued adaptation yields further gains on the target batches.</p><p>Setup and protocol. We partition the baseline-screened genuine hard50 subset of BIRD Mini-Dev <ref type="bibr" target="#b45">[Li et al., 2023]</ref> by database, preserving the original question order within each split. The ID split contains 30 questions from card games, formula 1, and toxicology; the OOD split contains 20 questions from california schools, superhero, debit card specializing, and student club. Here, OOD denotes database-disjoint transfer within the same screened benchmark subset.</p><p>Starting from the bare text-to-SQL harness, TTHE evolves on the ID split. The final ID harness is frozen before exposure to any OOD questions or evaluation scores. We evaluate this fixed program on both splits without further evolution. Separately, we initialize TTHE with the frozen ID harness and continue adaptation on two OOD batches, scoring each batch with its corresponding committed harness.</p><p>All runs use deepseek/deepseek-v4-flash with temperature 0, reasoning enabled, and two workers. TTHE uses batch size B = 10, G = 3 branches, and at most R = 3 rounds. Solver and proposer timeouts are 180 and 2700 seconds, respectively. Results and interpretation. The frozen ID harness achieves 10/30 on the ID adaptation set, compared with 5/30 for the bare baseline (Table <ref type="table" target="#tab_15">9</ref>). More importantly, it achieves 10/20 on the held-out databases without further evolution, versus 2/20 for the baseline. This improvement provides evidence that the evolved task-solving procedure remains useful beyond the databases that supplied its adaptation traces.</p><p>Continuing TTHE on the OOD split raises accuracy to 13/20, with 8/10 and 5/10 on the two successive batches. The frozen-transfer result measures reuse without target-side harness evolution, whereas the continuedadaptation result measures the additional benefit of updating the procedure using target-batch execution evidence. Together, these results support both cross-database reuse of an evolved harness and its capacity for further test-time adaptation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F PROOFS AND SCOPE OF THE CONDITIONAL ANALYSIS</head><p>F.1 Probability Space and the Locality Condition Fixed construction history and fresh executions. Fix the batch, its hidden targets, and a realization z of the label-free construction history and random choices defining H, H ′ and the trigger rule d. Program configurations and inherited state are held fixed. Execution randomness is drawn anew from each program's prescribed law; it is not a replay or a conditional reweighting of the rollouts that produced z. The uniform index I averages over this same batch, so no i.i.d. assumption about a test stream is needed.</p><p>For task i, let E i denote its prescribed initial environment and let P z H (• | x i , E i ) be the joint law of the output and trace from the fixed program H, including any randomized checks recorded in that trace. Define P z H ′ analogously. A specified coupling κ must satisfy</p><formula xml:id="formula_12">L κ (O, τ | I = i) = P z H (• | x i , E i ), L κ (O ′ , τ ′ | I = i) = P z H ′ (• | x i , E i ).</formula><p>The two executions start from the same prescribed task state, not from a state modified by the other execution. All probabilities below are for this fixed history and coupling. In particular, D = d(x I , τ ) has its actual joint law with O; preserving the output marginal alone would not suffice. A child check, when used, is likewise a fixed function of x I and τ ′ , with any check randomness included in its record. Hidden targets enter only the correctness indicators. Complete outcomes include artifacts and final states that affect scoring, so</p><formula xml:id="formula_13">O = O ′ implies C = C ′ .</formula><p>Coupling and a prefix-preserving repair. The error rates e, e ′ and their difference depend only on the prescribed marginals, whereas r, u and ε can depend on κ. For example, let H ′ = H, set D = 0, and suppose the program returns either of two outcomes with equal probability. Sharing its random draw gives ε = 0; independent draws give ε = 1/2, although ∆ X = 0 in both comparisons. Thus ε is not an intrinsic distance between source programs.</p><p>For the gated structure illustrated in the main text, couple the child and parent by sharing the unchanged parent execution, including its trace and random draws. The child returns its outcome when D = 0 and invokes repair with fresh randomness when D = 1. This coupling has the required marginals only if the child actually implements that prefix-preserving behavior. The check must preserve all score-relevant untriggered outcomes. Probes and repairs must not change the target, interfere with other instances, or consume resources that alter untriggered behavior. Adding an if statement alone does not establish these properties. No independence between the two executions is required.</p><p>Cached outcomes and adaptive selection. Construction may use the same batch, but the realized rollouts in z are distinct from the fresh execution laws above. Conditioning on a program chosen using those rollouts need not preserve their original sampling law. One can also decompose correctness transitions in fixed cached outcomes by averaging over batch indices, but that is an empirical identity for those outcomes, not a guarantee for fresh executions or the adaptive selection process. The results here neither rank candidates from unlabeled evidence nor ensure that the proposer or judge returns a pair satisfying the stated conditions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.2 Proof of Proposition 1</head><p>Proof. Split the correctness gain according to whether the trigger fires:</p><formula xml:id="formula_14">∆ X (H, H ′ ) = E[C ′ -C] = E[(C ′ -C)I[D = 1]] + E[(C ′ -C)I[D = 0]].<label>(10)</label></formula><p>On the triggered region, only incorrect-to-correct and correct-to-incorrect transitions contribute:</p><formula xml:id="formula_15">E[(C ′ -C)I[D = 1]] = Pr(C = 0, D = 1, C ′ = 1) -Pr(C = 1, D = 1, C ′ = 0) (11) = mπr -m(1 -π)u.<label>(12)</label></formula><p>The products follow from the chain rule, without independence. If m = 0, both triggered event masses vanish; otherwise the conditioning events partition D = 1. The convention for zero-probability events therefore preserves the identity. </p><p>In particular, edr &gt; (1 -e)f u + ε suffices for improvement. This is the same probability balance, expressed in terms of error detection and false triggering rather than trigger mass and precision.</p><p>Exact locality and sharpness of the uniform coefficient. For any e, d, f, r, u ∈ [0, 1], the following nonnegative masses sum to one: The coefficient of the uniform symmetric ε-term cannot be reduced in general: take a parent correct everywhere, set D = 0 everywhere, and change the child to an incorrect outcome on a mass ε. Then ∆ X = -ε, attaining the lower bound. Starting from an everywhere-incorrect parent and repairing a mass ε off-trigger attains the upper bound. This is a uniform coefficient claim, not a claim that the symmetric interval is pointwise sharp for every feasible parameter tuple; restrictions on the off-trigger error masses can give tighter bounds.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.3 Proof of Theorem 1</head><p>Proof. Sound rejection gives Pr(D = 1, C = 1) = 0, so the regression event in Eq. 12 vanishes. Exact locality gives Γ 0 = 0. Therefore </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F.4 Interpretation and Application Boundaries</head><p>Failure soundness is one-sided. A sound rejection flags a final outcome that cannot satisfy the task. Acceptance need not imply correctness. A runtime failure is sound rejection only when it invalidates the submitted outcome under the specified environment. Visible tests qualify only when they are authoritative necessary conditions; noisy, stale, unrelated, or flaky tests do not automatically qualify. A correct SQL query may return zero rows, and an intermediate exception may be recovered from before a correct outcome is submitted. Such signals require potentially imperfect precision π, rather than being classified as sound by default.</p><p>Repair precision and locality. The mass mπ identifies incorrectly behaving executions targeted by an edit; m(1 -π) identifies correct ones exposed to modification. A high trigger rate alone says nothing about their </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Effect of batch size on harness adaptation. Batch size. With G = 3, R = 3, accuracy peaks at B = 10 (50.0%) among the tested sizes, versus 44.0%, 38.0%, and 44.0% at B = 5, 25, and 50 (Figure3). Batch size controls adaptation granularity: larger batches provide more execution evidence, but one committed program must serve more inputs and there are fewer update opportunities over the stream. The non-monotonic results show that supplying more evidence per update is not uniformly beneficial under this batch-level commitment rule.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Let Γ 0</head><label>0</label><figDesc>= E[(C ′ -C)I[D = 0]]. Since identical outcomes have the same correctness,|Γ 0 | ≤ E[|C ′ -C|I[D = 0]] ≤ Pr(D = 0, O ′ ̸ = O) = ε. (13) Thus ∆ X (H, H ′ ) = m[πr -(1 -π)u] + Γ 0 , which proves Eq. 7. If mπr &gt; m(1 -π)u + ε,its lower bound is positive. With ε = 0, the equality makes mπr &gt; m(1 -π)u necessary and sufficient for strict improvement. Equivalent error-detection-rate parameterization. Define d = Pr(D = 1 | C = 0) and f = Pr(D = 1 | C = 1), with the same zero-event convention. Here d is error detection and f is false triggering. The joint event masses satisfy mπ = ed, m(1 -π) = (1 -e)f. Consequently, Proposition 1 is equivalently e ′e(1 -dr) + (1 -e)f u ≤ ε.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>e)(1 -f )Choose identical outcomes on the two D = 0 rows. Exact locality then holds, and the correctness gain is edr-(1 -e)f u = m[πr -(1 -π)u].Parameters attached to zero-mass conditioning events do not affect the distribution; their actual conditional rates are interpreted by the zero-event convention. This construction realizes the exact balance when ε = 0.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>∆</head><label></label><figDesc>X (H, H ′ ) = Pr(C = 0, D = 1, C ′ = 1) = Pr(D = 1, C ′ = 1) = mr.When m &gt; 0, soundness gives π = 1; when m = 0, the expression is zero under the zero-event convention. This proves preservation without assuming a positive repair success rate or independent executions. If D ′ is sound for rejection on the child, C ′ = 1 implies D ′ = 0 almost surely. Hence{D = 1, C ′ = 1} ⊆ {D = 1, D ′ = 0} up to a null set. Taking probabilities yields 0 ≤ ∆ X (H, H ′ ) ≤ v.For sharpness, fix 0 ≤ v ≤ m ≤ 1 and construct three disjoint events of masses 1 -m, m -v, and v. On the first, set D = D ′ = 0, use identical outcomes, and set C = C ′ = 1. On the second, set D = D ′ = 1 and C = C ′ = 0. On the third, set D = 1, D ′ = 0, and C = 0. For the lower endpoint set C ′ = 0 on this last event; for the upper endpoint set C ′ = 1. Both constructions have the same (D, D ′ ) distribution, the same baseline error e = m, exact locality, and sound rejection for both checks. Their correctness gains are zero and v, respectively. Checks can realize this by rejecting a malformed outcome while accepting both a correct outcome and a well-formed but semantically wrong one. The indistinguishability concerns these checks' outcomes, not all semantic information in a complete execution trace.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Let M be a frozen LLM and H the space of executable harnesses. A harness H ∈ H orchestrates calls to M and interactions with an allowed task environment E. Executing H on input x produces an outcome o H (x) and a trace τ H (x), with execution randomness suppressed in the notation. Outcomes include submitted artifacts and final environment states relevant to evaluation, not only the agent's final message.Current-batch adaptation. At step t, the agent receives an unlabeled batch X t = (x t,1 , . . . , x t,Bt ) and an incoming harness H t . Starting from H t , the adaptation procedure interacts with E to construct, execute, and select a candidate harness:</figDesc><table /><note><p>• We present inspectable harness examples, provide a conditional analysis of corrective gains and unintended regressions for a class of trace-triggered edits, and use search diagnostics to distinguish candidate availability from selection errors.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>, the loop evolves G branches over R rounds on the current batch X t . Figure1illustrates one batch; Algorithm 1 in Appendix G gives the full procedure.</figDesc><table><row><cell>3.1 Overview</cell></row><row><cell>TTHE adapts an agent's executable harness using ev-</cell></row><row><cell>idence generated during test-time execution. Two</cell></row><row><cell>questions guide its design: (Q1) What evidence can</cell></row><row><cell>support adaptation without final correctness feed-</cell></row><row><cell>back? (Q2) How can this evidence guide program</cell></row><row><cell>revision and candidate selection? We address Q1 with</cell></row><row><cell>execution traces and task-dependent partial checks,</cell></row><row><cell>and Q2 with iterative evolution of multiple harness</cell></row><row><cell>branches followed by batch-level selection. Starting</cell></row><row><cell>from H t</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Overview of TTHE. On each unlabeled batch X t , proposers evolve G harness branches from H t over R rounds, exploring diverse edits guided by execution traces. A judge selects one final-round candidate using traces and execution-derived proxy signals. The selected harness determines the current batch's outputs and initializes adaptation on the next batch as H t+1 . Final correctness feedback is excluded from the loop.</figDesc><table><row><cell></cell><cell></cell><cell cols="2">Round 1</cell><cell></cell><cell></cell><cell cols="2">Round 2</cell><cell></cell><cell></cell><cell cols="2">Round R</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="2">Unlabeled</cell><cell></cell><cell></cell><cell cols="2">Unlabeled</cell><cell></cell><cell></cell><cell cols="2">Unlabeled</cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="4">execution signals</cell><cell cols="4">execution signals</cell><cell cols="4">execution signals</cell><cell></cell></row><row><cell>Unlabeled batch 𝑋 𝑡</cell><cell>Exec. health</cell><cell>Logs / traces</cell><cell>Public tests</cell><cell>RT Cons.</cell><cell>Exec. health</cell><cell>Logs / traces</cell><cell>Public tests</cell><cell>RT Cons.</cell><cell>Exec. health</cell><cell>traces Logs /</cell><cell>tests Public</cell><cell>Cons. RT</cell><cell>Judge with execution signals</cell></row><row><cell></cell><cell cols="4">Candidate harnesses</cell><cell cols="4">Candidate harnesses</cell><cell cols="4">Candidate harnesses</cell><cell></cell></row><row><cell></cell><cell>𝐻 1 1</cell><cell></cell><cell></cell><cell></cell><cell>𝐻 2 1</cell><cell></cell><cell></cell><cell></cell><cell>1 𝐻 𝑅</cell><cell></cell><cell></cell><cell></cell><cell>Commit 𝐻 𝑡+1</cell></row><row><cell></cell><cell>𝐻 1 2</cell><cell></cell><cell></cell><cell></cell><cell>𝐻 2 2</cell><cell></cell><cell></cell><cell>…</cell><cell>𝐻 𝑅 2</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>harness 𝐻 𝑡 Committed</cell><cell>𝐻 1 𝐺</cell><cell>….</cell><cell></cell><cell></cell><cell>𝐻 2 𝐺</cell><cell>….</cell><cell></cell><cell></cell><cell>𝐻 𝑅 𝐺</cell><cell>….</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Figure 1:</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="5">a candidate records its model prompts and</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">completions, tool calls and responses, stdout/stderr,</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">intermediate artifacts, runtime states, errors, and</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">probe results; long fields are truncated. A trace ex-</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">poses how a harness operates: which tools it calls,</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">whether intermediate artifacts are consumed, when</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">validation or recovery branches fire, and how the final</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">output relates to the preceding computation. These</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">details provide context for diagnosing a failure and</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">proposing changes to the operating procedure. For</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">an input x and outcome o, TTHE also exposes task-</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="4">dependent proxy signals:</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">• Execution health s ∈ {0, 1} records whether</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 1 :</head><label>1</label><figDesc>TTHE versus repeated sampling with a fixed harness.</figDesc><table><row><cell>Method</cell><cell>Accuracy (%)</cell></row><row><cell>Baseline (one execution)</cell><cell>12.0</cell></row><row><cell>Baseline (10 executions + vote)</cell><cell>16.0</cell></row><row><cell>TTHE (G = 3, R = 3)</cell><cell>50.0</cell></row><row><cell cols="2">extend to terminal-based tasks and multi-service tool</cell></row><row><cell cols="2">use: Terminal-Bench 2.1 rises from 55.1% to 67.8%,</cell></row><row><cell cols="2">and claw-eval from 48.9% to 69.4%. Across these set-</cell></row><row><cell cols="2">tings, the same frozen backbone supports task execu-</cell></row><row><cell cols="2">tion, program revision, and candidate selection. The</cell></row><row><cell cols="2">complete procedure thus obtains useful test-time har-</cell></row><row><cell cols="2">ness updates without modifying model weights or in-</cell></row><row><cell>troducing a separate repair model.</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 2 :</head><label>2</label><figDesc>TTHE versus fixed baseline harnesses across six benchmarks. Bars show mean task success rates (%) for the first five benchmarks and mean graded scores for claw-eval. Red annotations indicate absolute gains over the baseline. Individual runs and mean ± standard deviation are provided in Appendix H. Effects of search breadth and depth.</figDesc><table><row><cell></cell><cell></cell><cell>BIRD</cell><cell>LiveCodeBench</cell><cell>SWE-bench Verified</cell><cell>DS-1000</cell><cell>Terminal-Bench 2.1</cell><cell>claw-eval (graded score)</cell></row><row><cell cols="2">100</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Success / score (%)</cell><cell>0 20 40 60 80</cell><cell>+36.0% 12.7 48.7</cell><cell>+8.3% 29.4 37.8</cell><cell>+12.5% 21.7 34.2</cell><cell>+8.0% 34.7 42.7</cell><cell>+12.7% 55.1 67.8</cell><cell>+20.5% 48.9 69.4</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>Baseline</cell><cell>TTHE</cell><cell></cell><cell></cell></row><row><cell>Figure 2:</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 3 :</head><label>3</label><figDesc>Effect of cross-batch harness accumulation.</figDesc><table><row><cell>Accuracy (%)</cell><cell cols="2">B1 B2 B3 B4 B5 Overall</cell></row><row><cell>Accumulate</cell><cell cols="2">30 70 40 60 50 50.0</cell></row><row><cell cols="2">Reset each batch 30 40 40 50 60</cell><cell>44.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 4 :</head><label>4</label><figDesc>Harness evolution with different backbones.</figDesc><table><row><cell>Backbone</cell><cell cols="3">Base (%) TTHE (%) Gain</cell></row><row><cell>DeepSeek V4 Flash</cell><cell>12.0</cell><cell>50.0</cell><cell>+38.0</cell></row><row><cell>MiMo V2.5</cell><cell>32.0</cell><cell>52.0</cell><cell>+20.0</cell></row><row><cell>Kimi K2.5</cell><cell>28.0</cell><cell>48.0</cell><cell>+20.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 5 :</head><label>5</label><figDesc>Cross-model transfer of evolved harnesses.Candidate availability and selection. For the BIRD reference run, we compare the committed harnesses with two post-hoc batchwise oracles. Each oracle selects the eligible harness with the most correct outputs on each batch, using gold correctness for diagnosis only; neither mixes different harnesses' outputs within a batch. The oracle over the final candidates available to the judge reaches 64.0% (32/50), compared with the committed 50.0% (25/50). The resulting 14-point selection regret is a net deficit of seven solved tasks. Trace audits include selecting a 3/10 candidate over an available 4/10, and a 6/10 candidate over a 7/10. The audited errors include executable SQL that returns extra columns or an inappropriate granularity, illustrating the gap between execution success and task correctness.</figDesc><table><row><cell></cell><cell>Baseline</cell><cell>Transferred</cell><cell></cell></row><row><cell>Target model</cell><cell>(%)</cell><cell>(%)</cell><cell>Gain</cell></row><row><cell>MiMo V2.5</cell><cell>32.0</cell><cell cols="2">56.0 +24.0</cell></row><row><cell>GPT-5.5</cell><cell>36.0</cell><cell cols="2">68.0 +32.0</cell></row><row><cell cols="4">whether other models can use the evolution proce-</cell></row><row><cell cols="4">dure; this experiment instead tests whether they can</cell></row><row><cell cols="4">use its resulting programs. The gains show that a</cell></row><row><cell cols="4">batch-specific harness can benefit execution models</cell></row><row><cell cols="3">other than the one that evolved it.</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head></head><label></label><figDesc>The 50-question hard subset is drawn from BIRD Mini-Dev by auditing questions the baseline repeatedly missed and retaining unambiguous, substantively hard cases. It spans multiple databases. Accuracy uses result-set equality between the executed prediction and the reference query. Selection is conditioned on baseline failures; the scores describe this recovery-oriented subset, not full-benchmark performance or a controlled ranking of different backbones.</figDesc><table><row><cell>Benchmark</cell><cell>Tasks per run Metric</cell></row><row><cell>BIRD</cell><cell>50 Execution accuracy</cell></row><row><cell>LiveCodeBench</cell><cell>60 Task success rate</cell></row><row><cell>SWE-bench Verified</cell><cell>40 Task success rate</cell></row><row><cell>DS-1000</cell><cell>50 Task success rate</cell></row><row><cell>Terminal-Bench 2.1</cell><cell>89 Task success rate</cell></row><row><cell>claw-eval</cell><cell>30 Mean graded task score</cell></row><row><cell>BIRD.</cell><cell></cell></row></table><note><p>LiveCodeBench. The 60-problem hard subset uses the contamination-controlled release window reported in the experiment, with problems published after the solver's training cutoff. Task success requires passing all hidden tests; exposed examples remain available as partial checks during adaptation.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 7 :</head><label>7</label><figDesc>Model API endpoints.    </figDesc><table><row><cell>Model</cell><cell>API base URL</cell></row><row><cell cols="2">DeepSeek V4 Flash https://api.deepseek.com</cell></row><row><cell>MiMo V2.5</cell><cell>https://api.xiaomimimo.com/v1</cell></row><row><cell>Kimi K2.5</cell><cell>https://api.moonshot.cn/v1</cell></row><row><cell>GPT-5.5</cell><cell>https://api.openlux.ai/v1</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 8 :</head><label>8</label><figDesc>Benchmark licenses and source terms.</figDesc><table><row><cell>Benchmark</cell><cell>License / terms</cell><cell>Source</cell></row><row><cell>BIRD Mini-Dev</cell><cell>CC BY-SA 4.0</cell><cell>Dataset card</cell></row><row><cell>LiveCodeBench</cell><cell>Creative Commons (cc in the dataset card; variant un-</cell><cell>Dataset card</cell></row><row><cell></cell><cell>specified)</cell><cell></cell></row><row><cell>SWE-bench Verified</cell><cell>Source-repository terms (task content); MIT (benchmark</cell><cell>Dataset card; code license</cell></row><row><cell></cell><cell>code)</cell><cell></cell></row><row><cell>DS-1000</cell><cell>CC BY-SA 4.0</cell><cell>Dataset card</cell></row><row><cell>Terminal-Bench 2.1</cell><cell>Apache 2.0</cell><cell>Repository license</cell></row><row><cell>claw-eval</cell><cell>MIT</cell><cell>Dataset card</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 9 :</head><label>9</label><figDesc>Cross-database transfer and continued harness adaptation.</figDesc><table><row><cell cols="2">Evaluation split Harness setting</cell><cell cols="2">Correct / Total Accuracy (%)</cell></row><row><cell>ID</cell><cell>Bare baseline</cell><cell>5 / 30</cell><cell>16.7</cell></row><row><cell>ID</cell><cell>Frozen ID harness</cell><cell>10 / 30</cell><cell>33.3</cell></row><row><cell>OOD</cell><cell>Bare baseline</cell><cell>2 / 20</cell><cell>10.0</cell></row><row><cell>OOD</cell><cell>Frozen ID harness</cell><cell>10 / 20</cell><cell>50.0</cell></row><row><cell>OOD</cell><cell>Continued TTHE from the ID harness</cell><cell>13 / 20</cell><cell>65.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_16"><head>Table 10 :</head><label>10</label><figDesc>Run-level main results and mean ± sample standard deviation.</figDesc><table><row><cell>Benchmark</cell><cell>Method</cell><cell>Run 1</cell><cell>Run 2</cell><cell cols="2">Run 3 Mean ± SD (%)</cell></row><row><cell>BIRD</cell><cell>Baseline</cell><cell>6/50</cell><cell>6/50</cell><cell>7/50</cell><cell>12.67 ± 1.15</cell></row><row><cell>BIRD</cell><cell>TTHE</cell><cell>25/50</cell><cell>24/50</cell><cell>24/50</cell><cell>48.67 ± 1.15</cell></row><row><cell>LiveCodeBench</cell><cell>Baseline</cell><cell>18/60</cell><cell>16/60</cell><cell>19/60</cell><cell>29.44 ± 2.55</cell></row><row><cell>LiveCodeBench</cell><cell>TTHE</cell><cell>23/60</cell><cell>24/60</cell><cell>21/60</cell><cell>37.78 ± 2.55</cell></row><row><cell cols="2">SWE-bench Verified Baseline</cell><cell>8/40</cell><cell>9/40</cell><cell>9/40</cell><cell>21.67 ± 1.44</cell></row><row><cell cols="2">SWE-bench Verified TTHE</cell><cell>14/40</cell><cell>13/40</cell><cell>14/40</cell><cell>34.17 ± 1.44</cell></row><row><cell>DS-1000</cell><cell>Baseline</cell><cell>19/50</cell><cell>16/50</cell><cell>17/50</cell><cell>34.67 ± 3.06</cell></row><row><cell>DS-1000</cell><cell>TTHE</cell><cell>22/50</cell><cell>21/50</cell><cell>21/50</cell><cell>42.67 ± 1.15</cell></row><row><cell>Terminal-Bench 2.1</cell><cell>Baseline</cell><cell>49/89</cell><cell>46/89</cell><cell>52/89</cell><cell>55.06 ± 3.37</cell></row><row><cell>Terminal-Bench 2.1</cell><cell>TTHE</cell><cell>60/89</cell><cell>63/89</cell><cell>58/89</cell><cell>67.79 ± 2.83</cell></row><row><cell>claw-eval</cell><cell cols="4">Baseline 42.78% 51.18% 52.70%</cell><cell>48.89 ± 5.34</cell></row><row><cell>claw-eval</cell><cell>TTHE</cell><cell cols="3">69.76% 65.21% 73.29%</cell><cell>69.42 ± 4.05</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>balance. Without a repair-quality assumption, r ≥ 0 and u ≤ 1 give e ′ ≤ e + m(1 -π) + ε = e + (1 -e)f + ε.</p><p>Soundness removes falsely triggered correct outcomes, and exact locality removes possible off-trigger harm. Neither condition asserts r &gt; 0. Likewise, clearing a failure flag does not measure r, because correct and incorrect outputs can both pass an incomplete check.</p><p>Relation to the search procedure. TTHE can express local repair branches as well as global prompt and grounding edits. The preservation result applies to transitions satisfying the stated soundness and locality conditions; extending it to a sequence requires these conditions at each committed transition. The complete search procedure is evaluated empirically.</p><p>Binary versus graded outcomes. The analysis uses binary correctness, as in exact SQL or hidden-test evaluation. For graded loss, merely detecting an outcome that is not fully correct does not make replacing it safe: a partly successful outcome can be made worse. An analogous preservation conclusion would require a stronger condition, such as the trigger certifying maximal loss. It is not claimed for claw-eval's graded score, nor does the correctness analysis account for additional latency, tokens, or execution costs. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G FULL ALGORITHM</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>H REPEATED MAIN RESULTS</head><p>Table <ref type="table">10</ref> reports three runs per method with mean ± sample standard deviation. Raw results are solved/total counts for the binary benchmarks and mean graded scores for claw-eval. Figure <ref type="figure">2</ref> uses the run means, with absolute gains computed before rounding. Ablations and selection diagnostics use the single-run reference described in Section 5.3.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Gepa: Reflective prompt evolution can outperform reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Shangyin</forename><surname>Lakshya A Agrawal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dilara</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Soylu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rishi</forename><surname>Ziems</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Krista</forename><surname>Khare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arnav</forename><surname>Opsahl-Ong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Herumb</forename><surname>Singhvi</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Shandilya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Michael J Ryan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Jiang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="8479" to="8565" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Qianshu</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonggang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianzhang</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinmei</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yike</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Moss</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.22794</idno>
+		<title level="m">Self-evolution through source-level rewriting in autonomous agent systems</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Safe harness self-evolution: A theoretical analysis of feasibility and limits</title>
+		<author>
+			<persName><forename type="first">Qianshu</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonggang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Nie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maohao</forename><surname>Ran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajiang</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinmei</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yike</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Xue</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2609.08175</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">CodeT: Code generation with generated tests</title>
+		<author>
+			<persName><forename type="first">Bei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fengji</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anh</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daoguang</forename><surname>Zan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeqi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian-Guang</forename><surname>Lou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2207.10397</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Tingyang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kang</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weicheng</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanlin</forename><surname>Teng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xule</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhizhong</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2606.14249</idno>
+		<title level="m">A composable, adaptive, and evolvable agent harness foundry</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Teaching large language models to self-debug</title>
+		<author>
+			<persName><forename type="first">Xinyun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathanael</forename><surname>Schärli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Promptbreeder: Self-referential selfimprovement via prompt evolution</title>
+		<author>
+			<persName><forename type="first">Chrisantha</forename><surname>Fernando</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dylan</forename><surname>Banarse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henryk</forename><surname>Michalewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Osindero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Rocktäschel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning, ICML</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Text-to-SQL empowered by large language models: A benchmark evaluation</title>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaliang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiuyu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichen</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bolin</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingren</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.15363</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Connecting large language models with evolutionary algorithms yields powerful prompt optimizers</title>
+		<author>
+			<persName><forename type="first">Qingyan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junliang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaitao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoqing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiang</forename><surname>Bian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujiu</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">EvoTest: Evolutionary test-time learning for self-improving agentic systems</title>
+		<author>
+			<persName><forename type="first">Yufei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juncheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yibo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tri</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinxing</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Hooi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.13220</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Automated design of agentic systems</title>
+		<author>
+			<persName><forename type="first">Shengran</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Clune</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Large language models can self-improve</title>
+		<author>
+			<persName><forename type="first">Jiaxin</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shixiang</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuexin</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongkun</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<publisher>EMNLP</publisher>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Learning on the job: Test-time curricula for targeted reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Hübotter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leander</forename><surname>Diaz-Bone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ido</forename><surname>Hakimi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Krause</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moritz</forename><surname>Hardt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.04786</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Live-CodeBench: Holistic and contamination free evaluation of large language models for code</title>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">King</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Ding</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanjia</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sida</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armando</forename><surname>Solar-Lezama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koushik</forename><surname>Sen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">SWE-bench: Can language models resolve real-world GitHub issues?</title>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Khattab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arnav</forename><surname>Singhvi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paridhi</forename><surname>Maheshwari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keshav</forename><surname>Santhanam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sri</forename><surname>Vardhamanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saiful</forename><surname>Haq</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashutosh</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><forename type="middle">T</forename><surname>Joshi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanna</forename><surname>Moazam</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.03714</idno>
+		<title level="m">Compiling declarative language model calls into self-improving pipelines</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">DS-1000: A natural and reliable benchmark for data science code generation</title>
+		<author>
+			<persName><forename type="first">Yuhang</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengxi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiqi</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sida</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning, ICML</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yoonho</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roshen</forename><surname>Nair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qizheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kangwook</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Khattab</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.28052</idno>
+		<title level="m">Metaharness: End-to-end optimization of model harnesses</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Can LLM already serve as a database interface? a big bench for large-scale database grounded text-to-SQLs</title>
+		<author>
+			<persName><forename type="first">Jinyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ge</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binhua</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bailin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiying</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Huo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Competition-level code generation with AlphaCode</title>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyoung</forename><surname>Chung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nate</forename><surname>Kushman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Leblond</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Eccles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Keeling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Gimeno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Agustin</forename><surname>Dal Lago</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Let&apos;s verify step by step</title>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Hunter Lightman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harrison</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teddy</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cobbe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Harness-aware self-evolving: Co-evolving model weights, harness, and task solutions</title>
+		<author>
+			<persName><forename type="first">Haochen</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sichun</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fengyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zefa</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junlan</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.03935</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Self-Refine: Iterative refinement with selffeedback</title>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niket</forename><surname>Tandon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prakhar</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Skyler</forename><surname>Hallinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wiegreffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uri</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nouha</forename><surname>Dziri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shrimai</forename><surname>Prabhumoye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">DIN-SQL: Decomposed in-context learning of text-to-SQL with self-correction</title>
+		<author>
+			<persName><forename type="first">Mohammadreza</forename><surname>Pourreza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Davood</forename><surname>Rafiei</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS; Bernardino Romera-Paredes, Mohammadamin</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Mathematical discoveries from program search with large language models</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Barekatain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matej</forename><surname>Novikov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M Pawan</forename><surname>Balog</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emilien</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francisco Jr</forename><surname>Dupont</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jordan</forename><forename type="middle">S</forename><surname>Ruiz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengming</forename><surname>Ellenberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omar</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Fawzi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Reflexion: language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Test-time training with self-supervision for generalization under distribution shifts</title>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaolong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Miller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexei</forename><surname>Efros</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moritz</forename><surname>Hardt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning, ICML</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Dynamic cheatsheet: Test-time learning with adaptive memory</title>
+		<author>
+			<persName><forename type="first">Mirac</forename><surname>Suzgun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mert</forename><surname>Yuksekgonul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Bianchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Jurafsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Zou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th Conference of the European Chapter of the Association for Computational Linguistics</title>
+		<meeting>the 19th Conference of the European Chapter of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="7080" to="7106" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Tent: Fully test-time adaptation by entropy minimization</title>
+		<author>
+			<persName><forename type="first">Dequan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evan</forename><surname>Shelhamer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaoteng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bruno</forename><forename type="middle">A</forename><surname>Olshausen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Trevor</forename><surname>Darrell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+		<respStmt>
+			<orgName>ICLR</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Voyager: An open-ended em-bodied agent with large language models</title>
+		<author>
+			<persName><forename type="first">Guanzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linxi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Anandkumar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Trans. Mach. Learn. Res</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Self-consistency improves chain of thought reasoning in language models</title>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><forename type="middle">V</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aakanksha</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+		<respStmt>
+			<orgName>ICLR</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="24824" to="24837" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Large language models as optimizers</title>
+		<author>
+			<persName><forename type="first">Chengrun</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifeng</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanxiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyun</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">SWE-agent: Agent-computer interfaces enable automated software engineering</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">One recipe, many harnesses: What self-evolution encodes across languages and models</title>
+		<author>
+			<persName><forename type="first">Siqi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianlan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Xiong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurabh</forename><surname>Pujar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Hirzel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.10178</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Karthik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<title level="m" type="main">Learning to discover at test time</title>
+		<author>
+			<persName><forename type="first">Mert</forename><surname>Yuksekgonul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Koceja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Bianchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jed</forename><surname>Mccaleb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaolong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Kautz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yejin</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><surname>Guestrin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.16175</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">STaR: Bootstrapping reasoning with reasoning</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Zelikman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhuai</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Mu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">D</forename><surname>Goodman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Self-taught optimizer (STOP): Recursively self-improving code generation</title>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Zelikman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eliana</forename><surname>Lorch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lester</forename><surname>Mackey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Tauman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kalai</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.02304</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yunpeng</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuchang</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anni</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziqian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingxu</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shinji</forename><surname>Mai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaji</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zouying</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2511.10395</idno>
+		<title level="m">Towards efficient self-evolving agent system</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Self-harness: Harnesses that improve themselves</title>
+		<author>
+			<persName><forename type="first">Hangfan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kangcong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiqun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuyue</forename><surname>Hu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2606.09498</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Darwin godel machine: Open-ended evolution of self-improving agents</title>
+		<author>
+			<persName><forename type="first">Jenny</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengran</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cong</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Lange</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Clune</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.22954</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Aflow: Automating agentic workflow generation</title>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinyu</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaoyang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fengwei</forename><surname>Teng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xionghui</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaqi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchen</forename><surname>Zhuge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinlin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingnan</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuyu</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenglin</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+		<respStmt>
+			<orgName>ICLR</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">MEMO: test time robustness via adaptation and augmentation</title>
+		<author>
+			<persName><forename type="first">Marvin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chelsea</forename><surname>Finn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Agentic context engineering: Evolving contexts for self-improving language models</title>
+		<author>
+			<persName><forename type="first">Qizheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changran</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shubhangi</forename><surname>Upasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyuan</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fenglu</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vamsidhar</forename><surname>Kamanuru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jay</forename><surname>Rainton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengmeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanchen</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">2026</biblScope>
+			<biblScope unit="page" from="86069" to="86100" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Judging LLMas-a-judge with MT-Bench and chatbot arena</title>
+		<author>
+			<persName><forename type="first">Lianmin</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Lin</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhanghao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonghao</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zi</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuohan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dacheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Large language models are human-level prompt engineers</title>
+		<author>
+			<persName><forename type="first">Yongchao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrei</forename><forename type="middle">Ioan</forename><surname>Muresanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziwen</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keiran</forename><surname>Paster</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silviu</forename><surname>Pitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harris</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Ttrl: Test-time reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Zuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiyan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shang</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ganqu</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuekai</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haozhan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinwei</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ermo</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Biqing</forename><surname>Qi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="131459" to="131483" />
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Self-adapting language models</title>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Zweiger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jyo</forename><surname>Pari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoon</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pulkit</forename><surname>Agrawal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="74084" to="74115" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

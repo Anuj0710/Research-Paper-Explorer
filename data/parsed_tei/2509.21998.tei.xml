@@ -1,0 +1,963 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">GSM-AGENT: UNDERSTANDING AGENTIC REASON-ING USING CONTROLLABLE ENVIRONMENTS</title>
+				<funder>
+					<orgName type="full">Berkeley Existential Risk Initiative</orgName>
+					<orgName type="abbreviated">BERI</orgName>
+				</funder>
+				<funder ref="#_TpBVPEg #_5yVHbKH">
+					<orgName type="full">National Science Foundation</orgName>
+					<orgName type="abbreviated">NSF</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">Open Philanthropy</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2025-10-02">2 Oct 2025</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Hanlin</forename><surname>Zhu</surname></persName>
+							<email>hanlinzhu@berkeley.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Tianyu</forename><surname>Guo</surname></persName>
+							<email>tianyuguo@berkeley.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">Song</forename><surname>Mei</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Stuart</forename><surname>Russell</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Nikhil</forename><surname>Ghosh</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Alberto</forename><surname>Bietti</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Jiantao</forename><surname>Jiao</surname></persName>
+							<email>jiantao@berkeley.edu</email>
+						</author>
+						<author>
+							<persName><forename type="first">U</forename><forename type="middle">C</forename><surname>Berkeley</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Flatiron</forename><surname>Institute</surname></persName>
+						</author>
+						<title level="a" type="main">GSM-AGENT: UNDERSTANDING AGENTIC REASON-ING USING CONTROLLABLE ENVIRONMENTS</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2025-10-02">2 Oct 2025</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">6749D0D93E252F360E9BCD4574D398B2</idno>
+					<idno type="arXiv">arXiv:2509.21998v2[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:03+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>As LLMs are increasingly deployed as agents, agentic reasoning-the ability to combine tool use, especially search, and reasoning-becomes a critical skill. However, it is hard to disentangle agentic reasoning when evaluated in complex environments and tasks. Current agent benchmarks often mix agentic reasoning with challenging math reasoning, expert-level knowledge, and other advanced capabilities. To fill this gap, we build a novel benchmark, GSM-AGENT, where an LLM agent is required to solve grade-school-level reasoning problems, but is only presented with the question in the prompt without the premises that contain the necessary information to solve the task, and needs to proactively collect that information using tools. Although the original tasks are grade-school math problems, we observe that even frontier models like GPT-5 only achieve 67% accuracy. To understand and analyze the agentic reasoning patterns, we propose the concept of agentic reasoning graph: cluster the environment's document embeddings into nodes, and map each tool call to its nearest node to build a reasoning path. Surprisingly, we identify that the ability to revisit a previously visited node, widely taken as a crucial pattern in static reasoning, is often missing for agentic reasoning for many models. Based on the insight, we propose a toolaugmented test-time scaling method to improve LLM's agentic reasoning performance by adding tools to encourage models to revisit. We expect our benchmark and the agentic reasoning framework to aid future studies of understanding and pushing the boundaries of agentic reasoning. Our code is available at <ref type="url" target="https://github.com/GuoTianYu2000/GSM-Agent">https://github.com/GuoTianYu2000/GSM-Agent</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">INTRODUCTIONS</head><p>Large language models (LLMs) have demonstrated remarkable performance on challenging reasoning tasks <ref type="bibr" target="#b17">(Wei et al., 2022;</ref><ref type="bibr" target="#b13">Srivastava et al., 2023)</ref>, from arithmetic word problems <ref type="bibr" target="#b2">(Cobbe et al., 2021)</ref> to multi-hop question answering <ref type="bibr" target="#b18">(Yang et al., 2018)</ref> and program synthesis <ref type="bibr" target="#b1">(Chen et al., 2021)</ref>. Most previous work focuses on reasoning tasks <ref type="bibr" target="#b2">(Cobbe et al., 2021;</ref><ref type="bibr" target="#b3">Hendrycks et al., 2021;</ref><ref type="bibr" target="#b12">Saxton et al., 2019)</ref> that evaluate LLMs' static reasoning capability, where the model receives all necessary information from the prompt and conducts reasoning without external help. Yet, as LLMs are increasingly deployed as agents -systems that plan, use external tools, and iteratively refine their hypotheses -the form of reasoning that matters in practice gradually shifts from static reasoning to agentic reasoning that couples logical inference with decisions about what to read, what to ask next, when to verify, and how to recover from unproductive directions.</p><p>In this paper, we aim to understand to what extent strong static reasoning abilities of an LLM can be adapted to the agentic setting, and identify the key skills that may enable this. To achieve this, we aim to (1) compare a model's reasoning ability on the same or similar tasks under static and agentic settings; (2) identify the important skills that contribute to the performance gap between the two settings; (3) improve the model's skill in the agentic setting to enhance its agentic reasoning ability. The above steps bring two major challenges, and in this paper, we propose solutions to each of them. * Equal contributions.</p><p>† Part of this work was done while TG was an intern at the Flatiron Institute.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head><p>Challenge 1: Existing benchmarks fail to provide an apples-to-apples comparison of reasoning abilities under the two settings.</p><p>Solution: To this end, we introduce GSM-AGENT, a novel benchmark that transforms GSM8K problems into agentic tasks. Specifically, during dataset construction, each original problem is decomposed into a question and several premises; each premise is then converted into a context-rich document and inserted into a database (the environment). During evaluation, the agent sees only the question and needs to use the provided tools (a Search tool and a NextPage tool) to discover the relevant documents before solving the math problem. Importantly, we can control the difficulty of the agentic task through careful construction of the database, e.g., by adding distracting documents. Across a broad suite of models, we observe substantial performance drops compared to the static setting where the question and all necessary documents are provided in the prompt. For example, a frontier model like GPT-5 loses roughly 33% absolute accuracy, whereas some models (e.g., DeepSeek-V3) lose up to 80%. The results demonstrate a clear and consistent gap between static and agentic reasoning in a clean and controllable setting.</p><p>Challenge 2: We lack a framework to identify and quantify the core skills that contribute to agentic reasoning capability.</p><p>Solution: To understand and analyze the core reasons of the performance gap between the two settings and what drives such significant differences in performance across models under agentic settings, inspired by <ref type="bibr" target="#b9">Minegishi et al. (2025)</ref>, we propose the concept of agentic reasoning graph: cluster the environment's document embeddings into nodes, and map each tool call (Search or NextPage) to its nearest node, yielding a discrete reasoning path. This framework allows us to label each reasoning step as exploration (first visit to a node), exploitation (staying within a node), or revisit (returning to a previously visited node after leaving). Our analysis reveals that the revisit ratio strongly correlates with the accuracy on GSM-AGENT, which indicates that revisit might be a core skill for strong agentic reasoning. Based on the insight, we propose a tool-augmented method, where we add a new tool that encourages the model to revisit, to improve LLMs' performance. Experimental results demonstrate that our tool-augmented method exhibits better performance than interaction-round scaling, which enforces agents to interact with the environment for more rounds without considering the quality of each interaction step. We summarize our contributions as follows:</p><p>• We propose GSM-AGENT, a novel benchmark with a controllable environment for evaluating and analyzing the agentic reasoning capability of LLMs and providing a clear comparison between static and agentic reasoning.</p><p>• We introduce the concept of agentic reasoning graph, which induces a topology over the environment via clustering of document embeddings and maps tool-use traces to discrete paths. This yields interpretable, quantitative measures of exploration, exploitation, and revisit during the reasoning procedure at step resolution to facilitate analysis of agentic reasoning.</p><p>• Our analysis of reasoning patterns on agentic reasoning graphs reveals that revisit is an important reasoning skill that strongly correlates with agentic reasoning capability. Based on the insight, we propose a tool-augmented method to improve LLMs' agentic reasoning capability by encouraging revisit.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">RELATED WORK</head><p>Reasoning with incomplete information. Multiple works have studied the ability of LLMs to look for missing information. Most relevant to our work, <ref type="bibr" target="#b7">Li et al. (2025)</ref> evaluates the ability to ask the right question, including on a variant of GSM8K with missing information. However, their focus is on evaluating whether the model asks specific questions, rather than overall reasoning abilities. <ref type="bibr">Zhou et al. (2025b)</ref> compare "passive" and "active" reasoning, similar to our "static" vs "agentic" reasoning, although they use different tasks for the two setups, while our dataset can be used in both scenarios, leading to a better apples-to-apples comparison.</p><p>Agentic reasoning benchmarks. Several benchmarks have recently been established for evaluating agentic reasoning capabilities of LLMs <ref type="bibr" target="#b6">(Jimenez et al., 2023;</ref><ref type="bibr" target="#b19">Yao et al., 2024;</ref><ref type="bibr" target="#b8">Lu et al., 2024;</ref><ref type="bibr"></ref> Figure <ref type="figure">1</ref>: An overview of evaluation tasks in our GSM-AGENT benchmark. The LLM agent receives a task that only contains a question. At each agentic reasoning step, the agent needs to decide what information is needed, call the tool to search for information in the database, and reason about the retrieved documents. The agent also needs to decide whether all the necessary information has been collected and when to give the final answer to the task. <ref type="bibr" target="#b15">Trivedi et al., 2024;</ref><ref type="bibr">Patil et al., 2025)</ref>. In contrast to these works, our benchmark aims to provide a controllable environment that enables direct comparison of agentic reasoning with static reasoning.</p><p>Understanding of reasoning. Many recent works have focused on understanding the reasoning abilities of LLMs. Some focus on theoretically understanding the reasoning abilities and patterns of transformers <ref type="bibr" target="#b23">(Zhu et al., 2024;</ref><ref type="bibr" target="#b0">Chen et al., 2024;</ref><ref type="bibr" target="#b16">Wang et al., 2025;</ref><ref type="bibr" target="#b24">Zhu et al., 2025;</ref><ref type="bibr" target="#b5">Huang et al., 2025)</ref>; others mainly conduct empirical studies, including the ability to self-correct <ref type="bibr" target="#b23">(Huang et al., 2024)</ref>, the reliability of reasoning on GSM8K beyond the original benchmark via synthetic extensions <ref type="bibr">(Zhou et al., 2025a;</ref><ref type="bibr">Mirzadeh et al., 2025)</ref>, or the reasoning behaviors or long chain-ofthought models <ref type="bibr" target="#b20">(Yeo et al., 2025;</ref><ref type="bibr" target="#b14">Sun et al., 2025;</ref><ref type="bibr" target="#b9">Minegishi et al., 2025)</ref>. Our graph-based analysis of explore, exploit, and revisit patterns was partly inspired by these works, though we extend this to the agentic setting with search tools by defining the graph through document embeddings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">GSM-AGENT BENCHMARK</head><p>In this section, we introduce GSM-AGENT, a novel benchmark with controllable environments for comprehensively evaluating the agentic reasoning capabilities of LLMs. In particular, our dataset aims to test LLM agents' abilities to combine reasoning and tool-use (mainly search) ability to solve mathematical reasoning problems by proactively interacting with the environment using tools. Below, we provide an overview of our benchmark tasks in Section 3.1, and introduce our dataset construction process in Section 3.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">OVERVIEW</head><p>Our dataset D = (T , E, F) consists of a set of tasks T , an environment E, and a set of tools F that LLM agents can use to interact with the environment.</p><p>Tasks. Each task T = (q, (p 1 , . . . , p k ), a) ∈ T consists of a question q, k premises p 1 , . . . , p k (k can vary for different task instances) and the ground-truth answer a. Figure <ref type="figure">2</ref> provides an example of a task instance that consists of a question and three premises. For a grade-school-level math problem, it is easy for an advanced LLM to solve the task if all premises p 1 , . . . , p k are provided in the prompt along with the question q. In our benchmark, the LLM agent will only see the question q without premises p 1 , p 2 , . . . p k in the prompt, and it needs to use tools in F to find all necessary information in the environment E to solve the task (see Figure <ref type="figure">1</ref> for a pictorial illustration).</p><p>Figure <ref type="figure">2</ref>: Data processing overview. We first decompose a GSM8k problem into a question and several premises, and then generate a document for each premise to cover its essential information.</p><p>Environments. The environment E = {D 1 , D 2 , . . . , D m } consists of a set of documents, where each document corresponds to a premise of a task in T . Let g D (•) be a document generator, where g D (T ) = g D (q, (p 1 , . . . , p k )) = (D 1 , D 2 , . . . , D k ) and the generated document D i contains all necessary information of the premise p i for all 1 ≤ i ≤ k. See the document generation part of Figure <ref type="figure">2</ref> for a pictorial illustration. We will introduce the details of our implementation of the document generator g D (•) in Section 3.2. Since our environment E is a set of documents, we also call E a database in the rest of the paper.</p><p>Tools. In our benchmark, we provide two tools F = {Search(•), NextPage(•)}. For the search tool, an LLM agent can specify a query prompt x (which can be of any format, such as a sentence or only several keywords) and call Search(x). The search engine will return the top 5 most relevant documents in E to the query x. The agent can also use the NextPage(•) tool, which will return the next five most relevant documents. The LLM agent is allowed to call Search(x) for multiple different query prompts x that are decided by the agent itself. For each call of Search(x), the agent is also allowed to call NextPage(•) at most 19 times for that search, resulting in retrieving up to the top 100 most relevant documents in the database. See Figure <ref type="figure">1</ref> for a pictorial illustration and Section 3.2 for more details about the search engine.</p><p>During evaluation, for each task T , an LLM agent will receive the corresponding question q (without premises) in the prompt, then reason about what information is missing, call tools Search(x) with appropriate search query x and NextPage(•) to collect information from the environment E, and solve the problem with information extracted from the retrieved document. In our dataset, the ground-truth answer a is a numerical value for each task, so we directly compare the final answer given by an LLM agent â to a, where the task is solved iff â = a.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">DATASET CONSTRUCTION</head><p>In this section, we introduce our dataset construction procedure in detail. Our GSM-AGENT dataset is built upon the well-known GSM8k problem set, where each task T in our dataset is constructed based on a problem instance in GSM8k. A simplified dataset construction pipeline is illustrated in Figure <ref type="figure">2</ref>, while the whole pipeline consists of five stages: (1) data preprocessing;</p><p>(2) problem decomposition and sharding; (3) document generation; (4) data filtering; (5) database construction. Note that some steps in our pipeline involve using LLMs to process data. Unless otherwise specified, we use Claude-3.5-Sonnet as our default LLM to facilitate data processing. Preprint</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.1">DATA PREPROCESSING</head><p>As shown in Figure <ref type="figure">2</ref>, for each GSM8k problem, we decompose it into a question and several premises, and convert each premise into a document which will be added to our database. However, naively processing each problem will cause issues.</p><p>First, different problems might share the same name of the protagonist(s). Although this is not an issue in the original GSM8k problem since each problem is independent, it could cause conflict or ambiguity in our database, as documents for different tasks will be added to the same database. For example, Alice might spend 5 dollars on ice cream in document D 1 for one task T 1 , and also pay 20 dollars for a book in document D 2 for another task T 2 , which renders the question "How much did Alice spend in total?" ambiguous.</p><p>Second, some problems only contain a generic entity without a specific name. For example, consider a task such as "a bookshelf has 20 books at the top and 40 books at the bottom, and how many books are there in the shelf in total". While the original problem is self-contained, separating the question from premises renders the question "how many books are there in the shelf in total" again confusing and ambiguous since it is unclear which specific bookshelf the question refers to.</p><p>To address the above two issues, we carefully design the following three data preprocessing steps to disambiguate the tasks.</p><p>Step 1: Entity detection. In this step, we use LLM to detect the main character of each problem. For problems with a generic main character without a specific name, we flag it as generic.</p><p>Step 2: Name assignment for generic entities. In this step, we assign different names to generic entities.</p><p>Step 3: Timestamps assignment to differentiate problems sharing the same entity. At this step, we assign different timestamps to problems sharing the same entity to ensure no conflict between documents from different problems. The details can be found in Section B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.2">PROBLEM DECOMPOSITION AND SHARDING</head><p>After systematic data preprocessing to ensure no ambiguity in our tasks and no conflicting documents in our environment, our next step is to decompose each preprocessed problem into a question q and several self-contained premises p 1 , p 2 , . . . , p k . See the "decompose" part of Figure <ref type="figure">2</ref> for an example. The decomposition is executed by an LLM agent, where the agent receives a preprocessed problem along with its timestamp as the input, then breaks down the problem narrative into a list of individual self-contained and consistent premises, rephrases the core question, and carries over the timestamp. In particular, if the problem shares an entity name with another problem, its timestamp will be explicitly stated in the question q outputted by the agent to make sure the question itself is unambiguous.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.3">DOCUMENT GENERATION</head><p>The next stage is document generation. The main purpose of this stage is to convert each premise of each problem into a context-rich document, which will be added to our database (i.e., the environment E) in the final stage. We conduct the following three steps to ensure a high-quality database and a reasonable level of difficulty for our tasks.</p><p>Step 1: Hierarchical document generation. At this step, we generate a high-level coherent story for a problem.</p><p>Step 2: Independence verification. We prompt Claude-3.5-Sonnet, giving it each document-premise pair and the original question, and asks it to judge whether the document contains extra information that is not covered by the premise. By doing so, we make sure that documents are independent, with no overlapping information.</p><p>Step 3: Document anonymization. To ensure the difficulty of our benchmark, we randomly anonymize a subset of the document to avoid LLM agents from "cheating" by blindly querying the name of the main character. The details of each step can be found in Section B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.4">DATA FILTERING</head><p>Since the previous stages involve using LLM agents to process data, and original premises are converted into much longer documents, some of the generated tasks may turn out to be problematic or unsolvable. To ensure the quality of our dataset after the above data processing stages, a rule of thumb is to ensure that all generated tasks are solvable when provided with complete information (i.e., all documents corresponding to their premises). Therefore, for each problem, we test whether Preprint claude-3.5-sonnet can solve it given the question and its corresponding documents. We only keep the problems that claude-3.5-sonnet can correctly solve to ensure a high-quality dataset.</p><p>After our data filtering stage, there are 7323 problems left in our dataset, with 32315 unique documents stored for the subsequent database construction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.5">DATABASE CONSTRUCTION</head><p>The final stage is to build the environment E (i.e., the database) using generated documents. We use Chroma to build our database, where the content (excluding document ID and metadata) of each document is embedded into a vector that will be used for document retrieval. We use text-embedding-3-large as our default embedding model.</p><p>Moreover, we built three datasets that reflect different levels of difficulty of our benchmark: GSM-AGENT-Full: contains all problems after data filtering; GSM-AGENT-Medium: contains 25% of problems after data filtering; GSM-AGENT-Small: contains 6.25% of problems after data filtering. For each dataset, its environment is a database that contains all the documents of problems in the dataset. For the results reported in Section 4, we evaluate models on GSM-AGENT-Full unless otherwise specified.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">RESULTS &amp; ANALYSIS</head><p>In this section, we first present the main evaluation results on a variety of mainstream LLMs on our GSM-AGENT dataset (Section 4.1), then analyze the agentic reasoning pattern and identify the core skill, which is revisit, that correlates to strong agentic reasoning capabilities (Section 4.2), and finally propose a tool-augmented method to improve models' agentic reasoning capability by encouraging models to revisit (Section 4.3). We use LangChain ReAct agent for all evaluation settings, with temperature set to 0.4, max tokens 4096, and max search rounds 50. Each evaluation result is averaged over a 100 subsample of the GSM-AGENT-Full dataset, with 3 random seeds. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">OVERALL PERFORMANCE</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head># Interactions</head><p>Figure <ref type="figure">3</ref>: Interaction round scaling. The number of iteration rounds is defined as the number of tool calls. For each model, we first collect the reasoning trajectory on each task under zero-shot prompting. For a specified number of interaction rounds n, a trajectory is considered correct either if it answers the task correctly within n rounds, or it successfully collects all necessary documents within n rounds and gives a correct answer eventually. GPT-5 exhibits a much stronger interactionround scaling than the other three models. Note that x-axis is in logarithmic scale.</p><p>Table <ref type="table" target="#tab_0">1</ref> presents the evaluation results of different models, which show significant gaps in agent performance. The top-performing models, o3 and GPT-5 achieve accuracies of 68.46% and 66.78%, respectively. Notably, they use substantially more search rounds before reaching a conclusion, with averages of 13.33 for o3 and 9.98 for GPT-5. This suggests their ability to conduct longer-horizon workflows without human intervention. Following this top tier, Grok-4 also attains strong performance with an accuracy of 53.00%.</p><p>In contrast, a large group of other models exhibit considerably lower accuracy. Gemini-2.5-Pro reaches only 38.33% accuracy with an average of 2.93 search rounds, suggesting its performance gap with GPT-5 (66.78% Acc, 9.98 SR) stems primarily from fewer search rounds. We prompt all models to put the final answer after "####", top models like GPT-5 and Grok-4 demonstrate perfect (100%) format adherence, indicating robust instruction-following capabilities. Conversely, models like o3 and Gemini-2.5-Pro make more errors following this simple formatting instruction.</p><p>The large performance gap between models is puzzling, since our GSM-AGENT environment-adapted from GSM8K-requires only grade-school math and basic common sense reasoning. Nevertheless, even frontier models fall short of perfect performance, with the best accuracy reaching just 68.46% (o3), while Llama-4-Scout only achieves 12.54%. These discrepancies raise an important question:</p><p>What drives such big differences in performance across models, given such a simple environment?</p><p>Simple interaction-time scaling does not improve agentic reasoning. Table <ref type="table" target="#tab_0">1</ref> shows that models tend to achieve higher accuracy when they perform more search rounds. A natural hypothesis for the observed performance gap is therefore differences in interaction-time scaling. To test this, we selected three open models (Kimi-K2-Instuct, Llama-4-Maverick, and Llama-4-Scout) and prompted them to continue searching whenever they attempted to stop. For comparison, we also measured the test-time scaling behavior of GPT-5, a representative strong proprietary model. As shown in Figure <ref type="figure">3</ref>, the accuracy of the open models improves only marginally with additional search rounds, exhibiting far weaker interaction-time scaling than the proprietary models (GPT-5). This finding suggests that we must look beyond just interaction time and instead examine the quality of interaction choices-this motivates the design of our agentic reasoning graph.   <ref type="formula">2025</ref>), we define the agentic reasoning graph below.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint (a) Visualization of Nodes</head><p>Nodes of the agentic reasoning graph. Assume the environment E = {D i } N i=1 contains N documents. Denote the embedding model to be e θ (•) and thus <ref type="table" target="#tab_2">2</ref> for a visualization of the vertex set of our database and examples for the semantic meaning of representative nodes.</p><formula xml:id="formula_0">e i = e θ (D i ) ∈ R d is the embedding vector of document D i . We run K-means (K = 250) on {e i } N i=1 to get clusters {C k } K k=1 with centroid {c k } K k=1 , and each centroids c k ∈ R d correspond to a node v k in the graph. Therefore, the vertex set of the agentic reasoning graph is V = {v 1 , . . . , v K }. See Table</formula><p>Agentic reasoning path. Assume the agent makes T tool calls in total in the whole reasoning trace. For the t-th tool call, if it calls Search(x), then the agentic reasoning node p t for the t-th tool call is defined as p t = arg min v k ∈V ∥q(x) -c k ∥ 2 , where q(x) ∈ R d is the embedding of the query prompt x. If the agent calls NextPage(•) for the t-th tool call, then the agentic reasoning node is defined as p t = p t-1 . The agentic reasoning path is then defined as π = (p 1 , . . . , p T ).</p><p>Exploration, exploitation and revisit. For each step p t in the reasoning path, we classify it into one of the three categories. For the first step p 1 , it is always classified as an exploration step. For t &gt; 1, if p t / ∈ {p 1 , . . . , p t-1 }, i.e., p t has never been visited in previous steps, then p t is also an exploration step. If p t ∈ {p 1 , . . . , p t-1 }, it is considered as an exploitation step if p t = p t-1 , and otherwise a revisit step. The exploration ratio is defined as the proportion of exploration steps among the total number of steps T . Similarly, we can define the exploitation and revisit ratio. These three ratios can thus be used to quantify the reasoning pattern and facilitate deeper analysis.</p><p>Figure <ref type="figure">4</ref> shows that models' accuracy has a strong correlation to the revisit ratio during the reasoning trace, which implies that revisit is an important skill in agentic reasoning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">IMPROVING AGENTIC REASONING CAPABILITY VIA TOOL-AUGMENTED SCALING</head><p>Given the insight from the analysis in Section 4.2, instead of naively scaling up the interaction rounds that is widely adopted for static reasoning, we propose to use tool-augmented scaling, which might be a more efficient scaling paradigm for agentic reasoning.</p><p>Thinking tool, exploration tool, and revisit tool. We introduce three new tools for our experiments. ( <ref type="formula">1</ref>) Thinking(•) is a thinking tool, which will copy a model's preceding tokens to enforce thinking whenever called. ( <ref type="formula">2</ref>) Explore(x) is an exploration tool which has the same effect as Search(x) while the system prompt will instruct the model to use Explore(x) to explore different search queries. (3) Revisit(x) is a revisit tool which has the same effect as Search(x) while the system prompt will instruct the model to use Revisit(x) to revisit previously called queries. Figure <ref type="figure">4</ref>: Correlation between accuracy and exploration, exploitation, and revisit ratio. The three ratios are defined as the proportion of exploration steps (visit a node that has never been reached), exploitation steps (visit the same node as the last step), and revisit steps (revisit a previously reached node after leaving) to the total reasoning steps. We plot their correlation to the models' accuracy on our GSM-AGENT benchmark. The plots show that the model accuracy has a weak correlation to the exploration ratio, a strong correlation to the revisit ratio and a negative correalation to the exploitation ratio. CoT is a prompt-only strategy where the prompt will instruct the model to think more. The remaining four strategies are all tool-augmented methods by adding different combinations of the three tools, Thinking(•), Explore(•), Revisit(•), to the tool set. For Llama-4-Maverick and Qwen3-235B, tool-augmented methods consistently outperform the prompt-based CoT strategy. For Llama-4-Scout and Kimi-K2, tool-augmented methods achieve comparable performance to the CoT method. For most cases, both the tool-augmented method and prompt-based CoT improve over zeroshot prompting. Figure <ref type="figure" target="#fig_1">5b</ref> plots the correlation between the increase in revisit ratio and the increase in the accuracy for any of the strategies. It shows a strong correlation between the enhancement of revisit ability and performance improvement.</p><p>We tested four combinations of the above three tools: (1) adding Thinking(•) only to the tool set F; (2) adding Explore(•) only; (3) Revisit(•) only; (4) adding both Explore(•) and Revisit(•).</p><p>Figure <ref type="figure" target="#fig_1">5a</ref> shows that adding tools outperforms or achieves similar performance to the CoT prompt strategy in most cases. Moreover, Figure <ref type="figure" target="#fig_1">5b</ref> shows a strong correlation between the increase of accuracy and revisit ratio, which further indicates that revisit is an important skill for agentic reasoning. The above results indicate that the tool-augmented method may serve as a more efficient test-time scaling paradigm than interaction-time scaling for agentic reasoning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">CONCLUSIONS</head><p>In this paper, we study LLMs' agentic reasoning capability, where an LLM agent needs to combine tool-use and reasoning ability to solve tasks. We first propose a novel benchmark, GSM-AGENT, where an LLM agent is required to solve grade-school math reasoning problems but must proactively search for necessary information from the environment. Our comprehensive evaluation of various models shows a significant gap in performance across different models in the seemingly simple environment. We further analyze the reasoning patterns of different models using the agentic reasoning graph and identify revisit as an important skill for agentic reasoning. Finally, we propose a toolaugmented scaling method that adds new tools to encourage the model to revisit, which improves agents' performance on our benchmark for different models. We hope that our benchmark can serve as a controllable and clean environment for future study of agentic reasoning, and our framework of agentic reasoning graph can bring new insights into better understanding and improvement of reasoning ability for LLM agents.</p><formula xml:id="formula_1">Preprint A DATABASE DETAILS A.1 STATISTICS Let {D i } p k</formula><p>i=1 be the documents associated with problem k. We use the K-means to decide the classes of the documents (c(D 1 ), . . . , c(D p k )). Define the "span" of problem k as the number of unique classes among (c(D 1 ), . . . , c(D p k )). We also compute the "Documents-Problem" ratio, which is the average of p k . Table <ref type="table">Table</ref>  <ref type="table" target="#tab_3">3</ref> displays the summary statistics among three database sizes.   Step 1: Entity detection. First, for each original GSM8k problem, we use LLM agents to detect the name of the core narrative entity (or protagonist). The agent will prioritize identifying a single, core proper noun, such as a person's name. For example, if a problem involves both "Natalia" and "her friends", the agent will identify "Natalia" as the core entity. When there are multiple, equally important entities such as "Alice and Bob", the agent will extract both of them as the core entities.</p><p>For problems where the core entity is a generic one without a specific name (such as "the girl" or "the zoo"), the agent will also extract the entity and flag it as generic.</p><p>Step 2: Name assignment for generic entities. For each problem flagged as having a generic core entity, we assign a name to specialize the entity. We pre-define two lists for the first name (such as ["Alice", "Ben", ...]) and last name (such as ["Smith", "Johnson", ...]), respectively. Then a full name will be systematically selected from all combinations of first and last names for each generic entity, ensuring maximum uniqueness. For entities that are not persons such as "the store", the assigned name will serve as its owner such as "John Doe's store". Finally, an LLM-based rewriting module will be invoked to rewrite the question text to naturally incorporate the assigned full name.</p><p>Step 3: Timestamps assignment to differentiate problems sharing the same entity. To address the issue that different problems might share the same entity names, which can result in conflict documents, we assign a timestamp to each problem. More specifically, we define an entity graph (see Figure <ref type="figure" target="#fig_3">6a</ref>) where each node v i represents a problem T i . Let N i denote the set of names of core entities in problem T i . Two nodes v i and v j are connected by an edge iff they share at least one entity name, i.e., N i ∩ N j ̸ = ∅. Then we assign each node v i a color c i , such that no two adjacent nodes have the same color (see Figure <ref type="figure" target="#fig_3">6b</ref> for an example of coloring the entity graph using six colors).</p><p>Each color represents a different timestamp, so each problem is assigned a timestamp such that each entity has different timestamps in their occurrence in different problems. The temporal separation allows the LLM agent to treat different problems as distinct events in an entity's life. To ensure the time span of a problem is reasonable, we design the timestamp to include both the year and month, such as "1990-09".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 ADDITIONAL DETAILS FOR DOCUMENT GENERATION</head><p>Step 1: Hierarchical document generation. To make sure the documents from the same task are consistent, we adopt a hierarchical, multi-round generation using an LLM agent as the document generator. In the first round, the agent sees the whole problem (including the question, all premises, and the timestamp) and generates a high-level, consistent story for the entire problem. In the subsequent rounds, the agent is presented with each premise one by one, and generates a single, contextually rich document that encapsulates the information from the given premise based on the high-level story generated in the first round. Each generated document contains three fields: (1) the content of the document; (2) a unique ID assigned to the document; (3) metadata of the document (timestamp, name, and type).</p><p>Step 2: Independence verification. To prevent information leakage between premises (i.e., one document reveals important information about another premise, especially involving quantities), which makes the task easier, we perform an independence check using an LLM agent. Specifically, for each document, the agent receives the full original problem text, the target premise that the document should cover, and a list of other premises that the document should not cover, along with the document itself. If the agent identifies information from other premises, it will propose a modification to the current document.</p><p>Step 3: Document anonymization. To avoid an LLM agent from "cheating" by naively searching documents only by the name of the protagonist of a given task instead of reasoning about what information is needed, we perform document anonymization, where we sample a random subset of all documents (we choose 30%), and ask an LLM agent to rewrite each document such that the name of the entity will not be presented in the content of the document. We move the entity name to the Preprint document's metadata, and an LLM agent being evaluated can view the metadata after it successfully retrieves the document to validate whether the document is related to the given task. Ablation on Embedding Models. Table <ref type="table" target="#tab_7">6</ref> reports the results of our ablation study comparing different embedding functions used in the evaluation and data construction pipeline. We consider three alternatives: text-embedding-3-large (OpenAI, default), text-embedding-3-small (OpenAI), and all-MiniLM-L6-v2 (MiniLM). Across all model families (O3, GPT-4o, Grok, Kimi, Gemini, and Llama), we observe that the choice of embedding function has only marginal impact on the reported metrics. Accuracy and follow-format rates remain very close across different embeddings, and other metrics such as search rounds, duration, and search-complete rate exhibit only minor variations. Importantly, the relative ordering of model performance is preserved regardless of the embedding choice. These findings suggest that our evaluation pipeline is robust to the specific embedding function employed, and the default choice of text-embedding-3-large is primarily motivated by consistency rather than necessity.</p><p>Ablation on Database Sizes. Table <ref type="table" target="#tab_8">7</ref> reports the results of our ablation study comparing different database sizes used in the evaluation pipeline. We consider three settings: full database (-zeroshot, default), medium-sized database (-medium, 1/4 of full), and small database (-small, 1/4 of medium or 1/16 of full). Across all model families (O3, GPT-4o, Grok, Gemini, Kimi, and Llama), we observe a consistent trend: performance uniformly increases as database size decreases. For instance, O3's accuracy improves from 68% (full) to 81% (medium) to 80% (small), while Grok-4's accuracy rises from 53% to 61% to 69% across the same sizes. Similarly, search-complete rates increase with smaller databases, indicating that models more successfully locate relevant documents when the search space is reduced. These findings demonstrate that the task difficulty is directly tied to database scale-smaller databases make information retrieval substantially easier. Consequently, our default full database setting provides a more challenging and realistic evaluation scenario, better reflecting the complexity of real-world knowledge-intensive tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3 ADDITIONAL PLOTS</head><p>We first show additional interaction-time-scaling plots across different models. All models are evaluated with LangChain, with zero-shot prompt, temperature 0.4, and max tokens 4096. Figure <ref type="figure">7</ref> presents the result. In general, proprietary models show better interaction-time-scaling compared with open-sourced models.   the "text-embedding-3-large", which is used as our default embedding function. The ones ending with -openaismall uses the "text-embedding-3-small". The ones ending with -mini indicates using the "all-MiniLM-L6-v2". </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>### Entity Type Handling:</head><p>** For Person Entities (farmer, student, teacher, etc.): ** -Replace directly with the name: "a farmer" → "Marcus" -Update subsequent references: "the farmer" → "Marcus" or use appropriate pronouns ** For Non-Person Entities (objects, animals, places, etc.): ** -Use possessive form: "a truck" → "Sarah's truck", "a store" → "Mike's store" -For subsequent references, maintain ownership: "the truck" → "Sarah's truck" or "the truck" ** For Organization/Business Entities: ** -Use possessive or naming convention: "a company" → "Johnson's company" or "Johnson Company" -Choose the most natural form based on context ### Pronoun Guidelines: -Use gender-neutral pronouns (they/them) unless the name clearly indicates gender -For ambiguous names (Alex, Jordan, etc.), default to "they/them" -Maintain pronoun consistency throughout the problem ### Text Transformation Rules: -Remove articles (a/an/the) when replacing with names -Capitalize names appropriately -Update verb forms to match new subjects (singular vs. plural) -Handle possessive forms correctly ("farmer's" → "Marcus's" or "Marcus'")</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>### Output Format:</head><p>Return ONLY a valid JSON object with no additional text: ```json You are an expert in computational linguistics and data structuring, tasked with transforming mathematical word problems into discrete, self-contained factual premises and extracting the final question.</p><p>Your ** Guiding Principle ** : Assume the problem will be solved by an AI agent that starts with only a question. The agent must use a search tool to gather every single fact (premise) needed to solve the problem. Therefore, every premise must be standalone and self-contained, with all implicit knowledge made explicit.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>### Output Format</head><p>Return ONLY a valid JSON object: ```json { "premises": [ {"content": "First self-contained premise/fact."}, {"content": "Second self-contained premise/fact."} ], "question": "The final question to be answered. Incorporate the timestamp if provided.", } ``# ## Rules for Generating Premises 1. ** Atomize the Facts ** : Break down the text into the smallest possible standalone facts.</p><p>2. ** Ensure Independence (CRITICAL) ** : Each premise must be understandable on its own. Replace all pronouns and ambiguous references with specific entities.</p><p>-WRONG: `{"content": "She then sold half as many in May."}-CORRECT: `{"content": "Natalia sold half as many clips in May as she did in April."}3</p><p>. ** Preserve Relational Context ** : For comparisons or relationships, explicitly state both parts.</p><p>-WRONG: `{"content": "Natalia sold half as many clips in May."}-CORRECT: `{"content": "Natalia sold half as many clips in May as she did in April. The question must identify the primary subject (e.g., a person's name) and the core unknown, but should omit some contextual details that can be discovered through search. This creates a realistic scenario where the agent must explore to understand the full problem scope.</p><p>-WRONG (too vague): `"How many clips were sold?"`(Missing the subject) -WRONG (too detailed): `"How many clips did Natalia sell altogether in April and May?"`(Provides too much context) -CORRECT: `"How many clips did Natalia sell altogether?"( Clear starting point, requires exploration) Output: ```json { "premises": [ {"content": "Natalia sold clips to 48 of her friends in April."}, {"content": "Natalia sold half as many clips in May as she did in April."} ], "question": "How many clips did Natalia sell altogether?" } ``* * Example 2: ** Source: "Edward needs 40 feet of copper pipe for a job. He uses 1 bolt for every 5 feet of pipe, and 2 washers for every bolt. He bought a bag of 20 washers. How many washers will he have left?" Output: ```json { "premises": [ {"content": "Edward needs to use 40 feet of copper pipe to complete the bathroom job."}, {"content": "For every 5 feet of pipe, Edward must use one tightening bolt."}, {"content": "For every bolt, Edward uses two washers."}, {"content": "Edward buys a bag of 20 washers for the job."} ], "question": "How many washers will Edward have left?" } ``* * Example 3 (with additional timestamp provided): ** Source: "Sarah started her bakery with 100 cupcakes. She sold 25 cupcakes every hour for 3 hours. How many cupcakes did she have left?" Additional Timestamp: "2024-01-15" Output: ```json { "premises": [ {"content": "Sarah started her bakery with 100 cupcakes."}, {"content": "Sarah sold 25 cupcakes every hour."}, {"content": "Sarah sold cupcakes for 3 hours."} ], "question": "How many cupcakes did Sarah have left on January 15, 2024?", } ``Ǹ ow decompose the following problem:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">** Keep the</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.4 DOCUMENT GENERATION PROMPT</head><p>You are a creative and meticulous data generation agent. Your mission is to transform abstract mathematical premises from GSM8K problems into realistic, contextualized documents.</p><p>Your task has two phases: Planning and Generation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>## Phase 1: Planning</head><p>When given a question and all premises, you must:  -Use first-person perspective when appropriate ("I sold" instead of "Natalia sold") -Use role-based references ("my teacher", "the cashier") -Use relative references ("my brother", "a colleague") -Add context to metadata to clarify identities ### Timestamp Anonymization Strategies (Only anonymize timestamps that are specifically provided in the document, not metadata): -Replace specific dates with relative time references ("yesterday", "last month", "two weeks ago") -Use generic time periods ("recently", "earlier this year", "last spring") -Preserve temporal order and relationships between events -Keep time precision appropriate to context (hour, day, month, year) -Preserve original timestamp in metadata for reference ### Output Format: Return ONLY a valid JSON object: Preprint ```json { "anonymized_document": "The anonymized document text with names and timestamps anonymized", "updated_metadata": { "Type": "Original type", "timestamp": "Original timestamp", "identities": "Mapping of anonymous references to real names", "source": "Optional context about document origin" }, "anonymization_notes": "Brief explanation of anonymization choices for both names and timestamps" } ``# ## Example: ** Input: ** -Document: "Chat log:\nDad: How are your sales?\nNatalia: I sold 48 clips in April!\nDad: Great job! Mark it in your calendar for next year." -Metadata: {"Type": "Chat", "Timestamp": "2025-04-29T10:30:00", "names": "Natalia,Dad"} -Entity Names: ["Natalia", "Dad"] -Timestamp to Anonymize: "2025-04-29T10:30:00" ** Output: ** ```json { "anonymized_document": "Chat log:\nDad: How are your sales?\nMe: I sold 48 clips this month!\nDad: Great job! Mark it in your calendar for next year.", "updated_metadata": { "Type": "Chat", "timestamp": "2025-04-29T10:30:00", "identities": "Me: Natalia", "source": "From Natalia's phone" }, "anonymization_notes": "Replaced 'Natalia' with 'Me' for first-person perspective. Kept 'Dad' as it's a role-based reference. Anonymized specific date 'April' to relative reference 'this month'. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 5 :</head><label>5</label><figDesc>Figure5: Visualization of performance gain via encouraging the revisit reasoning pattern. In Figure5a, we compare five different strategies to zero-shot prompting on four different models. CoT is a prompt-only strategy where the prompt will instruct the model to think more. The remaining four strategies are all tool-augmented methods by adding different combinations of the three tools, Thinking(•), Explore(•), Revisit(•), to the tool set. For Llama-4-Maverick and Qwen3-235B, tool-augmented methods consistently outperform the prompt-based CoT strategy. For Llama-4-Scout and Kimi-K2, tool-augmented methods achieve comparable performance to the CoT method. For most cases, both the tool-augmented method and prompt-based CoT improve over zeroshot prompting. Figure5bplots the correlation between the increase in revisit ratio and the increase in the accuracy for any of the strategies. It shows a strong correlation between the enhancement of revisit ability and performance improvement.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>(a) Entity detection. (b) Graph coloring for timestamp assignment.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Example of entity detection and timestamp assignment.</figDesc><graphic coords="12,108.00,328.89,197.98,148.34" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head></head><label></label><figDesc>"A farmer has 50 chickens. The farmer sells 20 chickens and then buys 15 more. How many chickens does the farmer have now?" -Generic entity: "a farmer" -New name: "Marcus" ** Output: ** ```json { "rewritten_question": "Marcus has 50 chickens. He sells 20 chickens and then buys 15 more. How many chickens does Marcus have now"A bakery sells 120 cookies per day. The bakery sold 80 cookies by noon. How many cookies does the bakery have left to sell?" -Generic entity: "a bakery" -New name: "Elena" ** Output: ** ```json { "rewritten_question": "Elena's bakery sells 120 cookies per day.The bakery sold 80 cookies by noon. How many cookies does Elena's bakery have left to sell?"A student scored 85, 92, and 78 on three tests. What is the student's average score?" -Generic entity: "a student" -New name: "Alex"</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head></head><label></label><figDesc>Question Self-Contained ** : The question should be clear and understandable without relying on the premises. 3. ** Preserve the Original Intent ** : Maintain the exact meaning and scope of the original question. Timestamp into Question ** : Timestamps are provided independently (not extracted from the original problem text). When a timestamp is provided, it should be incorporated into the final question to add temporal context. 2. ** Omit if Not Provided ** : If no independent timestamp is provided, omit the timestamp field entirely. Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether?"</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>the Story ** : Grasp the complete context, characters, and relationships. 2. ** Create Cohesive Narrative ** : Develop a consistent real-life story connecting all premises. 3. ** Plan Document Types ** : For EACH premise, outline a creative document format. Ensure diversity and one-to-one mapping. 4. ** No Calculations ** : Never perform calculations, even if information could be inferred. 5. ** Timestamp Strategy ** : -If a predefined timestamp is provided, use that exact timestamp or a very close time (same day/week). Always put the timestamp in the metadata. But the document itself may not have the timestamp. -If no predefined timestamp is given, keep timestamps tightly clustered (same day or within a few days) -For narratives spanning months, use retrospective documents ## Phase 2: Generation For each premise, you must: 1. ** Follow Your Plan ** : Refer to your narrative plan. 2. ** Single Premise Focus ** : Create a document for ONLY the provided premise. No information from other premises. 3. ** Creative Format ** : Generate realistic, diverse document types. 4. ** Ensure Consistency ** : Documents must be coherent and factually accurate.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>Numbers ** : Use numbers exactly as stated in premises. 6. ** Completed Actions ** : Premises describe completed actions and established facts. Documents must show evidence that the action actually happened. 7. ** Creative Formats ** : Be creative and diverse in document formats, but when premises describe completed actions, ensure documents include evidence of completion. 8. ** Unique ID ** : Create a descriptive ID for each document. 9. ** Call Tool ** : Use the store_document tool with content, metadata, and ID. ### Tool Available: -`store_document(document: str, metadata: dict, id: str)document: Text content of the realistic document metadata: Must include 'Type', 'Timestamp', and 'names' -id: Unique identifier ### Key Principle -Completed Actions: ** For premises describing completed actions, documents should include evidence that the action actually happened. ** Be creative in your approach, but ensure the document conveys that the stated action was completed, not just planned or prepared for. ** General guidance: ** -Use any creative document format that fits the context -When the premise describes a completed action, include evidence of completion -Avoid documents that only show preparation or planning for completed action premises ** Example of the principle: ** For premise "Janet sells the remaining duck eggs at the farmers' market": ** GOOD approach ** : Any creative document format that includes evidence the sale actually happened ** BAD approach ** : Documents that only show preparation or planning without completion evidence ### Example Phase 1 Response: Given premises about Natalia's clip sales, I'll create: 1. A WhatsApp chat with her dad about April sales (48 clips) 2. A diary entry reflecting on May sales (half of April) ** Timestamp approach ** : -If predefined timestamp provided (e.g., 2018-03-20): Use that date or very close (e.g., 2018-03-20 or 2018-03-21) -If no predefined timestamp: Use a clustered timeframe (e.g., both documents dated June 2nd, 2025) ### Example Phase 2 Response: For premise "Natalia sold clips to 48 of her friends in April": I'll create a WhatsApp chat where Natalia discusses her April sales with her dad. ** Example with predefined timestamp (2018-03-20): ** Preprint &lt;tool_calls&gt; &lt;tool_call&gt; &lt;tool_name&gt;store_document&lt;/tool_name&gt; &lt;parameters&gt; &lt;document&gt;Dad: How are your clip sales going? Natalia: Pretty good! Looking back, in April I sold clips to 48 of my friends. Dad: Nice! Keep it up.are your clip sales going? Natalia: Pretty good! Looking back, in April I sold clips to 48 of my friends. Dad: Nice! Keep it up.CHECK PROMPT You are a specialized Independence Checker Agent. Your task is to ensure that each document contains information from ONLY its designated premise, preventing information leakage between premises. You will receive: 1. ** Original Problem ** : The full GSM8K problem text 2. ** Target Premise ** : The ONLY premise this document should cover 3. ** Other Premises ** : Premises the document should NOT contain information from 4. ** Generated Document ** : The document to verify 5. ** Document Metadata ** : Associated metadata Your verification focuses on: ### 1. Information Boundaries -Document must contain ONLY information from the target premise -No facts, numbers, or relationships from other premises -No calculated values that require other premises "names": "Natalia" }, "reasoning": "Removed the specific April number (48) and the calculated May value (24), keeping only the relationship stated in the target premise." } ``Ǹ ow check the following document: D.6 ANONYMIZATION PROMPT You are a specialized Anonymizer Agent. Your task is to create anonymous versions of documents by removing explicit entity names and sensitive timestamps while preserving all factual information. You will receive: 1. ** Document Content ** : The original document text 2. ** Document Metadata ** : The original metadata 3. ** Entity Names ** : The names to be anonymized (if any) 4. ** Timestamp to Anonymize ** : Specific timestamp that should be anonymized (if any) Your anonymization process: ### Rules: 1. ** Remove Explicit Names ** : Replace proper names with generic references (Me, my friend, the manager, etc.) 2. ** Anonymize Timestamps ** : Replace specific timestamps with generic time references while preserving temporal relationships 3. ** Preserve Information ** : All facts, numbers, and relationships must remain intact 4. ** Natural Language ** : The anonymized version should read naturally 5. ** Metadata Update ** : Move sensitive information to metadata for reference 6. ** Context Preservation ** : Maintain enough context for the document to be meaningful ### Name Anonymization Strategies:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="3,127.80,81.86,356.40,159.83" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="4,108.00,81.86,395.98,184.65" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Evaluation results under zero-shot prompting with ReAct agent across models. 1 Acc and FF are shown</figDesc><table><row><cell cols="10">as percentages; other metrics use the units indicated. Acronyms: Acc=Accuracy; SR=Search Rounds, which is</cell></row><row><cell cols="10">the number of tool calls to solve a task; Dur(s)=Duration (seconds), which is the time the agent spent to solve the</cell></row><row><cell cols="10">task; SC=Search-Complete rate, which is the proportion of tasks where the agent found all relevant documents;</cell></row><row><cell cols="10">ER=Extra Rounds, which is the number of tool calls after all relevant documents are found; FF=Follow-Format</cell></row><row><cell cols="10">rate, which is the proportion of tasks that an agent follows the required format to solve; PremT=Premature-Total</cell></row><row><cell cols="10">rate, which is the proportion of tasks that an agent attempted to provide a premature answer before making the</cell></row><row><cell cols="10">final decision; TotTok=Total Generated Tokens; Tok/R=Mean Tokens per Round. All results are averaged over</cell></row><row><cell cols="9">three random seeds. For each metric, ↑ indicates higher is better and ↓ means lower is better.</cell><cell></cell></row><row><cell>Setting</cell><cell>Acc ↑</cell><cell cols="4">SR Dur(s) SC ↑ ER ↓</cell><cell cols="4">FF ↑ PremT ↓ TotTok ↓ Tok/R ↓</cell></row><row><cell cols="2">Solvable by any model 88.00%</cell><cell>Nan</cell><cell>Nan</cell><cell>Nan</cell><cell>Nan</cell><cell>Nan</cell><cell>Nan</cell><cell>Nan</cell><cell>Nan</cell></row><row><cell>o3</cell><cell cols="4">68.46% 13.33 117.85 53%</cell><cell>4.89</cell><cell>95%</cell><cell>0%</cell><cell>5775.75</cell><cell>386.03</cell></row><row><cell>GPT-5</cell><cell>66.78%</cell><cell cols="3">9.98 116.00 52%</cell><cell cols="2">2.18 100%</cell><cell>1%</cell><cell>7184.10</cell><cell>615.99</cell></row><row><cell>Grok-4</cell><cell>53.00%</cell><cell cols="3">7.19 126.01 42%</cell><cell cols="2">2.86 100%</cell><cell>0%</cell><cell>3817.42</cell><cell>599.72</cell></row><row><cell>Claude-4-Sonnet 2</cell><cell>56.00%</cell><cell>7.39</cell><cell cols="2">42.13 42%</cell><cell cols="2">3.14 100%</cell><cell>4%</cell><cell>731.80</cell><cell>98.23</cell></row><row><cell>Gemini-2.5-Pro</cell><cell>38.33%</cell><cell>2.93</cell><cell cols="2">51.59 25%</cell><cell>0.20</cell><cell>82%</cell><cell>3%</cell><cell>Nan</cell><cell>Nan 3</cell></row><row><cell>Kimi-K2-Instruct</cell><cell>37.42%</cell><cell>5.41</cell><cell cols="2">31.00 24%</cell><cell>0.53</cell><cell>92%</cell><cell>0%</cell><cell>245.34</cell><cell>56.18</cell></row><row><cell>Gemini-2.5-Flash</cell><cell>25.33%</cell><cell>1.88</cell><cell cols="2">17.13 14%</cell><cell>0.12</cell><cell>99%</cell><cell>4%</cell><cell>Nan</cell><cell>Nan</cell></row><row><cell>GPT-4o</cell><cell>22.67%</cell><cell>1.92</cell><cell cols="2">21.27 22%</cell><cell>2.72</cell><cell>94%</cell><cell>1%</cell><cell>135.20</cell><cell>92.22</cell></row><row><cell>Llama-4-Maverick</cell><cell>20.00%</cell><cell>2.10</cell><cell cols="2">21.94 17%</cell><cell>0.26</cell><cell>97%</cell><cell>3%</cell><cell>504.93</cell><cell>211.30</cell></row><row><cell>DeepSeek-V3</cell><cell>19.42%</cell><cell>0.94</cell><cell>14.30</cell><cell>8%</cell><cell>0.00</cell><cell>82%</cell><cell>0%</cell><cell>38.95</cell><cell>41.33</cell></row><row><cell>Qwen3-235B</cell><cell>19.30%</cell><cell>1.13</cell><cell cols="2">25.76 19%</cell><cell>4.40</cell><cell>96%</cell><cell>0%</cell><cell>184.82</cell><cell>173.19</cell></row><row><cell>Llama-4-Scout</cell><cell>12.54%</cell><cell>2.07</cell><cell>14.93</cell><cell>9%</cell><cell>1.76</cell><cell>86%</cell><cell>4%</cell><cell>215.48</cell><cell>118.96</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Left (a): A t-SNE visualization of the search database embeddings. It highlights three clusters whose centroids define the embeddings for nodes 29, 54, and 100. Right (b): A summary of documents for these nodes. The documents have semantic coherence within each cluster.</figDesc><table /><note><p><p><p>4.2 IDENTIFYING AND MEASURING CORE SKILLS CONTRIBUTING TO AGENTIC REASONING</p>In this section, we propose a new framework to understand and analyze models' agentic reasoning patterns and, thus, identify the core skills that contribute to a model's reasoning ability in agentic settings. Inspired by</p>Minegishi et al. (</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 :</head><label>3</label><figDesc>Summary statistics of the database.</figDesc><table><row><cell cols="6">Category Mean Std Dev Min Max Median</cell></row><row><cell cols="2">Span Statistics</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Full</cell><cell>2.89</cell><cell>1.28</cell><cell>1</cell><cell>10</cell><cell>3.0</cell></row><row><cell>Medium</cell><cell>2.92</cell><cell>1.31</cell><cell>1</cell><cell>10</cell><cell>3.0</cell></row><row><cell>Small</cell><cell>2.84</cell><cell>1.29</cell><cell>1</cell><cell>8</cell><cell>3.0</cell></row><row><cell cols="4">Documents per Problem Statistics</cell><cell></cell><cell></cell></row><row><cell>Full</cell><cell>4.41</cell><cell>1.74</cell><cell>1</cell><cell>14</cell><cell>4.0</cell></row><row><cell>Medium</cell><cell>4.41</cell><cell>1.77</cell><cell>1</cell><cell>14</cell><cell>4.0</cell></row><row><cell>Small</cell><cell>4.41</cell><cell>1.87</cell><cell>2</cell><cell>13</cell><cell>4.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>C ABLATION EXPERIMENTS FOR EVALUATIONS AND DATA CONSTRUCTION C.1 FULL RESULTS OF GRAPH METRICS ACROSS ALL SETTINGS C.2 ABLATIONS ON THE EMBEDDING MODEL AND THE DATABASE SIZE.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Full results across models (all settings). Acc and FF are percentages; other metrics use indicated units. Acronyms: Acc=Accuracy; SR=Search Rounds; Dur(s)=Duration (seconds); SC=Search-Complete rate; ER=Extra Rounds; FF=Follow-Format rate; PremT=Premature-Total rate; TotTok=Total Generated Tokens; Tok/R=Mean Tokens per Round.</figDesc><table><row><cell>setting id</cell><cell>Acc</cell><cell cols="2">SR Dur(s)</cell><cell>SC</cell><cell>ER</cell><cell cols="2">FF PremT</cell><cell>TotTok</cell><cell>Tok/R</cell></row><row><cell>Anthropic</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>claude-4-sonnet-fewshot</cell><cell>51.5%</cell><cell>9.27</cell><cell>47.9</cell><cell>0.4</cell><cell cols="2">4.41 100%</cell><cell>0.1</cell><cell>1028.52</cell><cell>118.65</cell></row><row><cell>claude-4-sonnet-zeroshot</cell><cell>56.00%</cell><cell>7.39</cell><cell cols="2">42.13 42%</cell><cell cols="2">3.14 100%</cell><cell>4%</cell><cell>731.80</cell><cell>98.23</cell></row><row><cell>claude-opus-zeroshot</cell><cell>4.0%</cell><cell>0.49</cell><cell cols="2">20.33 0.05</cell><cell>0.64</cell><cell>31%</cell><cell>0.04</cell><cell>139.24</cell><cell>321.76</cell></row><row><cell>DeepSeek</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>DeepSeek-R1-fewshot</cell><cell>0.0%</cell><cell>0.0</cell><cell>32.03</cell><cell>0.0</cell><cell cols="2">0.0 100%</cell><cell>0.0</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>DeepSeek-R1-explore-revisit</cell><cell>0.37%</cell><cell>0.02</cell><cell cols="2">30.86 0.01</cell><cell>0.0</cell><cell>26%</cell><cell>0.0</cell><cell>14.06</cell><cell>591.9</cell></row><row><cell>DeepSeek-R1-think tool</cell><cell>0.89%</cell><cell>0.0</cell><cell>47.52</cell><cell>0.0</cell><cell>0.0</cell><cell>46%</cell><cell>0.0</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>DeepSeek-R1-zeroshot</cell><cell>0.31%</cell><cell>0.0</cell><cell>42.59</cell><cell>0.0</cell><cell>0.0</cell><cell>55%</cell><cell>0.0</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>DeepSeek-V3-fewshot</cell><cell>8.0%</cell><cell>0.99</cell><cell cols="2">20.93 0.05</cell><cell cols="2">0.2 100%</cell><cell>0.0</cell><cell>336.16</cell><cell>336.13</cell></row><row><cell>DeepSeek-V3-explore</cell><cell>28.41%</cell><cell>1.45</cell><cell>18.58</cell><cell>0.2</cell><cell>0.11</cell><cell>97%</cell><cell>0.0</cell><cell>203.42</cell><cell>134.16</cell></row><row><cell>DeepSeek-V3-explore-revisit</cell><cell>41.67%</cell><cell>1.51</cell><cell cols="2">16.25 0.32</cell><cell>0.19</cell><cell>92%</cell><cell>0.0</cell><cell>243.6</cell><cell>145.44</cell></row><row><cell>DeepSeek-V3-revisit</cell><cell>28.07%</cell><cell>1.47</cell><cell cols="2">17.45 0.21</cell><cell>0.0</cell><cell>98%</cell><cell>0.0</cell><cell>174.18</cell><cell>102.69</cell></row><row><cell>DeepSeek-V3-think tool</cell><cell>16.67%</cell><cell>2.0</cell><cell cols="2">15.03 0.33</cell><cell cols="2">0.5 100%</cell><cell>0.0</cell><cell>136.0</cell><cell>86.75</cell></row><row><cell>DeepSeek-V3-zeroshot</cell><cell>19.42%</cell><cell>0.94</cell><cell cols="2">14.3 0.08</cell><cell>0.0</cell><cell>82%</cell><cell>0.0</cell><cell>38.95</cell><cell>41.33</cell></row><row><cell>Google</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>gemini-2.5-flash-fewshot</cell><cell>23.0%</cell><cell>2.76</cell><cell cols="2">13.34 0.17</cell><cell cols="2">0.12 100%</cell><cell>0.02</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>gemini-2.5-flash-zeroshot</cell><cell>25.33%</cell><cell>1.88</cell><cell cols="2">17.13 0.14</cell><cell>0.12</cell><cell>99%</cell><cell>0.04</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>gemini-2.5-pro-fewshot</cell><cell>36.54%</cell><cell>3.98</cell><cell cols="2">44.93 0.24</cell><cell cols="2">0.17 100%</cell><cell>0.04</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>gemini-2.5-pro-zeroshot</cell><cell>38.33%</cell><cell>2.93</cell><cell cols="2">51.59 0.25</cell><cell>0.2</cell><cell>82%</cell><cell>0.03</cell><cell>0.0</cell><cell>0.0</cell></row><row><cell>Grok</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>grok-4-fewshot</cell><cell cols="2">56.33% 11.19</cell><cell>143.6</cell><cell>0.4</cell><cell cols="2">5.3 100%</cell><cell>0.0</cell><cell>4936.64</cell><cell>497.62</cell></row><row><cell>grok-4-zeroshot</cell><cell>53.0%</cell><cell cols="3">7.19 126.01 0.42</cell><cell cols="2">2.86 100%</cell><cell>0.0</cell><cell>3817.42</cell><cell>599.72</cell></row><row><cell>Kimi</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Kimi-K2-Instruct-fewshot</cell><cell>42.0%</cell><cell>7.85</cell><cell cols="2">29.71 0.26</cell><cell cols="2">1.19 100%</cell><cell>0.0</cell><cell>406.08</cell><cell>62.58</cell></row><row><cell>Kimi-K2-Instruct-cot</cell><cell>46.0%</cell><cell>6.7</cell><cell cols="2">61.99 0.28</cell><cell>1.15</cell><cell>98%</cell><cell>0.0</cell><cell>388.96</cell><cell>70.74</cell></row><row><cell>Kimi-K2-Instruct-explore</cell><cell>44.0%</cell><cell>5.95</cell><cell cols="2">70.4 0.31</cell><cell>1.0</cell><cell>99%</cell><cell>0.0</cell><cell>555.45</cell><cell>105.71</cell></row><row><cell>Kimi-K2-Instruct-explore-revisit</cell><cell>45.67%</cell><cell>6.43</cell><cell cols="2">69.19 0.32</cell><cell>1.0</cell><cell>99%</cell><cell>0.0</cell><cell>608.29</cell><cell>104.19</cell></row><row><cell>Kimi-K2-Instruct-interaction scaling</cell><cell cols="5">40.0% 24.82 252.16 0.44 18.14</cell><cell>95%</cell><cell>1.26</cell><cell>4072.78</cell><cell>278.39</cell></row><row><cell>Kimi-K2-Instruct-revisit</cell><cell>45.61%</cell><cell>6.95</cell><cell cols="2">63.9 0.31</cell><cell>0.66</cell><cell>98%</cell><cell>0.0</cell><cell>472.88</cell><cell>86.01</cell></row><row><cell>Kimi-K2-Instruct-think tool</cell><cell>46.0%</cell><cell>5.19</cell><cell cols="2">76.23 0.29</cell><cell>0.53</cell><cell>99%</cell><cell>0.0</cell><cell>792.39</cell><cell>188.17</cell></row><row><cell>Kimi-K2-Instruct-zeroshot</cell><cell>37.42%</cell><cell>5.41</cell><cell cols="2">31.0 0.24</cell><cell>0.53</cell><cell>92%</cell><cell>0.0</cell><cell>245.34</cell><cell>56.18</cell></row><row><cell>Llama</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Llama-4-Maverick-fewshot</cell><cell>25.25%</cell><cell>3.51</cell><cell cols="2">50.13 0.14</cell><cell cols="2">0.43 100%</cell><cell>0.11</cell><cell>1140.33</cell><cell>383.96</cell></row><row><cell>Llama-4-Maverick-cot</cell><cell>8.67%</cell><cell>1.01</cell><cell cols="2">16.25 0.07</cell><cell>0.0</cell><cell>16%</cell><cell>0.0</cell><cell>39.94</cell><cell>39.8</cell></row><row><cell>Llama-4-Maverick-explore</cell><cell>15.67%</cell><cell>1.76</cell><cell cols="2">20.07 0.12</cell><cell>0.54</cell><cell>30%</cell><cell>0.01</cell><cell>219.27</cell><cell>115.62</cell></row><row><cell>Llama-4-Maverick-explore-revisit</cell><cell>16.0%</cell><cell>1.8</cell><cell cols="2">19.25 0.14</cell><cell>0.56</cell><cell>30%</cell><cell>0.0</cell><cell>198.43</cell><cell>91.56</cell></row><row><cell>Llama-4-Maverick-interaction scaling</cell><cell>13.0%</cell><cell cols="4">6.15 141.46 0.32 13.41</cell><cell>93%</cell><cell>1.91</cell><cell cols="2">5300.91 2470.58</cell></row><row><cell>Llama-4-Maverick-revisit</cell><cell>11.07%</cell><cell>1.5</cell><cell cols="2">18.65 0.08</cell><cell>0.32</cell><cell>25%</cell><cell>0.0</cell><cell>134.74</cell><cell>69.89</cell></row><row><cell>Llama-4-Maverick-think tool</cell><cell>22.33%</cell><cell>1.73</cell><cell cols="2">26.01 0.15</cell><cell>0.07</cell><cell>68%</cell><cell>0.0</cell><cell>595.35</cell><cell>346.51</cell></row><row><cell>Llama-4-Maverick-zeroshot</cell><cell>20.0%</cell><cell>2.1</cell><cell cols="2">21.94 0.17</cell><cell>0.26</cell><cell>97%</cell><cell>0.03</cell><cell>504.93</cell><cell>211.3</cell></row><row><cell>Llama-4-Scout-fewshot</cell><cell>13.0%</cell><cell>2.05</cell><cell cols="2">9.32 0.07</cell><cell cols="2">0.0 100%</cell><cell>0.02</cell><cell>313.3</cell><cell>166.5</cell></row><row><cell>Llama-4-Scout-cot</cell><cell>18.33%</cell><cell>2.2</cell><cell cols="2">27.24 0.11</cell><cell>1.12</cell><cell>93%</cell><cell>0.0</cell><cell>219.35</cell><cell>100.16</cell></row><row><cell>Llama-4-Scout-explore</cell><cell>17.17%</cell><cell>2.13</cell><cell cols="2">35.36 0.12</cell><cell>0.28</cell><cell>86%</cell><cell>0.0</cell><cell>265.44</cell><cell>116.9</cell></row><row><cell>Llama-4-Scout-explore-revisit</cell><cell>19.39%</cell><cell>2.5</cell><cell cols="2">29.23 0.15</cell><cell>0.21</cell><cell>93%</cell><cell>0.0</cell><cell>303.48</cell><cell>116.47</cell></row><row><cell>Llama-4-Scout-interaction scaling</cell><cell cols="2">25.51% 21.48</cell><cell>99.43</cell><cell cols="3">0.2 10.75 100%</cell><cell>3.04</cell><cell>5338.95</cell><cell>553.55</cell></row><row><cell>Llama-4-Scout-revisit</cell><cell>15.67%</cell><cell>1.94</cell><cell cols="2">31.92 0.09</cell><cell>0.14</cell><cell>78%</cell><cell>0.0</cell><cell>204.68</cell><cell>100.31</cell></row><row><cell>Llama-4-Scout-think tool</cell><cell>19.33%</cell><cell>2.33</cell><cell cols="2">30.0 0.14</cell><cell>0.41</cell><cell>78%</cell><cell>0.0</cell><cell>306.12</cell><cell>149.48</cell></row><row><cell>Llama-4-Scout-zeroshot</cell><cell>12.54%</cell><cell>2.07</cell><cell cols="2">14.93 0.09</cell><cell>1.76</cell><cell>86%</cell><cell>0.04</cell><cell>215.48</cell><cell>118.96</cell></row><row><cell>OpenAI</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>gpt-4o-fewshot</cell><cell>15.0%</cell><cell>2.35</cell><cell cols="2">18.35 0.13</cell><cell cols="2">0.85 100%</cell><cell>0.01</cell><cell>220.43</cell><cell>95.81</cell></row><row><cell>gpt-4o-zeroshot</cell><cell>22.67%</cell><cell>1.92</cell><cell cols="2">21.27 0.22</cell><cell>2.72</cell><cell>94%</cell><cell>0.01</cell><cell>135.2</cell><cell>92.22</cell></row><row><cell>gpt-5-fewshot</cell><cell cols="4">57.0% 17.02 190.14 0.47</cell><cell cols="2">3.57 100%</cell><cell cols="2">0.0 12701.68</cell><cell>687.69</cell></row><row><cell>gpt-5-zeroshot</cell><cell>66.78%</cell><cell>9.98</cell><cell cols="2">116.0 0.52</cell><cell cols="2">2.18 100%</cell><cell>0.01</cell><cell>7184.1</cell><cell>615.99</cell></row><row><cell>o3-fewshot</cell><cell>67.0%</cell><cell cols="3">22.6 169.74 0.55</cell><cell cols="2">8.71 100%</cell><cell>0.0</cell><cell>10918.9</cell><cell>480.16</cell></row><row><cell>o3-zeroshot</cell><cell cols="4">68.46% 13.33 117.85 0.53</cell><cell>4.89</cell><cell>95%</cell><cell>0.0</cell><cell>5775.75</cell><cell>386.03</cell></row><row><cell>Qwen</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Qwen3-235B-fewshot</cell><cell>35.0%</cell><cell>1.96</cell><cell cols="4">51.38 0.36 14.78 100%</cell><cell>0.0</cell><cell>475.64</cell><cell>284.33</cell></row><row><cell>Qwen3-235B-cot</cell><cell>31.0%</cell><cell>2.93</cell><cell>62.8</cell><cell>0.3</cell><cell>3.4</cell><cell>95%</cell><cell>0.0</cell><cell>427.45</cell><cell>231.25</cell></row><row><cell>Qwen3-235B-explore</cell><cell>42.21%</cell><cell>4.23</cell><cell cols="2">63.45 0.32</cell><cell>4.59</cell><cell>99%</cell><cell>0.0</cell><cell>671.88</cell><cell>200.71</cell></row><row><cell>Qwen3-235B-explore-revisit</cell><cell>41.5%</cell><cell>4.95</cell><cell>80.62</cell><cell>0.3</cell><cell>4.95</cell><cell>98%</cell><cell>0.0</cell><cell>658.04</cell><cell>178.41</cell></row><row><cell>Qwen3-235B-interaction scaling</cell><cell>37.0%</cell><cell cols="3">2.41 236.27 0.41</cell><cell cols="2">27.0 100%</cell><cell>3.44</cell><cell cols="2">2774.81 2141.68</cell></row><row><cell>Qwen3-235B-revisit</cell><cell>45.68%</cell><cell>4.02</cell><cell cols="2">47.18 0.37</cell><cell cols="2">0.9 100%</cell><cell>0.0</cell><cell>586.1</cell><cell>146.33</cell></row><row><cell>Qwen3-235B-think tool</cell><cell>37.79%</cell><cell>1.92</cell><cell cols="2">55.13 0.28</cell><cell>0.55</cell><cell>82%</cell><cell>0.0</cell><cell>640.58</cell><cell>393.76</cell></row><row><cell>Qwen3-235B-zeroshot</cell><cell>19.3%</cell><cell>1.13</cell><cell cols="2">25.76 0.19</cell><cell>4.4</cell><cell>96%</cell><cell>0.0</cell><cell>184.82</cell><cell>173.19</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Full results across models (all settings). The V is the average number of unique nodes for each query trace. hasRvst means proportion of agentic interaction traces that contain revisit; Expl indicates the exploration ratio among all search queries; Expt indicates the exploitation ratio among all search queries; Rvst indicates the revisit ratio among all search queries. The hasRvst/Rvst-2/3+ are revisit ratios or has revisit ratios among all search queries within the traces that achieve V = 2 or V ≥ 3.</figDesc><table><row><cell>setting id</cell><cell cols="2">V hasRvst</cell><cell>Expl</cell><cell>Expt</cell><cell cols="5">Rvst Rvst-V2 Rvst-V3+ hasRvst-V2 hasRvst-V3+</cell></row><row><cell>Anthropic</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>claude-4-sonnet-fewshot</cell><cell cols="2">3.80 61.13%</cell><cell>39.03%</cell><cell cols="2">43.37% 17.60%</cell><cell>8.58%</cell><cell>23.43%</cell><cell>31.94%</cell><cell>82.14%</cell></row><row><cell>claude-4-sonnet-zeroshot</cell><cell cols="2">2.99 51.00%</cell><cell>37.43%</cell><cell cols="2">46.34% 16.23%</cell><cell>14.39%</cell><cell>22.89%</cell><cell>44.83%</cell><cell>80.85%</cell></row><row><cell>claude-opus-zeroshot</cell><cell>1.52</cell><cell>0.00%</cell><cell>37.44%</cell><cell>62.56%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell></row><row><cell>DeepSeek</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>DeepSeek-R1-explore-revisit</cell><cell>1.17</cell><cell cols="2">0.00% 100.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell></cell><cell>0.00%</cell><cell></cell></row><row><cell>DeepSeek-V3-fewshot</cell><cell>1.07</cell><cell>0.00%</cell><cell>66.67%</cell><cell>33.33%</cell><cell>0.00%</cell><cell>0.00%</cell><cell></cell><cell>0.00%</cell><cell></cell></row><row><cell>DeepSeek-V3-explore</cell><cell>1.41</cell><cell>0.00%</cell><cell>50.17%</cell><cell>49.83%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell></row><row><cell>DeepSeek-V3-explore-revisit</cell><cell>1.39</cell><cell>0.00%</cell><cell>58.89%</cell><cell>41.11%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell></row><row><cell>DeepSeek-V3-revisit</cell><cell>1.23</cell><cell>1.59%</cell><cell>40.49%</cell><cell>58.12%</cell><cell>1.39%</cell><cell>3.33%</cell><cell>0.00%</cell><cell>6.67%</cell><cell>0.00%</cell></row><row><cell>DeepSeek-V3-think tool</cell><cell>1.50</cell><cell>0.00%</cell><cell>58.33%</cell><cell>41.67%</cell><cell>0.00%</cell><cell>0.00%</cell><cell></cell><cell>0.00%</cell><cell></cell></row><row><cell>DeepSeek-V3-zeroshot</cell><cell>1.00</cell><cell>0.00%</cell><cell cols="2">0.00% 100.00%</cell><cell>0.00%</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Google</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>gemini-2.5-flash-fewshot</cell><cell cols="2">1.73 11.00%</cell><cell>33.84%</cell><cell>62.51%</cell><cell>3.65%</cell><cell>2.02%</cell><cell>15.85%</cell><cell>9.09%</cell><cell>57.14%</cell></row><row><cell>gemini-2.5-flash-zeroshot</cell><cell>1.42</cell><cell>4.01%</cell><cell>30.14%</cell><cell>67.37%</cell><cell>2.49%</cell><cell>4.89%</cell><cell>4.63%</cell><cell>11.11%</cell><cell>17.06%</cell></row><row><cell>gemini-2.5-pro-fewshot</cell><cell cols="2">2.34 30.10%</cell><cell>50.23%</cell><cell cols="2">39.69% 10.08%</cell><cell>10.03%</cell><cell>14.50%</cell><cell>30.43%</cell><cell>53.91%</cell></row><row><cell>gemini-2.5-pro-zeroshot</cell><cell cols="2">1.93 16.08%</cell><cell>49.44%</cell><cell>43.24%</cell><cell>7.32%</cell><cell>6.83%</cell><cell>14.72%</cell><cell>15.03%</cell><cell>49.72%</cell></row><row><cell>Grok</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>grok-4-fewshot</cell><cell cols="2">4.72 84.33%</cell><cell>31.13%</cell><cell cols="2">44.74% 24.13%</cell><cell>14.98%</cell><cell>27.08%</cell><cell>62.00%</cell><cell>93.67%</cell></row><row><cell>grok-4-zeroshot</cell><cell cols="2">3.67 64.88%</cell><cell>33.75%</cell><cell cols="2">48.47% 17.77%</cell><cell>9.06%</cell><cell>22.88%</cell><cell>42.39%</cell><cell>84.76%</cell></row><row><cell>Kimi</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Kimi-K2-Instruct-fewshot</cell><cell cols="2">3.08 57.00%</cell><cell>34.34%</cell><cell cols="2">49.73% 15.93%</cell><cell>7.57%</cell><cell>23.11%</cell><cell>36.00%</cell><cell>82.76%</cell></row><row><cell>Kimi-K2-Instruct-cot</cell><cell cols="2">2.53 41.67%</cell><cell>32.74%</cell><cell cols="2">55.36% 11.90%</cell><cell>9.15%</cell><cell>20.50%</cell><cell>40.31%</cell><cell>72.18%</cell></row><row><cell>Kimi-K2-Instruct-explore</cell><cell cols="2">2.46 43.33%</cell><cell>34.90%</cell><cell cols="2">53.15% 11.95%</cell><cell>9.94%</cell><cell>19.08%</cell><cell>41.36%</cell><cell>75.23%</cell></row><row><cell>Kimi-K2-Instruct-explore-revisit</cell><cell cols="2">2.56 42.67%</cell><cell>34.74%</cell><cell cols="2">53.34% 11.92%</cell><cell>9.12%</cell><cell>18.12%</cell><cell>36.49%</cell><cell>70.20%</cell></row><row><cell>Kimi-K2-Instruct-interaction scaling</cell><cell cols="2">4.75 96.00%</cell><cell>14.94%</cell><cell cols="2">53.45% 31.62%</cell><cell>19.93%</cell><cell>34.05%</cell><cell>90.00%</cell><cell>100.00%</cell></row><row><cell>Kimi-K2-Instruct-revisit</cell><cell cols="2">2.36 40.25%</cell><cell>32.75%</cell><cell cols="2">52.37% 14.89%</cell><cell>11.07%</cell><cell>27.59%</cell><cell>37.88%</cell><cell>81.59%</cell></row><row><cell>Kimi-K2-Instruct-think tool</cell><cell cols="2">2.44 35.00%</cell><cell>40.35%</cell><cell cols="2">48.21% 11.44%</cell><cell>8.15%</cell><cell>19.43%</cell><cell>28.84%</cell><cell>64.22%</cell></row><row><cell>Kimi-K2-Instruct-zeroshot</cell><cell cols="2">2.47 40.95%</cell><cell>35.91%</cell><cell cols="2">52.51% 11.58%</cell><cell>7.59%</cell><cell>19.53%</cell><cell>36.30%</cell><cell>77.24%</cell></row><row><cell>Llama</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Llama-4-Maverick-fewshot</cell><cell cols="2">2.38 32.10%</cell><cell>39.09%</cell><cell>52.51%</cell><cell>8.40%</cell><cell>5.12%</cell><cell>15.68%</cell><cell>23.33%</cell><cell>59.38%</cell></row><row><cell>Llama-4-Maverick-cot</cell><cell>1.00</cell><cell>0.00%</cell><cell cols="2">0.00% 100.00%</cell><cell>0.00%</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Llama-4-Maverick-explore</cell><cell>1.30</cell><cell>0.67%</cell><cell>38.72%</cell><cell>60.83%</cell><cell>0.45%</cell><cell>0.00%</cell><cell>8.89%</cell><cell>0.00%</cell><cell>27.78%</cell></row><row><cell>Llama-4-Maverick-explore-revisit</cell><cell>1.26</cell><cell>0.67%</cell><cell>34.26%</cell><cell>65.40%</cell><cell>0.34%</cell><cell>0.00%</cell><cell>16.67%</cell><cell>0.00%</cell><cell>75.00%</cell></row><row><cell cols="3">Llama-4-Maverick-interaction scaling 2.21 33.00%</cell><cell>7.17%</cell><cell>85.34%</cell><cell>7.49%</cell><cell>4.05%</cell><cell>20.38%</cell><cell>28.21%</cell><cell>75.86%</cell></row><row><cell>Llama-4-Maverick-revisit</cell><cell>1.19</cell><cell>0.00%</cell><cell>38.64%</cell><cell>61.36%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell><cell>0.00%</cell></row><row><cell>Llama-4-Maverick-think tool</cell><cell>1.36</cell><cell>2.67%</cell><cell>42.61%</cell><cell>55.84%</cell><cell>1.55%</cell><cell>3.57%</cell><cell>0.00%</cell><cell>9.22%</cell><cell>0.00%</cell></row><row><cell>Llama-4-Maverick-zeroshot</cell><cell>1.60</cell><cell>5.86%</cell><cell>49.58%</cell><cell>47.85%</cell><cell>2.57%</cell><cell>4.16%</cell><cell>5.08%</cell><cell>10.80%</cell><cell>22.42%</cell></row><row><cell>Llama-4-Scout-fewshot</cell><cell cols="2">1.68 13.24%</cell><cell>34.94%</cell><cell>60.14%</cell><cell>4.92%</cell><cell>5.70%</cell><cell>15.36%</cell><cell>16.67%</cell><cell>50.00%</cell></row><row><cell>Llama-4-Scout-cot</cell><cell>1.53</cell><cell>9.90%</cell><cell>42.33%</cell><cell>51.64%</cell><cell>6.03%</cell><cell>9.97%</cell><cell>7.22%</cell><cell>21.86%</cell><cell>25.56%</cell></row><row><cell>Llama-4-Scout-explore</cell><cell cols="2">1.56 11.24%</cell><cell>42.86%</cell><cell>50.93%</cell><cell>6.21%</cell><cell>11.03%</cell><cell>5.50%</cell><cell>28.03%</cell><cell>16.67%</cell></row><row><cell>Llama-4-Scout-explore-revisit</cell><cell cols="2">1.84 13.02%</cell><cell>50.36%</cell><cell>43.85%</cell><cell>5.78%</cell><cell>6.99%</cell><cell>8.15%</cell><cell>18.24%</cell><cell>31.45%</cell></row><row><cell>Llama-4-Scout-interaction scaling</cell><cell cols="2">3.44 80.21%</cell><cell>15.50%</cell><cell cols="2">49.36% 35.14%</cell><cell>28.97%</cell><cell>42.09%</cell><cell>77.27%</cell><cell>92.31%</cell></row><row><cell>Llama-4-Scout-revisit</cell><cell>1.74</cell><cell>7.02%</cell><cell>56.32%</cell><cell>39.59%</cell><cell>4.09%</cell><cell>3.90%</cell><cell>5.64%</cell><cell>9.18%</cell><cell>19.00%</cell></row><row><cell>Llama-4-Scout-think tool</cell><cell>1.66</cell><cell>9.31%</cell><cell>44.62%</cell><cell>51.30%</cell><cell>4.08%</cell><cell>5.47%</cell><cell>8.23%</cell><cell>15.31%</cell><cell>27.98%</cell></row><row><cell>Llama-4-Scout-zeroshot</cell><cell>1.57</cell><cell>6.73%</cell><cell>39.92%</cell><cell>55.80%</cell><cell>4.29%</cell><cell>7.93%</cell><cell>8.49%</cell><cell>16.81%</cell><cell>22.92%</cell></row><row><cell>OpenAI</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>gpt-4o-fewshot</cell><cell>1.79</cell><cell>7.00%</cell><cell>30.75%</cell><cell>66.72%</cell><cell>2.53%</cell><cell>2.78%</cell><cell>6.05%</cell><cell>7.41%</cell><cell>25.00%</cell></row><row><cell>gpt-4o-zeroshot</cell><cell>1.26</cell><cell>2.03%</cell><cell>11.10%</cell><cell>88.28%</cell><cell>0.62%</cell><cell>1.78%</cell><cell>9.52%</cell><cell>5.81%</cell><cell>66.67%</cell></row><row><cell>gpt-5-fewshot</cell><cell cols="2">4.04 60.00%</cell><cell>30.51%</cell><cell cols="2">49.06% 20.43%</cell><cell>7.01%</cell><cell>29.70%</cell><cell>33.33%</cell><cell>88.14%</cell></row><row><cell>gpt-5-zeroshot</cell><cell cols="2">3.06 46.47%</cell><cell>30.29%</cell><cell cols="2">52.90% 16.81%</cell><cell>10.20%</cell><cell>26.40%</cell><cell>33.37%</cell><cell>83.00%</cell></row><row><cell>o3-fewshot</cell><cell cols="2">6.26 81.27%</cell><cell>29.27%</cell><cell cols="2">39.29% 31.44%</cell><cell>7.17%</cell><cell>35.98%</cell><cell>32.26%</cell><cell>93.57%</cell></row><row><cell>o3-zeroshot</cell><cell cols="2">4.62 70.13%</cell><cell>36.16%</cell><cell cols="2">39.28% 24.56%</cell><cell>13.59%</cell><cell>29.88%</cell><cell>41.03%</cell><cell>86.64%</cell></row><row><cell>Qwen</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Qwen3-235B-fewshot</cell><cell>1.46</cell><cell>5.00%</cell><cell>2.52%</cell><cell>96.92%</cell><cell>0.57%</cell><cell>0.83%</cell><cell>6.15%</cell><cell>5.26%</cell><cell>75.00%</cell></row><row><cell>Qwen3-235B-cot</cell><cell cols="2">1.78 15.00%</cell><cell>18.79%</cell><cell>77.84%</cell><cell>3.37%</cell><cell>5.85%</cell><cell>7.34%</cell><cell>23.36%</cell><cell>44.52%</cell></row><row><cell>Qwen3-235B-explore</cell><cell cols="2">2.31 29.43%</cell><cell>26.17%</cell><cell>66.11%</cell><cell>7.72%</cell><cell>7.78%</cell><cell>11.87%</cell><cell>27.40%</cell><cell>58.48%</cell></row><row><cell>Qwen3-235B-explore-revisit</cell><cell cols="2">2.59 32.76%</cell><cell>26.75%</cell><cell>65.10%</cell><cell>8.15%</cell><cell>5.01%</cell><cell>12.81%</cell><cell>24.13%</cell><cell>60.92%</cell></row><row><cell>Qwen3-235B-interaction scaling</cell><cell>1.60</cell><cell>3.00%</cell><cell>1.37%</cell><cell>98.31%</cell><cell>0.32%</cell><cell>0.45%</cell><cell>6.25%</cell><cell>3.45%</cell><cell>100.00%</cell></row><row><cell>Qwen3-235B-revisit</cell><cell cols="2">2.22 22.22%</cell><cell>32.11%</cell><cell cols="2">57.49% 10.40%</cell><cell>11.17%</cell><cell>15.09%</cell><cell>25.00%</cell><cell>43.33%</cell></row><row><cell>Qwen3-235B-think tool</cell><cell>1.46</cell><cell>5.01%</cell><cell>18.14%</cell><cell>79.98%</cell><cell>1.89%</cell><cell>4.29%</cell><cell>4.52%</cell><cell>12.00%</cell><cell>19.05%</cell></row><row><cell>Qwen3-235B-zeroshot</cell><cell>1.12</cell><cell>1.55%</cell><cell>4.31%</cell><cell>95.34%</cell><cell>0.35%</cell><cell>3.62%</cell><cell>3.57%</cell><cell>15.15%</cell><cell>25.00%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 :</head><label>6</label><figDesc>Evaluation results comparing different embedding models. The settings end with -openai-large uses</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 7 :</head><label>7</label><figDesc>Acc and FF are shown as percentages; other metrics use the units indicated. Acronyms: Acc=Accuracy; Evaluation</figDesc><table><row><cell cols="10">SR=Search Rounds; Dur(s)=Duration (seconds); SC=Search-Complete rate; ER=Extra Rounds; FF=Follow-</cell></row><row><cell cols="10">Format rate; PremT=Premature-Total rate; TotTok=Total Generated Tokens; Tok/R=Mean Tokens per Round.</cell></row><row><cell>Setting</cell><cell>Acc ↑</cell><cell cols="4">SR Dur(s) SC ↑ ER ↓</cell><cell cols="4">FF ↑ PremT ↓ TotTok ↓ Tok/R ↓</cell></row><row><cell>o3-zeroshot-openai-large</cell><cell cols="4">68.46% 13.33 117.85 53%</cell><cell>4.89</cell><cell>95%</cell><cell>0%</cell><cell>5775.75</cell><cell>386.03</cell></row><row><cell>o3-zeroshot-openai-small</cell><cell cols="4">65.00% 15.11 112.83 47%</cell><cell>4.51</cell><cell>99%</cell><cell>0%</cell><cell>6458.35</cell><cell>408.96</cell></row><row><cell>o3-zeroshot-mini</cell><cell cols="4">56.00% 20.01 150.68 39%</cell><cell>6.41</cell><cell>98%</cell><cell>0%</cell><cell>7616.96</cell><cell>367.26</cell></row><row><cell>gpt-4o-zeroshot-openai-large</cell><cell>22.67%</cell><cell>1.92</cell><cell cols="2">21.27 22%</cell><cell>2.72</cell><cell>94%</cell><cell>1%</cell><cell>135.20</cell><cell>92.22</cell></row><row><cell>gpt-4o-zeroshot-openai-small</cell><cell>25.00%</cell><cell>1.94</cell><cell cols="2">25.77 22%</cell><cell>4.36</cell><cell>93%</cell><cell>2%</cell><cell>160.87</cell><cell>91.43</cell></row><row><cell>gpt-4o-zeroshot-mini</cell><cell>20.00%</cell><cell>1.83</cell><cell cols="2">23.43 20%</cell><cell>2.10</cell><cell>99%</cell><cell>1%</cell><cell>149.41</cell><cell>103.85</cell></row><row><cell>grok-4-zeroshot-openai-large</cell><cell>53.00%</cell><cell cols="3">7.19 126.01 42%</cell><cell cols="2">2.86 100%</cell><cell>0%</cell><cell>3817.42</cell><cell>599.72</cell></row><row><cell>grok-4-zeroshot-openai-small</cell><cell>47.00%</cell><cell cols="3">7.03 112.52 38%</cell><cell cols="2">2.63 100%</cell><cell>0%</cell><cell>3435.84</cell><cell>522.60</cell></row><row><cell>grok-4-zeroshot-mini</cell><cell>41.00%</cell><cell cols="3">7.78 114.43 29%</cell><cell cols="2">2.48 100%</cell><cell>0%</cell><cell>3509.63</cell><cell>536.71</cell></row><row><cell>Kimi-K2-Instruct-zeroshot-mini</cell><cell>39.00%</cell><cell>7.19</cell><cell cols="2">38.59 28%</cell><cell>0.54</cell><cell>95%</cell><cell>0%</cell><cell>285.89</cell><cell>47.50</cell></row><row><cell>Kimi-K2-Instruct-zeroshot-openai-small</cell><cell>38.00%</cell><cell>6.31</cell><cell cols="2">37.26 26%</cell><cell>0.35</cell><cell>92%</cell><cell>0%</cell><cell>263.95</cell><cell>52.74</cell></row><row><cell>Kimi-K2-Instruct-zeroshot-openai-large</cell><cell>37.42%</cell><cell>5.41</cell><cell cols="2">31.00 24%</cell><cell>0.53</cell><cell>92%</cell><cell>0%</cell><cell>245.34</cell><cell>56.18</cell></row><row><cell>gemini-2.5-pro-zeroshot-openai-large</cell><cell>38.33%</cell><cell>2.93</cell><cell cols="2">51.59 25%</cell><cell>0.20</cell><cell>82%</cell><cell>3%</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell>gemini-2.5-pro-zeroshot-openai-small</cell><cell>38.00%</cell><cell>2.76</cell><cell cols="2">40.34 26%</cell><cell>0.15</cell><cell>85%</cell><cell>0%</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell>gemini-2.5-pro-zeroshot-mini</cell><cell>23.00%</cell><cell>3.23</cell><cell cols="2">46.44 13%</cell><cell>0.15</cell><cell>80%</cell><cell>0%</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell>gemini-2.5-flash-zeroshot-openai-large</cell><cell>25.33%</cell><cell>1.88</cell><cell cols="2">17.13 14%</cell><cell>0.12</cell><cell>99%</cell><cell>4%</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell>gemini-2.5-flash-zeroshot-openai-small</cell><cell>28.00%</cell><cell>1.81</cell><cell cols="2">14.59 18%</cell><cell>0.00</cell><cell>96%</cell><cell>6%</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell>gemini-2.5-flash-zeroshot-mini</cell><cell>18.00%</cell><cell>1.92</cell><cell cols="2">15.53 12%</cell><cell>0.00</cell><cell>97%</cell><cell>6%</cell><cell>0.00</cell><cell>0.00</cell></row><row><cell>Llama-4-Maverick-zeroshot-openai-large</cell><cell>20.00%</cell><cell>2.10</cell><cell cols="2">21.94 17%</cell><cell>0.26</cell><cell>97%</cell><cell>3%</cell><cell>504.93</cell><cell>211.30</cell></row><row><cell cols="2">Llama-4-Maverick-zeroshot-openai-small 11.00%</cell><cell>1.16</cell><cell cols="2">14.84 10%</cell><cell>0.30</cell><cell>27%</cell><cell>0%</cell><cell>100.19</cell><cell>84.53</cell></row><row><cell>Llama-4-Maverick-zeroshot-mini</cell><cell>7.00%</cell><cell>1.10</cell><cell>14.09</cell><cell>6%</cell><cell>0.17</cell><cell>21%</cell><cell>0%</cell><cell>87.36</cell><cell>80.49</cell></row><row><cell>Llama-4-Scout-zeroshot-openai-large</cell><cell>12.54%</cell><cell>2.07</cell><cell>14.93</cell><cell>9%</cell><cell>1.76</cell><cell>86%</cell><cell>4%</cell><cell>215.48</cell><cell>118.96</cell></row><row><cell>Llama-4-Scout-zeroshot-openai-small</cell><cell>14.14%</cell><cell>2.08</cell><cell cols="2">15.86 10%</cell><cell>0.10</cell><cell>83%</cell><cell>3%</cell><cell>184.20</cell><cell>101.76</cell></row><row><cell>Llama-4-Scout-zeroshot-mini</cell><cell>12.00%</cell><cell>2.22</cell><cell>14.45</cell><cell>6%</cell><cell>0.17</cell><cell>76%</cell><cell>4%</cell><cell>207.83</cell><cell>101.18</cell></row><row><cell>setting id</cell><cell cols="3">Acc SR Dur(s)</cell><cell cols="2">SC ER</cell><cell cols="4">FF PremT TotTok Tok/R</cell></row><row><cell>Kimi-K2-Instruct-zeroshot</cell><cell>37%</cell><cell>5</cell><cell cols="2">31 24%</cell><cell>1</cell><cell>92%</cell><cell>0%</cell><cell></cell><cell>56</cell></row><row><cell>Kimi-K2-Instruct-zeroshot-medium</cell><cell>51%</cell><cell>6</cell><cell cols="2">43 35%</cell><cell>1</cell><cell>86%</cell><cell>0%</cell><cell></cell><cell>61</cell></row><row><cell>Kimi-K2-Instruct-zeroshot-small</cell><cell>54%</cell><cell>5</cell><cell cols="2">48 55%</cell><cell>3</cell><cell>86%</cell><cell>0%</cell><cell></cell><cell>65</cell></row><row><cell>Llama-4-Maverick-zeroshot</cell><cell>20%</cell><cell>2</cell><cell cols="2">22 17%</cell><cell>0</cell><cell>97%</cell><cell>3%</cell><cell></cell><cell>211</cell></row><row><cell cols="2">Llama-4-Maverick-zeroshot-medium 17%</cell><cell>1</cell><cell cols="2">17 13%</cell><cell>0</cell><cell>29%</cell><cell>0%</cell><cell></cell><cell>67</cell></row><row><cell>Llama-4-Maverick-zeroshot-small</cell><cell>22%</cell><cell>1</cell><cell cols="2">16 26%</cell><cell>0</cell><cell>33%</cell><cell>0%</cell><cell></cell><cell>55</cell></row><row><cell>Llama-4-Scout-zeroshot</cell><cell>13%</cell><cell>2</cell><cell>15</cell><cell>9%</cell><cell>2</cell><cell>86%</cell><cell>4%</cell><cell></cell><cell>119</cell></row><row><cell>Llama-4-Scout-zeroshot-medium</cell><cell>23%</cell><cell>2</cell><cell cols="2">17 16%</cell><cell>0</cell><cell>84%</cell><cell>0%</cell><cell></cell><cell>103</cell></row><row><cell>Llama-4-Scout-zeroshot-small</cell><cell>38%</cell><cell>2</cell><cell cols="2">16 35%</cell><cell>1</cell><cell>94%</cell><cell>2%</cell><cell></cell><cell>105</cell></row><row><cell>gemini-2.5-flash-zeroshot</cell><cell>25%</cell><cell>2</cell><cell cols="2">17 14%</cell><cell>0</cell><cell>99%</cell><cell>4%</cell><cell></cell><cell>0</cell></row><row><cell>gemini-2.5-flash-zeroshot-medium</cell><cell>35%</cell><cell>2</cell><cell cols="2">20 24%</cell><cell>0</cell><cell>97%</cell><cell>6%</cell><cell></cell><cell>0</cell></row><row><cell>gemini-2.5-flash-zeroshot-small</cell><cell>54%</cell><cell>2</cell><cell cols="2">17 45%</cell><cell>0</cell><cell>96%</cell><cell>2%</cell><cell></cell><cell>0</cell></row><row><cell>gemini-2.5-pro-zeroshot</cell><cell>38%</cell><cell>3</cell><cell cols="2">52 25%</cell><cell>0</cell><cell>82%</cell><cell>3%</cell><cell></cell><cell>0</cell></row><row><cell>gemini-2.5-pro-zeroshot-medium</cell><cell>52%</cell><cell>2</cell><cell cols="2">41 36%</cell><cell>0</cell><cell>89%</cell><cell>7%</cell><cell></cell><cell>0</cell></row><row><cell>gemini-2.5-pro-zeroshot-small</cell><cell>62%</cell><cell>2</cell><cell cols="2">36 56%</cell><cell>0</cell><cell>91%</cell><cell>0%</cell><cell></cell><cell>0</cell></row><row><cell>gpt-4o-zeroshot</cell><cell>23%</cell><cell>2</cell><cell cols="2">21 22%</cell><cell>3</cell><cell>94%</cell><cell>1%</cell><cell></cell><cell>92</cell></row><row><cell>gpt-4o-zeroshot-medium</cell><cell>23%</cell><cell>2</cell><cell cols="2">32 27%</cell><cell>8</cell><cell>99%</cell><cell>0%</cell><cell></cell><cell>132</cell></row><row><cell>gpt-4o-zeroshot-small</cell><cell>35%</cell><cell>2</cell><cell cols="2">21 47%</cell><cell>7</cell><cell>96%</cell><cell>1%</cell><cell></cell><cell>81</cell></row><row><cell>grok-4-zeroshot</cell><cell>53%</cell><cell>7</cell><cell cols="2">126 42%</cell><cell cols="2">3 100%</cell><cell>0%</cell><cell></cell><cell>600</cell></row><row><cell>grok-4-zeroshot-medium</cell><cell>61%</cell><cell>6</cell><cell cols="2">99 48%</cell><cell cols="2">3 100%</cell><cell>0%</cell><cell></cell><cell>551</cell></row><row><cell>grok-4-zeroshot-small</cell><cell>69%</cell><cell>5</cell><cell cols="2">100 66%</cell><cell cols="2">3 100%</cell><cell>0%</cell><cell></cell><cell>702</cell></row><row><cell>o3-zeroshot</cell><cell cols="2">68% 13</cell><cell cols="2">118 53%</cell><cell>5</cell><cell>95%</cell><cell>0%</cell><cell></cell><cell>386</cell></row><row><cell>o3-zeroshot-medium</cell><cell cols="2">81% 14</cell><cell cols="2">114 62%</cell><cell>5</cell><cell>97%</cell><cell>0%</cell><cell></cell><cell>428</cell></row><row><cell>o3-zeroshot-small</cell><cell cols="2">80% 11</cell><cell cols="2">113 75%</cell><cell>6</cell><cell>97%</cell><cell>0%</cell><cell></cell><cell>429</cell></row></table><note><p><p><p><p>results comparing different database sizes. The settings ending with -zeroshot use the full database, which is used as our default. The ones ending with -medium use a medium-sized database (1/4 of full). The ones ending with -small use a small database (1/4 of medium, or 1/16 of full). Acc, SC, FF, and PremT are shown as percentages; other metrics use the units indicated. Acronyms: Acc=Accuracy; SR=Search Rounds; Dur(s)=Duration (seconds); SC=Search-Complete rate; ER=Extra Rounds; FF=Follow-Format rate; PremT=Premature-Total rate; TotTok=Total Generated Tokens; Tok/R=Mean Tokens per Round.</p>D.1 ENTITY EXTRACTION PROMPT</p>You are an expert in narrative analysis and entity extraction. Your task is to identify the central narrative entity (or protagonist) from a mathematical word problem.</p>Given a GSM8K problem, you must identify the core entity that drives the narrative. Follow these rules: ### Rules: 1. ** Single Core Entity Priority ** : Identify ONE primary proper noun (person's name) that is the main subject of the problem. 2. ** Multiple Equal Entities ** : Only if there are multiple equally important entities that are not hierarchically related, extract all of them. 3. ** Generic Entities ** : If the problem only features generic entities (e.g., "a farmer", "the zoo", "a shop"), extract the generic term and mark it as generic. 4. ** Hierarchy Rule ** : If one entity owns/manages/controls another, choose the higher-level entity (e.g., "Natalia and her friends" → extract "Natalia").</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Use think_tool after each search to reflect on results and plan next steps. Do not call think_tool with the search_information or next_page. It should be to reflect on the results of the search</head><label></label><figDesc>Decide your next action based on the quality of your last search results: If results are relevant and promising......but seem incomplete (e.g., you found a partial list), use next_page() to get more. If you find some information and could do a better query search, then start a new search with search(query). Use keywords related to your missing information. Think associatively (e.g., if you see "top shelf," search for "bottom shelf"). Do I have enough to answer the question comprehensively? (Show your calculation and provisional ** answer here if you can). Should I search more or provide my answer? (State your next tool call). &lt;/Show Your Thinking&gt;E.4 THE "THINK TOOL" PROMPTYou are a problem-solving agent. Your mission is to solve math word problems by finding all necessary facts (premises) using the tools provided. Your reasoning process is the most important part of your task. &lt;Task&gt; Your job is to use tools to gather all the facts (premises) needed to solve a math word problem. You can use any of the tools provided to you to find the premises. Your work is conducted in a tool-calling loop where you search for information and then reason about it. The goal is to arrive at a final, calculated answer based only on the premises you have found. After each search or next_page tool call, use the reasoning tool to analyze the results and plan the next steps. &lt;/Show Your Thinking&gt;E.5 THE "REVISIT TOOL" PROMPTYou are a problem-solving agent. Your mission is to solve math word problems by finding all necessary facts (premises) using the tools provided. Your reasoning process is the most important part of your task. &lt;Task&gt; Your job is to use tools to gather all the facts (premises) needed to solve a math word problem. You can use any of the tools provided to you to find the premises. Your work is conducted in a tool-calling loop where you search for information and then reason about it. The goal is to arrive at a final, calculated answer based only on the premises you have found. : Gets the next set of results for your last search query. revisit: For revisiting a previous search topic with a refined plan.</figDesc><table><row><cell>Preprint Preprint</cell></row><row><cell>-Final line starts with #### and contains only the number (or When you are confident, format your final response like this. After each search, pause and reason -Do I have enough facts</cell></row><row><cell>\I don't know") Remember to use #### only for the final answer, not for to solve it? What's still missing?</cell></row><row><cell>e.g., #### 42 intermediate calculations. Execute narrower searches as you gather information -Fill in</cell></row><row><cell>#### I don't know the gaps.</cell></row><row><cell>My calculation: Stop when you can answer confidently -Don't keep searching . **</cell></row><row><cell>TOOLS Top section: 12 history + 8 romance + 4 poetry = 24 books unnecessarily. &lt;/Available Tools&gt;</cell></row><row><cell>-search_information: input the query to search for up to 5 Bottom section: 5 western + 6 biographies + 11 mystery = 22 &lt;/Instructions&gt;</cell></row><row><cell>relevant premises. books &lt;Instructions&gt;</cell></row><row><cell>-next_page: next 5 for the last search. Total: 24 + 22 = 46 books &lt;Show Your Thinking&gt; Think like a methodical researcher with limited time. Follow</cell></row><row><cell>Key Idea: Carefully balance "next_page" and "search(query)". After each search or next_page tool call, use the reasoning these steps:</cell></row><row><cell>Confidence: High tool to analyze the results: Read the problem carefully -What specific information do you</cell></row><row><cell>Step 3: Attempt to Solve #### 46 What key information did I find? need to find?</cell></row><row><cell>Using only the premises you've gathered, try to calculate the What's missing? Start with searches.</cell></row><row><cell>E.2 THE FEW-SHOT PROMPT answer. Show your work. State your provisional answer on a new line, starting with **** . If you can solve it confidently, After each search, pause and reason. E.3 THE COT PROMPT Stop when you can answer confidently.</cell></row><row><cell>proceed to the final answer format. If you're stuck, identify You are a problem-solving agent. Your mission is to solve math &lt;/Instructions&gt;</cell></row><row><cell>what's still missing and go back to Step 1. word problems by finding all necessary facts (premises) using</cell></row><row><cell>You are a problem-solving agent. Your mission is to solve math the tools provided. Your reasoning process is the most &lt;Show Your Thinking&gt;</cell></row><row><cell>word problems by finding all necessary facts (premises) using 4. Example Walkthrough important part of your task.</cell></row><row><cell>search tools. Your reasoning process is the most important Problem: "How many books did Nancy have on the book cart when</cell></row><row><cell>part. she started?" &lt;Task&gt;</cell></row><row><cell>Your job is to use tools to gather all the facts (premises)</cell></row><row><cell>1. How to Answer Iteration 1 needed to solve a math word problem. You can use any of the</cell></row><row><cell>Provisional Answer: During your reasoning steps, if you tools provided to you to find the premises. Your work is</cell></row><row><cell>calculate a temporary answer based on incomplete information, conducted in a tool-calling loop where you search for</cell></row><row><cell>start that line with **** . information and then reason about it. The goal is to arrive at</cell></row><row><cell>a final, calculated answer based only on the premises you have</cell></row><row><cell>**** 42 found.</cell></row><row><cell>But the "half mystery books" clue is a dangling premise. I Final Answer: Your final, conclusive answer must begin with + 8 + 5 + 6 = 31. &lt;/Task&gt;</cell></row><row><cell>#### and contain only the numerical solution. can't solve the full problem yet. &lt;How to Answer&gt;</cell></row><row><cell>**** 31 Provisional Answer: During your reasoning steps, if you</cell></row><row><cell>#### 42 calculate a temporary answer based on incomplete information,</cell></row><row><cell>If you're unsure: #### I don't know Next Action: The results were relevant, so I'll check for more start the provisional answer with **** . For example: with next_page(). **** 42 &lt;/Task&gt;</cell></row><row><cell>2. Available Tools You have two tools to find premises: search(query: string) Iteration 2 -Search: next_page() -&gt; Results: "We have iterated through all the pages." Analyze: That query is done. The clue mentioned a "bottom Final Answer: Your final, conclusive answer must begin with &lt;How to Answer&gt; #### and contain only the numerical solution. For example: Provisional Answer: During your reasoning steps, if you #### 42 calculate a temporary answer based on incomplete information, &lt;/Task&gt;</cell></row><row><cell>Original timestamp preserved in Searches for premises using keywords. Returns up to 5 relevant metadata." premises. next_page() section," which implies a "top section." I need to investigate that. -Search: search("top section") start the provisional answer with **** . For example: If you feel the problem is unsolvable: **** 42 &lt;How to Answer&gt; #### I don't know Provisional Answer: During your reasoning steps, if you &lt;/How to Answer&gt; Final Answer: Your final, conclusive answer must begin with calculate a temporary answer based on incomplete information, -Results: Got a new premise: "4 poetry books from the top -Calculation: ow anonymize the following document: } ``Ǹ Gets the next 5 results for your last search query. Use this if you suspect there's more similar information. section." -Attempt to Solve: Now I can piece everything together. #### and contain only the numerical solution. For example: start the provisional answer with **** . For example: &lt;Available Tools&gt; You have access to these tools: #### 42 **** 42</cell></row><row><cell>E DETAILED PROMPTS FOR EVALUATION 3. Core Strategy: The Research Loop Think of your work as a loop: Analyze -&gt; Search -&gt; Attempt to Solve. Repeat until you have enough information. Top section: 12 history + 8 romance + 4 poetry = 24 books. Bottom section: The known books are 5 western + 6 biographies = 11 books. This must be one half, so the other half is 11 If you feel the problem is unsolvable: Final Answer: Your final, conclusive answer must begin with search_information: For searching your database for premises #### I don't know #### and contain only the numerical solution. For example: using keywords. next_page: Gets the next set of results for your last search &lt;/How to Answer&gt; #### 42</cell></row><row><cell>E.1 THE ZERO-SHOT PROMPT You solve math problems by finding missing facts (premises) with search tools. Step 1: Analyze the Gaps Quickly ask yourself: mystery books. Total = 11 + 11 = 22 books. Total Cart: 24 (top) + 22 (bottom) = 46 books. query. &lt;Available Tools&gt; If you feel the problem is unsolvable: &lt;/Available Tools&gt; You have access to these tools: #### I don't know **** 46 Conclusion: All premises are used and the logic holds. I'm ready to answer. &lt;/How to Answer&gt; &lt;Instructions&gt; search_information: For searching your database for premises Think like a methodical researcher with limited time. Follow using keywords. &lt;Available Tools&gt; these steps: You have access to these tools: Read the problem carefully -What specific information do you ANSWER FORMAT -Provisional (temporary) line starts with **** e.g., **** 42 5. Concluding and Final Answer need to find? search_information: For searching your database for premises Start with broader searches -Use broad, comprehensive queries first. using keywords.</cell></row></table><note><p><p>-What is the main question? -What facts do I have? -What crucial information is missing? -What may be the whole story?</p>Step 2: Plan and Execute Your Search Preprint -Analyze: Need the total number of books on the cart. -Search: search("book cart") -Results: Got 5 premises listing book types (history, romance, western, biographies) and a new clue: "Half the books on the bottom section were mystery books." -Attempt: I can add the books I know: 12 next_page: Gets the next set of results for your last search query. think_tool: For reflection, calculation, and strategic planning. ** CRITICAL: next_page** CRITICAL:</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Use revisit tool if you realize you need to revisit a previous search topic with a refined plan</head><label></label><figDesc>New info changes how you should have searched earlier. A previous query was too broad, too narrow, or off-target. You discovered a key term/structure worth a better query. You touched a topic but didn't explore it systematically. Do I have enough to answer the question? (Show your calculation; include a provisional **** line if applicable.) -What will I do next | call revisit, run another search/next_page, or provide my final answer? (State the next tool call explicitly, if any.) &lt;/Show Your Thinking&gt; E.6 THE "EXPLORE TOOL" PROMPTYou are a problem-solving agent. Your mission is to solve math word problems by finding all necessary facts (premises) using the tools provided. Your reasoning process is the most important part of your task. &lt;Task&gt; Your job is to use tools to gather all the facts (premises) needed to solve a math word problem. You can use any of the tools provided to you to find the premises. Your work is conducted in a tool-calling loop where you search for information and then reason about it. The goal is to arrive at a final, calculated answer based only on the premises you have found.</figDesc><table><row><cell>. **</cell></row><row><cell>&lt;/Available Tools&gt; &lt;Active Revisit&gt; Use revisit when: When calling revisit, set: revisit_topic: the prior area to revisit. reasoning: why returning now is better. new_query: refined query. &lt;/Active Revisit&gt; &lt;Instructions&gt; Think like a methodical researcher with limited time. Follow these steps: Read the problem carefully -What specific information do you need to find? Start with broader searches -Use broad, comprehensive queries first. After each search, pause and reason -Do I have enough facts to solve it? What's still missing? Execute narrower searches as you gather information -Fill in the gaps. Prefer revisit over aimless paging when your plan changes. Stop when you can answer confidently -Don't keep searching unnecessarily. &lt;/Instructions&gt; &lt;Show Your Thinking&gt; After each search_information or next_page call, write a reasoning block that answers: -What key information did I find? -What's missing? &lt;How to Answer&gt; Provisional Answer: During your reasoning steps, if you calculate a temporary answer based on incomplete information, start the provisional answer with **** . For example: **** 42 Final Answer: Your final, conclusive answer must begin with #### and contain only the numerical solution. For example: #### 42 If you feel the problem is unsolvable: #### I don't know &lt;/How to Answer&gt; &lt;Available Tools&gt; -&lt;/Task&gt; You have access to these tools:</cell></row></table><note><p>-Tool: search_information | returns up to five relevant premises for a query. -Tool: next_page | returns the next five results for the last search. -Tool: explore | explore a completely new research topic. Inputs: new_explore_topic, reasoning, query. ** CRITICAL:</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Use explore tool if you realize you need to explore a completely new topic</head><label></label><figDesc></figDesc><table><row><cell>. **</cell></row><row><cell>&lt;/Available Tools&gt;</cell></row><row><cell>&lt;Active Explore&gt;</cell></row><row><cell>Use explore when:</cell></row><row><cell>Current approach yields limited results</cell></row><row><cell>You want to think from a different angle</cell></row><row><cell>YOu want to explore different concepts</cell></row><row><cell>When calling explore, set:</cell></row><row><cell>new_explore_topic: the related term(s) or area to explore.</cell></row><row><cell>reasoning: why exploring is better.</cell></row><row><cell>query: specific search terms for the new topic.</cell></row><row><cell>&lt;/Active Explore&gt;</cell></row><row><cell>&lt;Instructions&gt;</cell></row><row><cell>Think like a methodical researcher with limited time. Follow</cell></row><row><cell>these steps:</cell></row><row><cell>Read the problem carefully -What specific information do you</cell></row><row><cell>need to find?</cell></row><row><cell>Start with broader searches -Use broad, comprehensive queries</cell></row><row><cell>first.</cell></row></table><note><p>After each search, pause and reason -Do I have enough facts to solve it? What's still missing?</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>We observe that zero-shot prompting renders the most stable result across most models, better than fewshot prompt or multi-agent system. However, it cannot render meaningful results for DeepSeek-R1 and Claude-Opus. DeepSeek expects a different tool-use format than other models. Claude frequently asks the user for additional information and thus requires careful prompting to fix. To ensure a fair comparison across models, we excluded the two models in the evaluation.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>Anthropic API does not support specifying a random seed. We run the evaluation only once for Claude models.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>Number missing due to LangChain output format mismatch for Gemini model series.</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>ACKNOWLEDGMENTS</head><p>This work was partially supported by a gift from <rs type="funder">Open Philanthropy</rs> to the <rs type="institution">Center for Human-Compatible AI (CHAI)</rs> at <rs type="institution">UC Berkeley</rs>, <rs type="funder">Berkeley Existential Risk Initiative (BERI)</rs>, and by <rs type="funder">NSF</rs> Grants <rs type="grantNumber">IIS-1901252</rs> and <rs type="grantNumber">CCF-2211209</rs>.   </p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_TpBVPEg">
+					<idno type="grant-number">IIS-1901252</idno>
+				</org>
+				<org type="funding" xml:id="_5yVHbKH">
+					<idno type="grant-number">CCF-2211209</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0" />			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Distributional associations vs in-context reasoning: A study of feed-forward and attention layers</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joan</forename><surname>Bruna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Bietti</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.03068</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Evaluating large language models trained on code</title>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiming</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrique</forename><forename type="middle">P</forename><surname>De Oliveira Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harrison</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Brockman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2107.03374</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reiichiro</forename><surname>Nakano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Schulman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2110.14168</idno>
+		<title level="m">Training verifiers to solve math word problems</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Measuring mathematical problem solving with the math dataset</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Collin</forename><surname>Burns</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurav</forename><surname>Kadavath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akul</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Basart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Steinhardt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Large language models cannot self-correct reasoning yet</title>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swaroop</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Huaixiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adams</forename><forename type="middle">Wei</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinying</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yixiao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanlin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiantao</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Somayeh</forename><surname>Sojoudi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stuart</forename><surname>Michael I Jordan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Song</forename><surname>Russell</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.10887</idno>
+		<title level="m">Generalization or hallucination? understanding out-of-context reasoning in transformers</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.06770</idno>
+		<title level="m">Swe-bench: Can language models resolve real-world github issues? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Questbench: Can llms ask the right question to acquire information in reasoning tasks</title>
+		<author>
+			<persName><forename type="first">Belinda Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Been</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zi</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.22674</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Toolsandbox: A stateful, conversational, interactive evaluation benchmark for llm tool use capabilities</title>
+		<author>
+			<persName><forename type="first">Jiarui</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Holleis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Aumayer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoli</forename><surname>Yin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.04682</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Gouki</forename><surname>Minegishi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hiroki</forename><surname>Furuta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Takeshi</forename><surname>Kojima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusuke</forename><surname>Iwasawa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutaka</forename><surname>Matsuo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.05744</idno>
+		<title level="m">Topology of reasoning: Understanding large reasoning models through reasoning graph properties</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Gsm-symbolic: Understanding the limitations of mathematical reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Keivan</forename><surname>Seyed Iman Mirzadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hooman</forename><surname>Alizadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oncel</forename><surname>Shahrokhi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samy</forename><surname>Tuzel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehrdad</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Farajtabar</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<biblScope unit="page">2025</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">The berkeley function calling leaderboard (bfcl): From tool use to agentic evaluation of large language models</title>
+		<author>
+			<persName><forename type="first">Huanzhi</forename><surname>Shishir G Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanjia</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cheng-Jie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishnu</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<biblScope unit="page">2025</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Analysing mathematical reasoning abilities of neural models</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Saxton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Grefenstette</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Hill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pushmeet</forename><surname>Kohli</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Beyond the imitation game: Quantifying and extrapolating the capabilities of language models</title>
+		<author>
+			<persName><forename type="first">Aarohi</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhinav</forename><surname>Rastogi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Shoeb</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abubakar</forename><surname>Abid</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Omega: Can llms reason outside the box in math? evaluating exploratory, compositional, and transformative generalization</title>
+		<author>
+			<persName><forename type="first">Yiyou</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shawn</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Georgia</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ken</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hannaneh</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nouha</forename><surname>Dziri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.18880</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mareike</forename><surname>Hartmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruskin</forename><surname>Manku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinty</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niranjan</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Appworld</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.18901</idno>
+		<title level="m">A controllable world of apps and people for benchmarking interactive coding agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Learning compositional functions with transformers from easy-to-hard data</title>
+		<author>
+			<persName><forename type="first">Zixuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eshaan</forename><surname>Nichani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Bietti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Damian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><forename type="middle">D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.23683</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Hotpotqa: A dataset for diverse, explainable multi-hop question answering</title>
+		<author>
+			<persName><forename type="first">Zhilin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saizheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christopher</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing (EMNLP)</title>
+		<meeting>the 2018 Conference on Empirical Methods in Natural Language Processing (EMNLP)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pedram</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12045</idno>
+		<title level="m">A benchmark for tool-agent-user interaction in real-world domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Demystifying long chainof-thought reasoning in llms</title>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Yeo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxuan</forename><surname>Tong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Morry</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Yue</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.03373</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Gsm-infinite: How do your llms behave over infinitely increasing context length and reasoning complexity?</title>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuoming</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuandong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beidi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<biblScope unit="page">2025</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">From passive to active reasoning: Can large language models ask the right questions under incomplete information</title>
+		<author>
+			<persName><forename type="first">Zhanke</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaocheng</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangchao</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanmi</forename><surname>Koyejo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning (ICML)</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>b</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Towards a theoretical understanding of the&apos;reversal curse&apos;via training dynamics</title>
+		<author>
+			<persName><forename type="first">Hanlin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baihe</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaolun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiantao</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuandong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stuart</forename><forename type="middle">J</forename><surname>Russell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="90473" to="90513" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Reasoning by superposition: A theoretical perspective on chain of continuous thought</title>
+		<author>
+			<persName><forename type="first">Hanlin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shibo</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiting</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiantao</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stuart</forename><surname>Russell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuandong</forename><surname>Tian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.12514</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">From Atomic Actions to Standard Operating Procedures: Iterative Tool Optimization for Self-Evolving LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-07-08">8 Jul 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Haipeng</forename><surname>Ding</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Renmin University of China</orgName>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Alibaba Group</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuexiang</forename><surname>Xie</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Alibaba Group</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zhewei</forename><surname>Wei</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Renmin University of China</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Yaliang</forename><surname>Li</surname></persName>
+							<email>li@alibaba-inc.com⟩</email>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Alibaba Group</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Bolin</forename><surname>Ding</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="laboratory">Alibaba Group</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">From Atomic Actions to Standard Operating Procedures: Iterative Tool Optimization for Self-Evolving LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-07-08">8 Jul 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C2EBC3610C809D2A34D98D8E55965D25</idno>
+					<idno type="arXiv">arXiv:2607.07321v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool utilization enables Large Language Model (LLM) agents to interact with the real world and resolve complex tasks. However, existing agent frameworks predominantly rely on static toolsets composed of granular atomic actions (e.g., basic file I/O or single-turn search), which forces agents to reinvent low-level logic for every recurring workflow, leading to increased reasoning overhead and failure rates. In this study, we propose that agents can achieve selfevolution by synthesizing these atomic actions into reusable Standard Operating Procedures (SOPs), which function as callable higher-order tools that encapsulate multi-step logic. We further introduce EVOSOP, a framework that empowers agents to extract SOPs from execution trajectories and iteratively optimize the toolset through a systematic lifecycle of construction, merging, evaluation, and pruning. Extensive experiments demonstrate that EVOSOP significantly boosts task success rates while substantially reducing the number of interaction rounds compared to baselines. Our analysis also reveals that iterative tool optimization fosters reliable and efficient tool-use patterns, providing a scalable pathway for the development of selfevolving agents.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large Language Models (LLMs) <ref type="bibr" target="#b16">(Raffel et al., 2020;</ref><ref type="bibr">Touvron et al., 2023;</ref><ref type="bibr" target="#b2">Brown et al., 2020)</ref> have fundamentally advanced the field of artificial intelligence, demonstrating remarkable capabilities in logical reasoning and general-purpose problem-solving <ref type="bibr">(Chen et al., 2021)</ref>. By leveraging external tools, LLM-based agents <ref type="bibr" target="#b21">(Yao et al., 2023;</ref><ref type="bibr" target="#b13">Qin et al., 2024;</ref><ref type="bibr" target="#b19">Wang et al., 2024)</ref> extend these strengths beyond text generation to interact with the real world and solve complex and practical tasks <ref type="bibr" target="#b11">(Mialon et al., 2024)</ref>.</p><p>While effective tool utilization is critical to the performance of agent systems, existing frameworks predominantly rely on static toolsets of atomic actions, such as basic file I/O, single-turn search, etc. This design forces agents to orchestrate every task through fine-grained sequences of low-level logic, diverging from the hierarchical efficiency seen in human problem-solving <ref type="bibr" target="#b5">(Fabiano et al., 2025)</ref>. In practice, humans often bypass exhaustive deliberation by employing Standard Operating Procedures (SOPs) that encapsulate multi-step logic into cohesive and high-level routines. Without these abstractions, agents face significantly increased reasoning overhead and a higher risk of cascading errors, particularly in long-term tasks <ref type="bibr" target="#b12">(Pan et al., 2025)</ref>.</p><p>Recent research on tool-augmented agents followed mainly two paths, refining a model's ability to use specific tools <ref type="bibr" target="#b13">(Qin et al., 2024)</ref> and expanding the overall breadth of the available toolset <ref type="bibr" target="#b10">(Lyu et al., 2023)</ref>. However, these efforts do not address the fundamental inefficiency of reasoning in long and fragmented sequences of atomic actions. While recent studies <ref type="bibr" target="#b22">(Yuan et al., 2024;</ref><ref type="bibr" target="#b9">Liu et al., 2025)</ref> enable agents to create new tools dynamically, they typically treat tool addition as a one-time event and lack a mechanism for long-term management. This leads to a bloated toolset where redundant or suboptimal tools accumulate, creating noise and complicating the agent's decision-making. This implies that a truly self-evolving agent requires more than just the ability to generate tools. It needs a systematic and iterative process to optimize its toolset by pruning ineffective tools, ensuring that evolved SOPs remain efficient and reliable.</p><p>To address the aforementioned challenges, we introduce EVOSOP, a framework that empowers agents to self-evolve by synthesizing atomic actions into high-level and reusable SOPs. Distinct from existing methods that treat tool creation as an isolated event, EVOSOP establishes a continuous optimization loop that progressively refines the agent's toolset. Specifically, the framework iteratively identifies recurring and useful patterns of atomic actions within execution trajectories, and compresses these long-horizon reasoning chains into callable higher-order tools. Within this same iterative cycle, EVOSOP governs the composition of the toolset by merging redundant routines and pruning low-utility actions based on their historical performance. This systematic approach ensures that agent capabilities remain both lean and powerful, effectively preventing performance degradation often caused by bloated toolsets. Note that EVOSOP serves as a model-agnostic framework that requires no parametric updates to the underlying LLMs, ensuring seamless integration with existing agent systems and enhancing the performance of black-box models.</p><p>Our main contributions are summarized as: • We define a novel paradigm for agent selfevolving that formalizes how agent systems improve through iterative tool optimization. This paradigm establishes a conceptual parallel to the standard machine learning pipeline by mirroring essential stages such as data acquisition, forward execution, backward propagation, etc. • We propose EVOSOP, a framework that empowers agents to extract SOPs from their execution trajectories. The system iteratively optimizes the toolset through a systematic lifecycle that encompasses construction, merging, evaluation, and pruning. • We provide extensive experiments on various benchmarks to demonstrate the effectiveness of the proposed framework. The experimental results show that EVOSOP significantly increases task success rates while reducing the number of interaction rounds compared to baselines.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Preliminaries</head><p>We first introduce the definitions and notations of LLM-based agents. We focus on a practical agentic setting <ref type="bibr">(Gao et al., 2025;</ref><ref type="bibr" target="#b8">Li, 2025)</ref> where the agent interacts with an environment through a toolset to accomplish complex tasks. Due to the space limitation, we place another agent system named DFSDT <ref type="bibr" target="#b13">(Qin et al., 2024)</ref> in Appendix B.</p><p>Environment and Interaction. We consider an agent interacting with an environment E. At each time step t, the agent receives an observation o t ∈ O from the environment and takes an action a t ∈ A based on its internal policy. The policy π is instantiated by an LLM, expressed as:</p><formula xml:id="formula_0">a t ∼ π LLM (• | C t ),</formula><p>where C t represents the context available at time t.</p><p>Following the paradigm of ReAct <ref type="bibr" target="#b21">(Yao et al., 2023)</ref>, the action a t may consist of a reasoning trace l t and a specific tool call f t . For simplification, we denote the reasoning of the LLM given prompt P as a = π LLM (P ). The environment then returns a response r t (e.g., execution results or error messages), which leads to the next state and observation o t+1 .</p><p>Context. The context C t is a structured representation of the agent's current state, designed to provide the LLM with all necessary information for decision-making. We formalize C t as a tuple:</p><formula xml:id="formula_1">C t = ⟨P, G, H t , M t , F⟩,</formula><p>where P is the persona or system prompt defining the agent's role and behavioral constraints, G is the task goal and its associated success criteria,</p><formula xml:id="formula_2">H t = {(a 1 , r 1 , o 1 ), . . . , (a t-1 , r t-1 , o t-1</formula><p>)} is the interaction history, M t represents the external memory or long-term knowledge retrieved by the agent, and F is the toolset containing the functional interfaces available to the agent.</p><p>Atomic Actions and Tool Schema. The toolset F = {f 1 , f 2 , . . . , f n } initially consists of atomic actions, i.e., granular and single-purpose functions such as file operations or API calls. Each tool f i ∈ F is defined by its schema = ⟨name, desc, params, returns⟩, where name and desc provide the semantic information required by the LLM to understand the tool's utility.</p><p>Workflow. The operational cycle of the agent follows a reasoning-acting loop. The agent is initialized with state H 0 = {}. At each time step t, the agent performs the following operations:</p><p>Context Construction : P t = Format(C t ),</p><p>Reasoning : ât = π LLM (P t ),</p><formula xml:id="formula_3">Acting : r t = Exec(â t , E), State Update : H t+1 ← H t ∪ {(â t , r t , o t )}.</formula><p>The process ends when the agent reaches a terminal state or exceeds the maximum iterations. We define an execution trajectory</p><formula xml:id="formula_4">ξ q = ((â 1 , r 1 , o 1 ), (â 2 , r 2 , o 2 ), • • • , (â k , r k , o k ))</formula><p>of task q when the agent is terminated after k iterations.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Methodology</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Design Motivation and Principle</head><p>As mentioned in Section 1, most LLM-based agents rely on a static toolset F composed of granular atomic actions. While recent studies have explored expanding the toolset through dynamic code generation <ref type="bibr">(Wang et al., 2025;</ref><ref type="bibr" target="#b22">Yuan et al., 2024)</ref>, they typically treat tool addition as a one-time event and lack a long-term management mechanism, leading to several critical limitations:</p><p>(i) Unreliable Tool Executability: Although LLMs can generate syntactically correct code, synthesized tools often fail in complex environments due to various engineering reasons. Without a systematic evaluation and refinement, tools remain fragile and cannot be trusted for long-term tasks.</p><p>(ii) Limited Generalization and Reusability: Tools derived from narrow scenarios often encode context-dependent logic that lacks broader applicability. Without a mechanism to iteratively abstract actions into reusable SOPs, the agent reinvents lowlevel logic, failing to achieve the hierarchical reasoning efficiency seen in human problem-solving.</p><p>(iii) Redundancy: In the absence of a lifecycle management (e.g., merging and pruning), continuous tool creation leads to a bloated toolset and brings noise to the agent's context. Increasing reasoning overhead complicates the LLM's decisionmaking, ultimately degrading the success rate.</p><p>To address these challenges, EVOSOP moves beyond simple tool creation by establishing a continuous and iterative tool optimization process.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Overview</head><p>As illustrated in Figure <ref type="figure" target="#fig_0">1</ref>, EVOSOP consists of four collaborative modules that govern the optimization of the toolset, including: (i) CONSTRUCTOR: This module identifies recurring action sequences within execution trajectories ξ, which extracts logical segments of atomic actions that frequently co-occur and synthesizes them into callable SOPs, complete with executable code and semantic schemas; (ii) MERGER: To maintain a lean toolset, this module inspects newly generated SOPs for functional redundancy, merging overlapping routines into generalized and higher-order tools to prevent the bloating of the context C; (iii) EVALUATOR: The agent is equipped with the updated toolset F ′ and reexecutes tasks. This module produces new trajectories that reflect the actual utility and reliability of the evolved SOPs in environments; (iv) REVIEWER: This module acts as a critic by analyzing the performance metrics of synthesized tools, which prunes SOPs that exhibit high error rates or significant redundancy compared to existing tools. Agent Self-Evolution by Non-Parametric Learning. Although EVOSOP does not modify the learnable parameters of the underlying LLM, its iterative structure constitutes a form of nonparametric structural optimization. We formalize this by drawing a conceptual parallel between EVOSOP and the machine learning pipeline. First, the agent's interaction with training tasks represents the data acquisition stage, while the execution of tasks using the current toolset F corresponds to forward propagation. The resulting execution trajectories ξ serve as observable behavioral outputs, capturing the agent's reasoning process and tool-use patterns. Improvement is then achieved through a backward propagation, where EVOSOP analyzes reasoning inefficiencies or execution failures within the trajectories. Instead of updating model weights via gradients, the framework performs "symbolic" backpropagation by extracting and synthesizing reusable SOPs that encapsulate multi-step logic into cohesive routines.</p><p>Besides, to ensure the SOPs remain lean and to avoid the performance degradation typically caused by bloated toolsets, the merging and pruning processes function as critical regularization mechanisms. These mechanisms mitigate the risk of "overfitting" to narrow and task-specific contexts by eliminating redundant or low-utility actions, thereby fostering generalized and reliable tool-use patterns. As the iteration proceeds, the stabilization of the toolset mirrors the behavior of a decaying learning rate, where the agent eventually converges toward an optimized hierarchy of toolset.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Tool Optimization Lifecycle in EVOSOP</head><p>In this subsection, we detail the tool optimization lifecycle in EVOSOP, which is designed to systematically transform raw interaction experiences into a solidified toolset F of high-level SOPs. Please refer to Appendix D for the selected prompts adopted in EVOSOP indicating our design conception.</p><p>CONSTRUCTOR: From Trajectories to Functional Abstractions. The optimization lifecycle begins with the CONSTRUCTOR, an LLM-based module designed to distill reusable functional abstractions from historical execution trajectories ξ. As established in Section 2, raw trajectories record sequences of atomic actions and environment responses in strict temporal order. In practice, many of these consecutive tool calls are not merely coincidental but reflect deep-seated logical or causal dependencies required to resolve recurring subproblems. The CONSTRUCTOR identifies these patterns to transform fragmented action sequences into cohesive and higher-order routines.</p><p>The primary objective of this stage is to mitigate the excessive reasoning overhead inherent in static and granular toolsets. CONSTRUCTOR extracts empirically valuable segments of tool-use patterns and functionalizes them into callable code. These synthesized SOPs are more than simple linear macros; they are interleaved with lightweight processing logic (e.g., conditional checks or error handling) to ensure they remain applicable across varying environmental states (an implementation example is provided in Appendix E).</p><p>We formalize the SOP construction process as a two-stage transformation:</p><formula xml:id="formula_5">ξ ′ i = f extract (ξ i ), S i = f rewrite (ξ ′ i , F atomic ),</formula><p>where ξ i represents the raw execution trajectory for task i, and ξ ′ i denotes the set of action segments identified as logically coupled. The transformation function f rewrite then maps these segments into the resulting SOP source code S i , drawing upon the functional interfaces of the initial atomic toolset.</p><p>MERGER: Structural Optimization. As the agent accumulates experience across task domains, functional overlap and redundancy among synthesized SOPs become inevitable, often manifesting as noise within the context C t . Such noise complicates the LLM's decision-making and may lead to the selection of suboptimal or conflicting tools.</p><p>To address this, we design the MERGER, a module dedicated to simplifying the toolset and enhancing its overall quality through structural optimization.</p><p>The MERGER analyzes the candidate SOP set within a training batch to identify functional overlaps based on shared objectives or highly similar logic. When candidates with convergent functionalities are identified, the module integrates them into a single, more expressive SOP that preserves the constituent capabilities of its predecessors while maintaining a high degree of generality. We formalize this batch-based merging process as follows:</p><formula xml:id="formula_6">S b = i∈b S i , S ′ = f merge (S b ),</formula><p>where b denotes the set of task indices, S b is the union of newly constructed SOPs, and S ′ represents the consolidated set generated by the merger.</p><p>EVOSOP adopts a non-destructive consolidation strategy during this stage. While newly merged, composite SOPs are added to the toolset, the original constituent SOPs are not immediately removed. This design choice is motivated by two critical observations regarding agent self-evolution. Firstly, even when two SOPs possess nominally identical functionality, they may differ significantly in implementation quality, including robustness, coding style, and the clarity of their docstrings, all of which affect the LLM's ability to invoke them correctly. Secondly, a larger composite SOP is not inherently superior to its more granular components; it may introduce implicit technical defects or reduce execution reliability in specific contexts. By deferring the removal of tools until the verification phase, EVOSOP ensures that the final toolset is refined based on empirical performance rather than static heuristics, adhering to the principle of hierarchical efficiency without sacrificing reliability.</p><p>EVALUATOR: Execution-based Validation. As synthesized SOPs are inherently prone to fragility when deployed in complex and stateful environments, they cannot be immediately integrated into the agent's core capabilities without rigorous validation. EVOSOP subjects all candidate SOPs to an EVALUATOR, which serves as the experimental foundation for assessing their real-world utility.</p><p>Specifically, all constructed SOPs within the sets S b and S ′ are loaded into the execution environment. Since these SOPs are instantiated as callable functions, the framework must first bridge the gap between executable code and the LLM's reasoning interface. We accomplish this by extracting the functional schema for each SOP (i.e., comprising its name, semantic description, and parameter specifications) and updating the toolset F as:</p><formula xml:id="formula_7">F ′ = F atomic ∪ f schema (s) | s ∈ S b ∪ S ′ .</formula><p>This expanded toolset F ′ provides the agent with a hierarchical choice. It can either continue using granular atomic actions or invoke the newly synthesized SOPs to bypass multi-step reasoning.</p><p>Following the toolset update, EVOSOP initiates a full re-execution of the training tasks within a realworld setting. During this process, the framework meticulously monitors task outcomes and captures the resulting execution trajectories ξ. These trajectories provide the empirical data necessary to diagnose implementation defects, assess functionality under diverse conditions, and provide a principled basis for the final quality control process.</p><p>REVIEWER: Quality Control and Simplification. The final stage of the EVOSOP lifecycle is a rigorous quality control procedure designed to ensure the reliability and effectiveness of the toolset. As SOPs are synthesized independently across varied trajectories, several systematic issues typically arise: (i) functional redundancy among overlapping tools; (ii) semantic misalignment, where misleading tool names or docstrings trigger retrieval errors; (iii) limited utility of tools that are rarely invoked; and (iv) latent technical defects that manifest only in specific stateful contexts. Addressing these challenges is essential to prevent the accumulation of technical debt and the resulting performance degradation caused by bloated toolsets.</p><p>Within the reasoning-acting loop, an agent's understanding of an SOP is governed by its docstring. Since these SOPs are automatically generated from historical logs, any discrepancy between the tool's implementation and its semantic description can lead to inappropriate invocations or reasoning failures. To operationalize the assessment of such risks, we introduce REVIEWER, an LLM-based module that functions as a critic. The REVIEWER analyzes the verification trajectories ξ and categorizes each SOP invocation into the following states:</p><p>• Optimal Execution: The SOP successfully completes its intended functionality as defined in its docstring without any technical exceptions.</p><p>• Partial Utility: The tool executes without technical error but achieves its intended goals partially with complicated reasons.</p><p>• Neutrality: The SOP returns successfully but produces no significant change in the environmental state, indicating low practical relevance.</p><p>• Negative Interference: The tool negatively impacts task progress or compromises the environmental state, leading to unacceptable outcomes.</p><p>• Implementation Defect: Execution triggers a technical exception and produces a traceback, indicating internal implementation errors. These statuses are not mutually exclusive, reflecting the nuanced failure modes of complex agentic systems. For each judgment, the REVIEWER provides a brief natural-language justification, ensuring that the pruning process is both interpretable and traceable. Following the aggregation of these performance statistics across the training batch, EVOSOP performs a global filtering operation to refine the toolset:</p><formula xml:id="formula_8">R = i∈I train f review ( ξi ), S solid = {s | f check (s, R s ) ̸ = remove, s ∈ S ′ ∪ S b },</formula><p>where ⊕ is the review aggregation operator.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4">Training Workflow</head><p>As formally specified in Section 3.3, each component of EVOSOP is designed to support a parameter-free training paradigm. Unlike prior studies that predominantly rely on parametric finetuning, EVOSOP realizes the "training" process through iterative optimization of the toolset. The complete training workflow is presented in Algorithm 1 in Appendix A.</p><p>Mini-batching. At the beginning of the training process, we partition the initial execution trajectories ξ into discrete mini-batches. In those batches, the CONSTRUCTOR identifies tool-use patterns and proposes new functional abstractions. Notably, this is the exclusive stage for introducing new SOPs, ensuring the growth of toolset is strictly grounded in observed execution experience.</p><p>In every iteration, the MERGER first consolidates overlapping functionalities into generalized procedures to maintain a compact toolset. Subsequently, the system enters an evaluation phase where the agent re-executes all training tasks with the updated SOPs. Using the resulting rollouts, the RE-VIEWER assesses each tool's empirical contribution and prunes those that exhibit implementation defects or redundant reasoning.</p><p>Checkpointing. A critical challenge in LLMbased optimization is the potential stochasticity of model behavior, where aggressive pruning might inadvertently remove genuinely beneficial SOPs. To mitigate this risk, EVOSOP avoids a strictly linear update; instead, it adopts a checkpointing mechanism. At the end of each iteration, the full evaluation logs and the current SOP toolset are archived. Since task feedback is obtained directly from the environment in a self-supervised manner, we do not require a separate validation set. We select the iteration that yields the highest training success rate as the final epoch, ensuring that the output toolset S * represents the optimal balance between expressivity and reliability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Setup</head><p>Our evaluation compares several distinct tool configurations: (i) ReAct and DFSDT, which use the original atomic actions; (ii) ASI <ref type="bibr">(Wang et al., 2025)</ref>, whose toolset is augmented with SOPs, referred to as skills in the original paper, induced through a one-time process; (iii) DRAFT (Qu  <ref type="bibr">, 2025)</ref>, which equips tools with rewritten descriptions and usage guidance; and (iv) EvoSOP, our proposed method that performs iterative SOP optimization. The evaluation is conducted on ACEBench <ref type="bibr" target="#b3">(Chen et al., 2025)</ref> and Tau2Bench <ref type="bibr">(Barres et al., 2025)</ref>. For ACEBench, we use the agent subset, while for Tau2Bench, we use the solo mode of the Telecom subset.</p><p>Throughout the experiments, GPT-4o serves as the backbone LLM for all evaluation agents. During the toolset construction phase, we adopt GPT-4o, Gemini-3-Flash-Preview, and Qwen-Max to assess cross-model robustness. Detailed configurations are provided in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Performance Comparisons</head><p>The main experimental results are summarized in Table <ref type="table" target="#tab_1">1</ref>. In general, EVOSOP outperforms both the base agent and other selected tool-related baselines. On both subset of ACEBench, EVOSOP achieves a significant improvement over the base method, yielding gains ranging from 2.5% to 13.4% depending on the backbone model. This performance surge indicates that the evolved SOPs effectively address recurring reasoning bottlenecks by providing the agent with robust and reliable logic blocks.</p><p>In the challenging Tau2Bench-Telecom, which is characterized by a larger tool space and intricate stateful transitions, EVOSOP maintains a steady performance lead. Although the margin of improvement is more concentrated compared to ACEBench due to the inherent complexity of the domain, the results show that EVOSOP can navigate and optimize tools even in high-entropy scenarios where static or one-shot toolsets typically struggle.</p><p>From the experiments, we also observe that EVOSOP produces reliable SOPs. Our analysis of the trajectories reveals that GPT-4o often encounters reasoning failures as the context window grows or when tasks require precise temporal tracking. For example, in text message management scenario (e.g., deleting the earliest message), agents using atomic actions often become indecisive after multiple turns, frequently returning control to the user for clarification, or deleting the wrong target.</p><p>While ASI can induce SOPs for such workflows, its one-shot nature often leads to brittle logic that may delete the latest message instead of the earliest, causing cascading errors in similar but slightly different contexts. In contrast, the behavior of DRAFT becomes more stable as it does not make substantial changes to the tools. EVOSOP employs its REVIEWER and MERGER to evaluate execution feedback. It identifies these subtle logic flaws, merges redundant tools, and prunes SOPs that exhibit high error rates. This iterative self-correction and complete lifecycle management ensure that the resulting toolset is not just larger, but fundamentally more reliable and useful. Reasoning Compression. A core hypothesis in this study is that SOPs should reduce the cognitive load on the agent by encapsulating multi-step workflows. In Figure <ref type="figure" target="#fig_1">2</ref>, we illustrate the average number of reasoning rounds per task across the epochs.</p><p>The experimental results confirm that the transition from atomic actions to SOPs substantially streamlines the interaction process. In the initial phases, the toolset may contain experimental or unstable SOPs, occasionally leading to redundant trial-and-error reasoning. However, as the iterative cycle progresses, EVOSOP filters out low-utility tools and consolidates overlapping routines. By the final several epochs, the number of interaction rounds stabilizes at a significantly lower level than that of baselines. Such reasoning compression not only reduces API latency and cost but also minimizes the risk of the agent losing focus within long-horizon trajectories, which is a primary driver of the observed increase in success rates.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Ablation Study</head><p>To quantify the individual contribution of each component within the proposed EVOSOP, we conduct an ablation study by systematically removing the REVIEWER and MERGER modules. Figure <ref type="figure" target="#fig_2">3</ref> illustrates the average performance of the complete EVOSOP and its variants. Overall, the ablation study demonstrates that the superior performance of EVOSOP is not derived from any single module but from the synergy of its various components, which together provide comprehensive tool lifecycle management. Specifically, the experimental results reveal that the iterative reviewing and pruning procedure, driven by the REVIEWER, has the most profound impact on final performance. When the pruning mechanism is disabled, the success rate of the agent significantly declines on both datasets. These results confirm that, while the CONSTRUCTOR introduces beneficial SOPs, it also inevitably generates low-quality or context-sensitive tools that can introduce noise. Without the "backward propagation" of performance feedback provided by the REVIEWER, these suboptimal tools accumulate, leading to a bloated toolset that confuses the agent's decisionmaking. These findings explain the performance gap between EVOSOP and the one-shot ASI baseline (as shown in Table <ref type="table" target="#tab_1">1</ref>), reinforcing that active tool management is just as critical as tool creation for self-evolving agents.</p><p>Besides, we evaluate the necessity of the MERGER module. As shown in Figure <ref type="figure" target="#fig_2">3</ref>, the variant without the merging process also exhibits performance degradation. The MERGER performs semantic and functional consolidation, transform- ing narrow and task-specific action sequences into generalized SOPs. By merging overlapping routines, the framework maintains a compact toolset where each SOP possesses a broader scope of applicability and higher reliability. These results indicate that these consolidated tools are invoked more frequently across diverse scenarios, which in turn reduces their risk of being erroneously evicted during the pruning phase. Consequently, the MERGER acts as a "regularizer" that fosters the emergence of robust, high-order tool-use patterns, ensuring the long-term stability of the agent system.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Case Study</head><p>To better understand the optimization process, we analyze a representative execution of EVOSOP on ACEBench. We track the utilization and performance metrics of selected SOPs to illustrate how EVOSOP distinguishes between high-utility, highrisk, and redundant tools. As shown in Figure <ref type="figure">4</ref>, we observe some distinct lifetime patterns: (i) Fundamental SOPs: Tools like fetch_ message exhibit high invocation frequency and near-zero error propensity. These represent stable logic that the framework identifies early and retains as core components of agents.</p><p>(ii) Transient SOPs: manage_and_send_message is synthesized during Epoch 1 but immediately evicted by the REVIEWER due to a critical failure rate. This demonstrates the framework's ability to prevent unreliable code from polluting the toolset. Similarly, retrieve_flight_details is pruned after several epochs because its marginal utility is low, it is rarely invoked, and introduces non-negligible reasoning overhead without a pro-portional increase in success rate.</p><p>(iii) Merged SOPs: Initially, the CON-STRUCTOR generated two task-specific tools, i.e., order_food_online and order_food_from_ merchant. Later the MERGER identified their functional overlap and synthesized a generalized SOP, enhanced_manage_food_order. Consequently, the original specific tools are pruned to maintain toolset leanness, while the new SOP continued to perform reliably across diverse contexts.</p><p>This case clearly demonstrates how the designed components cooperate to produce a compact SOP toolset with high-quality SOPs. In general, the size of the SOP set remains consistently low, even as new SOPs are continually generated. We summarize the macro-level evolution of the toolset composition in Appendix C, showing that EVOSOP maintains the toolset at a compact scale.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Related Works</head><p>Early research primarily focuses on enhancing tool mastery through parametric updates, employing supervised fine-tuning or reinforcement learning to improve tool retrieval and invocation accuracy <ref type="bibr">(Bai et al., 2025;</ref><ref type="bibr" target="#b13">Qin et al., 2024;</ref><ref type="bibr" target="#b7">Li et al., 2025)</ref>. In contrast, non-parametric methods optimize tool use without modifying the underlying model. For example, DRAFT <ref type="bibr" target="#b15">(Qu et al., 2025)</ref> and Easy-Tool <ref type="bibr" target="#b23">(Yuan et al., 2025)</ref> refine tool documentation and retrieval strategies through trial feedback. Moving toward self-evolution, several studies empower agents to synthesize new tools via code generation, such as Voyager <ref type="bibr" target="#b18">(Wang et al., 2023)</ref>, CRAFT <ref type="bibr" target="#b22">(Yuan et al., 2024)</ref>, and Alita <ref type="bibr" target="#b14">(Qiu et al., 2025)</ref>, while ASI <ref type="bibr">(Wang et al., 2025)</ref> introduces a mechanism to induce high-level skills from successful action trajectories. However, these works typically treat tool creation as a one-off event and lack a long-term management mechanism, often leading to toolkit bloating and reasoning redundancy, which motivates the development of EVOSOP in this study.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusions</head><p>In this study, we propose EVOSOP, a novel framework designed to empower LLM-based agents to self-evolve through iterative tool optimization. By synthesizing granular atomic actions into highlevel and reusable SOPs, EVOSOP boosts task success rates and addresses the reasoning overhead inherent in static toolsets. Different from existing methods that treat tool creation as a one-time event, our framework establishes a continuous optimization lifecycle, effectively mitigating the risks of logic fragmentation and toolset bloating. Extensive experiments on ACEBench and Tau2Bench demonstrate that EVOSOP significantly enhances task success rates while reducing the number of reasoning rounds across diverse benchmarks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Detailed Experimental Settings and Configurations</head><p>In this section, we provide a comprehensive description of the experimental configurations, settings, and implementation details. This section offers a detailed overview of the parameters and environments used in our study, ensuring the transparency and reproducibility of the reported results.</p><p>Dataset information. In our experiments, we evaluate our method and the baselines on ACEBench and Tau2Bench.</p><p>ACEBench is a tool-use-oriented benchmark, in which the Agent-Multi-Step and Agent-Multi-Turn subsets focus on evaluating agents' task-completion ability when equipped with different tools. Tau2Bench is a benchmark for conversational AI agents that involves issue resolution and simulated human feedback. To align with the pure tool-use setting considered in our study, we use the solo mode of the Telecom subset, which focuses on resolving phone network connection issues by the agent itself.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Data preparation for EvoSOP and baselines.</head><p>For each dataset, we first run the base methods, namely ReAct and DFSDT, to collect an initial set of trajectories, regardless of whether the trajectories are successful. During the training process of EvoSOP, we feed 5 randomly sampled trajectories in each of the first 5 iterations, exposing our method to 25 trajectories and tasks in total. In the last 5 iterations, EvoSOP only performs merging, evaluation, and review, meaning that no new SOPs are generated from trajectories.</p><p>To ensure a fair comparison, we expose the same number of trajectories to the ASI baseline for agentic skill induction. The reported results include performance on both exposed and unseen tasks.</p><p>Baselines. In addition to the ReAct agentic system described earlier, we reproduce another wellknown method, DFSDT <ref type="bibr" target="#b13">(Qin et al., 2024)</ref>, which implements a DFS-based algorithm to explore potentially promising choices and backtrack from failed branches.</p><p>DFSDT allows the agent to give up and backtrack to a previous state when encountering obstacles during task solving. Typically, when max_beam_size is set to 1, DFSDT effectively degenerates into a ReAct agent with the additional option of giving up. DFSDT dumps and restores the current states of both the agent and the environment before each reasoning step. When DFSDT gives up on a search branch, it restores the working state from the previously saved backup and performs a re-reasoning step, providing information about the failed branches in the prompt so that the agent can avoid repeating the same mistakes. For both ReAct and DFSDT, we set max_steps to 100, and we set max_beam_size of DFSDT to 3.</p><p>For the two tool-related methods, ASI and DRAFT, we select them as representative approaches for one-shot high-level tool optimization and tool-docstring optimization, respectively. We apply them to both ReAct and DFSDT for comparison. For all methods mentioned above, we run 6 complete workflows on ACEBench and 3 complete workflows on Tau2Bench. The results reported in Table <ref type="table" target="#tab_1">1</ref> are the average success rates ± standard errors across runs.</p><p>All of the used artifacts including benchmarks and code bases are consistent with their intended use.</p><p>Backbone models. To ensure a fair comparison within our experiments, we consistently use GPT-4o as the backbone model for executing vanilla ReAct and DFSDT, as well as for the evaluation and testing phases of ASI, DRAFT, and EvoSOP, since these phases depend on the base agent methods. This is why we do not report the results of ReAct and DFSDT with Gemini-3-Flash-Preview or Qwen-Max as the backbone model. For the core algorithms of ASI, DRAFT, and EvoSOP, we adopt GPT-4o, Gemini-3-Flash-Preview, and Qwen-Max to assess the cross-model robustness. Detailed documentation regarding the model's training data coverage, linguistic capabilities, and known limitations can be found in the official technical report.</p><p>Our proposed method is parameter-free. Therefore, we did not perform any local model training. The computational cost is limited to the inference time via API calls to the proposed models. All experiments were conducted on a standard CPU.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Toolset Maintenance and Convergence.</head><p>In this section, we supplement the description that EvoSOP maintains a condense but effective tool set at a low scale. Figure <ref type="figure" target="#fig_3">5</ref> summarizes the macro evolution of the toolset's composition. During the initial phase (Epochs 1 to 5), the toolset size undergoes rapid expansion as the CONSTRUCTOR explores various action patterns from the training trajectories. However, as the optimization loop proceeds, the growth curve flattens and eventually enters a dynamic equilibrium where new merged SOPs are only added if they offer significant utility gains over existing ones. Notably, EVOSOP maintains the toolset on a compact scale (typically fewer than 10 SOPs) while achieving a task success rate of approximately 80%. Such stabilization mirrors the behavior of a decaying learning rate in traditional optimization, where the system converges to a minimal yet powerful set of SOPs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Prompt Engineering in EVOSOP</head><p>In this section, we summarize our promptengineering strategies used to implement the proposed LLM-based modules, namely CONSTRUC-TOR, MERGER, and REVIEWER. In general, each component is treated as an independent agent. The prompt for each agent is carefully designed to provide a standardized description of its role, primary objective, operating paradigm, action boundaries, output requirements, and necessary few-shot examples.</p><p>We take the two CONSTRUCTOR functionalities, namely log analysis and SOP functionalization, as representative examples since they include structured content generation and coding. The other components and modules follow a similar prompt design logic. The following code block shows the prompt used for log analysis in CONSTRUCTOR. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>## Identity</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>## Output Guidance</head><p>The output should just be a serialized python list object.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>→</head><p>The list object may contain one valuable induced SOP, and the SOP should also be a list, containing the corresponding `message_number`in the `tool_call`logs. The following contents are the input logs for you to process. Try your best to finish your task.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>→ →</head><p>The following code block shows the prompt of SOP functionalization in CONSTRUTOR. The "function_guidance" should be a guidance and limitation of constructing SOPs, which could vary among different environments and datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>## Identity</head><p>You are a specialized agent who is good at software engineering. You are designed to rewrite the consecutive `tool_call`s to a standard operating procecure (SOP) from the provided action trajectories.  In this section, we provide the source code of a representative SOP generated by EVOSOP. This SOP function contains four separate tool calls and a branching control mechanism that determines whether the message has been successfully sent directly, as well as the actions taken by the SOP in each case.</p><p>""" 6</p><p>This function performs the following steps:     Returns:</p><p>19 dict: A dictionary containing:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>20</head><p>-"status" (bool): True if the operation succeeds, False otherwise.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>21</head><p>-"content" (dict): Contains results of message sending, and deletion if applicable.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>22</head><p>-"send_status_initial": Result of the first send attempt.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>23</head><p>-"latest_message_id": ID of the latest message retrieved (optional).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>24</head><p>-"delete_status": Result of the delete operation (optional).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>25</head><p>-"send_status_final": Result of the retry send operation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>26</head><p>""" </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: The overall architecture of EVOSOP, illustrating the iterative tool optimization lifecycle. The framework employs four collaborative modules, including CONSTRUCTOR, MERGER, EVALUATOR, and REVIEWER.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The averaged reasoning rounds across epochs in dataset ACEBench .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Performance of EVOSOP and its ablated variants in dataset ACEBench.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Trends of constructed, involved, and maintained SOPs across training epochs in ACEBench.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>Your primary purpose is to extract the current workflows, induce the `tool_call`s in the given logs to a well-bounded SOP, and rewrite the induced SOP in the form of a new tool function for future usage. You are given an action trajectory of a completed task containing `tool_call`s only, in the form of .json, with the message number, the given arguments, and the name of that specific tool.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>→→ 3 .</head><label>3</label><figDesc>You are also given the docstring of all the involved `tool_call`s, which will help you conclude some implicit requirements or restraints about the tool function. Consecutive file operations have a higher probability of being combined together. You may need to process the returned value of some `tool_call`, for the input parameters of the next `tool_call`. Focus more on the workflow revealed by the logs. Do not care too much about the content in 'text' field with repeated patterns.→ Pay special attention to the docstrings of the input parameters of the `tool_call`s components, and reveal any special pattern if the input parameters are directly passed to these `tool_call`s. You should include all of the used `tool_call`names (in order if possible) in the docstring. The following contents are the input messages for you to process.→ {trajectories}The following contents are the docstrings of all the involved `tool_call`s. → {tool_docstrings} E An example of the synthesized SOP</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>7 1 .</head><label>1</label><figDesc>Attempts to send a message from one user to another.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>8 2 .</head><label>2</label><figDesc>If sending fails due to memory issues, it retrieves the latest message ID. 9 3. Deletes the latest message based on its ID.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head></head><label></label><figDesc>of the current class. 14 message (str): The message content to send. 15 receiver_name (str): Name of the receiver. 16 sender_name (str): Name of the sender.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head></head><label></label><figDesc>17</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head></head><label></label><figDesc>18</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_12"><head></head><label></label><figDesc>: send_result_final['status'],</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Averaged successful rate ± standard error (%) of the baselines and EVOSOP on benchmark ACEBench and Tau2Bench. Note that all the base agentic methods relied by tool-related methods are run on GPT-4o.</figDesc><table><row><cell></cell><cell cols="2">ACEBench Multi-Step</cell><cell></cell></row><row><cell>Backbone</cell><cell>Gemini-3-FP</cell><cell>GPT-4o</cell><cell>Qwen-Max</cell></row><row><cell>ReAct</cell><cell>/</cell><cell>80.8 ± 3.4</cell><cell>/</cell></row><row><cell>+ ASI</cell><cell cols="3">45.8 ± 14.8 60.0 ± 12.9 53.3 ± 9.4</cell></row><row><cell cols="4">+ EvoSOP 83.3 ± 2.4 84.2 ± 1.9 84.2 ± 1.9</cell></row><row><cell>DFSDT</cell><cell>/</cell><cell>78.3 ± 6.8</cell><cell>/</cell></row><row><cell>+ DRAFT</cell><cell>84.2 ± 1.9</cell><cell>75.0 ± 5.8</cell><cell>74.2 ± 5.4</cell></row><row><cell>+ EvoSOP</cell><cell>82.5 ± 2.6</cell><cell cols="2">85.0 ± 0.0 85.8 ± 1.9</cell></row><row><cell></cell><cell cols="2">ACEBench Multi-Turn</cell><cell></cell></row><row><cell>ReAct</cell><cell>/</cell><cell>72.2 ± 3.7</cell><cell>/</cell></row><row><cell>+ ASI</cell><cell>46.7 ± 11.1</cell><cell>57.2 ± 8.0</cell><cell>65.6 ± 8.8</cell></row><row><cell cols="4">+ EvoSOP 79.4 ± 4.5 79.4 ± 3.0 84.4 ± 3.1</cell></row><row><cell>DFSDT</cell><cell>/</cell><cell>69.4 ± 4.5</cell><cell>/</cell></row><row><cell>+ DRAFT</cell><cell>71.1 ± 6.0</cell><cell cols="2">66.1 ± 3.0 78.3 ± 2.6</cell></row><row><cell cols="4">+ EvoSOP 83.3 ± 3.3 74.4 ± 3.1 77.9 ± 4.1</cell></row><row><cell></cell><cell cols="2">Tau2-Bench Telecom Solo</cell><cell></cell></row><row><cell>ReAct</cell><cell>/</cell><cell>37.1 ± 2.8</cell><cell>/</cell></row><row><cell>+ ASI</cell><cell>35.4 ± 1.1</cell><cell>37.7 ± 1.4</cell><cell>39.5 ± 4.0</cell></row><row><cell cols="4">+ EvoSOP 43.3 ± 0.8 40.9 ± 0.4 40.2 ± 2.2</cell></row><row><cell>et al.</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>Focus more on the workflow revealed by the logs. Do not care too much about the content in 'text' field if it is extremely long.</figDesc><table><row><cell></cell><cell></cell><cell cols="2">Your primary purpose is to summarize and</cell></row><row><cell>→</cell><cell></cell><cell>→</cell><cell>extract the given workflows, induce</cell></row><row><cell>→</cell><cell></cell><cell>→</cell><cell>reusable and meaningful consecutive</cell></row><row><cell cols="2">7. Except the required output in the following</cell><cell>→</cell><cell>`tool_call`s as an SOP.</cell></row><row><cell></cell><cell>output guidance, DO NOT OUTPUT ANYTHING</cell><cell cols="2">There possibly contains more than one SOPs, or</cell></row><row><cell></cell><cell>ELSE.</cell><cell>→</cell><cell>no SOP. Rewrite the SOPs which you think</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>that satisfy the following rules, possibly</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>multiple, one, or none.</cell></row><row><cell></cell><cell></cell><cell cols="2">### Operating Paradigm</cell></row><row><cell></cell><cell></cell><cell cols="2">You are given an action trajectory of a</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>completed task containing `tool_call`s only,</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>in the form of .json, the given arguments,</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>and the name of that specific tool.</cell></row><row><cell></cell><cell></cell><cell cols="2">Some `tool_call`s have identifiable features</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>which indicates that their functionality</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>may have strong inter connections for</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>combining them as an SOP.</cell></row><row><cell></cell><cell></cell><cell cols="2">Your paradigm of inducing SOPs are listed as</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>follows:</cell></row><row><cell></cell><cell></cell><cell cols="2">1. **Consecutive `tool_call`**: This indicates</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>that the `tool_call`s are executed</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>consecutively.</cell></row><row><cell></cell><cell></cell><cell cols="2">2. **Separated `tool_call`Message Number**:</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>This indicates that the `tool_call`are</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>closely connected, but not executed</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>consecutively. For example, `tool_call`A</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>write down a python file, and encounters</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>some error with consecutive `tool_call`B,</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>but `tool_call`C is more general and</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>successfully runs A without errors.</cell></row><row><cell></cell><cell></cell><cell>3. →</cell></row><row><cell></cell><cell></cell><cell>→</cell></row><row><cell></cell><cell></cell><cell>→</cell></row><row><cell></cell><cell></cell><cell>→</cell></row><row><cell></cell><cell></cell><cell cols="2">4. **Meaningful Combination**: Some consecutive</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>`tool_call`s combination are of great</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>reality meanings, as `search`plusing</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>`write_file`means search something and</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>directly write this to some designated</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>file.</cell></row><row><cell></cell><cell></cell><cell cols="2">5. **Frequently Usage**: Some consecutive</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>`tool_call`s combination are of frequent</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>occurrence, which implys that they can be</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>modularized.</cell></row><row><cell></cell><cell></cell><cell cols="2">### Important Constraints and Hints</cell></row><row><cell></cell><cell></cell><cell cols="2">1. As is stated above, the **consecutive**</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>`tool_call`means the they should be</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>executed as close as possible. Do not</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>induce `tool_call`s too far, making the</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>span too big.</cell></row><row><cell></cell><cell></cell><cell cols="2">2. The tools in induced SOP should have strong</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>inter connection. You should carefully</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>check the connection between `tool_call`s</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>by examining the `tool_call`arguments and</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>results. DO NOT INTEGRATE IRRELEVANT TOOL</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>COMBINATIONS TO COMPLICATE THE RESULT.</cell></row><row><cell></cell><cell></cell><cell cols="2">3. The induced SOP should containing **at</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>least** 2 `tool_call`actions to make the</cell></row><row><cell></cell><cell></cell><cell>→</cell><cell>induced SOP be concise and not too simple.</cell></row><row><cell cols="2">You are a specialized agent who is good at text extraction and analyzing. You are designed to summarize and extract some reusable and meaningful consecutive `tool_call`s from → → →</cell><cell cols="2">4. The induced SOP should containing **no more than** 5 `tool_call`actions to make the induced SOP be general and scalable to be applied to other similar tasks.</cell></row><row><cell>→</cell><cell>the provided action trajectories, forming a</cell><cell></cell></row><row><cell>→</cell><cell>Standard Operation Process (SOP).</cell><cell></cell></row><row><cell cols="2">## Core Mission.</cell><cell></cell></row></table><note><p>**Similar `tool_call`Results and Following Input Argument**: This indicates that two `tool_call`s are strongly connected, as the result of one `tool_call`is immediately used in another one's input. → → → 5. Consecutive file operations have a higher probability of being combined together. You may need to consider deeper about the returned value of some `tool_call`, for the input parameters of the next `tool_call`. → → → → 6. → →</p></note></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm 1 EvoSOP training workflow</head><p>Input: execution log set ξ, atomic tool set F, training set index I train , batched index set B Built in: max iterations M , LLM-based function f</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Pseudo-code of Training Workflow</head><p>In this section, we present the pseudo-code to clearly illustrate the main training workflow of our method. While the descriptions in the main text are module-centric, the pseudo-code provides a global overview; consequently, some notational differences may exist between the two. The correspondences are as follows:</p><p>• The function f merge takes as input the union of the SOP set maintained from previous iterations and the SOPs newly generated in the current iteration.</p><p>• B i denotes the i-th mini-batch in the index set B, corresponding to b.</p><p>• S represents the dynamically generated and pruned SOP set, which eventually becomes the solidified SOP set S solid . </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Angang Du, Chenzhuang Du, Dikang Du, Yulun Du, and 1 others. 2025. Kimi K2: open agentic intelligence</title>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiping</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanduo</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ningxin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruijue</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanru</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuankun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuofu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialei</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengnan</forename><surname>Dong</surname></persName>
+		</author>
+		<idno>CoRR, abs/2507.20534</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">2025. τ 2 -bench: Evaluating conversational agents in a dual-control environment</title>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Barres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honghua</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soham</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xujie</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno>CoRR, abs/2506.07982</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Tom</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nick</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melanie</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Subbiah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arvind</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pranav</forename><surname>Neelakantan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Shyam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amanda</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Askell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ariel</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Herbert-Voss</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rewon</forename><surname>Henighan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aditya</forename><surname>Child</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><forename type="middle">M</forename><surname>Ramesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Ziegler</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems</title>
+		<meeting><address><addrLine>NeurIPS</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2020-12-06">2020. 2020. 2020. December 6-12, 2020</date>
+		</imprint>
+	</monogr>
+	<note>Clemens Winter, and 2 others</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Acebench: Who wins the match point in tool learning?</title>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinlong</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiwen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingshan</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dexun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weinan</forename><surname>Gan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuefeng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wulong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Defu</forename><surname>Lian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baoqun</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yasheng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wu</forename><surname>Liu</surname></persName>
+		</author>
+		<idno>CoRR, abs/2501.12851</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiming</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrique</forename><surname>Pondé De Oliveira Pinto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jared</forename><surname>Kaplan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harri</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuri</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Joseph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Greg</forename><surname>Brockman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raul</forename><surname>Puri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gretchen</forename><surname>Krueger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Petrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heidy</forename><surname>Khlaaf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Girish</forename><surname>Sastry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pamela</forename><surname>Mishkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brooke</forename><surname>Chan</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+	<note>Scott Gray, and 4 others. 2021. Evaluating large language models trained on code. CoRR, abs/2107.03374</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Thinking fast and slow in human and machine intelligence</title>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Fabiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marianna</forename><forename type="middle">Bergamaschi</forename><surname>Ganapini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrea</forename><surname>Loreggia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Mattei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keerthiram</forename><surname>Murugesan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishal</forename><surname>Pallagani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesca</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Biplav</forename><surname>Srivastava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">Brent</forename><surname>Venable</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Commun. ACM</title>
+		<imprint>
+			<biblScope unit="volume">68</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="72" to="79" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Jinyu Xiang, Yixiong Fang, Qiwen Zhao, Dongrui Liu, and 8 others. 2025. A survey of self-evolving agents: On path to artificial super intelligence</title>
+		<author>
+			<persName><forename type="first">Huan-Ang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyue</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengkang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinzhe</forename><surname>Juan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongzhang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shilong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongru</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhang</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaokun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno>CoRR, abs/2507.21046</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Deepagent: A general reasoning agent with scalable toolsets</title>
+		<author>
+			<persName><forename type="first">Xiaoxi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiarui</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanting</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajie</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinuo</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhicheng</forename><surname>Dou</surname></persName>
+		</author>
+		<idno>CoRR, abs/2510.21618</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">A review of prominent paradigms for llm-based agents: Tool use, planning (including rag), and feedback learning</title>
+		<author>
+			<persName><forename type="first">Xinzhe</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st International Conference on Computational Linguistics, COLING 2025</title>
+		<meeting>the 31st International Conference on Computational Linguistics, COLING 2025<address><addrLine>Abu Dhabi, UAE</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2025-01-19">2025. January 19-24, 2025</date>
+			<biblScope unit="page" from="9760" to="9779" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Toolscope: Enhancing LLM agent tool use through tool merging and context-aware filtering</title>
+		<author>
+			<persName><forename type="first">Marianne Menglin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Garcia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fjona</forename><surname>Parllaku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vikas</forename><surname>Upadhyay</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Syed Fahad Allam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Roth</surname></persName>
+		</author>
+		<idno>CoRR, abs/2510.20036</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Gitagent: Facilitating autonomous agent with github by tool extension</title>
+		<author>
+			<persName><forename type="first">Bohan</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heyang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaxi</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yukun</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<idno>CoRR, abs/2312.17294</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">GAIA: a benchmark for general AI assistants</title>
+		<author>
+			<persName><forename type="first">Grégoire</forename><surname>Mialon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clémentine</forename><surname>Fourrier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<meeting><address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024-05-07">2024. May 7-11, 2024</date>
+			<biblScope unit="volume">2024</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">REST: stress testing large reasoning models by asking multiple problems at once</title>
+		<author>
+			<persName><forename type="first">Zhuoshi</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qizhi</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiyao</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zinan</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Vicky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Conghui</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lijun</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wu</surname></persName>
+		</author>
+		<idno>CoRR, abs/2507.10541</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Toolllm: Facilitating large language models to master 16000+ real-world apis</title>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shihao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kunlun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaxi</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangru</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sihan</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lauren</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runchu</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruobing</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Gerstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dahai</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations, ICLR 2024</title>
+		<meeting><address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024-05-07">2024. May 7-11, 2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Alita: Generalist agent enabling scalable agentic reasoning with minimal predefinition and maximal self-evolution</title>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongcheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinzhe</forename><surname>Juan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifu</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yimin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zixin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihan</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xun</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongrui</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ling</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaixuan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shilong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongru</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengdi</forename><surname>Wang</surname></persName>
+		</author>
+		<idno>CoRR, abs/2505.20286</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">From exploration to mastery: Enabling llms to master tools via self-driven interactions</title>
+		<author>
+			<persName><forename type="first">Changle</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunhao</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaochi</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hengyi</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuaiqiang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Wen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirteenth International Conference on Learning Representations, ICLR 2025</title>
+		<meeting><address><addrLine>Singapore</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2025-04-24">2025. April 24-28, 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Exploring the limits of transfer learning with a unified text-to-text transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="page">67</biblScope>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Edouard Grave, and Guillaume Lample. 2023. Llama: Open and efficient foundation language models</title>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibaut</forename><surname>Lavril</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Martinet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Anne</forename><surname>Lachaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothée</forename><surname>Lacroix</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baptiste</forename><surname>Rozière</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Faisal</forename><surname>Azhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aurélien</forename><surname>Rodriguez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<idno>CoRR, abs/2302.13971</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Voyager: An openended embodied agent with large language models</title>
+		<author>
+			<persName><forename type="first">Guanzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linxi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.16291</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Executable code actions elicit better LLM agents</title>
+		<author>
+			<persName><forename type="first">Xingyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangyi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lifan</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunzhu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Fortyfirst International Conference on Machine Learning, ICML 2024</title>
+		<meeting><address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024-07-21">2024. July 21-27, 2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Inducing programmatic skills for agentic tasks</title>
+		<author>
+			<persName><forename type="first">Zora</forename><surname>Zhiruo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wang</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Apurva</forename><surname>Gandhi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<idno>CoRR, abs/2504.06821</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Karthik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Eleventh International Conference on Learning Representations, ICLR 2023</title>
+		<meeting><address><addrLine>Kigali, Rwanda</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2023-05-01">2023. May 1-5, 2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">CRAFT: customizing llms by creating and retrieving from specialized toolsets</title>
+		<author>
+			<persName><forename type="first">Lifan</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangyi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Fung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heng</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations, ICLR 2024</title>
+		<meeting><address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<date type="published" when="2024-05-07">2024. May 7-11, 2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">EASYTOOL: enhancing llm-based agents with concise tool instruction</title>
+		<author>
+			<persName><forename type="first">Siyu</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaitao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiangjie</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongliang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kan</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Deqing</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL 2025</title>
+		<meeting>the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL 2025<address><addrLine>Albuquerque, New Mexico, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2025-04-29">2025. April 29 -May 4, 2025</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="951" to="972" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

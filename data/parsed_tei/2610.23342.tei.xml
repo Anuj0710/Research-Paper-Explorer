@@ -1,0 +1,781 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Robust Function Calling for LLM Agents Under Interface Drift</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-16">16 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Aniruddha</forename><surname>Chattopadhyay</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Kanishka</forename><surname>Halder</surname></persName>
+						</author>
+						<author>
+							<persName><forename type="first">Partha</forename><forename type="middle">Sarathi</forename><surname>Roy</surname></persName>
+						</author>
+						<title level="a" type="main">Robust Function Calling for LLM Agents Under Interface Drift</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-16">16 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">B1F86B1822E6E0CC05ADFC58C32573A1</idno>
+					<idno type="arXiv">arXiv:2610.23342v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T17:46+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>
+					<term>tool-augmented large language models</term>
+					<term>function calling</term>
+					<term>interface drift</term>
+					<term>agentic AI robustness</term>
+					<term>inference-time validation and repair</term>
+				</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool-augmented language-model agents rely on interface text: tool descriptions, argument schemas, and the candidate tool list shown at inference time. These interfaces often change after deployment even when the underlying tool semantics remain fixed, creating a practical reliability problem for function-calling systems. We study this failure mode as interface drift and evaluate whether a lightweight, training-free repair layer can recover robustness without retraining the base model. Our method, SchemaShield-Lite, combines schema validation, candidate-set retry for missing tool names, and one-shot constrained repair. On Qwen3.5-9B, it raises DICE-300 accuracy from 0.717 to 0.813 and BFCL-200 accuracy from 0.580 to 0.805, recovering 19/22 and 33/45 drift-induced failures with no observed repair harms. Naive retry does not explain the gains. Ablations show that candidate-set drift, especially distractor tools, accounts for most observed damage, while description and schema edits alone are less harmful. The results position validation-and-repair as a practical robustness layer for deployed LLM-agent tool use.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Modern language-model agents increasingly depend on external tools for retrieval, execution, planning, and actuation. In practice, however, tool use is mediated entirely through text: tool descriptions, parameter schemas, enum values, and candidate tool lists. Recent work shows that these interface details strongly affect tool selection and argument generation even when the tool semantics are unchanged <ref type="bibr" target="#b3">[4,</ref><ref type="bibr" target="#b1">2]</ref>. This creates a deployment problem: tool interfaces drift over time as developers rename parameters, revise descriptions, add examples, or expand candidate tool sets.</p><p>We study this problem as interface drift: benign, semantics-preserving changes to tool interfaces that occur after deployment. Our goal is not to train a new tool-calling model, but to quantify drift sensitivity and test whether a compact inference-time repair layer can recover reliability without retraining.</p><p>We instantiate drift with three deployment-motivated synthetic perturbations: (i) stale description examples that mention legacy field names, (ii) schema renaming, and (iii) distractor tools. Our primary evaluation uses Qwen3.5-9B on a 300-example DICE-BENCH slice <ref type="bibr" target="#b4">[5]</ref> and a 200-example BFCL slice <ref type="bibr" target="#b19">[21]</ref> under a deployment-realistic non-oracle repair protocol. Earlier oracle-constrained sweeps on additional open models are retained only as upper-bound context and for secondary analyses.</p><p>This paper makes three empirical contributions, demonstrated primarily on Qwen3.5-9B with a supporting replication on Qwen3.5-35B-A3B:</p><p>1. Non-oracle inference-time repair recovers drift-induced failures on the primary model. On Qwen3.5-9B, SchemaShield-Lite raises DICE-300 accuracy from 0.717 to 0.813 and BFCL-200 accuracy from 0.580 to 0.805, while showing no observed repair harms on the originally-correct slice in either benchmark. A same-protocol BFCL replication on Qwen3.5-35B-A3B (0.635 → 0.845) confirms the effect is not confined to a single model size, though the cleanest non-oracle evidence remains within the Qwen family. 2. Naive retry does not explain the gains. In the separate baseline runs reported in Section 6.2, naive retry reaches 0.727 versus repaired 0.813 on DICE-300 and 0.610 versus 0.795 on BFCL-200. A second attempt alone therefore cannot explain the recovery. 3. Missing tool names are the main non-oracle bottleneck, and most primary-model drift misses remain validator-visible. In the nonoracle setting, adding a candidate-set retry improves repaired accuracy from 0.780 to 0.813 on DICE and from 0.725 to 0.805 on BFCL while reducing unresolved repair targets from 35 to 15 and from 34 to 9 respectively. In the final primary runs, only 2/22 drift misses on the DICE originally-correct slice and 0/45 on BFCL remain validator-invisible.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Recent work has established that tool interfaces are not neutral wrappers around tool use; they are part of the learning and inference problem itself. Guo et al. <ref type="bibr" target="#b3">[4]</ref> show that rewriting tool descriptions can substantially improve agent reliability, especially when candidate tool sets are large. Faghih et al. <ref type="bibr" target="#b1">[2]</ref> show the opposite direction: small edits to tool descriptions can dramatically shift tool preference, exposing a fragility in description-mediated tool use. Rabinovich and Anaby-Tavor <ref type="bibr" target="#b12">[14]</ref> study robustness in agentic function calling under toolkit changes and other perturbations, while our focus is narrower: post-deployment interface drift with fixed underlying tool semantics.</p><p>Several recent papers study robustness and recovery in tool-use systems. Zhang et al. <ref type="bibr" target="#b22">[24]</ref> show that execution-error recovery remains a major weakness, particularly for smaller models, and propose RL-based training to improve it. Our setting is narrower and more deployment-oriented: we target inference-time robustness under interface drift rather than post-training optimization.</p><p>Our repair stack also connects to structured-output enforcement via constrained decoding. Grammar-constrained and grammar-aligned decoding study how to guarantee or preserve valid structured outputs during generation <ref type="bibr" target="#b2">[3,</ref><ref type="bibr" target="#b9">11]</ref>. We instead study post-hoc validation and repair after the base model has already produced a drifted tool call. Feeding error feedback back into the prompt also relates to judge-guided prompt refinement, which improves reliability without weight updates but has clear boundary conditions <ref type="bibr" target="#b0">[1]</ref>; in our setting, the feedback comes from deterministic schema validation rather than an LLM judge.</p><p>Benchmark work has also highlighted that realistic function calling is still far from solved. ComplexFuncBench introduces multi-step and constrained longcontext function calling <ref type="bibr" target="#b23">[25]</ref>, while DICE-BENCH focuses on multi-round, multiparty dialogues with tool-related information dispersed across conversation turns <ref type="bibr" target="#b4">[5]</ref>. Other benchmarks, including API-Bank, τ -bench, and ToolSandbox, similarly stress planning, state, and interaction in tool-use settings <ref type="bibr" target="#b6">[7,</ref><ref type="bibr" target="#b20">22,</ref><ref type="bibr" target="#b8">9]</ref>. We evaluate on both DICE-BENCH and the Berkeley Function Calling Leaderboard (BFCL) <ref type="bibr" target="#b19">[21]</ref> because they capture complementary settings: DICE-BENCH exercises conversational multi-turn dialogues, while BFCL tests single-turn tool calls across diverse APIs.</p><p>Broader tool-use work has focused on teaching models to call APIs, retrieving relevant tools, and combining reasoning with action <ref type="bibr" target="#b13">[15,</ref><ref type="bibr" target="#b10">12,</ref><ref type="bibr" target="#b11">13,</ref><ref type="bibr" target="#b21">23]</ref>. Our focus is different: robustness when an already-deployed tool interface changes.</p><p>This setting also connects to software-engineering work on API evolution and contract checking. AutoGuard, for example, compares OpenAPI descriptions across versions and flags changes to methods, parameters, responses, and schemas <ref type="bibr" target="#b5">[6]</ref>. Serbout and Pautasso <ref type="bibr" target="#b14">[16]</ref> study how Web API versioning practices align with the actual changes made across releases. We borrow the intuition that interface evolution is a first-class engineering concern, but study its effect on LLM tool use rather than on conventional API clients.</p><p>Compared with dataset-generation work such as APIGen <ref type="bibr" target="#b7">[8]</ref>, our objective is different. We do not create new large-scale tool-calling training data. Instead, we evaluate whether a lightweight repair layer can stabilize existing models against a specific class of post-deployment failures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Problem Formulation</head><p>Let a tool be represented by an interface I = (d, s, C), where d is the naturallanguage description, s is the argument schema, and C is the candidate tool set shown to the model. The underlying tool semantics are assumed fixed. An interface drift operator ∆ maps I to a new interface ∆(I) that preserves tool semantics but perturbs surface form. For clarity, we view ∆ as a composition of three operators,</p><formula xml:id="formula_0">∆ = δ c • δ s • δ d ,</formula><p>where δ d edits only the description text d, δ s edits only the schema surface form s, and δ c edits only the visible candidate set C. Each operator is semanticspreserving with respect to the benchmark gold tool call; the evaluation question is whether the model remains robust to these surface-form changes at inference time. We study three drift types:</p><p>-Description drift: add stale or legacy examples to the description that refer to older field names. -Schema drift: rename parameters while preserving semantics.</p><p>-Candidate-set drift: add distractor tools with overlapping descriptions.</p><p>Given user context x, tool interface I, and model M , the base system outputs a tool call y = M (x, I). We evaluate three stages:</p><p>1. Original: inference on the original tool interface. 2. Drifted: inference on the drifted interface ∆(I). 3. Repaired: inference-time repair of an invalid or incomplete drifted call.</p><p>Our central question is whether an inference-time repair layer can recover the performance lost from Original to Drifted without harming examples that were already correct.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Method</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">SchemaShield-Lite</head><p>SchemaShield-Lite is a lightweight inference-time robustness layer with three parts. Figure <ref type="figure">1</ref> sketches the full pipeline.</p><p>Canonical tool card. Each tool is rendered into a compact canonical form containing the tool name, description, required fields, and field-level type information. This normalizes interface presentation across tools and emphasizes current field names.</p><p>Validation. After the base model emits a tool call, a validator checks tool name, required fields, and argument structure. Validation produces a structured error report rather than a binary failure signal.</p><p>One-shot repair. If the drifted call is invalid, the model receives a repair prompt containing the task context, canonical tool card, invalid call, and validation errors. In the primary non-oracle protocol, repair proceeds in two stages. If the base call names a visible tool, validation runs against that tool and a constrained repair call is issued for that same visible tool. If the base call omits the tool name, we first run a candidate-set retry over the visible tools to produce a concrete tool call; once a visible tool is resolved, a second repair call may be constrained to that selected tool. Where provider support allows it, this second step uses forced-tool repair ; otherwise we fall back to unconstrained tool calling or JSON repair.</p><p>As our component ablation in Section 6.5 shows, it is the combination of structured validation errors and tool-constrained repair that does the heavy lifting once a visible target tool has been resolved. The canonical card is useful at the initial prediction step as drift-prevention prompting, but contributes negligibly to repair-stage recovery in our oracle-constrained upper-bound ablations.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Repair Prompting Details</head><p>Three implementation details turned out to matter materially:</p><p>-The repair prompt explicitly instructs the model to infer all required fields from the dialogue even when the invalid call is empty. -When the invalid call omits the tool name, a candidate-set retry over the visible tools is needed before tool-constrained repair can fire. -The repair stage uses a larger token budget than the base prediction stage.</p><p>Raising repair capacity from the earlier default to 512 tokens fixed truncated repair outputs on longer DICE dialogues.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Per-Example Evaluation Loop</head><p>Each benchmark example is evaluated in three stages: Original, Drifted, and Repaired. Drift is injected once, the gold call is re-expressed in the renamed schema before scoring, and repair fires only when validation flags the drifted call as invalid. We average the three per-example correctness indicators over the benchmark slice to obtain the headline accuracies.</p><p>5 Experimental Setup</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Benchmarks and Data Slices</head><p>We evaluate on two benchmarks. For DICE-BENCH <ref type="bibr" target="#b4">[5]</ref>, we use a 300-example subset drawn from single-function round-1 dialogues (allowing duplicate functions to reach sufficient scale). For BFCL <ref type="bibr" target="#b19">[21]</ref>, we use a 200-example subset drawn in equal parts from four categories: simple Python, multiple-function, live-simple, and live-multiple.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Models</head><p>We evaluate four open instruction-tuned models accessed via OpenRouter:</p><p>-Qwen3.5-9B: our primary model. All experiments use temperature 0.0 for low-variance evaluation, though hosted inference may still exhibit provider-side nondeterminism.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Drift Configurations</head><p>For DICE main runs, we use mild severity: two description modes (legacyexample and marketing), two schema modes (rename-parameters and reorderparameters), and one distractor tool. For BFCL we use medium severity: three description modes, three schema modes, and three distractors, reflecting a more aggressive drift scenario. These operators are author-designed and deploymentmotivated rather than mined from real API changelogs; we return to that limitation in Section 8. To sanity-check ecological validity, we manually audited 11 official changelog items from Notion and Stripe spanning 2022-2026. Six map directly to our documentation/example and parameter/schema operators, three more are close candidate-set analogues where vendors add or consolidate neighboring tools or endpoints, and two are larger structural refactors outside our semantics-preserving scope [10, <ref type="bibr" target="#b15">17,</ref><ref type="bibr" target="#b16">18,</ref><ref type="bibr" target="#b18">20,</ref><ref type="bibr" target="#b17">19]</ref>. We therefore treat the synthetic operators as a compact model of common surface-form churn rather than as a measured distribution over all API evolution events.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Repair Protocols</head><p>We use two repair protocols. Our primary protocol is non-oracle and is the main evidence in this paper: the validator checks the model-selected visible tool, and when the model omits the tool name, a candidate-set retry over only the visible tools resolves a target before repair. For broader model coverage and component ablations, we also retain earlier oracle-constrained upper-bound sweeps in which the repair stage is given the benchmark target tool. These upper-bound runs remain useful for cross-model context and ablation, but they are not the paper's deployment-facing evidence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Metrics</head><p>We report:</p><p>-Original score: accuracy on the unmodified interface.</p><p>-Drifted score: accuracy under interface drift.</p><p>-Repaired score: accuracy after one-shot repair. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Reproducibility and Release</head><p>All reported results come from fixed benchmark slices, fixed drift configurations, and fixed random seeds. The per-run JSON artifacts store example IDs, prompts, drifted tool schemas, validation outputs, repair targets, repair strategy, and token usage, and our evaluation uses the normalized semantic matching policy reported in each run summary. We release the experiment code, drift-generation scripts, prompts, configs, subset definitions, scoring/validation logic, and raw run artifacts in a public repository (public tool-drift repository). The artifact package stores example-level traces for the main success and limitation modes, including prompts, validation errors, repaired calls, and gold calls.</p><p>6 Results</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Primary Non-Oracle Results</head><p>Table <ref type="table" target="#tab_1">1</ref> summarizes our primary non-oracle Qwen3.5-9B results on DICE-300 and BFCL-200, together with oracle-constrained upper bounds for reference only. Under the non-oracle candidate-retry protocol, SchemaShield-Lite improves over the drifted baseline on both benchmarks with no observed repair harms on the originally-correct slice. The primary non-oracle results are strong on both benchmarks. On DICE-300, repair improves Qwen3.5-9B from 0.717 to 0.813 and recovers 19/22 driftinduced failures on the originally-correct slice. On BFCL-200, repair improves from 0.580 to 0.805 and recovers 33/45 drift-induced failures. The remaining gap to the oracle upper bound is small on DICE (0.813 vs 0.827), and on BFCL the final non-oracle candidate-retry run slightly exceeds the earlier oracle-style run (0.805 vs 0.795).</p><p>We therefore focus our interpretation on the large repaired-vs-drifted gaps, not on small differences between nearby runs. The bootstrap intervals in Table <ref type="table" target="#tab_1">1</ref> support the main claim that structured repair helps, but they do not justify strong claims about minor oracle-vs-non-oracle differences. Paired exact McNemar tests on the final non-oracle runs also support the main repair effect: repaired beats drifted with p = 3.7 × 10 -9 on DICE and p = 5.7 × 10 -14 on BFCL. On shared examples, the repaired-score difference between the oracle upper bound and the final non-oracle protocol is itself not significant on either benchmark (DICE exact McNemar p = 0.125; BFCL p = 0.754), which is consistent with the small raw score gaps in Table <ref type="table" target="#tab_1">1</ref>.</p><p>The candidate-set retry is load-bearing in the non-oracle setting. Relative to an earlier non-oracle run that simply skipped unresolved tool names, candidate retry raises repaired accuracy from 0.780 to 0.813 on DICE and from 0.725 to 0.805 on BFCL, while reducing unresolved repair targets from 35 to 15 and from 34 to 9 respectively.</p><p>Oracle upper bounds for context. The oracle rows in Table <ref type="table" target="#tab_1">1</ref> remain useful as upper-bound context, but they are not the paper's main evidence. We use them to localize mechanisms and portability limits, not to define the deployment-facing claim.</p><p>Repair cost overhead. On the final non-oracle Qwen3.5-9B runs, SchemaShield-Lite triggers repair on 48/300 examples (16.0%) in DICE and 64/200 examples (32.0%) in BFCL. Total repair tokens are 103,221 against 316,185 drifted tokens on DICE (32.6% relative overhead) and 154,249 against 327,289 drifted tokens on BFCL (47.1% relative overhead). Because repair is gated by validation, this overhead is paid only when the drifted call is invalid or incomplete. On a refreshed BFCL-200 live rerun of the same non-oracle protocol with latency instrumentation, average original-call latency is 8.8s, average drifted-call latency is 9.3s, and average repair-call latency when repair fires is 13.0s. With a 27.0% repair trigger rate on that rerun, this corresponds to roughly 3.5s expected added latency per example.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Baselines Do Not Explain the Gains</head><p>A first-order alternative explanation is that repair works simply because the model gets a second attempt. We test this with two baselines (Table <ref type="table" target="#tab_2">2</ref>). Naive retry re-runs the identical drifted prompt with no new information. Tool-list reprompt tells the model the call was invalid and lists the available tool names, but provides no canonical card, no validation errors, and no view of the invalid call. This second baseline isolates whether simply flagging the error and listing tools explains the gains. Neither baseline approaches SchemaShield-Lite. Naive retry reaches 0.727 on DICE and 0.610 on BFCL; tool-list re-prompt improves only marginally to 0.753 and 0.625 respectively. Both remain far below SchemaShield-Lite (0.813 and 0.795). The structured validation feedback, not merely knowing which tools are available, is therefore the load-bearing component. The paired repaired-vs-naive contrast is highly significant on both benchmarks (exact McNemar p = 4.1×10 -9 on DICE; p = 1.1 × 10 -13 on BFCL).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Repair Coverage: Drift Recovery Dominates and Most Misses Are Validator-Visible</head><p>The "repair &gt; original" effect is real, but it does not dominate the main story. These runs also reveal whether drift misses actually enter the repair path. On the originally-correct slice, 20/22 DICE drift misses and all 45/45 BFCL drift misses are validator-visible invalid or incomplete calls. Only two DICE misses remain validator-invisible valid-but-wrong outputs, and BFCL has none. Across the full benchmark slices, 63/85 DICE drift misses and 73/84 BFCL drift misses are validator-visible. The repair stack therefore addresses most observed drift failures; valid-but-wrong calls that bypass validation are a residual rather than dominant failure mode.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Drift-Type Ablation: Candidate-Set Drift Dominates</head><p>Table <ref type="table" target="#tab_5">4</ref> decomposes the drift pipeline into its three components and evaluates each in isolation at DICE-300 on Qwen3.5-9B. Description drift alone causes This result qualifies a common framing in the interface-drift literature. On this Qwen3.5-9B DICE-300 ablation, minor description rewording and semanticspreserving parameter renames do not meaningfully degrade accuracy; the model is evidently robust to this class of surface perturbation. The observed failure mode is candidate-set confusion: when a distractor tool with an overlapping description is added to the candidate set, tool selection degrades. In this slice, the practical implication is that tool-catalog growth deserves closer monitoring than minor description or schema revisions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.5">Upper-Bound Component Ablation: Validation, Not Canonical Card, Drives Recovery</head><p>To isolate which parts of the repair stack matter once a target tool has already been resolved, Table <ref type="table" target="#tab_6">5</ref> evaluates three variants of SchemaShield-Lite in an oracle-constrained upper-bound setting on both DICE-300 and BFCL-200 with Qwen3.5-9B: (i) canonical card only, where the card is prepended to the initial prompt but no validation/repair is applied; (ii) validation-plus-retry, which uses validation errors in a repair prompt but omits the canonical tool card from the repair context; and (iii) full SchemaShield-Lite (card + validation + repair). Within this oracle-constrained setting, the BFCL rows confirm and strengthen the DICE finding in three ways. First, the canonical card at initial-prediction time provides even stronger drift prevention on BFCL than on DICE: the base drifted score of 0.640 jumps to 0.810, a 17.0-point drift-prevention effect. Second, the card-only configuration still never triggers the validator and recovers zero drift-induced failures, because its valid-but-imperfect outputs pass schema checking without entering the repair path. Third, validation-plus-retry without the canonical card at repair time reaches a higher repaired accuracy on BFCL than the full pipeline (0.820 vs 0.795, and 26/34 recoveries vs 23/35), matching the pattern observed on DICE where validation-only nearly ties the full pipeline.</p><p>Taken together across both benchmarks, these upper-bound numbers localize the load-bearing component of SchemaShield-Lite to the validation error feedback loop combined with tool-constrained repair, not the canonical tool card presented at repair time. The card earns its keep as drift-prevention prompting at the initial prediction step, where BFCL shows it can dominate the remaining drift damage, but can be dropped from the repair prompt without hurting recovery once the target tool has already been resolved. Because these ablations are oracle-constrained, we treat them as upper-bound mechanism evidence rather than as a full explanation of non-oracle portability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.6">Error Analysis</head><p>On the primary non-oracle Qwen3.5-9B runs, only 3 DICE examples and 12 BFCL examples remain unrecovered on the originally-correct slice. The DICE residuals are split between one repaired-but-still-mismatched hashtag value and two validator-invisible value mismatches that never trigger repair. On BFCL, most unrecovered cases remain validator-visible missing-field failures after repair, while two cases remain unresolved because the model never supplies a usable tool name. These patterns are consistent with the main bottleneck story in Section 6.3: the dominant remaining failure modes are either missing-tool-name resolution or persistent argument completion failures.</p><p>Across the oracle-constrained DICE upper-bound sweeps, no repair harms are observed. However, not every drift miss is recovered. On Qwen3.5-35B, repair recovers 20 of 25 drift misses; on Llama-4-Scout, 12 of 16; on Mistral, 8 of 12. We manually inspected every unrecovered case on these three runs and classified them against the gold call. The pattern is consistent across models: nearly all unrecovered examples involve the repair call selecting the correct tool with well-formed arguments whose string values disagree with gold only by formatting or paraphrase. On Qwen3.5-35B (5 unrecovered), these include one strict whitespace/punctuation difference ("the quick brown fox..." vs "The quick brown fox....") and three enum-format or paraphrase-level mismatches (e.g. regular_season vs regular season, the office vs Office); a single genuine failure has an empty arguments object after repair. On Llama-4-Scout (4 unrecovered), all four are formatlevel: ISO-prefixed dates vs two-field dates (e.g. 2023-11-10 vs 11-10), or JSON with quoted-number string values rather than numeric literals. On Mistral-24B (4 unrecovered), the misses include near-synonym topics (inspirational vs inspiration, AI vs artificial intelligence, Google vs GOOGL) and one wrong numeric amount. Across 13 unrecovered cases in total, only 2 are genuine inference failures (empty arguments and one wrong value); the remaining 11 are strict-match artifacts rather than true drift failures. The practical implication is that the paper's reported recovery rates are a lower bound: a lenient evaluator would count most of the unrecovered cases as correct.</p><p>Mistral-24B exhibits an unusual pattern: its drifted score (0.777) slightly exceeds its original score (0.740). Inspection shows that 15/23 apparent drift "gains" are strict-match artifacts on the original call (formatting differences in string values) rather than information recovered from the drifted description. We read this as scorer noise, not evidence that drift helps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.7">Additional Non-Oracle Replications</head><p>To reduce the single-model dependence of the primary story, we also ran the same BFCL-200 non-oracle candidate-retry protocol on Qwen3.5-35B-A3B. Repair again helps materially, lifting accuracy from 0.635 to 0.845 (exact McNemar p = 4.5 × 10 -13 ). On the originally-correct slice it recovers 33/38 drift misses, shows no observed repair harms, and leaves only one unresolved repair target. This does not eliminate same-family dependence, but it shows that the main BFCL non-oracle effect is not confined to the 9B run.</p><p>We also ran the same BFCL-200 non-oracle candidate-retry protocol on Llama-4-Scout. Repair still improves over the drifted call (0.635 → 0.665, exact McNemar p = 0.031) and again shows no observed repair harms on the originallycorrect slice. However, this run exposes an important portability failure mode: the model omits the tool name frequently, leaving 43 unresolved repair targets and limiting recovery on the originally-correct slice to just 1/11 drift misses. The Llama run therefore supports some portability of the repair effect, but also reinforces that non-oracle repair quality depends heavily on the base model's ability to emit a usable tool name.</p><p>We also ran a BFCL-200 non-oracle sanity check on GPT-4o-mini after adding provider-safe tool-name aliasing for OpenAI-style tool schemas. On this stronger closed model, drift damage is much smaller to begin with: accuracy falls only from 0.865 to 0.840. Repair lifts the score to 0.860 with no observed harms and zero unresolved repair targets, but the gain is small and not significant on this 200-example slice (exact McNemar p = 0.125). We therefore read the GPT-4o-mini result as a credibility check rather than as a new headline number: the problem appears less severe on a stronger closed model, yet the same non-oracle repair stack does not appear to hurt it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Discussion</head><p>Our results support three narrower conclusions than the original SchemaShield-Lite framing suggested. First, non-oracle inference-time repair is a viable robustness layer for tool-calling systems under interface drift: on Qwen3.5-9B it improves over drifted performance on both DICE and BFCL while showing no observed repair harms on the originally-correct slice. Second, the main nonoracle bottleneck is missing tool names; a candidate-set retry over the visible tools closes much of the gap to the oracle upper bound. Third, on our DICE-300 primary-model ablation, candidate-set drift is a more important failure mode than description or schema drift.</p><p>Together these findings simplify the deployment picture. A practitioner does not need a heavy per-tool canonicalization pipeline; a visible-tool validator, a candidate-set retry for missing tool names, and a constrained repair call once a tool is resolved already recover most of the damage we observe. And the monitoring story is clearer: in our slices, tool-catalog expansion appears more consequential than minor description or parameter rename churn. The additional BFCL-200 Qwen3.5-35B-A3B replication suggests this practical recipe is not limited to one exact model size, even if broader cross-family evidence remains thin.</p><p>These same results also matter for adversarial interface manipulation. Faghih et al. <ref type="bibr" target="#b1">[2]</ref> show that small description edits can steer tool selection even when semantics are unchanged. Our ablation suggests that the more serious surface to monitor is not just description wording in isolation, but the combination of description overlap and candidate-set expansion: once distractor tools enter the visible set, routing degrades quickly. In that sense, the non-oracle validator-plusrepair stack is relevant not only to benign interface drift but also to descriptionsurface attacks that aim to induce tool confusion.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="8">Limitations</head><p>Several limitations remain. First, although we now include a strong BFCL nonoracle replication on Qwen3.5-35B-A3B and a weaker portability check on Llama-4-Scout, the cleanest successful non-oracle evidence is still concentrated in the Qwen3.5 family; the broader multi-model results retained in the paper remain mostly oracle-constrained upper bounds rather than full non-oracle replications. Second, the BFCL evaluation now covers three open-model non-oracle runs, but two are Qwen3.5-family results and the third is materially bottlenecked by missing tool names; we also include one closed-model BFCL sanity check, but not yet a broader closed-model sweep. Third, our drift operators focus on stale descriptions, renamed fields, and distractors; other forms of interface drift (for example, type narrowing, enum replacement, or multi-tool refactors) remain untested, and although we now add a small manual audit of official vendor changelogs, the perturbations are still author-designed rather than mined from a larger empirical change distribution. Fourth, the drift-type and component ablations remain oracle-constrained upper bounds, so their mechanism-level conclusions may not fully transfer when non-oracle tool resolution fails. Fifth, evaluation uses hosted inference and so may incorporate provider-specific tool-calling behavior. Sixth, the "repair &gt; original" effect indicates that SchemaShield-Lite is also patching baseline failures, useful in deployment, but a complication for clean attribution to drift recovery specifically. Seventh, strict string-matching against gold calls undercounts true recoveries: manual inspection of the 13 unrecovered cases on the three non-primary models (Section 6.6) shows that 11 are formatting or paraphrase artifacts, so the reported recovery rates should be read as lower bounds. Finally, while we now report broader cross-protocol significance for oracle-vsnon-oracle repaired outcomes on the shared Qwen slices, we still lack a broader wall-clock latency sweep across benchmarks, providers, and models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="9">Conclusion</head><p>We studied SchemaShield-Lite, a lightweight inference-time validation-and-repair stack for tool calling under interface drift. On Qwen3.5-9B under a non-oracle candidate-retry protocol, SchemaShield-Lite improves DICE-300 from 0.717 to 0.813 and BFCL-200 from 0.580 to 0.805, with no observed repair harms on the originally-correct slice in both benchmarks. Three findings qualify the picture. A naive-retry baseline does not explain the gains. Description and schema drift cause only small degradations on our DICE slice, while candidate-set drift is the dominant failure mode. And in the non-oracle setting, missing tool names are the main repair bottleneck: a candidate-set retry over the visible tools substantially reduces unresolved cases and closes most of the gap to oracle-constrained upper bounds. Additional oracle-constrained sweeps across other models and upperbound ablations remain useful context, and a BFCL sanity check on GPT-4omini suggests that stronger closed models suffer less drift damage to begin with. A same-protocol BFCL-200 replication on Qwen3.5-35B-A3B (0.635 → 0.845) materially strengthens the main claim, but the cleanest successful non-oracle evidence is still concentrated in the Qwen family. The paper should therefore be read as a controlled study of drift sensitivity and inference-time repair rather than as a complete account of production interface drift.</p><p>Broader impact. The same repair stack that recovers benign drift could in principle mask adversarial tool injection, where a malicious distractor tool is added to the candidate set. Practitioners deploying inference-time repair should pair it with provenance checks on newly added tools.</p><p>GenAI disclosure. Generative AI tools (Claude, ChatGPT) were used during manuscript preparation for drafting assistance and code review. All AI-generated content was reviewed, edited, and verified by the authors, who take full responsibility for the final text.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>-Qwen3. 5 -</head><label>5</label><figDesc>35B-A3B: larger MoE variant. -Llama-4-Scout: Meta's 2025 open model. -Mistral-Small-3.2-24B: recent Mistral dense model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 .</head><label>1</label><figDesc>Primary non-oracle Qwen3.5-9B results on DICE-300 and BFCL-200, with oracle upper bounds. Brackets give 95% bootstrap CIs (seed 42). Naive retry score: accuracy under a second identical drifted call (no canonical card, no validation feedback). This baseline isolates the value of simply retrying. -Originally-correct slice: the subset of examples that the model solves correctly before drift. This slice isolates true drift harm from baseline errors. -Repair recoveries: drift-induced failures recovered by repair. -Repair harms: drifted-correct examples broken by repair. -Repair trigger rate: fraction of examples for which the validator invokes the repair step.</figDesc><table><row><cell cols="2">Benchmark Protocol</cell><cell>Orig. [95% CI]</cell><cell>Drift. [95% CI]</cell><cell>Repair [95% CI]</cell><cell>OC Rec/Miss Harms Trig%</cell></row><row><cell>DICE-300</cell><cell cols="5">Non-oracle + candidate retry 0.757 [0.70, 0.80] 0.717 [0.67, 0.77] 0.813 [0.77, 0.86] 227 Oracle upper bound 0.750 [0.70, 0.80] 0.713 [0.66, 0.76] 0.827 [0.79, 0.87] 225</cell><cell>19/22 17/18</cell><cell>0 0</cell><cell>16.0 21.0</cell></row><row><cell>BFCL-200</cell><cell cols="5">Non-oracle + candidate retry 0.790 [0.74, 0.84] 0.580 [0.51, 0.65] 0.805 [0.75, 0.86] 158 Oracle upper bound 0.790 [0.74, 0.84] 0.640 [0.58, 0.71] 0.795 [0.74, 0.85] 158</cell><cell>33/45 23/35</cell><cell>0 0</cell><cell>32.0 31.0</cell></row><row><cell cols="6">OC = originally-correct count; Rec = recoveries on drift-induced failures; Harms = repair harms on</cell></row><row><cell cols="6">originally-correct slice; Trig% = repair trigger rate. Rows come from separate runs, so Original</cell></row><row><cell cols="3">scores may differ slightly across protocols.</cell><cell></cell><cell></cell></row></table><note><p>-</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 .</head><label>2</label><figDesc>Baselines vs SchemaShield-Lite on Qwen3.5-9B (non-oracle). Scores from separate runs; minor differences from Table1reflect run-level variance.</figDesc><table><row><cell cols="5">Benchmark Drifted Naive Retry Tool-List Re-prompt SchemaShield-Lite ∆ over Drifted</cell></row><row><cell>DICE-300 0.713</cell><cell>0.727</cell><cell>0.753</cell><cell>0.813</cell><cell>+0.100</cell></row><row><cell>BFCL-200 0.590</cell><cell>0.610</cell><cell>0.625</cell><cell>0.795</cell><cell>+0.205</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 3 .</head><label>3</label><figDesc>Decomposition of repaired improvements on the primary non-oracle Qwen3.5-9B runs.</figDesc><table><row><cell cols="5">Benchmark Total gains Drift recovery Baseline patching Harms</cell></row><row><cell>DICE-300</cell><cell>29</cell><cell>19</cell><cell>10</cell><cell>0</cell></row><row><cell>BFCL-200</cell><cell>45</cell><cell>33</cell><cell>12</cell><cell>0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3</head><label>3</label><figDesc></figDesc><table /><note><p>decomposes every repaired improvement over the drifted call into either drift recovery on the originally-correct slice or baseline patching on examples the base model already missed before drift. Most repaired gains come from genuine drift recovery: 19/29 on DICE and 33/45 on BFCL. Baseline patching is material, especially on BFCL, and should be read as a secondary benefit rather than the paper's central causal claim.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 .</head><label>4</label><figDesc>Drift-type ablation on DICE-300 with Qwen3.5-9B. Single-candidate tasks make description/schema-only repair equivalent to oracle-target. .013 point accuracy drop. Schema drift alone causes only 0.007. By contrast, candidate-set drift (adding a distractor tool) causes a 0.047 drop, matching the full combined drift scenario (0.050). Because this ablation is about where the damage comes from, the main interpretation still rests on the Original-to-Drifted delta. For the repair column, however, only the distractor-bearing rows require fresh non-oracle evidence. In our DICE-300 slice, every baseline task has exactly one candidate tool, so under predicted-tool repair the description-only and schema-only settings collapse to the same effective repair target as the oracle-</figDesc><table><row><cell>Drift type</cell><cell cols="2">Orig. Drift. Repair Drift Drop</cell></row><row><cell cols="2">Description only 0.760 0.747 0.813</cell><cell>-0.013</cell></row><row><cell>Schema only</cell><cell>0.767 0.760 0.830</cell><cell>-0.007</cell></row><row><cell cols="2">Candidate-set only 0.757 0.710 0.817</cell><cell>-0.047</cell></row><row><cell>All combined</cell><cell>0.763 0.713 0.813</cell><cell>-0.050</cell></row><row><cell>only a 0</cell><cell></cell><cell></cell></row></table><note><p>target protocol via single-candidate fallback. The non-oracle question therefore matters only once distractor tools are introduced. A fresh candidate-set-only non-oracle rerun reaches 0.817, while the primary DICE main run already supplies the matching all-combined non-oracle row at 0.813. The qualitative conclusion is unchanged: candidate-set drift remains the dominant source of damage, and non-oracle repair stays close to the earlier oracle upper bounds.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 .</head><label>5</label><figDesc>Oracle-constrained upper-bound component ablation on DICE-300 and BFCL-200 with Qwen3.5-9B. BFCL uses medium-severity drift, DICE uses mild.</figDesc><table><row><cell cols="2">Benchmark Variant</cell><cell cols="4">Drift. Repair Rec/Miss Harms Trig%</cell></row><row><cell></cell><cell>Canonical card only</cell><cell>0.770 0.770</cell><cell>0/9</cell><cell>0</cell><cell>0.0</cell></row><row><cell>DICE-300</cell><cell cols="3">Validation + retry (no card) 0.730 0.830 16/17</cell><cell>0</cell><cell>20.0</cell></row><row><cell></cell><cell cols="3">Full SchemaShield-Lite 0.713 0.827 17/18</cell><cell>0</cell><cell>21.0</cell></row><row><cell></cell><cell>Canonical card only</cell><cell>0.810 0.810</cell><cell>0/11</cell><cell>0</cell><cell>0.0</cell></row><row><cell>BFCL-200</cell><cell cols="3">Validation + retry (no card) 0.645 0.820 26/34</cell><cell>0</cell><cell>29.5</cell></row><row><cell></cell><cell>Full SchemaShield-Lite</cell><cell cols="2">0.640 0.795 23/35</cell><cell>0</cell><cell>31.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 6 .</head><label>6</label><figDesc>Unrecovered oracle-constrained DICE cases on non-primary models. "Artifact" = formatting/paraphrase mismatches, semantically correct on inspection.</figDesc><table><row><cell>Model</cell><cell cols="3">Unrecovered Artifact-like Genuine failure</cell></row><row><cell>Qwen3.5-35B-A3B</cell><cell>5</cell><cell>4</cell><cell>1</cell></row><row><cell>Llama-4-Scout</cell><cell>4</cell><cell>4</cell><cell>0</cell></row><row><cell>Mistral-24B</cell><cell>4</cell><cell>3</cell><cell>1</cell></row><row><cell>Total</cell><cell>13</cell><cell>11</cell><cell>2</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Metatuning: An empirical study of judge-guided prompt refinement and its boundary conditions</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chattopadhyay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dandekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Roy</surname></persName>
+		</author>
+		<idno type="DOI">10.1177/29498732261443132</idno>
+		<ptr target="https://doi.org/10.1177/29498732261443132" />
+	</analytic>
+	<monogr>
+		<title level="j">Neurosymbolic Artificial Intelligence</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="15" />
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>Faghih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bharti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Sriramanan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Feizi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.18135</idno>
+		<title level="m">Gaming tool preferences in agentic llms</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Grammar-constrained decoding for structured NLP tasks without finetuning</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Josifoski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Peyrard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>West</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Guo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.20426</idno>
+		<title level="m">Learning to rewrite tool descriptions for reliable llm-agent tool use</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Dice-bench: Evaluating the tool-use capabilities of large language models in multi-round</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Jang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Heo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Suh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.22853</idno>
+	</analytic>
+	<monogr>
+		<title level="m">multi-party dialogues</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Autoguard: Reporting breaking changes of rest apis from java spring boot source code</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Lercher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Macho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Pinzger</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/SANER64311.2025.00083</idno>
+		<ptr target="https://doi.org/10.1109/SANER64311.2025.00083" />
+	</analytic>
+	<monogr>
+		<title level="m">2025 IEEE 32nd International Conference on Software Analysis</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">APIbank: A comprehensive benchmark for tool-augmented LLMs</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.187</idno>
+		<ptr target="https://doi.org/10.18653/v1/2023.emnlp-main.187" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="3102" to="3116" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kokane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Murthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">C</forename><surname>Niebles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Heinecke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.18518</idno>
+		<title level="m">Apigen: Automated pipeline for generating verifiable and diverse function-calling datasets</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Holleis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Aumayer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Pang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.04682</idno>
+		<title level="m">Toolsandbox: A stateful, conversational, interactive evaluation benchmark for LLM tool use capabilities</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Grammaraligned decoding</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Berg-Kirkpatrick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Polikarpova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>D'antoni</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.15334</idno>
+		<title level="m">Gorilla: Large language model connected with massive apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gerstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.16789</idno>
+		<title level="m">Toolllm: Facilitating large language models to master 16000+ real-world apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">On the robustness of agentic function calling</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Rabinovich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Anaby-Tavor</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 5th Workshop on Trustworthy NLP</title>
+		<meeting>the 5th Workshop on Trustworthy NLP</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.04761</idno>
+		<title level="m">Toolformer: Language models can teach themselves to use tools</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">An empirical study of web api versioning practices</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Serbout</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Pautasso</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/978-3-031-34444-2_22</idno>
+		<ptr target="https://doi.org/10.1007/978-3-031-34444-2_22" />
+	</analytic>
+	<monogr>
+		<title level="j">Web Engineering. Lecture Notes in Computer Science</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Replaces line item parameters from the create checkout session endpoint</title>
+		<author>
+			<persName><surname>Stripe</surname></persName>
+		</author>
+		<idno>ac- cessed 2026-04-13</idno>
+		<ptr target="https://docs.stripe.com/changelog/2022-08-01/replaces-line-item-create-checkout-session" />
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note>stripe changelog entry</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<ptr target="https://docs.stripe.com/changelog/basil/2025-03-31/default-value-payment-links-custom-fields" />
+		<title level="m">Stripe: Adds default value to custom fields on payment links</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="2026" to="2030" />
+		</imprint>
+	</monogr>
+	<note>stripe changelog entry</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Renames the parameter for custom settlement timing on the balance settings api</title>
+		<author>
+			<persName><surname>Stripe</surname></persName>
+		</author>
+		<ptr target="https://docs.stripe.com/changelog/basil/2025-07-30/balance-settings-delay-days-rename" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="2026" to="2030" />
+		</imprint>
+	</monogr>
+	<note>stripe changelog entry</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Replaces upcoming invoice api methods with the create preview invoice api</title>
+		<author>
+			<persName><surname>Stripe</surname></persName>
+		</author>
+		<ptr target="https://docs.stripe.com/changelog/basil/2025-03-31/invoice-preview-api-deprecations" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="2026" to="2030" />
+		</imprint>
+	</monogr>
+	<note>stripe changelog entry</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C J</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<ptr target="https://gorilla.cs.berkeley.edu/leaderboard.html" />
+		<title level="m">Berkeley function calling leaderboard</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12045</idno>
+		<title level="m">A benchmark for toolagent-user interaction in real-world domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.15625</idno>
+		<title level="m">Robust tool use via fission-grpo</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Complexfuncbench: Exploring multi-function calling in large language models</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.10132</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

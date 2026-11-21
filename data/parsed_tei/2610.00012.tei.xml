@@ -1,0 +1,1165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">When Do Causal World Models Help Modular LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-29">29 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Xinyuan</forename><surname>Song</surname></persName>
+							<email>xinyuan.song@emory.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Emory University Atlanta</orgName>
+								<address>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zekun</forename><surname>Cai</surname></persName>
+							<email>caizekun@csis.u-tokyo.ac.jp</email>
+							<affiliation key="aff1">
+								<orgName type="institution">The University of Tokyo Tokyo</orgName>
+								<address>
+									<country key="JP">Japan</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">When Do Causal World Models Help Modular LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-29">29 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">3DE3A2A5ED59DCECB1F65CFA8241BEEF</idno>
+					<idno type="arXiv">arXiv:2610.00012v2[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>
+					<term>Causal world models</term>
+					<term>modular LLM agents</term>
+					<term>causal composition</term>
+					<term>intervention-aware planning</term>
+				</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>LLM agents increasingly operate in modular systems, where planning requires coordinating multiple functional components whose actions can causally change downstream states and behaviors. This makes intervention-aware prediction essential: an agent must anticipate not only what is likely to happen next, but what will happen as a consequence of its own actions. We find that purely observational world models can incur irreducible intervention-time error in such systems, even when they accurately model observational trajectories. To address this limitation, we propose CausalCompose, a causal world-model framework that equips modular LLM agents with causal structure for intervention-aware prediction and planning. We theoretically show that causal composition can overcome this intervention gap with sufficient evidence and controlled local error. Experiments across diverse modular agent environments validate these results: incorporating causal structure consistently improves intervention-sensitive reasoning and planning, with particularly clear gains in structured tool-use systems where causal dependencies directly govern action execution. Our results show when causal world models help modular LLM agents: when causal dependencies are identifiable and actionable for planning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>CCS Concepts</head><p>• Computing methodologies → Causal reasoning and diagnostics; Multi-agent systems.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>LLM agents increasingly operate in systems that are modular by design <ref type="bibr" target="#b2">[3,</ref><ref type="bibr">15,</ref><ref type="bibr" target="#b15">17,</ref><ref type="bibr" target="#b35">37]</ref>. Rather than interacting with a single monolithic environment, an agent often coordinates multiple functional modules <ref type="bibr">[15,</ref><ref type="bibr" target="#b15">17]</ref>. For example, a retail agent must coordinate payment and fulfillment services to complete an order <ref type="bibr" target="#b2">[3,</ref><ref type="bibr" target="#b34">36,</ref><ref type="bibr" target="#b35">37]</ref>, while a household agent must coordinate navigation and object interaction to accomplish a physical task <ref type="bibr" target="#b27">[29]</ref>. Modern agent benchmarks make this modular structure increasingly explicit: APIBank <ref type="bibr">[15]</ref> organizes interaction around executable APIs, ToolSandbox <ref type="bibr" target="#b15">[17]</ref> evaluates stateful tool use, 𝜏-bench <ref type="bibr" target="#b35">[37]</ref> and 𝜏 2 -bench <ref type="bibr" target="#b2">[3]</ref> couple language interaction with domain tools and evolving environment state, and ALFWorld <ref type="bibr" target="#b27">[29]</ref> requires agents to coordinate distinct functional operations over a shared embodied task. This modular organization enables agents to decompose complex tasks into specialized components, reuse functional capabilities across tasks, and coordinate heterogeneous tools and services within a unified workflow. A modular design therefore provides a scalable and flexible foundation for building agents that operate across increasingly complex environments.</p><p>This modularity creates a causal problem. Sequence-based world models learn which states and actions tend to occur together, whereas planning requires predicting what will happen because the agent takes a particular action. This distinction becomes fundamental when modules share latent causes or when several components change together: an observationally predictive dependency need not remain valid after intervention <ref type="bibr" target="#b20">[22,</ref><ref type="bibr" target="#b22">24,</ref><ref type="bibr" target="#b26">28]</ref>. For example, an agent may repeatedly observe a payment update followed by a shipment transition and learn this sequence accurately, while still predicting the wrong downstream state when it actively changes the payment module. More generally, model-based RL and language-agent world models are commonly trained to predict future observations or trajectories from recorded experience <ref type="bibr">[8-11, 13, 14, 18, 33, 39]</ref>. In modular systems, however, accurate observational prediction alone does not guarantee correct intervention-time prediction.</p><p>We first formalize why observational world models can fail at intervention time. Even if a world model perfectly learns the predictive relationships present in observational data, those relationships need not correctly predict the consequences of actively changing one module <ref type="bibr" target="#b20">[22,</ref><ref type="bibr" target="#b22">24]</ref>. We characterize this mismatch through unblocked back-door paths <ref type="bibr" target="#b20">[22]</ref> and prove that, under nondegenerate confounding, the optimal observational predictor still incurs a strictly positive error gap relative to the correct interventional predictor. Thus, collecting more observational data or fitting the observational distribution more accurately cannot in general eliminate the error: resolving it requires information that distinguishes observation from intervention <ref type="bibr" target="#b20">[22,</ref><ref type="bibr" target="#b22">24]</ref>. We further show that this problem becomes more consequential in modular systems, because an incorrect intervention prediction at one module can propagate through subsequent module dependencies, causing prediction reliability to deteriorate as the composition depth increases.</p><p>To address this problem, we propose CausalCompose, a causal world model for modular LLM agents. Instead of treating the system as one undifferentiated trajectory, CausalComposepreserves local mechanisms and uses local actions and responses to identify causal dependencies among functional modules. As illustrated in  We evaluate these predictions through synthetic causal diagnostics and modular LLM-agent environments <ref type="bibr" target="#b2">[3,</ref><ref type="bibr">15,</ref><ref type="bibr" target="#b15">17,</ref><ref type="bibr" target="#b27">29,</ref><ref type="bibr" target="#b35">37]</ref>. The synthetic experiments verify the predicted intervention gap, horizon compounding, and dependence of causal recovery on intervention coverage. Agent experiments further show that incorporating causal structure improves intervention-sensitive reasoning and planning, with the clearest gains in structured tool-use environments <ref type="bibr" target="#b2">[3,</ref><ref type="bibr">15,</ref><ref type="bibr" target="#b15">17,</ref><ref type="bibr" target="#b35">37]</ref> where modular dependencies directly govern valid actions and downstream transitions. Across dialogue and narrative settings, the experiments further demonstrate that causal knowledge becomes useful when it is presented in a form that makes the relevant dependency actionable at decision time. Together, these results answer the question posed by our title: causal world models help modular LLM agents when intervention-sensitive dependencies can be identified from available evidence and incorporated into agent planning.</p><p>Our contributions are summarized as follows: (1) We identify a fundamental mismatch between observational world modeling and intervention-time planning in modular LLM agents.</p><p>(2) We establish the intervention-time error of observational models, characterize its compounding across modules, and derive conditions under which causal composition overcomes this gap. (3) We propose CausalCompose, which learns causal dependencies from intervention-response evidence and composes local mechanisms for prediction and planning. (4) We validate our theory across synthetic diagnostics and modular agent environments, showing when causal world models improve agent planning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Federated and causal learning. Federated RL <ref type="bibr" target="#b29">[31]</ref> shares policies, value functions, or learned models across decentralized clients, while model-based RL learns dynamics for planning and control <ref type="bibr" target="#b7">[8]</ref><ref type="bibr" target="#b8">[9]</ref><ref type="bibr" target="#b9">[10]</ref><ref type="bibr" target="#b10">[11]</ref><ref type="bibr" target="#b13">14]</ref>. Causal discovery methods learn structure from observational data <ref type="bibr" target="#b39">[41]</ref>, interventions or heterogeneous environments <ref type="bibr" target="#b3">[4,</ref><ref type="bibr" target="#b21">23,</ref><ref type="bibr" target="#b22">24]</ref>, and distributed data <ref type="bibr" target="#b1">[2,</ref><ref type="bibr" target="#b11">12,</ref><ref type="bibr" target="#b17">19]</ref>. Unlike settings where clients represent separate environments, CausalCompose treats clients as functional modules of one coupled system and uses interventionresponse evidence to recover and compose dependencies between their local mechanisms.</p><p>Causal and language-agent world models. Causal representation learning and causal world models study how causal structure supports generalization, prediction, and control <ref type="bibr" target="#b18">[20,</ref><ref type="bibr" target="#b26">28,</ref><ref type="bibr" target="#b38">40]</ref>. Recent LLM-agent work further explores environment simulation, retrieval, dynamic reasoning, adaptive world models, state tracking, and action-conditioned reasoning <ref type="bibr" target="#b0">[1,</ref><ref type="bibr" target="#b5">6,</ref><ref type="bibr" target="#b12">13,</ref><ref type="bibr" target="#b16">18,</ref><ref type="bibr" target="#b31">33,</ref><ref type="bibr" target="#b36">38,</ref><ref type="bibr" target="#b37">39]</ref>. We instead ask when causal dependencies between functional modules improve intervention-time prediction and planning.</p><p>Agent benchmarks and modular systems. Interactive benchmarks evaluate agents over tool use, service workflows, embodied environments, web interaction, and device control <ref type="bibr" target="#b2">[3,</ref><ref type="bibr">15,</ref><ref type="bibr" target="#b15">17,</ref><ref type="bibr" target="#b24">26,</ref><ref type="bibr" target="#b27">29,</ref><ref type="bibr" target="#b30">32,</ref><ref type="bibr" target="#b34">36,</ref><ref type="bibr" target="#b35">37]</ref>. We use their naturally separable functional components to make cross-module dependencies explicit and evaluate when modeling these dependencies causally improves prediction and planning.</p><p>Relationship to prior work.  Theorem 1 (Interventional risk gap). Let F obs be the population-optimal squared-error predictor under the observational transition in Equation <ref type="bibr">(3.3)</ref>. Under the intervention (𝐴 𝑘,𝑡 = 𝑎), define its interventional risk as</p><formula xml:id="formula_0">𝑅 int ( F obs ) := E 𝑃 int 𝑋 𝑗,𝑡 +1 -F obs (𝑋 𝑡 , 𝑎) 2 2 .</formula><p>(3.8)</p><p>Then, this risk satisfies</p><formula xml:id="formula_1">𝑅 int ( F obs ) ≥ E 𝑃 int E 𝑃 int [𝑋 𝑗,𝑡 +1 | 𝑋 𝑡 , (𝐴 𝑘,𝑡 = 𝑎)] -F obs (𝑋 𝑡 , 𝑎)<label>2 2 .</label></formula><p>(3.9) For the linear-Gaussian setting in Equation (3.7), Equation (3.9) further gives</p><formula xml:id="formula_2">𝑅 int ( F obs ) ≥ 𝛾 2 𝑉 𝑗 𝜇 shift 2 2 .</formula><p>(3.10)</p><p>Theorem 1 shows that observational accuracy alone cannot remove the intervention-time error induced by Equation <ref type="bibr">(3.6)</ref>. A causal world model instead targets the interventional transition in Equation (3.4) and uses the causal graph in Equation (3.2) to propagate the effect of an action to downstream modules. The complete proof of Theorem 1 is provided in Appendix A.1.</p><p>Why the causal model can win. In a modular system, an observational-interventional mismatch can propagate through multiple causal paths. For the linear-Gaussian setting, let 𝐵 𝑒 denote the causal operator associated with edge 𝑒, and let Π(𝑘, 𝑗) denote the set of directed paths from the intervened module 𝑘 to a downstream module 𝑗. The total causal effect is</p><formula xml:id="formula_3">𝑇 𝑗←𝑘 := ∑︁ 𝜋 ∈Π (𝑘,𝑗 ) 𝑒 ∈𝜋 𝐵 𝑒 . (3.11)</formula><p>If the intervention at module 𝑘 induces the mean displacement 𝛾𝑉 𝑘 𝜇 shift , this discrepancy propagates to module 𝑗 as</p><formula xml:id="formula_4">𝑏 𝑗 = 𝑇 𝑗←𝑘 𝛾𝑉 𝑘 𝜇 shift . (3.12)</formula><p>Thus, while the observational predictor propagates a systematically biased state through 𝐺 * , the causal predictor propagates the interventional conditional mean.</p><p>Theorem 2 (Causal advantage under propagation). For any downstream module 𝑗, the intervention-time excess risk of the Table <ref type="table" target="#tab_0">1</ref>: Comparison with closely related work. We compare methods by whether they support causal world modeling, modular structure, intervention-based evidence, cross-module causal composition, planning-time use, and theoretical characterization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Work</head><p>Causal WM Modular Intervention evidence</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Cross-module composition</head><p>Planning use Theory</p><formula xml:id="formula_5">Gkountouras et al. [7] ✓ ✗ ✓ ✗ ✓ ✗ CausalPlan [21] ✓ ✗ ✓ ✗ ✓ ✗ Dyna-Think [39] ✗ ✓ ✗ ✓ ✓ ✗ PatchWorld [1] ✗ ✓ ✗ ✓ ✓ ✗ WM3C [34] ✓ ✓ ✓ ✓ ✓ ✗ PoE-World [25] ✗ ✓ ✗ ✓ ✓ ✗ C-MBPO [5] ✓ ✓ ✓ ✓ ✓ ✓ I-PERI [2] ✓ ✓ ✓ ✗ ✗ ✓ fedCI-IOD [12] ✓ ✓ ✗ ✗ ✗ ✓ CausalCompose (This work) ✓ ✓ ✓ ✓ ✓ ✓</formula><p>population-optimal observational predictor satisfies</p><formula xml:id="formula_6">𝑅 int ( F obs ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) = ∥𝑏 𝑗 ∥ 2 2 = 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift 2 2 .</formula><p>(3.13)</p><p>Consequently,</p><formula xml:id="formula_7">𝛾 2 𝜎 2 min (𝑇 𝑗←𝑘 ) ∥𝑉 𝑘 𝜇 shift ∥ 2 2 ≤ 𝑅 int ( F obs ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) ≤ 𝛾 2 ∥𝑇 𝑗←𝑘 ∥ 2 2 ∥𝑉 𝑘 𝜇 shift ∥ 2 2 .<label>(3.14)</label></formula><p>Theorem 2 shows that causal advantage depends on both the initial confounding bias and its propagation through the causal graph. While 𝛾𝑉 𝑘 𝜇 shift determines the local bias, 𝑇 𝑗←𝑘 aggregates all directed paths to the downstream module, allowing the bias to be amplified, attenuated, or canceled across paths. Thus, identical local confounding can produce different downstream errors under different causal structures. The proof of Theorem 2 is provided in Appendix A.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">CausalCompose</head><p>CausalCompose turns distributed interaction traces into an intervention-aware world model for modular LLM agents. Rather than fitting a single global transition model, it preserves local mechanisms and learns the causal interfaces needed to compose them. Given 𝐾 modules with local states 𝑋 𝑘,𝑡 , actions 𝐴 𝑘,𝑡 , and transition mechanisms defined in Equation (3.1), CausalCompose identifies and validates cross-module intervention-response dependencies, then composes them for downstream prediction and action selection.</p><p>Figure <ref type="figure" target="#fig_0">1</ref> summarizes the pipeline: extracting local interventionresponse evidence, validating causal interfaces, and composing them for prediction and optional control. Modules exchange only compact interface evidence-including events, responses, direction, and lag-rather than complete trajectories, preserving modularity while capturing cross-module causal propagation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Local Intervention-Response Evidence</head><p>The first stage converts local execution traces into candidate causal evidence. As illustrated in Figure <ref type="figure" target="#fig_0">1</ref>, each module records its local state, executed actions, resulting state changes, and externally visible interface events. Following the local dynamics in Equation (3.1), CausalCompose treats an executed action 𝐴 𝑖,𝑡 = 𝑎 as interventionlike evidence and records the corresponding change in 𝑋 𝑖,𝑡 together with outgoing events that may affect other modules.</p><p>Instead of sharing complete trajectories, modules exchange compact records of interventions, interface events, downstream responses, and timing information. CausalCompose matches outgoing events from source modules with compatible incoming events and state changes in destination modules, providing empirical evidence for the interventional dependencies defined by</p><formula xml:id="formula_8">𝑃 int (• | (𝐴 𝑖,𝑡 = 𝑎)) in Equation (3.4).</formula><p>Because temporal matches alone do not establish causality, CausalCompose checks repeated executions for consistent intervention-response patterns, including response direction and lag. The resulting interface summaries identify candidate cross-module dependencies and provide the evidence used for causal validation in the next stage.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Causal Interface Validation</head><p>Candidate interfaces may arise from incidental temporal cooccurrence and therefore must be validated before they are used for planning. Figure <ref type="figure" target="#fig_0">1</ref>(b) shows this aggregation step. For each proposed edge (𝑖, 𝑗), CausalCompose collects evidence across repeated intervention opportunities and evaluates three properties: whether the source intervention is sufficiently supported, whether a compatible destination response repeatedly follows it, and whether the direction and lag are consistent with the proposed causal interface.</p><p>We represent the result of verification trial 𝑛 by</p><formula xml:id="formula_9">𝑀 (𝑛) 𝑖 𝑗 ∼ Bernoulli(𝑝 𝑖 𝑗 ), 𝑝 𝑖 𝑗 = 𝑞 𝑖 𝑟 𝑖 𝑗 ,<label>(4.1)</label></formula><p>where 𝑞 𝑖 is the probability that the relevant intervention on module 𝑖 is realized and 𝑟 𝑖 𝑗 is the probability that its downstream response at module 𝑗 is detected. Given 𝑁 𝑖 𝑗 verification opportunities, the interface is retained when</p><formula xml:id="formula_10">(𝑖, 𝑗) ∈ 𝐸 if 𝑁 𝑖 𝑗 ∑︁ 𝑛=1 𝑀 (𝑛) 𝑖 𝑗 ≥ 1. (4.2)</formula><p>The recovered parent set is therefore For each true edge, we assume conditionally independent verification trials and uniformly positive intervention and detection probabilities, (4.7)</p><formula xml:id="formula_11">P 𝑗 = {𝑖 : (𝑖, 𝑗) ∈ 𝐸},<label>(4.3)</label></formula><formula xml:id="formula_12">𝑞 𝑖 ≥ 𝑞 min &gt; 0, 𝑟 𝑖 𝑗 ≥ 𝑟 min &gt; 0, (𝑖, 𝑗) ∈ 𝐸 * . (<label>4</label></formula><p>Consequently, for any 𝛿 ∈ (0, 1),</p><formula xml:id="formula_13">𝑁 min ≥ log(|𝐸 * |/𝛿) 𝑞 min 𝑟 min (4.8)</formula><p>guarantees Pr(𝐸 * ⊆ 𝐸) ≥ 1 -𝛿.</p><p>Theorem 3 shows that true-edge coverage improves exponentially with the verification budget. The rate depends on both intervention exposure and response detectability: causal interfaces cannot be reliably recovered if the relevant intervention is never executed or its downstream response cannot be observed. This directly motivates the intervention-response collection stage in Figure <ref type="figure" target="#fig_0">1</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Intervention-Aware Causal Composition</head><p>Once the interfaces are validated, CausalCompose composes the local mechanisms through the recovered causal structure. As illustrated in Figure <ref type="figure" target="#fig_2">2</ref>(a), a candidate intervention is first evaluated by its local mechanism, and the resulting interface event is propagated only to causally connected modules in 𝐺. Each destination module then combines the incoming event with its local state and mechanism to predict subsequent states and downstream effects.</p><p>Rather than fitting a global transition function, CausalCompose recursively composes these local mechanisms along validated causal paths. In the linear setting, this propagation is characterized by the total-effect operator in Equation <ref type="bibr">(3.11)</ref>, which aggregates the effects transmitted along causal paths between modules. Thus, validated interfaces determine where intervention effects propagate, while local mechanisms determine how those effects transform.</p><p>The resulting rollout captures both immediate and downstream consequences of a candidate intervention. Unlike Seq-WM, which predicts from observational trajectories, CausalCompose explicitly propagates interventions through the recovered causal structure.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">Optional Causal Control for Action Selection</head><p>Beyond prediction, CausalCompose can use the composed causal model as a closed-loop controller during action selection. As shown in Figure <ref type="figure" target="#fig_2">2</ref>(b), at each step the LLM first proposes a candidate action. CausalCompose then checks its upstream prerequisites using P 𝑘 , predicts its local and downstream consequences through the causal composition in Equation <ref type="bibr">(3.11)</ref>, and gates the action accordingly. Actions with missing prerequisites or conflicting predicted effects are revised; otherwise, the selected action is executed. Execution closes the loop. After observing the resulting downstream state, CausalCompose compares it with the causal prediction. For predicted state 𝑋 𝑗,𝑡 +1 , the residual 𝑒 𝑗,𝑡 +1 = 𝑋 𝑗,𝑡 +1 -𝑋 𝑗,𝑡 +1 measures the prediction-execution mismatch. The observed state and residual are then fed into the next decision step, updating the evidence available for interface verification and informing the next candidate action. The control loop therefore repeats as propose → check → predict → gate → execute → verify → feedback until the task terminates.</p><p>This gives CausalCompose two operational modes: predictiononly, where causal composition does not alter the policy, and control, where causal predictions and execution feedback repeatedly guide subsequent decisions. This distinction separates the value of recovering causal structure from the agent's ability to exploit it online.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.5">Error of causal composition.</head><p>Graph recovery alone is not sufficient: the causal mechanisms used for prediction must also be accurate. Suppose each local causal mechanism has squared prediction error at most 𝜀. Because local errors propagate through the same causal paths as intervention effects, their downstream contribution at module 𝑗 is controlled by the total-effect operators from Equation <ref type="bibr">(3.11)</ref>. In particular, if the relevant upstream modules are P 𝑗 , the composition error is bounded by</p><formula xml:id="formula_14">𝑅 int ( 𝐹 causal ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) ≤ 𝜀 ∑︁ 𝑣 ∈ P 𝑗 ∥𝑇 𝑗←𝑣 ∥ 2 2 (4.9)</formula><p>when all required causal edges are recovered. Theorem 3 additionally bounds the probability that this condition fails. Combining the two effects yields the following sufficient condition for causal prediction to retain the advantage established in Theorem 2.</p><p>Theorem 4 (Strict causal advantage). With probability at least 1 -|𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ), the intervention-time risk gap satisfies</p><formula xml:id="formula_15">𝑅 int ( F obs ; 𝑗) -𝑅 int ( 𝐹 causal ; 𝑗) ≥ 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift 2 2 -𝜀 ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 2 . (4.10) Therefore, 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift 2 2 &gt; 𝜀 ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 2 (4.11) implies Pr 𝑅 int ( 𝐹 causal ; 𝑗) &lt; 𝑅 int ( F obs ; 𝑗) ≥ 1 -|𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ).</formula><p>(4.12)</p><p>Theorem 4 quantifies when the causal advantage survives estimation error. Equation (4.10) shows that the achievable risk reduction is the observational-interventional gap minus the causal error accumulated through downstream propagation. When this residual gap is positive, Theorem 3 further guarantees that the advantage holds with probability approaching one as intervention coverage increases. The proof of Theorem 4 is provided in Appendix A.4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.6">Operational guarantee.</head><p>The separation between graph verification and causal composition yields an additional consistency property: increasing intervention coverage removes structural uncertainty without requiring the local mechanisms to become more accurate. Consequently, lim sup</p><formula xml:id="formula_16">𝑁 min →∞ 𝑅 int ( 𝐹 causal ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) ≤ 𝜀 ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 2 (4.14)</formula><p>with probability approaching one.</p><p>Theorem 5 separates structural uncertainty from mechanism error. As intervention coverage grows, missing-edge error vanishes, and the remaining prediction error is determined only by local mechanism accuracy and its amplification through the causal graph. Thus, additional verification improves structural reliability, whereas further improvement beyond this limit requires more accurate causal mechanisms. The proof of Theorem 5 is provided in Appendix A.5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.7">Causal Propagation Stability</head><p>The previous results characterize causal advantage at a fixed downstream module. We now study whether local causal-model errors remain controlled under repeated propagation through the modular system. Let 𝐵 denote the block causal propagation operator, whose ( 𝑗, 𝑖) block is 𝐵 𝑖→𝑗 for a direct causal edge from module 𝑖 to module 𝑗 and zero otherwise. Repeated composition is represented by 𝐵 ℓ , whose ( 𝑗, 𝑘) block aggregates all length-ℓ causal paths from module 𝑘 to module 𝑗.</p><p>We define the cumulative propagation operator Hence repeated causal composition is controlled in the stable spectral regime but can amplify local mechanism error without bound once an unstable causal mode is excited. Theorem 6 shows that small local errors can still be amplified by the global causal structure, with (𝐼 -𝐵) -1 governing propagation near the spectral boundary. Reliable causal world modeling therefore requires both accurate local mechanisms and stable causal propagation. The complete proof is provided in Appendix A.6.</p><formula xml:id="formula_17">T 𝐿 := 𝐿 ∑︁ ℓ=0 𝐵 ℓ , (<label>4</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments 5.1 Experimental Setup</head><p>We evaluate whether causal world models improve downstream agent behavior, when these gains persist across environments and seeds, and whether the mechanisms predicted by our theory appear under controlled interventions. Our evaluation combines 𝜏-bench retail and airline <ref type="bibr" target="#b35">[37]</ref>, ALFWorld <ref type="bibr" target="#b27">[29]</ref>, ScienceWorld <ref type="bibr" target="#b30">[32]</ref>, APIBank Stateful [15], stateful tool-use environments <ref type="bibr" target="#b15">[17]</ref>, and a controlled synthetic SCM. The environments span structured API execution, embodied language interaction, and intervention-controlled causal systems.</p><p>Our primary non-causal baseline, Seq-WM, predicts from observational trajectories using ReAct-style world-model prompting <ref type="bibr" target="#b25">[27,</ref><ref type="bibr" target="#b31">33,</ref><ref type="bibr" target="#b36">38]</ref>. We additionally compare against local, temporal, transition-graph, correlation-based, annotated, and no-worldmodel variants where available. Discovered-Causal uses recovered causal dependencies, while Oracle-Causal receives groundtruth causal structure and serves as a structural reference rather than an empirical upper bound on task success. Our complete method is CausalCompose. Specifically: • Seq-WM <ref type="bibr" target="#b25">[27,</ref><ref type="bibr" target="#b31">33,</ref><ref type="bibr" target="#b36">38]</ref>: uses observational trajectories without explicit causal structure. • Local <ref type="bibr" target="#b33">[35]</ref>: restricts prediction to locally relevant information.</p><p>• Temporal <ref type="bibr" target="#b28">[30]</ref>: models dependencies through temporal proximity. • Transition Graph <ref type="bibr" target="#b7">[8,</ref><ref type="bibr" target="#b8">9]</ref>: uses observed transition structure without causal semantics. • Correlation-based <ref type="bibr" target="#b20">[22]</ref>: uses statistical associations rather than interventional dependencies. • Annotated: provides manually specified task structure or constraints.</p><p>• No World Model: removes explicit world-model reasoning.</p><p>• Discovered-Causal <ref type="bibr" target="#b38">[40,</ref><ref type="bibr" target="#b40">42]</ref>: uses causal dependencies recovered from intervention-response evidence. • Oracle-Causal: uses ground-truth causal structure to isolate structural correctness from discovery error. • CausalCompose: combines causal discovery, validated causal interfaces, and intervention-aware composition.</p><p>Unless confidence intervals are reported, agent results should be interpreted as targeted diagnostic comparisons rather than precise benchmark-level rankings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Main Agent Results</head><p>We begin with the two principal agent environments, ALFWorld and 𝜏-bench. These experiments test the central empirical question: whether recovering and composing causal structure improves downstream task completion relative to world models.</p><p>ALFWorld. Table <ref type="table" target="#tab_3">2</ref> shows that CausalCompose achieves the highest task success at 49.55%, outperforming Global Sequence WM by 12.24 percentage points and the strongest annotated baseline by 4.03 points. Oracle Causal WM is not an upper bound: groundtruth causal structure alone does not guarantee that the policy can effectively exploit it for action selection. 𝜏-bench. Table <ref type="table" target="#tab_4">3</ref> shows that CausalCompose achieves the highest success on both domains, reaching 54.86% on Retail and 39.05% on Airline, compared with 33.33% for Global Sequence WM on both and 52.38%/23.81% for Oracle Causal WM. The ablations show that causal structure alone is insufficient: performance improves when it is converted into intervention-aware prediction and action. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">When Does Causal Information Help?</head><p>The main results show positive downstream effects, while Table <ref type="table" target="#tab_6">4</ref> indicates that causal structure is most useful when agents can exploit it during decision making. On 𝜏-bench, highlighting the current goal improves Oracle-Causal from 45% to 75% and Discovered-Causal from 45% to 60% without changing their causal graphs, revealing a strong salience effect <ref type="bibr" target="#b14">[16]</ref>. Gains on APIBank Stateful and ScienceWorld, together with positive model effects on 𝜏bench (+4.77 points) and ALFWorld (+8.21 points) and a 10-point gain from immediate feedback, further show that causal information must be accessible, updated, and translated into interventionrelevant actions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Controlled Tests of the Theory</head><p>We isolate the theoretical mechanisms using a synthetic SCM. As shown in </p><formula xml:id="formula_18">𝜕 𝜕𝑐 MSE SeqWM (𝑐) -MSE CausalOracle (𝑐) &lt; 0,<label>(5.1)</label></formula><p>with 𝜌 = -1.000. The causal gap decreases from 0.254 to 0.132 (48.0%) but remains positive, showing that causal modeling provides the largest benefit when observational variables poorly reveal hidden confounding and a smaller benefit as they become informative proxies.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5">Causal Depth and Error Propagation</head><p>We vary causal-graph depth to test the propagation mechanism in Theorem 6. As captured by Eq. (4.15), deeper dependencies create additional paths for observational errors to propagate. Table <ref type="table" target="#tab_10">8</ref> shows that Oracle-Causal remains at MSE 0.040, while the Seq-WM-Oracle-Causal gap increases from 3.392 at depth 1 to 4.239 at depth 8, with a positive rank association (𝜌 = 0.543). The overall trend supports the predicted amplification of observational errors through deeper causal propagation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.6">Efficiency and End-to-End Feasibility</head><p>Finally, we evaluate whether the causal representation improves both performance and execution efficiency. Table <ref type="table" target="#tab_8">6</ref> shows that CausalCompose improves all three environments with modest or reduced overhead. Retail success increases from 33.33% to 54.86% with one additional call, while ALFWorld improves from 37.31% to 49.55% with slightly fewer calls. On ScienceWorld, the score rises from 14.80 to 17.67 while calls decrease by 42.4%. Thus, causal composition can improve performance without substantial overhead.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.7">End-to-End Construction and Communication</head><p>We finally evaluate the end-to-end feasibility of constructing and communicating CausalComposefrom distributed interaction traces. Table <ref type="table" target="#tab_9">7</ref> shows that the six-stage pipeline processes 140 traces for only $0.045, while the resulting federated DAG requires 1.4 KB compared with 90.8 KB for raw traces, reducing communication by 64.9× (98.46%). It also achieves an edge F1 of 1.000 versus 0.308 for the raw pipeline, showing that CausalComposecan compactly represent distributed causal evidence with low construction and communication costs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We presented CausalCompose and studied when causal world models help modular LLM agents. Our theory shows that observational errors can persist under intervention and amplify downstream, while causal composition can reduce this gap. Experiments across agent benchmarks and synthetic SCMs support these predictions, with larger benefits under confounding and propagation and smaller gains with informative proxies. We further show that causal structure is most effective when actionable during decision making, while CausalCompose remains compact with low communication and execution overhead.     Proof. For each module 𝑣 whose local prediction error can propagate to module 𝑗, let the corresponding error be</p><formula xml:id="formula_19">𝑒 𝑣 := 𝐹 𝑣 -𝐹 * 𝑣 , E 𝑃 int ∥𝑒 𝑣 ∥ 2 2 ≤ 𝜀. (A.12)</formula><p>When all required causal edges are recovered, the downstream prediction discrepancy is obtained by propagating each local error through the same total-effect operators defined in Equation (3.11):</p><formula xml:id="formula_20">𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎) = ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 𝑇 𝑗←𝑣 𝑒 𝑣 . (A.13)</formula><p>Its root-mean-square magnitude satisfies  Proof. We first connect repeated causal composition to the global resolvent. By the block structure of 𝐵, the ( 𝑗, 𝑘) block of 𝐵 ℓ sums the operator products over all length-ℓ directed causal paths from 𝑘 to 𝑗. Therefore, We next characterize the accumulated mechanism error without replacing the causal system by independent pathwise bounds. Using the exact finite-horizon resolvent identity in Equation (A.31), E 𝑃 int ∥T 𝐿 𝜉 ∥ 2 2 = E 𝑃 int (𝐼 -𝐵) -1 (𝐼 -𝐵 𝐿+1 )𝜉 The denominator is therefore the spectral distance from the causal propagation operator to the singularity of the resolvent at 1.</p><formula xml:id="formula_21">E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 1/2 = E 𝑃 int         ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 𝑇 𝑗←𝑣 𝑒 𝑣 2 2         1/2 ≤ ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 E 𝑃 int 𝑇 𝑗←𝑣 𝑒 𝑣 2 2 1/2 ≤ ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 E 𝑃 int ∥𝑒 𝑣 ∥ 2 2 1/2 ≤ √ 𝜀 ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 . (A.14) Squaring Equation (A.14) gives E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 ≤ 𝜀 ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 2 . (<label>A</label></formula><formula xml:id="formula_22">E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 1/2 = E 𝑃 int         ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 𝑇 𝑗←𝑣 𝑒 𝑣 2 2         1/2 ≤ ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 E 𝑃 int 𝑇 𝑗←𝑣 𝑒 𝑣 2 2 1/2 ≤ ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 E 𝑃 int ∥𝑒 𝑣 ∥ 2 2 1/2 ≤ √ 𝜀 ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 . (A.</formula><p>It remains to establish the divergent regime. Let 𝑢 * be a unit eigenvector satisfying 𝐵𝑢 * = 𝜆 * 𝑢 * and suppose that the mechanism error has nonzero second-moment projection onto this mode. For normal 𝐵, orthogonal spectral decomposition gives </p><formula xml:id="formula_23">E 𝑃 int ∥T 𝐿 𝜉 ∥ 2 2 ≥ E 𝑃 int |𝑢 * * T 𝐿 𝜉 | 2 = E 𝑃 int       𝑢 * * 𝐿 ∑︁ ℓ=0 𝐵 ℓ 𝜉 2      = 𝐿 ∑︁ ℓ=0 𝜆 ℓ * 2 E 𝑃 int |𝑢 * * 𝜉 | 2 =          (𝐿 + 1)</formula></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Overview of CausalCompose. (a) Local evidence: each module preserves local records and mechanisms while exposing compact intervention-response summaries. (b) Interface validation: aggregated evidence validates causal dependencies, including direction and lag, to construct the causal interface graph. (c) Composition and control: the validated graph is composed with local mechanisms for downstream prediction and action guidance, with execution feedback supporting subsequent updates.</figDesc><graphic coords="2,116.85,83.69,378.31,210.42" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 ,</head><label>1</label><figDesc>Figure1, CausalComposefirst extracts intervention-response evidence locally, validates the resulting causal dependencies, and then composes the validated structure with local mechanisms for downstream prediction and optional action guidance. This composition turns observational modular dynamics into an intervention-aware world model for planning. We theoretically show that causal recovery improves with intervention-response coverage and that, with sufficient coverage and controlled local mechanism error, causal composition can achieve lower intervention-time error than an observational world model.We evaluate these predictions through synthetic causal diagnostics and modular LLM-agent environments<ref type="bibr" target="#b2">[3,</ref> 15,<ref type="bibr" target="#b15">17,</ref><ref type="bibr" target="#b27">29,</ref><ref type="bibr" target="#b35">37]</ref>. The synthetic experiments verify the predicted intervention gap, horizon compounding, and dependence of causal recovery on intervention coverage. Agent experiments further show that incorporating causal structure improves intervention-sensitive reasoning and planning, with the clearest gains in structured tool-use environments<ref type="bibr" target="#b2">[3,</ref> 15,<ref type="bibr" target="#b15">17,</ref><ref type="bibr" target="#b35">37]</ref> where modular dependencies directly govern valid actions and downstream transitions. Across dialogue and narrative settings, the experiments further demonstrate that causal knowledge becomes useful when it is presented in a form that makes the relevant dependency actionable at decision time. Together, these results answer the question posed by our title: causal world models help modular LLM agents when intervention-sensitive dependencies can be identified from available evidence and incorporated into agent planning.Our contributions are summarized as follows: (1) We identify a fundamental mismatch between observational world modeling and intervention-time planning in modular LLM agents.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Causal composition and local control in CausalCompose. (a) Validated interfaces connect local mechanisms to propagate intervention effects and predict downstream states. (b) The composed model can optionally guide local actions through prerequisite checks, effect prediction, action gating, and post-action verification.</figDesc><graphic coords="5,117.16,83.68,377.69,210.78" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>. 5 )</head><label>5</label><figDesc>We further define 𝑁 min := min (𝑖,𝑗 ) ∈𝐸 * 𝑁 𝑖 𝑗 . (4.6) Theorem 3 (Coverage of true causal edges). Suppose the verification model in Equation (4.1) holds, and the trials for each true edge are conditionally independent. Under the recovery rule in Equation (4.2) and the positive coverage conditions in Equation (4.5), Pr(𝐸 * ⊈ 𝐸) ≤ |𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Theorem 5 (</head><label>5</label><figDesc>Structural consistency). If 𝑞 min 𝑟 min &gt; 0, then lim 𝑁 min →∞ Pr(𝐸 * ⊆ 𝐸) = 1. (4.13)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>=</head><label></label><figDesc>Pr 𝑀(1)  𝑖 𝑗 = 0, . . . , 𝑀(𝑁 𝑖 𝑗 ) (𝑛) 𝑖 𝑗 = 0) = (1 -𝑞 𝑖 𝑟 𝑖 𝑗 ) 𝑁 𝑖 𝑗 ≤ exp(-𝑁 𝑖 𝑗 𝑞 𝑖 𝑟 𝑖 𝑗 ) ≤ exp(-𝑁 min 𝑞 min 𝑟 min ), (A.8)where conditional independence gives the product and 1 -𝑥 ≤ exp(-𝑥) gives the exponential bound.Applying the union bound to Equation (A.8), Pr(𝐸 * ⊈ 𝐸) = Pr (𝑖,𝑗 ) ∈𝐸 * {(𝑖, 𝑗) ∉ 𝐸} ≤ ∑︁ (𝑖,𝑗 ) ∈𝐸 * Pr((𝑖, 𝑗) ∉ 𝐸) ≤ ∑︁ (𝑖,𝑗 ) ∈𝐸 * exp(-𝑁 min 𝑞 min 𝑟 min ) = |𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ), (A.9) which proves Equation (4.7). For any 𝛿 ∈ (0, 1), substituting Equation (4.8) into Equation (A.9) gives Pr(𝐸 * ⊈ 𝐸) ≤ |𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ) ≤ |𝐸 * | explog |𝐸 * * ⊆ 𝐸) = 1 -Pr(𝐸 * ⊈ 𝐸) ≥ 1 -|𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ) ≥ 1 -𝛿, (A.11) which completes the proof. □ A.4 Proof of Theorem 4</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>[ 2 ≤</head><label>2</label><figDesc>𝐵 ℓ ] 𝑗𝑘 = ∑︁ 𝜋 ∈Πℓ (𝑘,𝑗 ) 𝑒 ∈𝜋 𝐵 𝑒 , [T 𝐿 ] 𝑗𝑘 = 𝐿 ∑︁ ℓ=0 ∑︁ 𝜋 ∈Πℓ (𝑘,𝑗 ) 𝑒 ∈𝜋 𝐵 𝑒 , (𝐼 -𝐵)T 𝐿 = (𝐼 -𝐵) 𝐿 ∑︁ ℓ=0 𝐵 ℓ = 𝐼 -𝐵 𝐿+1 , T 𝐿 -(𝐼 -𝐵) -1 = -(𝐼 -𝐵) -1 𝐵 𝐿+1 . (A.31)If 𝜌 (𝐵) &lt; 1, then for every 𝜂 ∈ (𝜌 (𝐵), 1) there exists 𝐶 𝜂 &lt; ∞ such that ∥𝐵 ℓ ∥ 2 ≤ 𝐶 𝜂 𝜂 ℓ . Equation (A.31) consequently gives∥T 𝐿 -(𝐼 -𝐵) -1 ∥ 2 ≤ ∥(𝐼 -𝐵) -1 ∥ 2 ∥𝐵 𝐿+1 ∥ 𝐶 𝜂 ∥(𝐼 -𝐵) -1 ∥ 2 𝜂 𝐿+1 -→ 0, (A.32)and hence T ∞ = (𝐼 -𝐵) -1 , proving Equation (4.16).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>2 2 ≤ 2 E 2 ≤ 2 ≤ 2 ≤ 1 +𝐿→∞ 1 + 2 = 2 ,(A. 34 ) 2 = 1 ( 1 - 2 ≤ 1 =</head><label>22222211223421121</label><figDesc>∥(𝐼 -𝐵) -1 (𝐼 -𝐵 𝐿+1 )∥ 2 𝑃 int ∥𝜉 ∥ 2 𝜀 ∥(𝐼 -𝐵) -1 (𝐼 -𝐵 𝐿+1 )∥ 2 𝜀 ∥(𝐼 -𝐵) -1 ∥ 2 2 1 + ∥𝐵 𝐿+1 ∥ 2 𝜀 ∥(𝐼 -𝐵) -1 ∥ 2 2 𝐶 𝜂 𝜂 𝐿+1 2 .(A.33)Taking the limit superior directly in Equation (A.33), lim sup𝐿→∞ E 𝑃 int ∥T 𝐿 𝜉 ∥ 2 2 ≤ 𝜀 ∥(𝐼 -𝐵) -1 ∥ 2 2 lim 𝐶 𝜂 𝜂 𝐿+1 𝜀 ∥(𝐼 -𝐵) -1 ∥ 2This bound preserves the interaction among different causal paths through the resolvent rather than bounding each path separately.For normal 𝐵, the amplification factor admits an exact spectral characterization. Writing 𝐵 = 𝑈 Λ𝑈 * and using unitary invariance,∥(𝐼 -𝐵) -1 ∥ 2 2 = 𝑈 (𝐼 -Λ) -1 𝑈 * 2 𝜆 max 𝑈 (𝐼 -Λ) - * (𝐼 -Λ) -1 𝑈 * = max 𝜆∈𝜎 (𝐵) 𝜆)(1 -𝜆) (𝐵) |1 -𝜆| 2 . (A.35) Combining Equations (A.34) and (A.35) yields lim sup 𝐿→∞ E 𝑃 int ∥T 𝐿 𝜉 ∥ 2 𝜀𝜆 max (𝐼 -𝐵) - * (𝐼 -𝐵) -𝜀 max 𝜆∈𝜎 (𝐵) |1 -𝜆| -2 = 𝜀 min 𝜆∈𝜎 (𝐵) |1 -𝜆| 2 , (A.36)</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 compares</head><label>1</label><figDesc>CausalCompose with closely related work in causal world modeling, modular structure, intervention-based evidence, cross-module composition, planning-time use, and theoretical characterization of when causal modeling improves prediction.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Given the observed system state 𝑋 𝑡 = 𝑋 1:𝐾,𝑡 , an observational model learns transitions of the form 𝑃 obs</head><label></label><figDesc>Modular causal world model. Consider a modular agent with 𝐾 interacting modules. Let 𝑋 𝑘,𝑡 denote the state of module 𝑘 at time 𝑡, and let 𝐴 𝑘,𝑡 denote the action executed by that module. We model the local transition as 𝑋 𝑘,𝑡 +1 = 𝐹 * 𝑘 (𝑋 𝑘,𝑡 , 𝐴 𝑘,𝑡 , 𝑋 P 𝑘 ,𝑡 , 𝑈 𝑘,𝑡 ), (𝑋 𝑗,𝑡 +1 | 𝑋 𝑡 , 𝐴 𝑘,𝑡 = 𝑎), 𝑃 obs (𝑋 𝑗,𝑡 +1 | 𝑋 𝑡 , 𝐴 𝑘,𝑡 = 𝑎) ≠ 𝑃 int (𝑋 𝑗,𝑡 +1 | 𝑋 𝑡 , (𝐴 𝑘,𝑡 = 𝑎)). (3.6)</figDesc><table><row><cell></cell><cell></cell><cell>Equation (3.6) shows why observational accuracy is insufficient</cell></row><row><cell></cell><cell></cell><cell>for an acting agent. A causal world model instead predicts the</cell></row><row><cell></cell><cell></cell><cell>interventional transition in Equation (3.4) by propagating the effect</cell></row><row><cell></cell><cell></cell><cell>of (𝐴 𝑘,𝑡 = 𝑎) through the causal graph in Equation (3.2).</cell></row><row><cell></cell><cell></cell><cell>Interventional prediction gap. The distinction in Equation (3.6)</cell></row><row><cell></cell><cell></cell><cell>can be made explicit in the linear-Gaussian Structural Causal Model</cell></row><row><cell></cell><cell></cell><cell>(SCM). Suppose an unobserved variable enters the downstream</cell></row><row><cell></cell><cell></cell><cell>mechanism of module 𝑗 through 𝑉 𝑗 with strength 𝛾, and interven-</cell></row><row><cell></cell><cell></cell><cell>ing on 𝐴 𝑘,𝑡 changes its conditional mean by 𝜇 shift . The resulting</cell></row><row><cell></cell><cell></cell><cell>displacement between the observational and interventional predic-</cell></row><row><cell></cell><cell></cell><cell>tions is</cell></row><row><cell></cell><cell></cell><cell>Δ int = 𝛾𝑉 𝑗 𝜇 shift .</cell><cell>(3.7)</cell></row><row><cell>3 Why Non-Causal World Models Fail</cell><cell></cell><cell>Equation (3.7) is nonzero whenever 𝛾 ≠ 0 and 𝑉 𝑗 𝜇 shift ≠ 0, providing</cell></row><row><cell cols="2">Non-causal world models can fail because predicting what follows an action is not equivalent to predicting its causal effect. In mod-</cell><cell>a concrete instance of the observational-interventional mismatch in Equation (3.6).</cell></row><row><cell cols="2">ular agents, hidden factors may influence both action selection</cell></row><row><cell cols="2">and downstream outcomes, causing observational models to learn</cell></row><row><cell cols="2">incorrect interventional dynamics despite accurate observational</cell></row><row><cell cols="2">prediction. We formalize this mismatch and its resulting rollout</cell></row><row><cell>errors below.</cell><cell></cell></row><row><cell></cell><cell>(3.1)</cell></row><row><cell cols="2">where P 𝑘 denotes the set of modules with direct causal influence on</cell></row><row><cell cols="2">module 𝑘, and 𝑈 𝑘,𝑡 collects unobserved factors. These dependencies</cell></row><row><cell>define a directed causal graph</cell><cell></cell></row><row><cell>𝐺  *  = (M, 𝐸  *  ),</cell><cell>(3.2)</cell></row><row><cell cols="2">where (𝑖, 𝑘) ∈ 𝐸  *  indicates that module 𝑖 has a direct causal in-</cell></row><row><cell cols="2">fluence on module 𝑘. Equation (3.2) therefore connects the local</cell></row><row><cell cols="2">mechanisms in Equation (3.1) and specifies how causal effects can</cell></row><row><cell>propagate across modules.</cell><cell></cell></row><row><cell cols="2">This representation makes the limitation of a non-causal world</cell></row><row><cell cols="2">model explicit. (3.3)</cell></row><row><cell cols="2">whereas an agent that actively executes action 𝑎 requires the inter-</cell></row><row><cell>ventional transition</cell><cell></cell></row><row><cell>𝑃 int (𝑋 𝑗,𝑡 +1 | 𝑋 𝑡 , (𝐴 𝑘,𝑡 = 𝑎)).</cell><cell>(3.4)</cell></row><row><cell cols="2">Although Equations (3.3) and (3.4) appear similar, they can differ</cell></row><row><cell cols="2">when unobserved factors jointly affect action selection and down-</cell></row><row><cell cols="2">stream outcomes. In particular, suppose an unobserved variable 𝑈</cell></row><row><cell cols="2">influences both the action 𝐴 𝑘,𝑡 and the downstream state 𝑋 𝑗,𝑡 +1 :</cell></row><row><cell>𝐴 𝑘,𝑡 ← 𝑈 → 𝑋 𝑗,𝑡 +1 .</cell><cell>(3.5)</cell></row><row><cell cols="2">Because 𝑈 is not included in the observed system state 𝑋 𝑡 , condi-</cell></row><row><cell cols="2">tioning on 𝑋 𝑡 and 𝐴 𝑘,𝑡 can mix the effect of the action with the</cell></row><row><cell cols="2">influence of 𝑈 . As a result, the observational transition in Equa-</cell></row><row><cell cols="2">tion (3.3) does not in general recover the interventional transition</cell></row><row><cell>in Equation (3.4), and for some actions they may differ:</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>Suppose the stacked local mechanism error satisfiesE 𝑃 int [∥𝜉 ∥ 2In contrast, if 𝐵 has an eigenvalue 𝜆 * with 𝜆</figDesc><table><row><cell>.15) so that a stacked local mechanism error 𝜉 propagates as T 𝐿 𝜉. (4.15) reduces global error stability to the spectral behavior of 𝐵, with 𝜌 (𝐵) governing repeated causal amplification. Theorem 6 (Spectral causal stability and critical amplifi-cation). lim sup 𝐿→∞ E 𝑃 int ∥T 𝐿 𝜉 ∥ 2 𝜀 2 ≤ min 𝜆∈𝜎 (𝐵) |1 -𝜆| 2 . (4.17) and the local mechanism error has nonzero second-moment projection onto its corresponding mode, then 𝐿→∞ lim sup E 𝑃 int ∥T 𝐿 𝜉 ∥ 2 2 = ∞. (4.18)</cell></row></table><note><p><p><p><p>2 ] ≤ 𝜀. If 𝜌 (𝐵) &lt; 1, then the cumulative causal propagation operator converges to</p>T ∞ = (𝐼 -𝐵) -1 ,</p>(4.16)</p>and, when 𝐵 is normal, * = 1 or |𝜆 * | &gt; 1</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>ALFWorld task success (%) over the full evaluation of 134 tasks.</figDesc><table><row><cell>Method</cell><cell>Success (%)</cell></row><row><cell>No World Model</cell><cell>41.79</cell></row><row><cell>Global Sequence WM</cell><cell>37.31</cell></row><row><cell>Transition Graph WM</cell><cell>33.58</cell></row><row><cell>Correlation WM</cell><cell>35.07</cell></row><row><cell>Local WM</cell><cell>38.06</cell></row><row><cell>Temporal WM</cell><cell>38.81</cell></row><row><cell>AnnotatedNoFramingNoControl</cell><cell>45.52</cell></row><row><cell>AnnotatedNoFraming</cell><cell>42.54</cell></row><row><cell>Oracle Causal WM</cell><cell>42.54</cell></row><row><cell>CausalCompose</cell><cell>49.55</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>𝜏-bench task success (%) on the Retail and Airline domains.</figDesc><table><row><cell>Method</cell><cell cols="2">Retail Airline</cell></row><row><cell>No World Model</cell><cell>38.10</cell><cell>18.19</cell></row><row><cell>Global Sequence WM</cell><cell>33.33</cell><cell>33.33</cell></row><row><cell>Transition Graph WM</cell><cell>42.86</cell><cell>23.19</cell></row><row><cell>Correlation WM</cell><cell>43.94</cell><cell>21.86</cell></row><row><cell>Local WM</cell><cell>33.33</cell><cell>18.19</cell></row><row><cell>Temporal WM</cell><cell>42.76</cell><cell>23.49</cell></row><row><cell cols="2">AnnotatedNoFramingNoControl 38.10</cell><cell>19.05</cell></row><row><cell>AnnotatedNoFraming</cell><cell>47.62</cell><cell>14.29</cell></row><row><cell>Causal WM (No Intervention)</cell><cell>23.81</cell><cell>13.66</cell></row><row><cell>Oracle Causal WM</cell><cell>52.38</cell><cell>23.81</cell></row><row><cell>FCC (No Constraint Verb)</cell><cell>48.57</cell><cell>27.81</cell></row><row><cell>FCC (Full Prompt)</cell><cell>54.29</cell><cell>38.57</cell></row><row><cell>CausalCompose</cell><cell>54.86</cell><cell>39.05</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 5</head><label>5</label><figDesc>, increasing confounding from 𝛾 = 0 to 𝛾 = 1 raises Seq-WM MSE from 0.043 to 16.309 (379.3×), while Oracle-Causal remains near 0.040. Increasing rollout horizon expands the Seq-WM-Oracle-Causal MSE gap from 1.259 to 4.764, while additional intervention evidence raises edge-recovery F1 from 0 to 0.889 with 𝜌 = 1.000, supporting Theorem 3.The proxy-conflict experiment identifies a complementary boundary regime. Let 𝑐 denote how strongly the observed action proxies the latent confounder. The causal advantage decreases with proxy strength,</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 4 :</head><label>4</label><figDesc>Controlled diagnostics of causal-information usability. Absolute Δ is the Treatment-Baseline difference, and Relative Δ normalizes it by the Baseline. Values are percentages except for ScienceWorld.</figDesc><table><row><cell>Setting</cell><cell cols="3">Baseline Treatment Absolute Δ</cell><cell>Relative Δ</cell></row><row><cell>𝜏-bench Anchor (Oracle-Causal)</cell><cell>45.00</cell><cell>75.00</cell><cell>+30.00</cell><cell>+66.67%</cell></row><row><cell>𝜏-bench Anchor (Discovered-Causal)</cell><cell>45.00</cell><cell>60.00</cell><cell>+15.00</cell><cell>+33.33%</cell></row><row><cell>APIBank Seq-WM→Discovered-Causal</cell><cell>3.61</cell><cell>4.64</cell><cell>+1.03</cell><cell>+28.53%</cell></row><row><cell>APIBank Seq-WM→Oracle-Causal</cell><cell>3.61</cell><cell>5.67</cell><cell>+2.06</cell><cell>+57.06%</cell></row><row><cell>ScienceWorld</cell><cell>14.80</cell><cell>17.67</cell><cell>+2.87</cell><cell>+19.39%</cell></row><row><cell>𝜏-bench Model Effect</cell><cell>45.23</cell><cell>50.00</cell><cell>+4.77</cell><cell>+10.55%</cell></row><row><cell>ALFWorld Model Effect</cell><cell>37.31</cell><cell>45.52</cell><cell>+8.21</cell><cell>+22.01%</cell></row><row><cell>Immediate Feedback</cell><cell>45.00</cell><cell>55.00</cell><cell>+10.00</cell><cell>+22.22%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 5 :</head><label>5</label><figDesc>Synthetic SCM diagnostics for theoretical predictions. Start and End denote the two endpoints of each sweep; Change summarizes the difference, and 𝜌 is the rank correlation over the full sweep.</figDesc><table><row><cell>Diagnostic</cell><cell>Start</cell><cell>End</cell><cell>Change</cell><cell>𝜌</cell><cell>Control</cell></row><row><cell>Observational MSE under confounding</cell><cell cols="3">0.043 16.309 379.3×</cell><cell>-</cell><cell>𝛾</cell></row><row><cell>Causal MSE under confounding</cell><cell cols="2">0.040 0.040</cell><cell>1.0×</cell><cell>-</cell><cell>𝛾</cell></row><row><cell cols="3">Observational-causal MSE gap over horizon 1.259 4.764</cell><cell>+3.505</cell><cell>-</cell><cell>𝐻</cell></row><row><cell>Causal-edge recovery F1</cell><cell cols="2">0.000 0.889</cell><cell cols="2">+0.889 +1.000</cell><cell>𝑁</cell></row><row><cell>Causal advantage with stronger proxy</cell><cell cols="2">0.254 0.132</cell><cell cols="2">-48.0% -1.000</cell><cell>𝑐</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 6 :</head><label>6</label><figDesc>Execution efficiency across three environments. Performance is task success (%) for Retail and ALFWorld and environment score for ScienceWorld; Calls and Cost/Run report average API usage and cost. Δ values are relative to Sequence.</figDesc><table><row><cell cols="7">Environment Condition Performance Calls Cost/Run Δ Perf. Δ Calls</cell></row><row><cell>Retail</cell><cell>Sequence</cell><cell>33.33</cell><cell>15.8</cell><cell>$0.0112</cell><cell>-</cell><cell>-</cell></row><row><cell></cell><cell>Causal</cell><cell>54.86</cell><cell>16.8</cell><cell>$0.0119</cell><cell>+21.53</cell><cell>+1.0</cell></row><row><cell>ALFWorld</cell><cell>Sequence</cell><cell>37.31</cell><cell>33.1</cell><cell>$0.0252</cell><cell>-</cell><cell>-</cell></row><row><cell></cell><cell>Causal</cell><cell>49.55</cell><cell>32.6</cell><cell>$0.0248</cell><cell>+12.24</cell><cell>-0.5</cell></row><row><cell cols="2">ScienceWorld Sequence</cell><cell>14.80</cell><cell>12.5</cell><cell>$0.0095</cell><cell>-</cell><cell>-</cell></row><row><cell></cell><cell>Causal</cell><cell>17.67</cell><cell>7.2</cell><cell>$0.0055</cell><cell>+2.87</cell><cell>-5.3</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 7 :</head><label>7</label><figDesc>End-to-end CausalComposeconstruction and communication measurements.</figDesc><table><row><cell>Metric</cell><cell>Measurement</cell></row><row><cell>Pipeline stages</cell><cell>6</cell></row><row><cell>Processed traces</cell><cell>140</cell></row><row><cell>Construction cost</cell><cell>$0.045</cell></row><row><cell>Raw-trace communication</cell><cell>90.8 KB</cell></row><row><cell>Federated-DAG communication</cell><cell>1.4 KB</cell></row><row><cell>Communication reduction</cell><cell>64.9×</cell></row><row><cell>Communication saved</cell><cell>98.46%</cell></row><row><cell>Raw-pipeline edge F1</cell><cell>0.308</cell></row><row><cell>Federated-DAG edge F1</cell><cell>1.000</cell></row><row><cell>Raw-pipeline edge precision</cell><cell>0.667</cell></row><row><cell>F1 improvement</cell><cell>+0.692</cell></row></table><note><p>[15] Minghao Li, Yingxiu Zhao, Bowen Yu, Feifan Song, Hangyu Li, Haiyang Yu, Zhoujun Li, Fei Huang, and Yongbin Li. 2023. API-Bank: A Comprehensive</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 8 :</head><label>8</label><figDesc>Synthetic dependency-depth sweep. Gap is the Global Sequence WM MSE minus Oracle Causal WM MSE. Proof. Let 𝐹 causal (𝑋 𝑡 , 𝑎) := E 𝑃 int [𝑋 𝑗,𝑡 +1 | 𝑋 𝑡 , (𝐴 𝑘,𝑡 = 𝑎)].(A.1)Then the intervention-time risk admits the exact decomposition𝑅 int ( F obs ) = E 𝑃 int 𝑋 𝑗,𝑡 +1 -F obs (𝑋 𝑡 , 𝑎) 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎) + 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 + E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) 2E 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎), 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) = E 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 + E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) 2E 𝑃 int E 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎) | 𝑋 𝑡 , 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) = E 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 + E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) 𝑃 int E 𝑃 int [𝑋 𝑗,𝑡 +1 | 𝑋 𝑡 , (𝐴 𝑘,𝑡 = 𝑎)] -F obs (𝑋 𝑡 , 𝑎) termvanishes because 𝐹 causal is the interventional conditional mean. This proves Equation (3.9). Under the linear-Gaussian specialization in Equation (3.7), 𝑅 int ( F obs ) ≥ E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) Proof. By Equation (3.11), the intervention-induced displacement 𝛾𝑉 𝑘 𝜇 shift propagates from module 𝑘 to module 𝑗 through all directed causal paths. Therefore, Equation (3.12) gives 𝑏 𝑗 = 𝑇 𝑗←𝑘 𝛾𝑉 𝑘 𝜇 shift = 𝛾 ∑︁ 𝜋 ∈Π (𝑘,𝑗 ) 𝑒 ∈𝜋 𝐵 𝑒 𝑉 𝑘 𝜇 shift . Applying the orthogonal risk decomposition from Equation (A.2) to downstream module 𝑗 yields 𝑅 int ( F obs ; 𝑗) = 𝑅 int (𝐹 causal ; 𝑗) + E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -F obs (𝑋 𝑡 , 𝑎) 𝑅 int (𝐹 causal ; 𝑗) + 𝑇 𝑗←𝑘 𝛾𝑉 𝑘 𝜇 shift 2 2 = 𝑅 int (𝐹 causal ; 𝑗) + 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift Subtracting 𝑅 int (𝐹 causal ; 𝑗) from Equation (A.5) proves Equation (3.13). For any matrix 𝑇 and vector 𝑧, 𝜎 min (𝑇 )∥𝑧 ∥ 2 ≤ ∥𝑇 𝑧∥ 2 ≤ ∥𝑇 ∥ 2 ∥𝑧∥ 2 . (A.6) Applying Equation (A.6) with 𝑇 = 𝑇 𝑗←𝑘 and 𝑧 = 𝑉 𝑘 𝜇 shift , and then using Equation (3.13), gives 𝛾 2 𝜎 2 min (𝑇 𝑗←𝑘 ) ∥𝑉 𝑘 𝜇 shift ∥ 2 2 ≤ 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift 2 2 = 𝑅 int ( F obs ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) ≤ 𝛾 2 ∥𝑇 𝑗←𝑘 ∥ 2 2 ∥𝑉 𝑘 𝜇 shift ∥ 2 2 .</figDesc><table><row><cell cols="3">Depth Sequence MSE Oracle MSE</cell><cell>Gap</cell></row><row><cell>1</cell><cell>3.432</cell><cell>0.040</cell><cell>3.392</cell></row><row><cell>2</cell><cell>3.273</cell><cell>0.040</cell><cell>3.234</cell></row><row><cell>3</cell><cell>3.447</cell><cell>0.040</cell><cell>3.407</cell></row><row><cell>4</cell><cell>4.155</cell><cell>0.040</cell><cell>4.115</cell></row><row><cell>6</cell><cell>3.354</cell><cell>0.040</cell><cell>3.314</cell></row><row><cell>8</cell><cell>4.279</cell><cell>0.040</cell><cell>4.239</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head></head><label></label><figDesc>Subtracting Equation (A.<ref type="bibr" target="#b14">16</ref>) from the observational risk and using Equation (3.13) yields𝑅 int ( F obs ; 𝑗) -𝑅 int ( 𝐹 causal ; 𝑗) ≥ 𝑅 int ( F obs ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) -𝜀 ∑︁ Combining Equations (A.17) and (A.18) gives Pr 𝑅 int ( F obs ; 𝑗) -𝑅 int ( 𝐹 causal ; 𝑗) ≥ 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift | exp(-𝑁 min 𝑞 min 𝑟 min ), 𝑅 int ( F obs ; 𝑗) -𝑅 int ( 𝐹 causal ; 𝑗) ≥ 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift 𝐹 causal ; 𝑗) &lt; 𝑅 int ( F obs ; 𝑗) ≥ Pr(𝐸 * ⊆ 𝐸) = 1 -Pr(𝐸 * ⊈ 𝐸) ≥ 1 -|𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ),</figDesc><table><row><cell>2</cell></row><row><cell>𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 = 𝛾 2 𝑇 𝑗←𝑘 𝑉 𝑘 𝜇 shift ∥𝑇 𝑗←𝑣 ∥ 2 2 2 -𝜀 Thus Equation (4.10) holds whenever every required true causal edge is recovered. 2 𝑇 𝑗 ←𝑣 ≠0 . ∑︁ 𝑣 ∈ M The probability of this event follows from Equation (4.7): 2 -𝜀 ≥ Pr(𝐸  *  ⊆ 𝐸) ≥ 1 -|𝐸  (A.19) (A.16) 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 2 ∥𝑇 𝑗←𝑣 ∥ 2 2 . (A.17) ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 which proves Equation (4.10) with the stated probability. Finally, under Equation (4.11), Equation (A.17) gives 2 2 -𝜀 ∑︁ 𝑣 ∈ M 𝑇 𝑗 ←𝑣 ≠0 ∥𝑇 𝑗←𝑣 ∥ 2 2 &gt; 0, (A.20) and therefore Pr 𝑅 int ( (A.21) which proves Equation (4.12) and completes the proof. □ A.5 Proof of Theorem 5 𝑁 min →∞ [1 -|𝐸  = 1. (A.23) Together with Pr(𝐸  *  ⊆ 𝐸) ≤ 1, Equation (A.23) yields lim 𝑁 min →∞ Pr(𝐸  *  ⊆ 𝐸) = 1, (A.24) which proves Equation (4.13). Pr(𝐸  2 On the event 𝐸</cell></row></table><note><p><p><p><p>.15) Because 𝐹 causal (𝑋 𝑡 , 𝑎) is the interventional conditional mean, the same orthogonality argument used in Equation (A.2) gives</p>𝑅 int ( 𝐹 causal ; 𝑗) = E 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 = E 𝑃 int 𝑋 𝑗,𝑡 +1 -𝐹 causal (𝑋 𝑡 , 𝑎) + 𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 = 𝑅 int (𝐹 causal ; 𝑗) + E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎) 2 2 ≤ 𝑅 int (𝐹 causal ; 𝑗) + 𝜀 ∑︁ * ⊆ 𝐸) = 1 -Pr(𝐸 * ⊈ 𝐸) ≥</p>1</p>-|𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ). (A.18) * Proof. By Equation (4.7), the probability of recovering every true causal edge satisfies Pr(𝐸 * ⊆ 𝐸) = 1 -Pr(𝐸 * ⊈ 𝐸) ≥ 1 -|𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ). (A.22) Since 𝑞 min 𝑟 min &gt; 0, taking 𝑁 min → ∞ in Equation (A.22) gives lim 𝑁 min →∞ Pr(𝐸 * ⊆ 𝐸) ≥ lim * | exp(-𝑁 min 𝑞 min 𝑟 min )] = 1 -|𝐸 * | lim 𝑁 min →∞ exp(-𝑁 min 𝑞 min 𝑟 min ) * ⊆ 𝐸, Equation (A.13) and the propagation argument in Equation (A.14) give</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>≥</head><label></label><figDesc><ref type="bibr" target="#b23">25)</ref> Squaring Equation (A.<ref type="bibr" target="#b23">25)</ref> givesE 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎)Using the interventional conditional-mean orthogonality from Equation (A.2), Equation (A.26) yields𝑅 int ( 𝐹 causal ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) = E 𝑃 int 𝐹 causal (𝑋 𝑡 , 𝑎) -𝐹 causal (𝑋 𝑡 , 𝑎)Therefore, Equation (A.27) holds with probability satisfying Pr 𝑅 int ( 𝐹 causal ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) ≤ 𝜀 ∑︁ Pr(𝐸 * ⊆ 𝐸) ≥ 1 -|𝐸 * | exp(-𝑁 min 𝑞 min 𝑟 min ). Taking 𝑁 min → ∞ in Equation (A.28) and using Equation (A.24) gives lim 𝑁 min →∞ Pr 𝑅 int ( 𝐹 causal ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) ≤ 𝜀 ∑︁ 𝑅 int ( 𝐹 causal ; 𝑗) -𝑅 int (𝐹 causal ; 𝑗) ≤ 𝜀 ∑︁</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>2</cell></row><row><cell></cell><cell>2 2</cell><cell cols="2">≤ 𝜀</cell><cell cols="2">𝑣 ∈ M ∑︁</cell><cell>∥𝑇 𝑗←𝑣 ∥ 2</cell><cell>.</cell><cell>(A.26)</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">𝑇 𝑗 ←𝑣 ≠0</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>2</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>2</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>2</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>(A.27)</cell></row><row><cell>≤ 𝜀</cell><cell>∑︁</cell><cell cols="3">∥𝑇 𝑗←𝑣 ∥ 2</cell><cell>.</cell></row><row><cell></cell><cell>𝑣 ∈ M</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">𝑇 𝑗 ←𝑣 ≠0</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>2</cell><cell></cell><cell></cell></row><row><cell>𝑣 ∈ M</cell><cell cols="2">∥𝑇 𝑗←𝑣 ∥ 2</cell><cell></cell><cell></cell><cell></cell><cell>(A.28)</cell></row><row><cell>𝑇 𝑗 ←𝑣 ≠0</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>2</cell></row><row><cell></cell><cell cols="2">𝑣 ∈ M</cell><cell cols="3">∥𝑇 𝑗←𝑣 ∥ 2</cell><cell>≥ lim 𝑁 min →∞</cell><cell>Pr(𝐸  *  ⊆ 𝐸)</cell><cell>(A.29)</cell></row><row><cell></cell><cell cols="2">𝑇 𝑗 ←𝑣 ≠0</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>= 1.</cell></row><row><cell>Hence, with probability approaching one,</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>2</cell></row><row><cell>lim sup</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>∥𝑇 𝑗←𝑣 ∥ 2</cell><cell>,</cell><cell>(A.30)</cell></row><row><cell>𝑁 min →∞</cell><cell></cell><cell></cell><cell></cell><cell cols="2">𝑣 ∈ M</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="3">𝑇 𝑗 ←𝑣 ≠0</cell></row><row><cell>which proves Equation (4.14) and completes the proof.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>□</cell></row><row><cell>A.6 Proof of Theorem 6</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head></head><label></label><figDesc>2 E 𝑃 int |𝑢 * * 𝜉 | 2 , 𝜆 * = 1,</figDesc><table><row><cell></cell><cell></cell><cell>(A.37)</cell></row><row><cell>1 -𝜆 𝐿+1  *  1 -𝜆  *</cell><cell>2</cell><cell>E 𝑃 int |𝑢  *   *  𝜉 | 2 , |𝜆  *  | &gt; 1.</cell></row><row><cell>For |𝜆</cell><cell></cell><cell></cell></row></table><note><p><p><p>* | &gt; 1, the second branch further satisfies</p>1 -𝜆 𝐿+1 * 1 -𝜆 * 2 E 𝑃 int |𝑢 * * 𝜉 | 2 ≥ |𝜆 * | 𝐿+1 -1 2 |1 -𝜆 * | 2 E 𝑃 int |𝑢 * * 𝜉 | 2 -→ ∞, (A</p>.38)   </p></note></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>while the first branch of Equation (A.37) diverges quadratically when</p><p>proving Equation (4.18). Thus 𝜌 (𝐵) &lt; 1 yields a convergent causal path expansion whose accumulated error is governed by the resolvent norm, while an excited eigenmode at 𝜆 * = 1 or |𝜆 * | &gt; 1 yields unbounded propagation. This completes the proof. □</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jiaxin</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxuan</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianshi</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixia</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianqing</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yufei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yisen</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongwei</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><forename type="middle">Ting</forename><surname>Tsang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lihui</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangqiu</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.30880</idno>
+		<ptr target="https://arxiv.org/abs/2605.30880" />
+		<title level="m">PatchWorld: Gradient-Free Optimization of Executable World Models for Agent Environments</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Regret-Based Federated Causal Discovery with Unknown Interventions</title>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Baldo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charles</forename><forename type="middle">K</forename><surname>Assaad</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2512.23626</idno>
+		<ptr target="https://arxiv.org/abs/2512.23626" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>cs.AI</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Barres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honghua</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soham</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xujie</forename><surname>Si</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.07982</idno>
+		<title level="m">𝜏 2 -Bench: Evaluating Conversational Agents in a Dual-Control Environment</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Philippe</forename><surname>Brouillard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sébastien</forename><surname>Lachapelle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Lacoste</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simon</forename><surname>Lacoste-Julien</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Drouin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2007.01754</idno>
+		<title level="m">Differentiable Causal Discovery from Interventional Data</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Caron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vasilios</forename><surname>Mavroudis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Hicks</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.09719</idno>
+		<ptr target="https://arxiv.org/abs/2503.09719" />
+		<title level="m">Towards Causal Model-Based Policy Optimization</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">LLM-State: Open World State Representation for Long-horizon Task Planning with Large Language Model</title>
+		<author>
+			<persName><forename type="first">Siwei</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anxing</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Hsu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.17406</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">John</forename><surname>Gkountouras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Lindemann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Lippe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Efstratios</forename><surname>Gavves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Titov</surname></persName>
+		</author>
+		<ptr target="https://proceedings.iclr.cc/paper_files/paper/2025/" />
+		<title level="m">Language Agents Meet Causality -Bridging LLMs and Causal World Models</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>b8701e41a9-Abstract-Conference.html</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Danijar</forename><surname>Hafner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1912.01603</idno>
+		<title level="m">Dream to Control: Learning Behaviors by Latent Imagination</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Danijar</forename><surname>Hafner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruben</forename><surname>Villegas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Ha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglak</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Davidson</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1811.04551</idno>
+		<title level="m">Learning Latent Dynamics for Planning from Pixels</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<author>
+			<persName><forename type="first">Danijar</forename><surname>Hafner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Norouzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.02193</idno>
+		<title level="m">Mastering Atari with Discrete World Models</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Danijar</forename><surname>Hafner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jurgis</forename><surname>Pašukonis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothy</forename><surname>Lillicrap</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2301.04104</idno>
+		<title level="m">Mastering Diverse Domains through World Models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Federated Causal Discovery Across Heterogeneous Datasets under Latent Confounding</title>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Hahn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alina</forename><surname>Zajak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dominik</forename><surname>Heider</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adèle</forename><surname>Helena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ribeiro</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.05149</idno>
+		<ptr target="https://arxiv.org/abs/2603.05149" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mengkang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianxing</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yude</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuheng</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiguang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Mu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenqi</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ping</forename><surname>Luo</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.13092</idno>
+		<ptr target="https://aclanthology.org/2025.findings-acl.1337/" />
+		<title level="m">Text2World: Benchmarking Large Language Models for Symbolic World Model Generation</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Janner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Justin</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marvin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sergey</forename><surname>Levine</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.08253</idno>
+		<idno>arXiv:2304.08244 [cs.CL</idno>
+		<ptr target="https://arxiv.org/abs/2304.08244" />
+		<title level="m">When to Trust Your Model: Model-Based Policy Optimization</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note>Benchmark for Tool-Augmented LLMs</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Nelson</forename><forename type="middle">F</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Hewitt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Paranjape</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Bevilacqua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Percy</forename><surname>Liang</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00638</idno>
+		<title level="m">Lost in the Middle: How Language Models Use Long Contexts</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="157" to="173" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jiarui</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Holleis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Aumayer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoli</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zirui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruoming</forename><surname>Pang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.04682</idno>
+		<ptr target="https://arxiv.org/abs/2408.04682" />
+		<title level="m">ToolSandbox: A Stateful, Conversational, Interactive Evaluation Benchmark for LLM Tool Use Capabilities</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuaichen</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingwen</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongkyu</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiarong</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.11892[cs.CL</idno>
+		<ptr target="https://arxiv.org/abs/2510.11892" />
+		<title level="m">R-WoM: Retrieval-augmented World Model For Computer-use Agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">David</forename><surname>Osman Mian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Kaltenpoth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jilles</forename><surname>Kamp</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vreeken</surname></persName>
+		</author>
+		<ptr target="https://proceedings.mlr.press/v206/mian23a.html" />
+		<title level="m">Nothing but Regrets -Privacy-Preserving Federated Causal Discovery</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Provably Efficient Causal Model-Based Reinforcement Learning for Systematic Generalization</title>
+		<author>
+			<persName><forename type="first">Mirco</forename><surname>Mutti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Riccardo</forename><forename type="middle">De</forename><surname>Santi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Emanuele</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felipe</forename><surname>Calderon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Bronstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcello</forename><surname>Restelli</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2202.06545[cs.LG</idno>
+		<ptr target="https://arxiv.org/abs/2202.06545" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">Minh</forename><surname>Hoang Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Van</forename><surname>Dai Do</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dung</forename><surname>Nguyen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.13721[cs.AI</idno>
+		<ptr target="https://arxiv.org/abs/2508.13721" />
+		<title level="m">Thin Nguyen, and Hung Le. 2025. CausalPlan: Empowering Efficient LLM Multi-Agent Collaboration Through Causality-Driven Planning</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">Judea</forename><surname>Pearl</surname></persName>
+		</author>
+		<title level="m">Causality: Models, Reasoning, and Inference</title>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ronan</forename><surname>Perry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julius</forename><surname>Von Kügelgen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2206.02013[cs.LG</idno>
+		<ptr target="https://arxiv.org/abs/2206.02013" />
+		<title level="m">Causal Discovery in Heterogeneous Environments Under the Sparse Mechanism Shift Hypothesis</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Causal inference by using invariant prediction: identification and confidence intervals</title>
+		<author>
+			<persName><forename type="first">Jonas</forename><surname>Peters</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Bühlmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolai</forename><surname>Meinshausen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="947" to="1012" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Top</forename><surname>Piriyakulkij</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adrian</forename><surname>Weller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marta</forename><surname>Kryven</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Ellis</surname></persName>
+		</author>
+		<idno type="DOI">10.52202/085713-0896</idno>
+		<title level="m">PoE-World: Compositional World Modeling with Products of Programmatic Experts. 26609-26638 pages</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Christopher</forename><surname>Rawles</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.14573</idno>
+		<title level="m">AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.04761</idno>
+		<title level="m">Toolformer: Language Models Can Teach Themselves to Use Tools</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Anirudh Goyal, and Yoshua Bengio. 2021. Toward Causal Representation Learning</title>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Schölkopf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francesco</forename><surname>Locatello</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><forename type="middle">Rosemary</forename><surname>Ke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nal</forename><surname>Kalchbrenner</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/JPROC.2021.3058954</idno>
+		<imprint>
+			<biblScope unit="page" from="612" to="634" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Shridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc-Alexandre</forename><surname>Côté</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Hausknecht</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2010.03768</idno>
+		<title level="m">ALFWORLD: Aligning Text and Embodied Environments for Interactive Learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Between MDPs and Semi-MDPs: A Framework for Temporal Abstraction in Reinforcement Learning</title>
+		<author>
+			<persName><forename type="first">Richard</forename><forename type="middle">S</forename><surname>Sutton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doina</forename><surname>Precup</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Satinder</forename><surname>Singh</surname></persName>
+		</author>
+		<idno type="DOI">10.1016/S0004-3702(99)00052-1</idno>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+			<biblScope unit="page" from="181" to="211" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sihong</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhili</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">James</forename><surname>Anderson</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.19499</idno>
+		<ptr target="https://proceedings.mlr.press/v235/wang24v.html" />
+		<title level="m">Momentum for the Win: Collaborative Federated Reinforcement Learning across Heterogeneous Environments</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ruoyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">Alexander</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc-Alexandre</forename><surname>Côté</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prithviraj</forename><surname>Ammanabrolu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.07540</idno>
+		<title level="m">ScienceWorld: Is your Agent Smarter than a 5th Grader</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ruoyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Todd</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziang</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingdi</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc-Alexandre</forename><surname>Côté</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Jansen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.06485</idno>
+		<ptr target="https://aclanthology.org/2024.acl-short.1/" />
+		<title level="m">Can Language Models Serve as Text-Based World Simulators?</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xinyue</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Biwei</forename><surname>Huang</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=XMgpnZ2ET7" />
+		<title level="m">Modeling Unseen Environments with Language-guided Composable Causal Components in Reinforcement Learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<title level="m" type="main">Leveraging World Model Disentanglement in Value-Based Multi-Agent Reinforcement Learning</title>
+		<author>
+			<persName><forename type="first">Zhizun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Meger</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/IJCNN64981.2025.11228644</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">10</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">WebShop: Towards Scalable Real-World Web Interaction with Grounded Language Agents</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Howard</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pedram</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12045</idno>
+		<title level="m">𝜏bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">ReAct: Synergizing Reasoning and Acting in Language Models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baolin</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruize</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suman</forename><surname>Nath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianfeng</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhou</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.00320</idno>
+		<ptr target="https://arxiv.org/abs/2506.00320" />
+		<title level="m">Dyna-Think: Synergizing Reasoning, Acting, and World Model Simulation in AI Agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Explainable Reinforcement Learning via a Causal World Model</title>
+		<author>
+			<persName><forename type="first">Zhongwei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingqing</forename><surname>Ruan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dengpeng</forename><surname>Xing</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2023/505</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="4540" to="4548" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xun</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryon</forename><surname>Aragam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pradeep</forename><surname>Ravikumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1803.01422</idno>
+		<title level="m">DAGs with NO TEARS: Continuous Optimization for Structure Learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Offline Model-Based Reinforcement Learning with Causal Structured World Models</title>
+		<author>
+			<persName><forename type="first">Zhengmao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xionghui</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="DOI">10.1007/s11704-024-3946-y</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

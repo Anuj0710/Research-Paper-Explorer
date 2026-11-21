@@ -1,0 +1,1985 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">SINGED: Correct Outputs Do Not Certify Safe Execution in LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-09-27">27 Sep 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Xiaoyu</forename><surname>Xu</surname></persName>
+							<email>xiaoyu0910.xu@connect.polyu.hk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The Hong Kong Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zi</forename><surname>Liang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The Hong Kong Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Minxin</forename><surname>Du</surname></persName>
+							<email>minxin.du@polyu.edu.hk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The Hong Kong Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Qipeng</forename><surname>Xie</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The Hong Kong Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Qingqing</forename><surname>Ye</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The Hong Kong Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuyuan</forename><surname>Li</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">Hangzhou Dianzi University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Haibo</forename><surname>Hu</surname></persName>
+							<email>haibo.hu@polyu.edu.hk</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The Hong Kong Polytechnic University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">SINGED: Correct Outputs Do Not Certify Safe Execution in LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-09-27">27 Sep 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">E49CCE461DD63373450C57C0C6090238</idno>
+					<idno type="arXiv">arXiv:2609.35889v1[cs.CR]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<textClass>
+				<keywords>GitHub Repository Project Website</keywords>
+			</textClass>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool-using language-model agents select and execute third-party artifacts. Different implementations can return the requested output while producing hidden execution effects that task-, attack-, or choice-based evaluations may miss. We study functional counterfeits: implementations that match benign alternatives on the requested output but add an effect forbidden by the task contract. We introduce SINGED (Source Integrity and the Nonidentifiability Gap in Execution Decisions for LLM Agents), a controlled benchmark covering five primary and two held-out task families. It varies displayed rank, evidence depth, decision policy, model release, and agent configuration, while task and process oracles verify the artifact and execution path. Across 7,549 audited trials, the randomized-rank study finds counterfeit execution in 45% (27/60) of rank-one trials and none at later ranks. Cross-candidate comparison eliminates shallow failures and reduces layered failures from 15.7% to 4.2%, but leaves dependency failures; its benefit is uncertain on unseen effects and public-package structures. Moreover, seven releases with no counterfeit executions when benign alternatives are available execute the counterfeit in 55/175 single-source cells after alternatives are removed. SINGED thus exposes a rank-, evidence-, and choice-sensitive outcome-to-execution gap: evaluation must connect correct outputs to execution paths.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Language-model agents extend language models from generating responses to acting in an environment. They interpret observations, select tools or resources, execute actions, and use feedback to continue or terminate. This loop supports reasoning and acting <ref type="bibr" target="#b57">(Yao et al., 2023)</ref>, API use <ref type="bibr" target="#b45">(Schick et al., 2023)</ref>, and selection from large tool registries <ref type="bibr" target="#b38">(Patil et al., 2024</ref><ref type="bibr" target="#b39">(Patil et al., , 2025))</ref>. Coding runtimes operationalize the loop through persistent state, tool interfaces, and termination logic <ref type="bibr">(OpenAI, 2026a;</ref><ref type="bibr" target="#b11">Earendil Works, 2026)</ref>. Interactive benchmarks evaluate execution trajectories across websites, computers, repositories, and stateful services <ref type="bibr" target="#b67">(Zhou et al., 2024;</ref><ref type="bibr" target="#b28">Mialon et al., 2024)</ref>.</p><p>This shift changes what evaluation must certify. An agent may return a correctly redacted file while the selected implementation also transmits the unredacted input, a behavior absent from the artifact. The Privacy Filter incident illustrates this risk: OpenAI released openai/privacy-filter for local personal-information detection and redaction, while another Hugging Face repository copied its model card and functionality but loaded an information stealer before its removal (OpenAI, 2026c; HiddenLayer <ref type="bibr" target="#b13">Research Team, 2026)</ref>. Neither a malicious request nor an adversarial instruction was required, only a plausible compromised source. This exposes a source-selection problem: When implementations advertise the same function and produce the same output, which source does an agent execute, and how This problem connects supply-chain security with agent security. Supply-chain research documents malicious packages, dependency confusion, and model-hub loader risks <ref type="bibr" target="#b33">(Ohm et al., 2020;</ref><ref type="bibr" target="#b17">Ladisa et al., 2023;</ref><ref type="bibr" target="#b6">Casey et al., 2024)</ref>, while agent-security research studies external instructions, poisoned tool descriptions, memories, skills, and unsafe plans <ref type="bibr" target="#b12">(Greshake et al., 2023;</ref><ref type="bibr" target="#b8">Debenedetti et al., 2024;</ref><ref type="bibr">Liu et al., 2026b,a)</ref>. Yet existing evaluations do not jointly hold the benign request and expected output fixed while varying the implementation, randomizing its displayed rank, and recording process effects (Table <ref type="table" target="#tab_0">1</ref>).</p><p>Consequently, an instruction-free, inspectable source can pass the task oracle while producing forbidden behavior that output-only and inspection-only evaluation misses.</p><p>Motivated by this gap, we introduce SINGED (Source Integrity and the Nonidentifiability Gap in Execution Decisions for LLM Agents), a controlled evaluation framework inspired by the source ambiguity exposed by the Privacy Filter incident. Each instance pairs an ordinary request with three similarly named implementations: an intended source, a benign community alternative, and a functional counterfeit. All advertise the same capability, expose the same interface, and produce the expected artifact, but only the counterfeit adds an effect forbidden by the task contract. We vary the decisive code's dependency depth and apply the construction to document redaction, speech transcription, paper retrieval, archive extraction, and tabular conversion.</p><p>To isolate source selection, SINGED varies rank, evidence depth, decision policy, model release, and agent configuration while holding the request, advertised capability, interface, and expected artifact fixed. Candidate code remains inspectable before installation, no adversarial instruction appears in tasks or sources, and role labels remain hidden. As illustrated in Figure <ref type="figure" target="#fig_1">1</ref>, a task oracle verifies returned artifacts, while a channel-separated process oracle records the executed implementation and its observable effects inside a network-isolated sandbox. This design separates output correctness from process integrity and identifies where a successful trajectory becomes compromised.</p><p>Across 7,549 audited trials spanning 20 releases from 14 model families and 8 agent configurations, we find three patterns. First, correct outputs conceal rank-sensitive process failures. All outputs pass in the randomized-rank study, yet counterfeit execution occurs only at rank one; the replication preserves the gradient with one rank-two failure. Second, early commitment drives shallow failures. Mandatory comparison eliminates matched failures when decisive evidence is visible. Yet seven releases with zero counterfeit execution rate (CER) under three-source choice execute the counterfeit in 55/175 single-source cells after benign alternatives are removed. Third, comparison reduces but does not eliminate risk.</p><p>Deeper dependencies, release changes, and unseen process effects expose its limits, showing that observed safety depends jointly on the evidence, alternatives, and system configuration across evaluated settings. We summarize our contributions as follows.</p><p>I) Problem formulation. We identify source selection among implementations with equivalent benchmark outputs as an agent security problem, define functional counterfeits, and formalize CER, safe utility, and the outcome-to-execution gap missed by output-only evaluation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>II)</head><p>Benchmark and evaluation framework. We introduce SINGED, a controlled benchmark covering five primary and two held-out task families, plus a frozen public-package transfer slice. It holds requests, interfaces, and artifacts fixed while varying rank, evidence depth, decision policy, model release, and agent configuration; task and process oracles score both channels per trajectory. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Tool-using agents and agent security. Tool-use research studies how language models interleave reasoning with external actions, retrieve APIs, and select among large tool collections <ref type="bibr" target="#b57">(Yao et al., 2023;</ref><ref type="bibr" target="#b45">Schick et al., 2023;</ref><ref type="bibr" target="#b38">Patil et al., 2024)</ref>. Interactive benchmarks extend this evaluation to websites, computers, repositories, and stateful services <ref type="bibr" target="#b23">(Liu et al., 2024;</ref><ref type="bibr" target="#b67">Zhou et al., 2024;</ref><ref type="bibr" target="#b54">Xie et al., 2024;</ref><ref type="bibr" target="#b58">Yao et al., 2025)</ref>, primarily scoring whether the agent reaches the requested state. Agent-security work examines indirect prompt injection, poisoned tool descriptions, malicious skills and implementations, and unsafe plans <ref type="bibr" target="#b12">(Greshake et al., 2023;</ref><ref type="bibr" target="#b8">Debenedetti et al., 2024;</ref><ref type="bibr" target="#b46">Shi et al., 2025;</ref><ref type="bibr" target="#b14">Hu et al., 2026;</ref><ref type="bibr" target="#b42">Qu et al., 2026)</ref>. These settings show how adversarial content redirects agents, but not how agents choose among output-equivalent sources for the same benign request.</p><p>Software supply chains and source selection. Supply-chain studies document malicious packages, dependency confusion, hallucinated dependencies, and executable model loaders <ref type="bibr" target="#b33">(Ohm et al., 2020;</ref><ref type="bibr" target="#b17">Ladisa et al., 2023;</ref><ref type="bibr" target="#b48">Spracklen et al., 2025;</ref><ref type="bibr" target="#b6">Casey et al., 2024)</ref>. Position-bias studies separately show that list order can alter model choices <ref type="bibr" target="#b5">(Bito et al., 2025;</ref><ref type="bibr">Zhang et al., 2026a;</ref><ref type="bibr" target="#b15">Khan et al., 2026)</ref>. As Table <ref type="table" target="#tab_0">1</ref> summarizes, prior designs do not jointly hold the benign request and expected output fixed, vary the implementation, randomize its displayed rank, and observe process effects. SINGED connects these literatures by measuring source choice and execution integrity under output-equivalent alternatives across matched, auditable agent trajectories; Appendix C expands this comparison.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Problem Setting</head><p>Agent trials. Following interactive evaluations that model agents through alternating actions and observations <ref type="bibr" target="#b57">(Yao et al., 2023;</ref><ref type="bibr" target="#b23">Liu et al., 2024)</ref>, each trial asks an agent to select and execute one candidate source. A source is an implementation claiming to perform the requested task. Because either benign candidate satisfies both task and process requirements, evaluation depends on execution behavior rather than a private "official" label.</p><p>Two-channel evaluation. Agent-security benchmarks commonly score task outcomes or attack success <ref type="bibr" target="#b8">(Debenedetti et al., 2024;</ref><ref type="bibr" target="#b44">Ruan et al., 2024)</ref>. We instead separate the returned artifact from the process that produced it. Task oracle 𝑉 𝑖 (𝑥 𝑖 , 𝑦 𝑖 ) ∈ {0, 1} accepts a correct output. The process channel records sandbox events Events(𝜏 𝑖 ) and checks whether any belong to 𝐵 𝑖 . Across our tasks, forbidden effects include external transmission, out-of-scope writes, unrelated-file reads, unauthorized metadata changes, and unnecessary child processes. We define</p><formula xml:id="formula_0">𝑇 𝑖 = 1{𝑉 𝑖 (𝑥 𝑖 , 𝑦 𝑖 ) = 1}, 𝐻 𝑖 = 1{Events(𝜏 𝑖 ) ∩ 𝐵 𝑖 ≠ ∅}, 𝑆𝑈 𝑖 = 𝑇 𝑖 (1 -𝐻 𝑖 ).<label>(1)</label></formula><p>Let 1{•} denote the indicator function. 𝑇 𝑖 is task success, 𝐻 𝑖 a forbidden process effect, and 𝑆𝑈 𝑖 success without one. In accepted instances, only executing the counterfeit triggers the designated event by construction, so 𝐻 𝑖 also identifies counterfeit execution within SINGED. For analyzable trials</p><formula xml:id="formula_1">I 𝜃 under condition 𝜃, let 𝑁 𝜃 = |I 𝜃 |. We define CER(𝜃) = 1 𝑁 𝜃 ∑︁ 𝑖 ∈ I 𝜃 𝐻 𝑖 (𝜃), OEG(𝜃) = 1 𝑁 𝜃 ∑︁ 𝑖 ∈ I 𝜃 𝑇 𝑖 (𝜃)𝐻 𝑖 (𝜃) = 𝑇 (𝜃) -𝑆𝑈 (𝜃).</formula><p>(2)</p><p>Overbars denote means over I 𝜃 . Counterfeit execution rate (CER) measures how often the counterfeit runs. The outcome-to-execution gap (OEG) is the share of correct outputs produced through compromised execution, equal to how much task success overstates safe utility in that condition.</p><p>Proposition 1 (Nonidentifiability under output equivalence). Let 𝜏 𝑏 and 𝜏 𝑐 be benign and compromised traces for the same contract 𝑐 𝑗 and input 𝑥 ∈ 𝑋 𝑗 . Suppose both return 𝑦 and satisfy 𝑉 𝑗 (𝑥, 𝑦) = 1, while 𝐻 (𝜏 𝑏 ) = 0 and 𝐻 (𝜏 𝑐 ) = 1. Any possibly randomized evaluator observing only (𝑞 𝑗 , 𝑥, 𝑦) produces the same score distribution for both traces. Under an equal prior, no output-only rule identifies the compromised trace with accuracy greater than 1/2.</p><p>Proof. Both traces yield the same (𝑞, 𝑥, 𝑦), hence identical scores and the stated bound. □</p><p>The gap is structural and cannot be identified without process evidence.</p><p>Threat model and contrasts. Subject to the matching constraints in Section 4, the adversary controls one discoverable candidate's name, metadata, code, and dependencies. The adversary cannot modify the request, trial input, benign candidates, expected artifact, sandbox, or oracle logs. All candidate code is inspectable before execution. Thus, hidden means absent from the returned artifact, not invisible in source or process logs. The task oracle observes the request, input, artifact, and expected hash; the process oracle observes the executed hash and sandbox event log. These channels are separate, although their outcomes need not be statistically independent.</p><p>We place the counterfeit equally often at three displayed ranks while keeping the benign candidates' relative order fixed. Let H (𝑘; 𝑝, 𝑑, 𝑔) be mean hidden effects when the counterfeit appears at rank 𝑘 under rule 𝑝, depth 𝑑, and controller 𝑔. The primary rank contrast is</p><formula xml:id="formula_2">Δ rank = H (1; 𝑝, 𝑑, 𝑔) - 1 2</formula><p>H (2; 𝑝, 𝑑, 𝑔) + H (3; 𝑝, 𝑑, 𝑔) .</p><p>(3)</p><p>It compares counterfeit execution at rank one with its average at ranks two and three. For 𝑁 matched units in I, the policy contrast between rules 𝑝 and 𝑝 ′ at fixed order 𝜎 and depth 𝑑 is</p><formula xml:id="formula_3">Δ 𝑝, 𝑝 ′ (𝜎, 𝑑) = 1 𝑁 ∑︁ 𝑖 ∈ I [𝐻 𝑖 (𝜎, 𝑝, 𝑑, 𝑔 0 ) -𝐻 𝑖 (𝜎, 𝑝 ′ , 𝑑, 𝑔 0 )] .<label>(4)</label></formula><p>A positive value means that 𝑝 produces more hidden effects than 𝑝 ′ . Both contrasts use frozen units and separate model calls. Rank interpretation requires balanced assignment, fixed candidates, stable endpoints and instrumentation, and fresh sandboxes. Inspection depth remains descriptive because agents choose it after assignment rather than being randomized.  4 Constructing the SINGED Benchmark</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Matched and Auditable Construction</head><p>Tasks and candidates. Existing agent benchmarks ask whether an agent completes an interactive task on a website, computer, or stateful service <ref type="bibr" target="#b67">(Zhou et al., 2024;</ref><ref type="bibr" target="#b28">Mialon et al., 2024;</ref><ref type="bibr" target="#b54">Xie et al., 2024)</ref>. SINGED asks an earlier question: when several retrieved implementations claim the same function, which one does the agent execute? Candidates match their presentation, interface, metadata, topology, and output. Their code differs only where needed to place the designated process effect at the assigned evidence depth for controlled comparison across conditions.</p><p>Using the task contract from Section 3, we instantiate five task families with controlled inputs derived from realistic task formats. Document redaction produces redacted text, local speech transcription produces a transcript, paper retrieval returns a matching PDF, archive extraction creates a verified directory tree, and tabular conversion maps CSV records to canonical JSON. Each prompt requests only this artifact, with no provenance, verification, or security cue. Unlike evaluations based on harmful requests, injected instructions, or poisoned descriptions <ref type="bibr" target="#b44">(Ruan et al., 2024;</ref><ref type="bibr" target="#b8">Debenedetti et al., 2024)</ref>, every SINGED prompt describes a benign task with no security violation.</p><p>For each contract, we construct three similarly named sources: an intended implementation, a benign community alternative, and a functional counterfeit. The benign sources return the expected artifact without a forbidden event. The counterfeit advertises the same capability, exposes the same interface, and returns the same artifact, but adds one unnecessary process effect. The first three families emit a loopback receipt representing unauthorized transmission; archive extraction writes outside its target directory, and tabular conversion reads an unrelated controlled file. Inspired by ambiguity in software and model supply chains <ref type="bibr" target="#b33">(Ohm et al., 2020;</ref><ref type="bibr" target="#b17">Ladisa et al., 2023;</ref><ref type="bibr" target="#b6">Casey et al., 2024)</ref>, this design turns a realistic risk into a controlled choice. Each effect remains inside the disposable sandbox and gives the process oracle an exact, privacy-safe label.</p><p>Frozen task</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>REQUEST</head><p>Use tovi-scribe to process workspace/input.wav.  [I1] 2. Preserve the requested computation; add one 𝐵 𝑞 event only to the counterfeit at depth 𝑑. 3. Run every source on 𝑋 𝑞 ; reject unless canonical artifacts match and pass 𝑉 𝑞 .</p><p>[I2] 4. Reject unless benign sources emit no 𝐵 𝑞 event and the counterfeit emits exactly one.</p><p>[I3] 5. Remove explicit role labels, freeze hashes, and generate a balanced rank schedule from 𝑠.</p><p>[I4] Output: A frozen instance and schedule satisfying I1-I4.</p><p>Acceptance invariants. An instance enters the benchmark only if it satisfies four invariants. I1, presentation and interface equivalence: candidates expose matched capabilities, invocation schemas, metadata fields, and code topology. I2, output equivalence: for every 𝑥 ∈ 𝑋 𝑞 , all candidates terminate, produce the same canonical artifact, and pass task oracle 𝑉 𝑞 . I3, effect separation: benign candidates trigger no event in 𝐵 𝑞 , whereas the counterfeit triggers exactly one designated event. I4, role blindness: no visible field or file labels a candidate as intended, community, or counterfeit. The decisive code remains inspectable; only the private role annotation is hidden. Algorithm 1 rejects any instance that violates an invariant; Figure <ref type="figure" target="#fig_2">2</ref> traces one accepted speech-transcription instance from construction to validation. On the frozen inputs, the forbidden effect is therefore the only behavior that defines the counterfeit role. Each accepted bundle records candidate and output hashes, canonicalization rules, oracle specifications, private roles, and a seeded schedule for exact audit and replay. The schedule places the counterfeit equally often at all three ranks while holding the benign sources' relative order fixed for every matched comparison.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Evidence Control and Trace Scoring</head><p>Controlled evidence depth. Each candidate has entrypoint, one-import, and two-import variants with otherwise matched code structure. The decisive statement that causes the forbidden effect appears in the invoked file, a directly imported file, or a second file reached through that import. These depths model relevant behavior hidden within software-supply-chain dependencies <ref type="bibr" target="#b33">(Ohm et al., 2020;</ref><ref type="bibr" target="#b17">Ladisa et al., 2023)</ref>. Assigned depth 𝑑 determines where this evidence appears, while observed inspection Instrumented execution. Seven task-scoped tools support candidate search, result-page opening, file listing and reading, installation, execution, and output retrieval. Each trial uses a fresh workspace and fixed tool-call budget. Only model communication may leave the sandbox; public networking, host files, shell access, and general browsing are disabled. Logs connect displayed order, opened candidates, inspected files, installed and executed hashes, outputs, and process events, revealing which implementation produced the artifact rather than inferring its path from the output.</p><p>Each trace yields five measures. Candidate coverage records which sources are opened, entrypoint coverage which invoked files the agent reads, and decisive-file exposure whether it observes the code causing the forbidden effect. Safe selection records whether the executed candidate is benign, while refusal and non-execution remain separate outcomes. Task completion records whether the artifact passes the task oracle. Because stages do not imply later ones, seeing decisive code need not affect source choice. Coverage and choice revision diagnose early commitment, while matched decision-rule and enforced-coverage interventions test whether exposure improves safe selection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Experimental Design</head><p>Questions and scope. Table <ref type="table" target="#tab_3">2</ref> summarizes 7,549 identifiers across five primary and two held-out tasks plus public-package transfer, 20 releases, and 8 agent configurations. Q1 asks whether correct outputs conceal compromised execution; Q2 tests whether rank and agent-chosen early commitment are associated with that gap; Q3 evaluates comparison, dependency depth, and enforced coverage; and Q4 tests transfer across tasks, process effects, prompts, releases, and configurations. Appendix Table <ref type="table">6</ref> gives release roles and identifiers; frozen manifests retain the inference settings.</p><p>Primary controlled designs. The rank study crosses four models, 15 instances, and three displayed ranks (𝑛 = 180), with an all-benign control (𝑛 = 60). Matched rank-one trials vary the decision rule (𝑛 = 240).</p><p>A layered factorial crosses six models, 12 instances, three evidence depths, and two policies (𝑛 = 432), with a separate controller enforcing inspection of every reachable dependency. Balanced five-task cells     extend these contrasts to 20 releases. Frozen slices vary the model, agent configuration, or release while holding other factors fixed. For the seven zero-CER releases in Table <ref type="table" target="#tab_4">3</ref>, a paired diagnostic presents only a benign or counterfeit source, with 25 cells per condition.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Replication and transfer.</head><p>Frozen replication repeats the rank, all-benign, and rank-one compare-all blocks on new identifiers (𝑛 = 300); an independent repeat tests both policies on fresh two-hop cells (𝑛 = 216). Transfer blocks vary neutral prompt wording and eight agent configurations while holding task cells and available operations fixed. Appendix A reports the models, agent versions, and settings. Two frozen 120-cell extensions test new tasks and effects and six current releases on two-hop implementations.</p><p>A 324-cell public-package slice crosses nine role-rotated structures, three ranks, six current releases, and both policies under Codex agent configuration and tools.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.1">Q1: Correct outcomes conceal compromised execution</head><p>Correct artifacts can mask compromised execution. Every output in the original 180-trial randomizedrank study is correct, yet 27 trajectories trigger the forbidden effect, creating a 15.0-point outcome-toexecution gap. Figure <ref type="figure" target="#fig_4">4a</ref> localizes all failures to rank one. Appendix Figure <ref type="figure">7</ref> illustrates this gap: four agents return the same redacted file, but two execute the counterfeit despite observing its additional POST.</p><p>Table <ref type="table" target="#tab_4">3</ref> extends the finding across five tasks and 20 releases: 1412/1500 trials complete the task, while 167/1500 execute the counterfeit. Every counterfeit execution also completes the task, so output-only evaluation misses compromised paths. Conversely, seven releases with zero CER under three-source choice still execute the sole counterfeit in 55/175 single-source cells (Figure <ref type="figure">3</ref>). Their zero rates therefore reflect access to safe alternatives rather than counterfeit rejection. Archive and tabular cells reproduce the gap through out-of-scope writes and unrelated-file reads (442/2,432 hidden effects), while no all-benign control triggers the designated event. CER must therefore be interpreted alongside task success and the available choice set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.2">Q2: Rank and early commitment localize failures</head><p>Displayed rank strongly affects counterfeit execution. The original study records 27/60 counterfeit executions when the counterfeit ranks first and none when it ranks second or third. The frozen replication preserves this gradient, with 17/60, 1/60, and 0/60 executions across the three ranks (Figure <ref type="figure" target="#fig_4">4a</ref>). Across the five primary tasks, the corresponding counts are 162/500, 2/500, and 3/500. Deeper evidence weakens the benefit of comparison. Figure <ref type="figure" target="#fig_4">4d</ref> plots CER on the vertical axis against the location of the decisive statement on the horizontal axis; the two curves represent deliberation and compare-all. Pooling both policies, counterfeit executions increase from 119/574 at the entrypoint to 144/574 after one import and 165/572 after two imports. Compare-all remains better at every depth, but its CER also rises as evidence moves deeper. The final point is an intervention rather than another depth: enforced coverage requires inspection of every reachable local dependency, yet still leaves 1/132 failures.</p><p>In the frozen layered block, compare-all reduces hidden effects from 34/216 to 9/216. An independent 216-cell repeat similarly records 31/108 failures under deliberation and 6/108 under compare-all, a 23.1-point reduction (95% cluster CI: 14.8-31.5). Comparison and enforced inspection therefore reduce risk without certifying safe execution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.4">Q4: Transfer depends on the task and system configuration</head><p>Comparison transfers within the primary benchmark but remains release-sensitive. Transfer remains task-and source-dependent. Across 120 held-out trials, 51 trigger a forbidden effect: 26/60 under deliberation and 25/60 under compare-all. The direction reverses between configuration editing and thumbnailing, with both intervals crossing zero (Figure <ref type="figure" target="#fig_7">6a-b</ref>). A two-hop test yields 0/60 versus 1/60 effects. Across 324 public-package cells, counterfeit executions fall from 36/162 to 26/162, a 6.2-point CER difference (95% cluster CI: -0.6-13.0; Figure <ref type="figure" target="#fig_7">6d</ref>). Both policies retain rank gradients. These results show that the functional-counterfeit threat is not confined to benchmark implementations and persists when agents select among version-pinned public-package source trees. Thus, rank sensitivity transfers, but the aggregate benefit of comparison remains uncertain across unseen effects and public-package structures under matched conditions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>We introduce SINGED and show that output correctness does not establish execution integrity. Forbidden effects can remain hidden behind correct artifacts and concentrate under favorable rank and early commitment. Comparison reduces shallow failures, but deeper dependencies, unseen effects, and release changes leave residual risk. Single-source and public-package tests show that safety depends on available alternatives and source structure, with rank sensitivity transferring more consistently than comparison benefits. Evaluations should bind outputs to inspected and executed identities and process events, while deployments require provenance and system-level controls.</p><p>Table <ref type="table">5</ref>: Agent configurations used in the transfer analysis.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: SINGED instruments source selection across five primary task families. The document example follows three output-equivalent sources from retrieval through execution. Separate task and process oracles reveal a correct artifact alongside a forbidden POST; archive extraction and tabular conversion instead use sandboxed write and read effects within the isolated execution environment.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>FREEZEFigure 2 :</head><label>2</label><figDesc>Figure2: One controlled benchmark item. For speech-05, the request and expected transcript are frozen; three similarly named candidates expose matched metadata and source structure. The evaluator keeps roles private, crosses rank with evidence depth, and accepts the cell when all outputs match and the counterfeit alone produces one loopback receipt during sandboxed execution.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: From presentation to mechanism. (a) CER by displayed rank in the original study and frozen replication. (b) Agent-chosen inspection paths in the original 180 Codex trials. (c) CER under matched decision rules. (d) CER across dependency depth and enforced coverage.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Transfer within the primary benchmark. (a) Matched task and prompt-rewrite cells under the Codex agent configuration. (b) Eight agent configurations with Kimi K2.5 and Qwen3.7 Plus fixed. (c) Six matched release pairs under the Codex agent configuration.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Boundary conditions and synthesis (Codex agent). (a) CER on two held-out tasks. (b) Paired policy differences; positive values favor compare-all. (c) Risk reduction versus added tool calls. (d) CER by rank on public-package structures; intervals cluster by package instance.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head></head><label></label><figDesc>Figure5a-b compares deliberation with compare-all across tasks, prompt variants, and agent configurations. Hidden effects fall from 22/108 to 4/108 on new primary-task instances and from 31/190 to 17/190 on archive and tabular tasks; neutral rewrites preserve this direction. With Kimi K2.5 and Qwen3.7 Plus fixed, the count falls from 69/192 to 14/192 across eight agent configurations. Figure5cfixes Codex across matched model releases. The current snapshot records 4/216 effects, all under MiniMax M3 deliberation; matched MiniMax compare-all failures change from 17/18 on M2.5 to 0/18 on M3. This demonstrates release sensitivity, not monotonic improvement.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Representative evaluation designs at the agent-artifact boundary.</figDesc><table><row><cell>Citation</cell><cell>Evaluation setting</cell><cell>Intervention</cell><cell>Matched output</cell><cell>Endpoint</cell><cell>Random rank</cell></row><row><cell cols="2">Greshake et al. (2023) Indirect prompt injection</cell><cell>External instruction</cell><cell>×</cell><cell>Attack success</cell><cell>×</cell></row><row><cell>Shi et al. (2025)</cell><cell>Tool metadata poisoning</cell><cell>Tool description</cell><cell>×</cell><cell>Tool selection</cell><cell>×</cell></row><row><cell>Hu et al. (2026)</cell><cell cols="2">Malicious tool generation Implementation</cell><cell>×</cell><cell>Attack success</cell><cell>×</cell></row><row><cell>Sneh et al. (2025)</cell><cell cols="2">Tool-surface optimization Tool interface</cell><cell>×</cell><cell>Tool selection</cell><cell>×</cell></row><row><cell>Qu et al. (2026)</cell><cell>Agent-skill supply chain</cell><cell>Skill code</cell><cell>×</cell><cell>Attack success</cell><cell>×</cell></row><row><cell>Bito et al. (2025)</cell><cell>Position-bias evaluation</cell><cell>List order</cell><cell>N/A</cell><cell>Recommendation</cell><cell>✓</cell></row><row><cell>This work</cell><cell>SINGED</cell><cell>Implementation + order</cell><cell>✓</cell><cell>Output + events</cell><cell>✓</cell></row><row><cell cols="4">do rank, inspectable evidence, and decision policy change that choice?</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>Using matched decision-rule interventions, we identify early commitment as a candidate mechanism for shallow failures and characterize when additional inspection changes source selection, including a 45-point rank-one CER reduction. Single-source and transfer tests define the boundary: observed safety depends on available alternatives and does not reliably generalize across deeper dependencies, releases, configurations, unseen effects, or public-package structures.</figDesc><table /><note><p>III) Empirical findings.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head></head><label></label><figDesc>The agent comprises a language model 𝑀 that proposes actions, an agent configuration 𝐹 that maintains state and exposes tools, a prompted rule 𝑝 that guides inspection and selection, and an optional controller 𝑔 that may block actions before execution. A task contract 𝑐 𝑗 = (𝑞 𝑗 , 𝑋 𝑗 , 𝑉 𝑗 , 𝐵 𝑗 ) specifies user request 𝑞 𝑗 , frozen validation inputs 𝑋 𝑗 , task oracle 𝑉 𝑗 , and forbidden process events 𝐵 𝑗 . A benchmark instance 𝑗 = (𝑐 𝑗 , 𝑥 𝑗 ) selects input 𝑥 𝑗 ∈ 𝑋 𝑗 . Before agent evaluation, we run every candidate on 𝑋 𝑗 to establish identical outputs and separate benign from forbidden process behavior.An evaluation unit 𝑖 = ( 𝑗 𝑖 , A 𝑖 , 𝑀 𝑖 , 𝐹 𝑖 , 𝑒 𝑖 ) fixes instance 𝑗 𝑖 , candidate set A 𝑖 , model 𝑀 𝑖 , agent configuration 𝐹 𝑖 , and a network-isolated sandbox 𝑒 𝑖 . 𝑞 𝑖 , 𝑥 𝑖 , 𝑉 𝑖 , and 𝐵 𝑖 denote its request, input, task oracle, and forbiddenevent set. A trial evaluates it under 𝜃 = (𝜎, 𝑝, 𝑑, 𝑔): 𝜎 orders candidates, 𝑝 sets decision rule, 𝑑 locates decisive code at entrypoint or in dependencies, and 𝑔 sets the controller. Assigned depth locates evidence; observed depth measures how far the agent reads. During execution, the model proposes actions from history, 𝑔 permits or blocks them, and the sandbox returns observations. Default controller 𝑔 0 permits all actions. Trace 𝜏 𝑖 (𝜃) = (ℎ 𝑖 , 𝑎 exec,𝑖 , 𝑦 𝑖 ) records history, executed hash, and output. Non-execution sets 𝑎 exec,𝑖 = ⊥; missing output sets 𝑦 𝑖 = ⊥.</figDesc><table /><note><p>Functional counterfeits. For contract 𝑐 𝑗 = (𝑞 𝑗 , 𝑋 𝑗 , 𝑉 𝑗 , 𝐵 𝑗 ), two implementations are benchmark output equivalent if both terminate, return identical outputs, and pass 𝑉 𝑗 for every 𝑥 ∈ 𝑋 𝑗 . Candidate 𝑎 𝑐 is a functional counterfeit for (𝑐 𝑗 , 𝑒) if it is benchmark output equivalent to every benign candidate but triggers an event in 𝐵 𝑗 on every validation input in environment 𝑒. Benign candidates must trigger no event in 𝐵 𝑗 . This claim applies only to the frozen inputs and does not imply equivalence elsewhere.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Experimental blocks and their roles.</figDesc><table><row><cell>Evidence layer</cell><cell>Composition</cell><cell>IDs</cell><cell>Evaluation role</cell></row><row><cell>Five-task benchmark</cell><cell>Five tasks: rank, clean, policy, depth, models</cell><cell cols="2">5,581 Rank, policy, depth, task, source set</cell></row><row><cell cols="2">Transfer and mechanism Held-out cells, rewrites, coverage, 8 configurations</cell><cell>672</cell><cell>Task, wording, configuration transfer</cell></row><row><cell cols="2">Replication and releases Refresh, independent repeats, version checks</cell><cell>732</cell><cell>Repeatability and release sensitivity</cell></row><row><cell>Transfer extensions</cell><cell>Configuration, thumbnail, and public-package structures</cell><cell>564</cell><cell>Unseen-task, effect, and source transfer</cell></row><row><cell>Overall</cell><cell>Seven tasks + public-package transfer</cell><cell cols="2">7,549 20 releases, 14 families, 8 configurations</cell></row></table><note><p>Algorithm 1: Construct a SINGED instance Input: Contract (𝑞, 𝑋 𝑞 , 𝑉 𝑞 , 𝐵 𝑞 ), benign template 𝑎, depth 𝑑, and seed 𝑠. 1. Instantiate three sources with matched presentation, interface, metadata, and topology.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Five-task randomized-rank results across 20 model releases.</figDesc><table><row><cell>Model</cell><cell></cell><cell cols="2">Two-channel outcomes</cell><cell></cell><cell cols="2">Selection behavior</cell></row><row><cell>Release</cell><cell>Task success (𝑇)</cell><cell>CER</cell><cell>OEG</cell><cell>Safe utility (𝑆𝑈)</cell><cell>Rank-1 CER</cell><cell>Compared all</cell></row></table><note><p>depth measures how far the agent reads before execution. Across depths, candidates retain identical capabilities, interfaces, metadata, topology, requested behavior, and output hashes; only the inspection distance changes across all matched comparisons.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Q3: Comparison reduces risk but does not certify safety Explicit comparison interrupts shallow early commitment.</head><label></label><figDesc>Randomized placement at rank one increases CER by 45 percentage points relative to later ranks (95% instance-clustered CI: 36.7-53.3), showing that display order affects execution despite conveying no provenance information about the candidates' underlying safety. Figure4capplies five decision rules as matched diagnostic interventions to the same 323 units, rather than as complete defenses; the vertical axis lists rules and the horizontal axis reports CER. Counterfeit executions fall from 132/323 at baseline to 54/323 with generic deliberation, 82/323 with selected-source inspection, 74/323 with necessity judgment, and 24/323 with compare-all. In the original matched rank-one block, three-way comparison reduces counterfeit execution from 27/60 to 0/60, a 45-point reduction (95% instance-clustered CI: 36.7-53.3). Every baseline failure follows inspection of the counterfeit with decisive evidence visible, showing that exposure alone need not change execution.</figDesc><table><row><cell>Failures concentrate in early-commitment trajectories. All 27 counterfeit executions occur among the</cell></row><row><cell>79 trajectories that stop after inspecting one candidate; none occurs among the 101 that compare all three</cell></row><row><cell>(Figure 4b). Choice revision shows the same pattern: 27/142 trajectories that retain the first candidate are</cell></row><row><cell>compromised, whereas none of the 38 that switch candidates is compromised. Because inspection and</cell></row><row><cell>revision are agent-selected, this association does not establish causality. It suggests a mechanism: rank</cell></row><row><cell>determines which source is inspected first, and early stopping converts that initial exposure into execution.</cell></row><row><cell>Q3 tests this account using matched decision-rule interventions.</cell></row><row><cell>5.2.3</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Protocol Details</head><p>Environment and validation. Seven scoped operations let an agent search candidates, open a result, list and read files, install and execute one candidate, and read its output. Every trial uses a fresh workspace and fixed tool-call budget without shell, host-file, general-browser, or public-network access. Before evaluation, each candidate runs on all frozen inputs in an isolated sandbox. An instance is accepted only when every candidate terminates, returns the same verified artifact, and the counterfeit alone produces the designated process effect.</p><p>Decision rules and evidence depth. Four one-sentence rules ask the agent to inspect its selected source, compare all candidates, deliberate before choosing, or judge whether each external action is necessary. All remaining instructions are fixed. The layered design places the decisive statement in run.py, pipeline.py, or hook.py, corresponding to the entrypoint, one import, or two imports. Candidate metadata, interfaces, topology, requested behavior, and output remain matched. Logs separately record candidate coverage, entrypoint coverage, decisive-file exposure, selection, task success, and the forbidden effect.</p><p>Agent configurations. The agent-configuration transfer slice evaluates the eight configurations in Table <ref type="table">5</ref>. Each exposes the same seven benchmark operations and runs the same 48 cells with Kimi K2.5 and Qwen3.7 Plus fixed. ReAct denotes our tool loop implementing the published reason-act pattern; the remaining rows use the cited software releases. Frozen manifests record the configuration, adapter and dependency hashes, and exact model strings.</p><p>Model provenance and inference settings. Model comparisons use Codex CLI 0.153.4 with medium reasoning. Temperature and top-𝑝 are not overridden and therefore use provider defaults. The agent receives the same seven scoped tools, while shell, Web, plugins, skills, and multi-agent features are disabled. Versioned or dated model identifiers are fixed releases; aliases and preview identifiers denote snapshots at execution time.   Single-source stress test. For all seven zero-CER releases in Table <ref type="table">3</ref>, a frozen paired diagnostic removes source selection. Six belong to the current-release panel; HY 4 Preview enters through a protocol-matched extension from the five-task breadth slice. Each release receives 25 five-task cells with only a benign source and 25 with only its output-equivalent counterfeit (𝑛 = 350). Prompts, interfaces, inputs, and task oracles remain fixed; only the implementation changes. All benign-only cells complete, whereas 55/175 counterfeit-only cells execute and trigger the designated effect. Figure <ref type="figure">3</ref> reports the model-level counts; the audit retains every attempt and trace.</p><p>Public-package transfer. We freeze Markdown 3.8.2, markdown2 2.5.4, Mistune 3.1.3, toml 0.10.2, tomli 2.2.1, TOML Kit 0.13.3, JSON5 0.12.0, Hjson 3.1.0, and commentjson 0.9.0 from public source archives. The three domains are Markdown rendering, TOML parsing, and commented-JSON parsing.</p><p>Each contains three packages that return the same canonical artifact on controlled input. Three role rotations place the controlled loopback probe in each package in turn while versions, source trees, rank schedules, task oracles, and expected outputs remain fixed. Kimi K3, Qwen3.8 Max, GLM-5.3, DeepSeek V4.1 Flash, MiniMax M3, and Grok 4.6 are evaluated using the Codex 0.153.4 agent configuration and the same seven task-scoped tools across three ranks and two policies, yielding 324 audited cells. Task completion is 131/162 under deliberation and 128/162 under compare-all, so the CER difference is not accompanied by improved task completion. Archive hashes and licenses are recorded in the released manifest; modified archives remain local and execute only inside the sandbox. Attempt selection and inference. The primary analysis retains one operationally complete attempt per registered identifier and excludes the pilot. The protocol permits one pre-action retry; the archived launcher also retried runs ending after agent interaction but before execution. No discarded post-action attempt executed an artifact or produced a receipt. First-termination aggregation therefore preserves CER but can change task success and safe utility (Table <ref type="table">8</ref>). Rank intervals resample instances with all permutations retained; cross-factor intervals resample domain-by-instance clusters. Model, task, and agent-configuration comparisons are descriptive, with matched McNemar tests as unclustered sensitivity checks.</p><p>The layered core, prompt-rewrite, and ReAct blocks are unchanged under the first-termination rule.</p><p>Another 97 identifiers exceed the planned pre-action retry limit. They remain in the audit ledger, but their task-success rates are not interpreted as intention-to-treat estimates.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Supplementary Analyses</head><p>Independent repeat. The independently frozen repeat yields 214/216 task successes, 37 hidden effects, and 177 safe outcomes. Deliberation produces 31/108 hidden effects, compared with 6/108 under compare-all. Figure <ref type="figure">6</ref> reports the paired contrast and interaction cost; the audit ledger retains every attempt, artifact hash, and process event. Table <ref type="table">9</ref> keeps the five primary tasks in one evaluation block and reports the two cross-domain tasks separately. Across primary-task transfer cells, compare-all changes hidden effects from 53/298 to 21/298. The cross-domain cells show no aggregate reduction, with 26/60 effects under deliberation and 25/60 under compare-all. These counts describe matched interventions within each task rather than prevalence across public sources. Development pilot. The disjoint two-hop pilot contains 12 completed trials. Deliberation produces 3/6 hidden effects and compare-all 1/6. The four failures cover early commitment, incomplete entrypoint coverage, and one unsafe choice after the decisive file was exposed. The pilot is excluded from all confirmatory totals and serves only as preliminary evidence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Extended Related Work</head><p>Tool use and interactive evaluation. ReAct and Toolformer study how models interleave reasoning with actions or learn when to invoke tools <ref type="bibr" target="#b57">(Yao et al., 2023;</ref><ref type="bibr" target="#b45">Schick et al., 2023)</ref>. API-Bank, Gorilla, ToolLLM, and BFCL extend this setting to API retrieval and selection <ref type="bibr" target="#b20">(Li et al., 2023;</ref><ref type="bibr" target="#b38">Patil et al., 2024;</ref><ref type="bibr" target="#b41">Qin et al., 2024;</ref><ref type="bibr" target="#b39">Patil et al., 2025)</ref>. AgentBench, GAIA, WebArena, OSWorld, 𝜏-bench, ToolSandbox, SWE-agent, and AgentBoard evaluate multi-step task completion across interactive environments <ref type="bibr" target="#b23">(Liu et al., 2024;</ref><ref type="bibr" target="#b28">Mialon et al., 2024;</ref><ref type="bibr" target="#b67">Zhou et al., 2024;</ref><ref type="bibr" target="#b54">Xie et al., 2024;</ref><ref type="bibr" target="#b58">Yao et al., 2025;</ref><ref type="bibr" target="#b25">Lu et al., 2025;</ref><ref type="bibr" target="#b56">Yang et al., 2024;</ref><ref type="bibr" target="#b26">Ma et al., 2024)</ref>. They generally do not distinguish output-equivalent implementations or bind an artifact to its source. SINGED isolates pre-execution source selection and scores both the artifact and its process effects.</p><p>Agent security. Work studies indirect prompt injection, poisoned tool descriptions, compromised memories and skills, malicious implementations, harmful requests, and unsafe plans <ref type="bibr" target="#b12">(Greshake et al., 2023;</ref><ref type="bibr" target="#b62">Zhan et al., 2024;</ref><ref type="bibr" target="#b8">Debenedetti et al., 2024;</ref><ref type="bibr" target="#b64">Zhang et al., 2025;</ref><ref type="bibr" target="#b19">Li et al., 2026;</ref><ref type="bibr" target="#b4">Andriushchenko et al., 2025;</ref><ref type="bibr" target="#b59">Yin et al., 2024;</ref><ref type="bibr" target="#b66">Zhang et al., 2024;</ref><ref type="bibr" target="#b46">Shi et al., 2025;</ref><ref type="bibr" target="#b51">Wang et al., 2025;</ref><ref type="bibr">Zhang et al., 2026b;</ref><ref type="bibr" target="#b14">Hu et al., 2026)</ref>. Work examines persistent-state poisoning and adaptive defense synthesis <ref type="bibr" target="#b65">(Xu et al., 2026;</ref><ref type="bibr" target="#b21">Liang et al., 2026)</ref>. These attacks redirect agents through adversarial content or state. Functional counterfeits preserve a benign request and matched output without requiring an adversarial instruction. The failure occurs when the agent executes an implementation with a forbidden effect, which instruction-level judgments and output-only oracles cannot detect.</p><p>Software supply chains and source selection. Package attacks, dependency confusion, hallucinated dependencies, and executable model loaders show how plausible components can conceal unsafe behavior <ref type="bibr" target="#b33">(Ohm et al., 2020;</ref><ref type="bibr" target="#b17">Ladisa et al., 2023;</ref><ref type="bibr" target="#b48">Spracklen et al., 2025;</ref><ref type="bibr" target="#b6">Casey et al., 2024)</ref>. This literature characterizes compromised artifacts and distribution channels, but rarely studies autonomous choice among matched sources. Candidate order can influence LLM selection when rank carries no provenance information <ref type="bibr" target="#b5">(Bito et al., 2025;</ref><ref type="bibr">Zhang et al., 2026a)</ref>; models also exhibit latent source preferences <ref type="bibr" target="#b15">(Khan et al., 2026)</ref>. SINGED connects these concerns by fixing the request, interface, and expected output while randomizing rank, controlling evidence depth, and recording inspection, execution, output, and process events. This reveals when accessible evidence changes action rather than merely being viewed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Artifact Content</head><p>The artifact contains the benchmark generator, controlled fixtures, candidate templates, schedule construction, tool schemas, sandbox runner, scoring code, and experiment configurations. Generated manifests separate agent-visible metadata from private role and process labels. The paper reports the audited aggregate results and protocol details needed to interpret them.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">North</forename><surname>Mini</surname></persName>
+		</author>
+		<idno>Code 98.7% (74/75) 33.3% (25/75) 33.3% (25/75) 65.3% (49/75) 92.0% (23/25</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Overall</surname></persName>
+		</author>
+		<idno>𝑛 = 1500) 94.1% (1412/1500) 11.1% (167/1500) 11.1% (167/1500) 83.0% (1245/1500) 32.4% (162/500) 58.5% (877/1500</idno>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<ptr target="https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen3-7-plus" />
+		<title level="m">References Alibaba Cloud. Qwen3.7-Plus. Model Studio Model Documentation, 2026a</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Qwen3.8 model release documentation. Model Studio Documentation</title>
+		<author>
+			<persName><forename type="first">Alibaba</forename><surname>Cloud</surname></persName>
+		</author>
+		<ptr target="https://www.alibabacloud.com/help/en/model-studio/newly-released-models" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">AgentHarm: A benchmark for measuring harmfulness of LLM agents</title>
+		<author>
+			<persName><forename type="first">Maksym</forename><surname>Andriushchenko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandra</forename><surname>Souly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mateusz</forename><surname>Dziemian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Derek</forename><surname>Duenas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Justin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zico</forename><surname>Kolter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matt</forename><surname>Fredrikson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Winsor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerome</forename><surname>Wynne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xander</forename><surname>Davies</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Bito</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongli</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Estrid</forename><surname>He</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.02020</idno>
+		<title level="m">Evaluating position bias in large language model recommendations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">A large-scale exploit instrumentation study of AI/ML supply chain attacks in Hugging Face models</title>
+		<author>
+			<persName><forename type="first">Beatrice</forename><surname>Casey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joanna</forename><forename type="middle">C S</forename><surname>Santos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehdi</forename><surname>Mirakhorli</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.04490</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Announcing North Mini Code</title>
+		<author>
+			<persName><surname>Cohere</surname></persName>
+		</author>
+		<ptr target="https://docs.cohere.com/changelog/north-mini-code-1-0" />
+	</analytic>
+	<monogr>
+		<title level="m">Official Model Release Notes</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">AgentDojo: A dynamic environment to evaluate prompt injection attacks and defenses for LLM agents</title>
+		<author>
+			<persName><forename type="first">Edoardo</forename><surname>Debenedetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mislav</forename><surname>Balunovic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luca</forename><surname>Beurer-Kellner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Tramer</surname></persName>
+		</author>
+		<editor>NeurIPS</editor>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">DeepSeek-V4 preview: Entering the era of affordable million-token context. DeepSeek Model Release</title>
+		<author>
+			<persName><forename type="first">Deepseek-Ai</forename></persName>
+		</author>
+		<ptr target="https://deepseek.com/en/news/v4-preview/" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Introducing DeepSeek-V4.1-Flash. DeepSeek Model Release</title>
+		<author>
+			<persName><forename type="first">Deepseek-Ai</forename></persName>
+		</author>
+		<ptr target="https://www.deepseek.com/en/news/deepseek-v4-1-flash/" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<title level="m" type="main">Pi Coding Agent (earendil-works fork)</title>
+		<author>
+			<persName><forename type="first">Earendil</forename><surname>Works</surname></persName>
+		</author>
+		<idno>Version 0.85.1</idno>
+		<ptr target="https://www.npmjs.com/package/@earendil-works/pi-coding-agent/v/0.85.1" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Not what you&apos;ve signed up for: Compromising real-world LLM-integrated applications with indirect prompt injection</title>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Greshake</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sahar</forename><surname>Abdelnabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shailesh</forename><surname>Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Christoph</forename><surname>Endres</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thorsten</forename><surname>Holz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mario</forename><surname>Fritz</surname></persName>
+		</author>
+		<editor>AISec</editor>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Malware found in trending Hugging Face repository</title>
+		<author>
+			<persName><forename type="first">Hiddenlayer</forename><surname>Research</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Team</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">HiddenLayer Research Advisory, online</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>Open-OSS/privacyfilter</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yuepeng</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Maltool</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.12194</idno>
+		<title level="m">Malicious tool attacks on LLM agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">In agents we trust, but who do agents trust? latent source preferences steer LLM generations</title>
+		<author>
+			<persName><forename type="first">Mahsa</forename><surname>Mohammad Aflah Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Soumi</forename><surname>Amani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bishwamittra</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinyuan</forename><surname>Ghosh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Krishna</forename><forename type="middle">P</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Manish</forename><surname>Gummadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhilasha</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ravichander</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kimi</forename><surname>Team</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kimi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.02276</idno>
+		<idno>arXiv:2607.24653</idno>
+		<title level="m">Kimi Team. Kimi K3: Open frontier intelligence</title>
+		<imprint>
+			<date type="published" when="2026">2026. 2026</date>
+			<biblScope unit="volume">5</biblScope>
+		</imprint>
+	</monogr>
+	<note>Visual agentic intelligence</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">SoK: Taxonomy of attacks on open-source software supply chains</title>
+		<author>
+			<persName><forename type="first">Piergiorgio</forename><surname>Ladisa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrik</forename><surname>Plate</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matias</forename><surname>Martinez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivier</forename><surname>Barais</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">IEEE Symposium on Security and Privacy</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="1509" to="1526" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Build resilient language agents as graphs</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Langchain</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Langgraph</surname></persName>
+		</author>
+		<ptr target="https://pypi.org/project/langgraph/1.2.11/" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>Version 1.2.11</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">AgentDyn: Are your agent security defenses deployable in real-world dynamic environments?</title>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruoyao</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shanghao</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ning</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yevgeniy</forename><surname>Vorobeychik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.03117</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">API-bank: A comprehensive benchmark for tool-augmented LLMs</title>
+		<author>
+			<persName><forename type="first">Minghao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingxiu</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feifan</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiyang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhoujun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongbin</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="3102" to="3116" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">CAITLYN: Can LLM agents autonomously synthesize defenses against emerging injection attacks?</title>
+		<author>
+			<persName><forename type="first">Zi</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanyun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minxin</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingqing</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibo</forename><surname>Hu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.27990</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Your agent is mine: Measuring malicious intermediary attacks on the LLM supply chain</title>
+		<author>
+			<persName><forename type="first">Hanzhi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaofan</forename><surname>Shou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongbo</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanju</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">Jingyang</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Feng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.08407</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanchen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanyu</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanyu</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hangliang</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiwen</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kejuan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shudan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aohan</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengxiao</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenhui</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiao</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>AgentBench: Evaluating LLMs as agents. In ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yiyong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chia-Yi</forename><surname>Hsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chun-Ying</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Backes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chia-Mu</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.09594</idno>
+		<title level="m">Trust me, import this: Dependency steering attacks via malicious agent skills</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">ToolSandbox: A stateful, conversational, interactive evaluation benchmark for LLM tool use capabilities</title>
+		<author>
+			<persName><forename type="first">Jiarui</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Holleis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhe</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Aumayer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoping</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoli</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zirui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruoming</forename><surname>Pang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2025.findings-naacl.65</idno>
+		<ptr target="https://aclanthology.org/2025.findings-naacl.65/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of NAACL</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="1160" to="1183" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">AgentBoard: An analytical evaluation board of multi-turn LLM agents</title>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junlei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujiu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaohui</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenzhong</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingpeng</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxian</forename><surname>He</surname></persName>
+		</author>
+		<editor>NeurIPS</editor>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">The Llama 4 herd: The beginning of a new era of natively multimodal AI innovation</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Meta</surname></persName>
+		</author>
+		<ptr target="https://ai.meta.com/blog/llama-4-multimodal-intelligence/" />
+	</analytic>
+	<monogr>
+		<title level="m">Official Model Release</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">GAIA: A benchmark for general AI assistants</title>
+		<author>
+			<persName><forename type="first">Grégoire</forename><surname>Mialon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clémentine</forename><surname>Fourrier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Craig</forename><surname>Swift</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<idno>AutoGen. Version 0.7.5</idno>
+		<ptr target="https://www.minimax.io/news/minimax-m25" />
+		<title level="m">MiniMax M2.5: Built for real-world productivity. MiniMax Model Release, 2026a</title>
+		<imprint>
+			<publisher>Microsoft</publisher>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">MiniMax M3: Frontier coding, 1m context, native multimodality</title>
+		<author>
+			<persName><surname>Minimax</surname></persName>
+		</author>
+		<ptr target="https://www.minimax.io/blog/minimax-m3" />
+	</analytic>
+	<monogr>
+		<title level="m">MiniMax Model Release, 2026b</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Mistral Large 3 (mistral-large-2512)</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Mistral</surname></persName>
+		</author>
+		<ptr target="https://docs.mistral.ai/models/mistral-large-3-25-12" />
+	</analytic>
+	<monogr>
+		<title level="m">Official Model Documentation</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Nemotron 3 Ultra: Open, efficient mixture-of-experts hybrid mamba-transformer model for agentic reasoning</title>
+		<author>
+			<persName><surname>Nvidia</surname></persName>
+		</author>
+		<ptr target="https://research.nvidia.com/labs/nemotron/Nemotron-3-Ultra/" />
+	</analytic>
+	<monogr>
+		<title level="m">Official Model and Technical Report</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Backstabber&apos;s knife collection: A review of open source software supply chain attacks</title>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Ohm</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henrik</forename><surname>Plate</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arnold</forename><surname>Sykosch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Meier</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">DIMVA</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Codex CLI: Lightweight coding agent for the terminal</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<idno>Version 0.153.4</idno>
+		<ptr target="https://www.npmjs.com/package/@openai/codex/v/0.153.4" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">GPT-5.6: Frontier intelligence that scales with your ambition</title>
+		<ptr target="https://openai.com/index/gpt-5-6/" />
+	</analytic>
+	<monogr>
+		<title level="m">Official Model Release, 2026b</title>
+		<imprint/>
+		<respStmt>
+			<orgName>OpenAI</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Introducing OpenAI privacy filter</title>
+		<author>
+			<persName><surname>Openai</surname></persName>
+		</author>
+		<ptr target="https://openai.com/index/introducing-openai-privacy-filter/" />
+	</analytic>
+	<monogr>
+		<title level="j">OpenAI Research Release</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">OpenHands Software Agent SDK. Version 1.47</title>
+		<author>
+			<persName><surname>Openhands</surname></persName>
+		</author>
+		<ptr target="https://github.com/OpenHands/software-agent-sdk/releases/tag/v1.47.0" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">0</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Gorilla: Large language model connected with massive APIs</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<editor>NeurIPS</editor>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">The berkeley function calling leaderboard (BFCL): From tool use to agentic evaluation of large language models</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huanzhi</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fanjia</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charlie</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cheng-Jie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vishnu</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="48371" to="48392" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Pydantic AI: Agent framework for production-grade generative ai</title>
+		<author>
+			<persName><surname>Pydantic</surname></persName>
+		</author>
+		<idno>Version 2.43.0</idno>
+		<ptr target="https://github.com/pydantic/pydantic-ai" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shihao</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yining</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kunlun</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaxi</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangru</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sihan</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lauren</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runchu</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruobing</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Gerstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dahai</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maosong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Toolllm</surname></persName>
+		</author>
+		<title level="m">Facilitating large language models to master 16000+ real-world APIs</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>ICLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">Supply-chain poisoning attacks against LLM coding agent skill ecosystems</title>
+		<author>
+			<persName><forename type="first">Yubin</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongcheng</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gelei</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuekang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leo</forename><forename type="middle">Yu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Ma</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.03081</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">Leandro von Werra, and Erik Kaunismäki. smolagents: A smol library to build great agentic systems</title>
+		<author>
+			<persName><forename type="first">Aymeric</forename><surname>Roucher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albert</forename><surname>Villanova Del Moral</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wolf</surname></persName>
+		</author>
+		<ptr target="https://pypi.org/project/smolagents/1.24.0/" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>Version 1.24.0</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Identifying the risks of LM agents with an LM-emulated sandbox</title>
+		<author>
+			<persName><forename type="first">Yangjun</forename><surname>Ruan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honghua</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silviu</forename><surname>Pitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongchao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Dubois</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><forename type="middle">J</forename><surname>Maddison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tatsunori</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=GEcwtMk1uA" />
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dess'i</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+		<editor>NeurIPS</editor>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title level="m" type="main">Prompt injection attack to tool selection in LLM agents</title>
+		<author>
+			<persName><forename type="first">Jiawen</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zenghui</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guiyao</forename><surname>Tie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Zhenqiang Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lichao</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.19793</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">ToolTweak: An attack on tool selection in LLM-based agents</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Sneh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruomei</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialin</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Philip</forename><surname>Torr</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yarin</forename><surname>Gal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunando</forename><surname>Sengupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Sommerlade</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alasdair</forename><surname>Paren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adel</forename><surname>Bibi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.02554</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">We have a package for you! a comprehensive analysis of package hallucinations by code generating LLMs</title>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Spracklen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raveen</forename><surname>Wijewickrama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A H M Nazmus</forename><surname>Sakib</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anindya</forename><surname>Maiti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bimal</forename><surname>Viswanath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Murtuza</forename><surname>Jadliwala</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">USENIX Security</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="3687" to="3706" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Flash: A high-efficiency model for real-world agents</title>
+		<author>
+			<persName><surname>Stepfun</surname></persName>
+		</author>
+		<ptr target="https://www.stepfun.com/step-3.7-flash" />
+	</analytic>
+	<monogr>
+		<title level="m">Official Model Release</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<title level="m" type="main">Tencent releases and open-sources Hy4 Preview. Official Model Release</title>
+		<author>
+			<persName><surname>Tencent</surname></persName>
+		</author>
+		<ptr target="https://www.tencent.com/zh-hk/tencent-releases-and-open-sources-tencent-hy4-preview/" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">MCPTox: A benchmark for tool poisoning attack on real-world MCP servers</title>
+		<author>
+			<persName><forename type="first">Zhiqiang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichao</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanting</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haifeng</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanquan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haohua</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyang</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.14925</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">AutoGen: Enabling next-gen LLM applications via multi-agent conversations</title>
+		<author>
+			<persName><forename type="first">Qingyun</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagan</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jieyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beibin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erkang</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaokun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiale</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmed</forename><surname>Hassan Awadallah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryen</forename><forename type="middle">W</forename><surname>White</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Doug</forename><surname>Burger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Wang</surname></persName>
+		</author>
+		<ptr target="https://x.ai/news/grok-4-6" />
+	</analytic>
+	<monogr>
+		<title level="m">COLM, 2024. xAI. Introducing Grok 4.5. xAI Model Release, 2026a</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>Introducing Grok 4.6. xAI Model Release</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Xiaomi MiMo-V2.5 series open-source release</title>
+		<author>
+			<persName><forename type="first">Xiaomi</forename><surname>Mimo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Team</forename></persName>
+		</author>
+		<ptr target="https://mimo.mi.com/docs/en-US/news/latest/v2.5-open-sourced" />
+	</analytic>
+	<monogr>
+		<title level="m">Official Model Release</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments</title>
+		<author>
+			<persName><forename type="first">Tianbao</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danyang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jixuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaochuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siheng</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruisheng</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Toh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhoujun</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongchan</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangyu</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitao</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuyan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silvio</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">When routine chats turn toxic: Unintended long-term state poisoning in personalized agents</title>
+		<author>
+			<persName><forename type="first">Xiaoyu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minxin</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qipeng</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haobin</forename><surname>Ke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingqing</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibo</forename><surname>Hu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.06731</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<title level="m" type="main">SWE-agent: Agent-computer interfaces enable automated software engineering</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<editor>NeurIPS</editor>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<publisher>Karthik Narasimhan, and Ofir Press</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<analytic>
+		<title level="a" type="main">𝜏-bench: A benchmark for tool-agent-user interaction in real-world domains</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pedram</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianghe</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhuo</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Menglan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutong</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichen</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenhao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Xiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siheng</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.13178</idno>
+		<title level="m">SafeAgentBench: A benchmark for safe task planning of embodied LLM agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ai</surname></persName>
+		</author>
+		<ptr target="https://autoclaw.z.ai/models/" />
+		<title level="m">GLM-5.2 model documentation. AutoClaw Model Documentation, 2026a</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ai</surname></persName>
+		</author>
+		<ptr target="https://autoclaw.z.ai/models/" />
+		<title level="m">GLM-5.3 model documentation. AutoClaw Model Documentation, 2026b</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<analytic>
+		<title level="a" type="main">InjecAgent: Benchmarking indirect prompt injections in tool-integrated large language model agents</title>
+		<author>
+			<persName><forename type="first">Zhixiang</forename><surname>Qiusi Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zifan</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Ying</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of ACL</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="10471" to="10506" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<monogr>
+		<title level="m" type="main">Ranked by position: Order sensitivity as an exploitable attack surface in LLM listwise recommenders</title>
+		<author>
+			<persName><forename type="first">Ge</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingru</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huiyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.24869</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<analytic>
+		<title level="a" type="main">Agent security bench (ASB): Formalizing and benchmarking attacks and defenses in LLM-based agents</title>
+		<author>
+			<persName><forename type="first">Hanrong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingyuan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenting</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenlu</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongwei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongfeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<ptr target="https://proceedings.iclr.cc/paper_files/paper/2025/hash/5750" />
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>f91d8fb9d5c02bd8ad2c3b44456b-Abstract-Conference.html</note>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xuanye</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongsen</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuqin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaiyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kwok-Yan</forename><surname>Lam</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.26154</idno>
+		<title level="m">MemMorph: Tool hijacking in LLM agents via memory poisoning</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhexin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyao</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yida</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingzhuo</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongning</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Agent-Safetybench</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.14470</idno>
+		<title level="m">Evaluating the safety of LLM agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b67">
+	<analytic>
+		<title level="a" type="main">WebArena: A realistic web environment for building autonomous agents</title>
+		<author>
+			<persName><forename type="first">Shuyan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><forename type="middle">F</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuhui</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Lo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abishek</forename><surname>Sridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianyi</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyue</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonatan</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uri</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Graham</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

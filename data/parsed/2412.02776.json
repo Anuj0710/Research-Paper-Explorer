@@ -1,0 +1,155 @@
+{
+  "arxiv_id": "2412.02776",
+  "title": "Hacking CTFs with Plain Agents",
+  "abstract": "We saturate a high-school-level hacking benchmark with plain LLM agent design. Concretely, we obtain 95% performance on InterCode-CTF, a popular offensive security benchmark, using prompting, tool use, and multiple attempts. This beats prior work by Phuong et al. 2024 (29%) and Abramovich et al. 2024 (72%).\n\nOur results suggest that current LLMs have surpassed the high school level in offensive cybersecurity. Their hacking capabilities remain underelicited: our ReAct&Plan prompting strategy solves many challenges in 1-2 turns without complex engineering or advanced harnessing.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Cybersecurity is one of the key AI risk areas (OpenAI 2024b; The White House 2023; UK Government 2023): advanced LLMs could hack real-world systems at speeds far exceeding human capabilities (OpenAI 2024a). To quantify AI cyber capabilities, researchers use benchmarks, with InterCode-CTF (Yang, Prabhakar, Narasimhan, et al. 2023) among the most popular. InterCode-CTF adapts traditional Capture The Flag competitions to assess LLM hacking skills. Previously, Phuong et al. 2024 showed low performance on this benchmark and suggested low cyber exploitation capabilities. A recent follow-up by Abramovich et al. 2024 We show that simple well-known approaches like trying different prompting strategies, expanding the toolset within the environmentfoot_0 , and allowing multiple attempts at task completion achieve state-of-the-art (95%) results on InterCode-CTF and saturate General Skills, Web Exploitation, Binary Exploitation and Reverse Engineering challenge categories. Our agent's performance steadily increased as we worked on the project (Figure 1), which suggests these capabilities have been readily accessible.",
+      "n_words": 154
+    },
+    {
+      "heading": "Related work",
+      "section_type": "related_word",
+      "text": "Cybersecurity benchmarks. Prior evaluations of LLMs' cybersecurity capabilities including InterCode-CTF (Yang, Prabhakar, Narasimhan, et al. 2023), NYU-CTF (Shao et al. 2024), and CyberSecEval 2 (Bhatt et al. 2024) found that LLMs solve less than half of their security challenges at release.\n\nAs LLMs improve on these benchmarks, more challenging datasets like Cybench (Zhang et al. 2024) and 3CB (Anurin et al. 2024) are built. Having saturated the InterCode-CTF benchmark, we see evaluating LLMs on these harder challenges as a natural next step.\n\nCyberSecEval and Naptime. Meta's CyberSecEval 2 (Bhatt et al. 2024) benchmark tested LLMs on prompt injection, vulnerability exploitation, code abuse, and cyberattack scenarios and found disappointing cyber exploitation capabilities.\n\nProject Zero 2024's Project Naptime used agent design to boost Meta's scores from 5% to 100% in Buffer Overflow and from 24% to 76% in Advanced Memory Corruption. Our work intends to similarly improve upon (Phuong et al. 2024).\n\nEvaluations on InterCode-CTF. DeepMind's report on model hacking capabilities (Phuong et al. 2024) showed Gemini-1.0 solved 24 out of 81 2 InterCode-CTF tasks. In the original InterCode-CTF paper (Yang, Prabhakar, Yao, et al. 2023), GPT-4 solved 40 out of 100 tasks.\n\nEnIGMA. The EnIGMA paper (Abramovich et al. 2024) pioneered Interactive Agent Tools (IATs) and achieved 72 out of 100 on InterCode-CTF tasks. Our work demonstrates that such interactive tools and state-of-the-art harnessing are not necessary for strong performance. Our GPT-4o-based agents adapted well to environments without text editors, using basic CLI commands for file manipulation.",
+      "n_words": 246
+    },
+    {
+      "heading": "Experiment Setup and Dataset",
+      "section_type": "experiments",
+      "text": "We evaluate LLM agents using CTF challenges-virtual environments containing vulnerable systems that participants must exploit to find hidden flags. We use InterCode-CTF (Yang, Prabhakar, Narasimhan, et al. 2023, Section 5.3), a set of 100 challenges chosen for its standardized evaluation framework and prominence in prior research. We fork their harness to address minor technical issues 3 and exclude some unsolvable tasks (see Appendix B).",
+      "n_words": 64
+    },
+    {
+      "heading": "InterCode-CTF benchmark",
+      "section_type": "experiments",
+      "text": "InterCode is a benchmark suite testing coding agents in an interactive environment that simulates real-world programming. Agents debug and refine their solutions using compiler and commandline tools feedback, similar to human programmers. InterCode-CTF uses the InterCode runtime to run offensive security challenges from picoCTFfoot_2 , a CTF practice platform of high-school level.\n\nThe tasks are run in Docker containers. Each task is specified with a natural language problem statement and a golden answer.",
+      "n_words": 73
+    },
+    {
+      "heading": "Model selection",
+      "section_type": "experiments",
+      "text": "We used four OpenAI models via API: GPT-4, GPT-4o, GPT-4o-mini, and o1-previewfoot_3 . We chose these models for their strong performance on programming tasks. All experiments used consistent temperature and generation parameters.",
+      "n_words": 32
+    },
+    {
+      "heading": "Agent Design Approaches",
+      "section_type": "method",
+      "text": "We built atop InterCode (Yang, Prabhakar, Narasimhan, et al. 2023, Section 4)'s original agent design, where an LLM has access to the task description, history of commands and their outputs, and is asked to determine the next command to issue.",
+      "n_words": 40
+    },
+    {
+      "heading": "Baseline: 10 steps",
+      "section_type": "experiments",
+      "text": "Our baseline called 10 steps follows InterCode's TryAgain strategy. Each agent gets:\n\n• Up to 10 actions per task • Access to the task description • History of up to 5 action-observation pairs • Observations truncated to 500 characters Initial experiments revealed significant performance variability: agents might solve a task in one attempt but fail it in another with identical settings. This aligns with findings from Phuong et al. 2024, Section 6.4.2, where agents often know the correct action but don't rank it first, and with Project Zero 2024's success with @k evaluations.\n\nTo better assess agent capabilities, we moved from single attempts (@1) to multiple attempts (@k). For each task, agents get up to k attempts, with full environment and agent resets between attempts. We excluded the o1-preview model from multi-attempt evaluations due to computational costs. Table 1 shows our baseline @1 and boosted @10 results.",
+      "n_words": 147
+    },
+    {
+      "heading": "Model",
+      "section_type": "other",
+      "text": "Solved Tasks 10 steps@1 10 steps@10",
+      "n_words": 6
+    },
+    {
+      "heading": "Base agent design modifications",
+      "section_type": "method",
+      "text": "Our experiment logs revealed several necessary improvements to the agent design:\n\nComplete action-observation history. We gave agents access to their full history of actions and observations. Since about 10% of observations exceeded the model's context window, we capped them at 3500 characters.\n\nMore turns. InterCode-CTF's default 10-turn limit proved insufficient, as agents often found flags but couldn't submit them in time. We increased the limit to 12 turns.\n\nStructured output. GPT-4o's \"Structured output\" feature improved the agent's ability to:\n\n• Submit flags in correct format Having implemented these changes, we proceeded to agent design frameworks.",
+      "n_words": 95
+    },
+    {
+      "heading": "Plan&Solve",
+      "section_type": "method",
+      "text": "Our first agent design improvement was a Plan&Solve strategy: the LLM takes a turn to plan its approach, then executes the plan to solve the problem (see Figure 2). CTF challenges rarely provide clear instructions about relevant files or software, instead offering cryptic task statements with general hints. To address this, we begin by running ls at Turn 0 to examine the workspace contents. The agent then creates a plan (P ) based on both the task statement and available files.\n\nThen at each turn, 1. Using this plan, task statement, and observations (O i ), the agent produces an action (A); 2. The bash environment (E) executes the action and returns an observation. Our testing showed that planning again mid-session improves performance, so we added another planning step before Turn 6, now with the turn history.",
+      "n_words": 137
+    },
+    {
+      "heading": "ReAct",
+      "section_type": "method",
+      "text": "We implemented Yao, Zhao, et al. 2023's ReAct (Reasoning + Action) prompting strategy in our next agent design. As Figure 3 shows, at each turn, 1. The agent generates a thought (T ) based on the task description and observations (O i ) 2. It determines an action (A) based on that thought 3. The environment (E) executes the action and returns an observation\n\n(2)\n\nOur first implementation used GPT-4o for both reasoning and action generation with 10 turns per challenge, achieving an 83% task completion rate.",
+      "n_words": 87
+    },
+    {
+      "heading": "ReAct&Plan",
+      "section_type": "method",
+      "text": "To boost ReAct further, we gave it a Plan step and more turns. A ReAct&Plan agent uses GPT-4o for thoughts and actions over 30 turns with a single planning step before turn 12 (Figure 4). We switched to o1-preview model for the planning step. This hybrid approach solved 4 more tasks, reaching a 95% success rate. Four tasks remained unsolved.",
+      "n_words": 60
+    },
+    {
+      "heading": "Tree of Thoughts",
+      "section_type": "method",
+      "text": "Tree of Thoughts (ToT) is a framework that improves language models' problem-solving abilities by exploring multiple solution paths in parallel (Yao, Yu, et al. 2023). Instead of following a single line of reasoning, ToT generates and evaluates several intermediate steps, keeping the most promising paths. We implemented ToT to tackle our remaining unsolved challenges, hypothesizing that this broader exploration would find solutions that single-path approaches had missed. However, the results did not surpass those achieved with ReAct&Plan.\n\n(3) (4)\n\n(5)\n\n(a) Agent diagram ... The agent pipeline, shown in Figure 5a, works as follows:\n\n1. The agent generates 5 candidate actions A i , i = 1..5 2. For each candidate action A i , i. We reset the environment E and re-run the command history ii. The agent sends the action to environment, which returns an observation O i 3. From the 5 action-observation pairs (A i , O i ), the evaluator selects the two most promising ones and stores them in queue Q with their turn history 4. If Q exceeds 5 entries, only the 2 best branches remain 5. The agent receives the next turn history from queue Q",
+      "n_words": 193
+    },
+    {
+      "heading": "Results",
+      "section_type": "results",
+      "text": "We evaluate our agent designs by tasks solved at Figure 6a, and then boost the two best ones with multiple attempts at Figure 6b. Total Solved, @k 10 steps@10 53 (62%)\n\nReAct@5 76 (89%)\n\nReAct&Plan@5 81 (95%) (b)\n\nFigure 6: Performance comparison across different methods and prompting strategies Our analysis by task category reveals that multiple ReAct variations achieved 100% success in General Skills. They also significantly outperform the InterCode baseline in Reverse Engineering and Cryptography. Table 2 compares ReAct&Plan@5's success rates with the original InterCode resultsfoot_7 across all categories, and Table 3",
+      "n_words": 93
+    },
+    {
+      "heading": "Implementation",
+      "section_type": "experiments",
+      "text": "Total Solved InterCode (Yang, Prabhakar, Yao, et al. 2023) 40/100 40% EnIGMA (Abramovich et al. 2024) 72/100 72% DeepMind (Phuong et al. 2024) 24/81 29% ReAct&Plan@5 (ours) 81/85 95% Table 3: Performance totals of prior work and ours.\n\nFor detailed results, see Appendix D, which shows solved and unsolved tasks for three agents: 10 steps@10, ReAct@5, and ReAct&Plan@5.",
+      "n_words": 58
+    },
+    {
+      "heading": "Ablation study",
+      "section_type": "results",
+      "text": "We conducted an ablation study on our ReAct&Plan agent to identify which components most improved its performance. Starting with our best configuration, we changed one parameter at a time and measured the impact. Our starting configuration included:\n\n• ReAct&Plan@5 with 30 turns • Expanded toolset (see Subsection 4.2)\n\n• 5-minute command timeout\n\n• \"Structured Output\" feature enabled • Custom system instructions • o1-preview for planning • GPT-4o for action and thought generation",
+      "n_words": 72
+    },
+    {
+      "heading": "Discussion",
+      "section_type": "discussion",
+      "text": "Our evaluation demonstrates that LLMs can effectively solve high-school-level CTF challenges.\n\nThe agents successfully explored files and learned from their observations. Though not always taking the most efficient path, they showed flexibility in switching approaches and using tools like Python when needed. This contradicts previous research (Bhatt et al. 2024;OpenAI et al. 2024) suggesting that frontier LLMs cannot do cybersecurity. ReAct proved to be our most significant improvement. By implementing reflection as described in (Yao, Zhao, et al. 2023), the agent often solved challenges in just 1-2 turns, showing strong problem-solving abilities. While Plan&Solve and ToT outperformed the baseline Inter-Code agent, neither matched ReAct's success rate. ToT added little value for these straightforward tasks, and we found that multiple attempts with ReAct worked better. Finally, combining ReAct with planning steps from a more powerful model helped solve several previously unsolved tasksfoot_8 . Our approach achieved better results than EnIGMA (Abramovich et al. 2024) with simpler implementation. Using primarily prompt engineering and function calling, we solved 95% of tasks (81/85) compared to their 72% (72/100). This implies model capabilities may be unlocked with little engineering. The ablation study showed that when given appropriate tools, the agent used them effectively (see Figure 7).\n\nWe observed the agent occasionally guessing flags from unrelated tasks. While this suggests possible training data contamination, neither our work nor Abramovich et al. 2024 provide conclusive evidence (see Appendix C).",
+      "n_words": 232
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "Our research shows frontier LLMs are better at cybersecurity problems than previously thought. Straightforward prompting and agent design boosts our agents' sucess rate to 95% on InterCode-CTF-dramatically higher than the 29% (Phuong et al. 2024) and 40% (Yang, Prabhakar, Yao, et al. 2023) reported in earlier studies. Our simple ReAct@10 design outperforms EnIGMA's advanced harness, which reached 72%. This success suggests that previous studies did not access the full extent of models' capabilities. Following Project Zero 2024, we call for stronger evaluations of risky capabilities.\n\nInterCode-CTF, a high school level hacking framework released in Aug 2023, has now been saturated. Future AI risk gauging work will need to use harder problem sets like NYU-CTF, 3CB, and HackTheBox to track the performance trends. This experiment did not resolve our concerns about suspicious results like those from Task 16.\n\nWhile we cannot confirm that GPT's training data included the entire InterCode-CTF dataset, evidence suggests partial inclusion. This may explain GPT models' higher baseline performance versus Gemini models on InterCode-CTF. Still, we believe the capability improvements from LLM unhobbling are genuine.",
+      "n_words": 178
+    },
+    {
+      "heading": "D Agents' performance on each InterCode-CTF task",
+      "section_type": "results",
+      "text": "The agent design codes used in the table and their corresponding names are as follows: A1 -10 steps@10, A2 -ReAct@5, A3 -ReAct&Plan@5. The color code notation is: green -the correct flag was submitted, red -the correct flag was not submitted, grey -the task was omitted and not approached.\n\nPart 1 (0-32) Table 5: A1 -10 steps@10, A2 -ReAct@5, A3 -ReAct&Plan@5",
+      "n_words": 60
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "claimed state-ofthe-art results (72%) due to a particular novel harness design choice. * Correspondence to dmitrii@palisaderesearch.org",
+      "content": "Total Solved | 0 10 20 30 40 50 60 70 80 85 | Baseline (InterCode-CTF) 40 (47%) | Week 1 52 (61%) | Weeks of Agent Design Work Week 2 65 (76%) | Week 3 76 (89%) | Week 4 81 (95%)"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "compares prior work and our results:",
+      "content": "Category | InterCode | ReAct&Plan@5\nGeneral Skills | 20/33 60% 29/29 | 100%\nReverse Engineering 7/27 | 26% 25/26 | 96%\nCryptography | 4/19 | 21% 14/15 | 93%\nForensics | 7/15 | 46% 10/12 | 91%\nBinary Exploitation | 0/4 | 0% | 1/1 | 100%\nWeb Exploitation | 2/2 | 100% | 2/2 | 100%"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 :",
+      "captions": "Performance baseline vs ours over InterCode-CTF task categories.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 4",
+      "captions": "shows how each modification affected the agent's performance.",
+      "content": "Baseline"
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 :",
+      "captions": "Ablation study over ReAct&Plan@5.",
+      "content": ""
+    }
+  ],
+  "n_words": 2027,
+  "quality_flags": []
+}

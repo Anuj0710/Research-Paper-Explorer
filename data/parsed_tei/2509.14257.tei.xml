@@ -1,0 +1,2222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Student-Centered Distillation Narrows the Agentic Gap Between Small and Large LLMs</title>
+				<funder ref="#_W4Rnz8Y">
+					<orgName type="full">National Science and Technology Major Project</orgName>
+				</funder>
+				<funder ref="#_YY7RU3P">
+					<orgName type="full">Anhui Natural Science Foundation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-07-23">23 Jul 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yuanjie</forename><surname>Lyu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Science and Technology of China</orgName>
+								<address>
+									<settlement>Hefei</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Chengyu</forename><surname>Wang</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Independent Researcher</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jun</forename><surname>Huang</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="department">Independent Researcher</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Tong</forename><surname>Xu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Science and Technology of China</orgName>
+								<address>
+									<settlement>Hefei</settlement>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Teacher</forename><surname>Acts</surname></persName>
+						</author>
+						<title level="a" type="main">Student-Centered Distillation Narrows the Agentic Gap Between Small and Large LLMs</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-07-23">23 Jul 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">CA70FADBE18DC55F26851D3C0403DFBB</idno>
+					<idno type="arXiv">arXiv:2509.14257v3[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large Language Model agents achieve strong performance on multi-step reasoning and tool-use tasks, but their impressive capabilities typically rely on extremely large backbones. Existing distillation approaches train smaller students to imitate full teacher trajectories, yet reasoning and knowledge gaps between the teacher and student can cause compounding errors. We propose SCoRe, a student-centered framework in which the student generates training trajectories and the teacher corrects only the earliest error, producing training data matched to the student's abilities and exposing specific weaknesses. The student is first fine-tuned on corrected trajectories. Subsequently, short-horizon reinforcement learning starts from the verified prefix preceding the earliest error, with target rewards assigned at that step. This design enables the student to solve problems through unconstrained RL exploration rather than teacher imitation, while the short-horizon setup improves training stability. On 12 challenging benchmarks, a 7B-parameter student distilled with SCoRe closes the agentic performance gap with a 72B-parameter teacher 1 .</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">Introduction</head><p>Recent advances in Large Language Models (LLMs) have led to the rise of "agents" <ref type="bibr" target="#b49">(Xi et al., 2025)</ref>. Unlike traditional single-pass generation, LLM agents solve complex problems through an iterative reasoning-action-observation loop, using frameworks such as ReAct <ref type="bibr">(Yao et al., 2023)</ref> and CodeAct <ref type="bibr" target="#b46">(Wang et al., 2024)</ref>. Specifically, LLM agents decompose tasks into sub-goals (reasoning), execute them via external tools such as code interpreters (action) <ref type="bibr" target="#b35">(Schick et al., 2023;</ref><ref type="bibr" target="#b9">Gao et al., 2023)</ref>, and then refine their plans based on feedback from tool execution (observation). By combining LLM planning with the precision of external tools, agents mitigate flaws of LLMs such as hallucinations and outdated knowledge, achieving strong performance on real-world interactive tasks <ref type="bibr" target="#b21">(Liu et al., 2024)</ref>.</p><p>High-performing agents typically use large backbones such as GPT-series <ref type="bibr" target="#b0">(Achiam et al., 2023)</ref>, resulting in high latency and cost, as complex tasks may require dozens of model calls. To reduce deployment cost, Agent Distillation <ref type="bibr" target="#b14">(Kang et al., 2025)</ref> decomposes the teacher model's behavior into structured [Thought, Action, Observation] trajectories and trains a smaller student model to imitate them. This enables the student to acquire part of the teacher's reasoning ability while reducing cost. However, this imitation faces two main challenges: (1) Reasoning Ability Gap: smaller models often fail to reproduce the teacher's logical decomposition <ref type="bibr" target="#b24">(Magister et al., 2023)</ref>;</p><p>(2) Knowledge Capability Gap: the student may be unable to execute complex actions despite following the teacher's plan. Both gaps stem from the emergent abilities <ref type="bibr" target="#b47">(Wei et al., 2022)</ref> of LLMs, gained through extensive training and not fully transferable to smaller models. Moreover, in behavior cloning, a single failure at any step can push the student into out-of-distribution states, where errors compound and grow as O(H 2 ) with horizon length H <ref type="bibr" target="#b34">(Ross et al., 2011)</ref>.</p><p>To address the limitations of the traditional "teacher-acts, student-clones" distillation paradigm, we introduce SCoRe (Student-Centered One-step Reinforcement). In SCoRe, the student first produces a complete trajectory, which the teacher reviews globally, intervening only to correct the earliest error. The student then restarts the task, resuming from the original correct prefix and the teacher's correction. As shown in Figure <ref type="figure" target="#fig_0">1</ref>, this student-centered approach to data generation offers two key advantages: Capability Matching, where trajectory complexity aligns with the student's abilities, keeping the data learnable and effective; and Deficiency Localization, where the structure of a "verified prefix" followed by a "key step" explicitly pinpoints the student's weaknesses for targeted optimization. Before exploration, the student must first acquire basic reasoning-action skills. We initialize it with a cold-start Behavior Cloning (BC) phase, performing supervised finetuning (SFT) on a small set of high-quality teacher trajectories. Then, the core phase, Mentored Problem-Solving (MPS), allows the student to tackle new tasks independently. After the student completes a trajectory, a teacher inspects it, identifies and corrects the earliest error, and the student regenerates the remainder starting from this corrected prefix. If further mistakes occur, the teacher repeats this process. Final task success implicitly verifies the correctness of the teacher's fix 2 . We retain these corrected trajectories with minimal teacher intervention and use them for the next round of SFT. By correcting the earliest error, this approach limits teacher-student distribution shift to a single step, breaks long error chains of BC, and yields O(H) cumulative error growth rather than O(H 2 ).</p><p>Although effective, these steps still rely on teacher corrections and keep the student in imitation mode. To promote genuine problem-solving and even enable the student to surpass the teacher, we introduce a reinforcement learning (RL) phase featuring shorter rollouts and key-step rewards. Our RL method introduces two main innovations. First, rather than rolling out from the start of the task, we begin from the verified prefix preceding the student's origi-2 Every teacher correction should pass this verification to reduce the risk of noisy corrections. nal error. This shortens the horizon and reduces gradientestimation variance, making updates more stable. Second, to mitigate the issue of sparse rewards <ref type="bibr" target="#b1">(Andrychowicz et al., 2017)</ref>, we supplement the final task-success reward with additional bonuses at key steps: a larger one for reproducing the teacher's correction and a smaller format reward for avoiding the original error. Finally, during the MPS phase, we retain the data that remains unsolved despite multiple one-step corrections. A small part of this data is marked as challenging and used in RL training. <ref type="foot" target="#foot_0">3</ref>Experiments on 12 challenging benchmarks show that SCoRe enables small models, such as Qwen2.5-7B-Instruct, to achieve tool-use performance comparable to that of a 72B teacher, outperforming both BC <ref type="bibr" target="#b44">(Torabi et al., 2018)</ref> and GRPO <ref type="bibr" target="#b37">(Shao et al., 2024)</ref> by a large margin. These results demonstrate that ability-matched correction, combined with short-horizon key-step RL, can close the performance gap between small and large models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">Related Work</head><p>Distillation for LLM Agents. Agent distillation is a practical way to reduce the cost of deploying large models such as <ref type="bibr">GPT-4 (Achiam et al., 2023)</ref> or Gemini <ref type="bibr" target="#b43">(Team et al., 2023)</ref> in a multi-turn agent setting <ref type="bibr">(Yao et al., 2023;</ref><ref type="bibr" target="#b46">Wang et al., 2024)</ref>. Formal approaches such as trajectory distillation <ref type="bibr" target="#b14">(Kang et al., 2025)</ref> and Toolformer-style imitation <ref type="bibr" target="#b35">(Schick et al., 2023;</ref><ref type="bibr" target="#b9">Gao et al., 2023)</ref> train smaller models to reproduce teacher-generated [Thought, Action, Observation] traces, transferring planning and tool-use skills. However, most rely on supervised behavior cloning from expert rollouts, making them vulnerable to teacherstudent reasoning and knowledge gaps <ref type="bibr" target="#b24">(Magister et al., 2023;</ref><ref type="bibr" target="#b3">Cai et al., 2025)</ref> and to compounding errors under distribution shift <ref type="bibr" target="#b34">(Ross et al., 2011)</ref>.</p><p>DAgger and HG-DAgger <ref type="bibr" target="#b34">(Ross et al., 2011;</ref><ref type="bibr" target="#b15">Kelly et al., 2019)</ref> aim to mitigate compounding errors; however, these methods are designed for traditional imitation learning domains such as robotic control, and they are not directly applicable to LLM agents, which autonomously employ multiple tools. Furthermore, they remain strictly teacher-led and do not leverage a stable RL framework to progressively expand the student's capabilities.</p><p>Agentic Reinforcement Learning. RL has become a core paradigm for training LLM agents in dynamic, multi-turn environments <ref type="bibr" target="#b39">(Shridhar et al., 2021;</ref><ref type="bibr" target="#b25">Mialon et al., 2024)</ref>. Early pipelines relied on supervised or rule-based tooluse strategies <ref type="bibr" target="#b35">(Schick et al., 2023)</ref>, limiting adaptability to new domains. Later work integrated RL into agent policies, enabling joint optimization of reasoning chains and external actions. Classical methods such as deep Qlearning <ref type="bibr" target="#b26">(Mnih et al., 2015)</ref> and self-play <ref type="bibr" target="#b40">(Silver et al., 2017)</ref> have been adapted for natural-language decisionmaking, where intermediate thoughts and tool calls form part of the state <ref type="bibr">(Li et al., 2025a)</ref>. In tool-augmented settings, recent work has optimized multi-tool coordination under real-time constraints <ref type="bibr" target="#b32">(Qian et al., 2025;</ref><ref type="bibr" target="#b50">Xu &amp; Peng, 2025)</ref>. Despite these advances, challenges remain: longcontext rollouts cause instability <ref type="bibr" target="#b36">(Schulman et al., 2017;</ref><ref type="bibr" target="#b29">Peng et al., 2019)</ref>, and sparse or delayed rewards hinder credit assignment <ref type="bibr" target="#b1">(Andrychowicz et al., 2017)</ref>. These challenges motivate algorithms that combine trajectory-level planning with local, verifiable corrections for stable learning and fine-grained reasoning control.</p><p>Closely related work is further discussed in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">Background</head><p>We formalize the LLM-agent framework and review two training methods: Behavior Cloning and Reinforcement Learning, highlighting their limitations in agent distillation.</p><p>The ReAct Framework. To enable effective interaction with an external environment E (e.g., a code interpreter or a search engine), we adopt the ReAct framework <ref type="bibr">(Yao et al., 2023)</ref>. In this framework, the agent's behavior is represented as a trajectory τ</p><formula xml:id="formula_0">= (t 1 , c 1 , o 1 , . . . , t H , c H , o H ),</formula><p>where H is the total number of steps. At each step i, the policy π first generates a thought t i based on the history s i , and then, conditioned on this thought and history, produces a ReAct action c i :</p><formula xml:id="formula_1">s i = (t 1 , c 1 , o 1 , . . . , t i-1 , c i-1 , o i-1 ), (t i , c i ) ∼ π(• | s i ).</formula><p>Executing c i in E returns an observation o i , and (t i , c i , o i ) is then added to the history. The loop continues until a terminal action (e.g., producing the final answer) ends the trajectory.</p><p>Agent Distillation via Behavior Cloning. To reduce the inference cost of large LLM agents, agent distillation transfers capabilities from a powerful teacher π E to a smaller student π. The most common method, Behavior Cloning (BC) <ref type="bibr" target="#b44">(Torabi et al., 2018)</ref>, trains π on teacher-generated trajectories D T to imitate both thoughts (t i ) and ReAct actions (c i ):</p><formula xml:id="formula_2">L BC (θ) = -E τ ∼D T   |τ | i=1 log π(a i | s i ; θ)   ,<label>(1)</label></formula><p>where a i = (t i , c i ) and s i is the history context. While BC is effective, reasoning and knowledge gaps between π E and π yield a non-trivial per-step error rate ε. Under covariate shift, these errors accumulate over the horizon H, making the expected total cost grow as O(H 2 ε) <ref type="bibr" target="#b34">(Ross et al., 2011)</ref>.</p><p>Agent Optimization via Reinforcement Learning. Reinforcement Learning (RL) extends beyond imitation by enabling agents to explore actively. The problem is modeled as a Markov Decision Process (MDP), where the state s i is the history context, the action is a i , the policy is π, and the trajectory is evaluated by a reward R(τ ). In practice, rewards are often sparse; for example, R(τ ) = 1 if the final answer is correct, and R(τ ) = 0 otherwise <ref type="bibr" target="#b41">(Su et al., 2025;</ref><ref type="bibr" target="#b27">Mroueh, 2025)</ref>. The training objective is</p><formula xml:id="formula_3">J(θ) = E τ ∼π θ [R(τ )],</formula><p>with the policy gradient update:</p><formula xml:id="formula_4">∇ θ J(θ) = E τ ∼π θ [R(τ )∇ θ log P (τ | θ)] ,<label>(2)</label></formula><p>where P (τ | θ) denotes the probability of trajectory τ under πθ . Standard RL faces challenges for LLM agents due to sparse rewards <ref type="bibr" target="#b1">(Andrychowicz et al., 2017;</ref><ref type="bibr" target="#b2">Badia et al., 2020)</ref> and high variance <ref type="bibr" target="#b36">(Schulman et al., 2017;</ref><ref type="bibr" target="#b37">Shao et al., 2024)</ref>, often leading to unstable and inefficient training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">Methodology</head><p>In this work, we propose SCoRe, a principled studentcentered distillation framework that addresses key limitations of BC and RL (Figure <ref type="figure" target="#fig_2">2</ref>). Instead of the static "teacheracts, student-clones" scheme, SCoRe introduces Mentored Problem-Solving (MPS) to place the student at the center of learning. Training on MPS-generated data tailored to the  The student is further improved through reinforcement learning, using shortened rollouts starting from the prefix preceding the teacher's correction and targeted rewards at the corrected steps to guide exploration. student's abilities reduces BC's compounding error growth, and the use of short-horizon, key-step rewards in RL improves stability and efficiency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.">Initial Distillation with Code as Action</head><p>To enable a "student-explores, teacher-corrects" strategy for agent distillation, the student must first acquire basic reasoning-acting skills. However, some LLMs (e.g., Qwen2.5 <ref type="bibr" target="#b51">(Yang et al., 2025)</ref>, LLaMA3 <ref type="bibr" target="#b10">(Grattafiori et al., 2024)</ref>) are not built for multi-step agentic tasks and typically perform single-pass generation. Therefore, we first construct structured datasets and distill π to perform multistep reasoning and acting.</p><p>Trajectory Representation. Training trajectories follow the ReAct <ref type="bibr">(Yao et al., 2023)</ref> </p><formula xml:id="formula_5">format: sequences of triplets τ = (σ i ) H i=1 , σ i = (t i , c i , o i )</formula><p>, where t i is textual reasoning, c i is an action in ReAct, and o i is environment feedback. These structured trajectories capture problem decomposition and stepwise solutions, making them well-suited for distillation purposes. We build on CodeAct <ref type="bibr" target="#b46">(Wang et al., 2024)</ref>, where c i is executable code, offering: (i) deterministic operations for reproducibility; (ii) both the teacher and the student are familiar with code from pre-training, reducing capability gaps; and (iii) a Turing-complete, unified action space for tool use and complex logic. Initial Trajectory Generation. To build the initial training data D T , we use the teacher policy π E . Following <ref type="bibr" target="#b14">(Kang et al., 2025)</ref>, π E is first prompted to produce a high-level plan &lt;first thought&gt; as a strategic outline. A second prompt enforces the standard Thought-Code-Observation cycle: at step i, π E generates (t i , c i ) conditioned on both the plan and prior steps. Executing c i in the environment yields an observation o i , which is appended to the context for subsequent reasoning. This dual-prompt design combines global planning with adaptive step-level reasoning. To ensure quality, we apply rejection sampling and retain only trajectories with correct final answers.</p><p>Behavior Cloning. In the initial cold-start learning phase, we distill the student policy π on D T via behavior cloning, minimizing L BC as defined in (1). The resulting initialized model, πinit , learns the Thought-Code-Observation loop. This capability enables πinit to attempt tasks without immediate failure, thus allowing fine-grained, one-step teacher interventions in subsequent phases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.">Mentored Problem-Solving and Further SFT</head><p>After initialization via BC, the core phase, Mentored Problem-Solving (MPS), employs the BC-initialized student as an explorer, producing ability-matched and deficiencylocalized trajectory data.</p><p>Student Explores, Teacher Corrects. As shown in <ref type="bibr">Figure 2(a)</ref>, the initialized student model πinit attempts unseen tasks. For each task, it independently generates a full trajectory τ S = (σ 1 , . . . , σ H ), where each step σ i denotes a triplet of Thought-Code-Observation. After generating the final answer, the teacher π E checks correctness using the student's full reasoning chain. If the answer is incorrect, the teacher locates the first deviation step σ k where the student diverges from the correct path. Instead of discarding the trajectory, π E provides a minimal intervention by replacing σ k with a corrected step σ ′ k , after which the student resumes execution from (σ 1 , . . . , σ k-1 , σ ′ k ). Validation of the Correction. If the student ultimately completes the task, it indirectly validates the teacher's correction, and the corrected trajectory is collected as training data. If the student makes another mistake at step m &gt; k, the teacher will correct it to σ ′ m , and the execution will continue from (σ 1 , . . . , σ k-1 , σ ′ k , . . . , σ m-1 , σ ′ m ). Each intervention addresses only the specific wrong step, and a single trajectory may contain multiple such interventions. The entire process of error localization and correction is carried out by the teacher via prompts (Appendix E).</p><p>In rare cases, a task may remain unsolved even after multiple one-step corrections (5 attempts in this paper). Such cases are Hard-to-Teach tasks, as their difficulty exceeds the student's current capability. While these trajectories offer limited value for capability-matched SFT, we retain a subset as challenging examples for RL to improve the model's performance on difficult tasks.</p><p>Two Complementary Forms of Supervision. The MPS process yields two complementary forms of supervision: (1) The final corrected trajectory, mostly generated by the student with sparse teacher edits, provides capability-aligned demonstrations for continued SFT. (2) Each key-step correction produces a preference pair, anchored on the same prefix (σ 1 , . . . , σ k-1 ), where the teacher's corrected step σ ′ k is preferred over the student's original σ k . A single task can generate multiple such pairs from multiple teacher interventions. These pairs are especially useful for RL methods (e.g., GRPO <ref type="bibr" target="#b37">(Shao et al., 2024)</ref>), offering near-correct prefixes that stabilize short rollouts and provide precise feedback at prior error points. Once this high-quality, capability-aligned data is collected, it is used to train the student model π via SFT (see Figure <ref type="figure" target="#fig_2">2(b)</ref>). Training on such capability-aligned data helps reduce compounding errors; we next provide a theoretical analysis.</p><p>Theoretical Justification. To analyze SCoRe's advantage in mitigating compounding errors <ref type="bibr" target="#b34">(Ross et al., 2011)</ref>, we model the agent as a finite-horizon process of length H. At each step t, in state s t ∈ S, the agent selects action a t ∈ A via policy π. In our framework, a t is the composite output of thought and code. The environment transitions according to P (s t+1 | s t , a t ). Let π E and π be the teacher and student policies, and let d π t be the state distribution under π. The per-step cost c t (s) ∈ [0, 1] is 0 if the policy acts correctly and 1 otherwise. The total expected cost is</p><formula xml:id="formula_6">c(π) = E s1∼d1, at∼π, st+1∼P H t=1 c t (s t ) .</formula><p>(3)</p><p>Theorem 4.1 (BC compounding-error bound). If the student π trained on teacher π E demonstrations via BC satisfies</p><formula xml:id="formula_7">P s∼d π E t [π(s) ̸ = π E (s)] ≤ ε, ∀ t ∈ {1, . . . , H}, (4) then c(π) ≤ c(π E ) + H(H -1) 2 ε = c(π E ) + O(H 2 ε). (5)</formula><p>This classical covariate-shift result <ref type="bibr" target="#b34">(Ross et al., 2011)</ref> shows that a small per-step error ε can grow to O(H 2 ε), severely degrading performance on long-horizon tasks. Theorem 4.2 (SCoRe first-error-correction bound). In SCoRe training, at the first deviation from teacher policy π E , the action is replaced by the teacher's, and execution continues with student policy π. If, under d π t , the per-step misalignment satisfies</p><formula xml:id="formula_8">P s∼d π t [π(s) ̸ = π E (s)] ≤ ε, ∀ t ∈ {1, .</formula><p>. . , H}. (6) Since SCoRe's training data originates from the student's own rollouts, the relevant error rate is evaluated under</p><formula xml:id="formula_9">d π t rather than d π E t . Then c(π) ≤ c(π E ) + H ε = c(π E ) + O(H ε).<label>(7)</label></formula><p>Unlike BC in Theorem 4.1, SCoRe trains on d π t and the teacher's first-error corrections, truncating error propagation. At most one unchecked mistake occurs before resuming an expert-aligned path, reducing worst-case growth from O(H 2 ) to O(H). The proof and a discussion of the underlying assumptions are provided in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.">RL Refinement for Mastery</head><p>Although MPS yields capability-aligned supervision, training the student on this data only via SFT still limits the student to replicating the teacher's key steps. To move from imitation to independent problem-solving, we introduce an RL phase after SFT that directly optimizes task success. We adopt GRPO <ref type="bibr" target="#b37">(Shao et al., 2024)</ref>, a variant of PPO <ref type="bibr" target="#b36">(Schulman et al., 2017)</ref> that omits the value function, thereby reducing computation and value-estimation instability. However, for long-horizon tasks, GRPO remains sensitive to sparse rewards and high gradient variance. As Figure <ref type="figure" target="#fig_2">2</ref>(c) shows, we address these issues with two techniques: Short-Horizon Rollout. Instead of starting rollouts from the initial question, we begin from the verified prefix (σ 1 , . . . , σ k-1 ): the sequence preceding the original error step σ k . This shortens the horizon from</p><formula xml:id="formula_10">H to H ′ = H -(k -1), reducing variance. Key-Step Reward. If the final answer is correct, a large reward R final is given. Otherwise, R =      R key , a k = a π E k , R format , a k ̸ = a orig k ∧ a k ̸ = a π E k , 0, otherwise,</formula><p>where a orig k is the student's original error, and a π E k is the teacher's correction. R format follows the format-reward design of DeepSeek-R1 <ref type="bibr" target="#b11">(Guo et al., 2025)</ref>, with a slightly stricter condition: it is granted only when the output is both format-correct and different from the original error. Action equivalence can be reliably checked via code and code execution results.</p><p>In practice, we compute the reward via a lightweight LLMbased verifier: Qwen2.5-7B-Instruct judges semantic equivalence between the generated and reference answers. This reward scheme provides informative credit assignment at the student's weakest step while maintaining prioritization of final task success.</p><p>As noted earlier, we retain a subset of Hard-to-Teach samples (10% of the data) specifically for RL training. The teacher provides no useful guidance on them, and the student is free to search for strategies that go beyond the teacher's behavior, rather than imitating it.</p><p>Theoretical Justification. We analyze variance reduction under policy gradients (ignoring value-function or clipping for clarity), aligning with GRPO's core update. The conclusion can also extend to the clipped objective of GRPO. Specifically, starting rollouts after the verified prefix reduces the remaining horizon from H to H -k + 1, tightening the variance bound of the policy gradient:</p><formula xml:id="formula_11">g k = H t=k ∇ θ log π θ (a t | s t ) • G t , G t = H t ′ =t γ t ′ -t r t ′ .</formula><p>(8) γ ∈ (0, 1) is the discount factor. Assume that the reward satisfies</p><formula xml:id="formula_12">|r t | ≤ R max and ∥∇ θ log π θ (a t | s t )∥ ≤ G max .</formula><p>Theorem 4.3 (Variance Bound for Shortened Rollout). Under these assumptions, there exists</p><formula xml:id="formula_13">C = G 2 max R 2 max such that Var[g k ] ≤ C (1 -γ) 2 (H -k + 1) - γ(1 -γ H-k+1 ) 1 -γ 2 , (9) which decreases monotonically as k increases. The proof is in Appendix B.</formula><p>In summary, starting rollouts from verified prefixes focuses on students' weak points and reduces gradient variance by truncating the horizon, leading to more stable RL training.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.">Experimental Setup</head><p>Datasets. We evaluate our approach on three categories of datasets. Mathematical Reasoning: AIME2024, AIME2025, MATH500 <ref type="bibr" target="#b20">(Lightman et al., 2023;</ref><ref type="bibr">Hendrycks et al., 2021)</ref>, and OlymMath <ref type="bibr" target="#b42">(Sun et al., 2025)</ref>. These problems often require multi-step reasoning and frequent use of a code interpreter. Factual Reasoning: HotpotQA (HQA), 2Wiki-MultihopQA (2Wiki) <ref type="bibr" target="#b52">(Yang et al., 2018;</ref><ref type="bibr" target="#b13">Ho et al., 2020)</ref>, Musique (MuSiQ) <ref type="bibr" target="#b45">(Trivedi et al., 2022)</ref>, and Bamboogle (Bamb) <ref type="bibr" target="#b31">(Press et al., 2023)</ref>. These tasks demand multi-step information retrieval and synthesis via search APIs. For Deep Search, which is fully absent from the training data, we follow WebThinker <ref type="bibr">(Li et al., 2025c)</ref>'s text-only split and test on GAIA <ref type="bibr" target="#b25">(Mialon et al., 2024)</ref>, WebWalker <ref type="bibr" target="#b48">(Wu et al., 2025</ref>), Humanity's Last Exam (HLE) <ref type="bibr" target="#b30">(Phan et al., 2025)</ref>, and xBench <ref type="bibr" target="#b4">(Chen et al., 2025)</ref>. These benchmarks involve much longer tool-use horizons, making them more challenging than standard reasoning tasks.</p><p>Baselines. We compare SCoRe with the following three categories of baselines:</p><p>(1) Prompt-Only Large Model Agents: strong LLMs prompted in a tool-integrated reasoning (TIR) format <ref type="bibr">(Li et al., 2025b)</ref>, without parameter updates. This setting reflects an approximate upper bound for performance under ideal prompting. We include DeepSeek-V3 (671B) and Qwen2.5-72B-Instruct.</p><p>(2) Behavior Cloning <ref type="bibr" target="#b14">(Kang et al., 2025)</ref> <ref type="foot" target="#foot_1">foot_1</ref> : the student imitates full teacher trajectories, with no exploration or correction. Note that SCoRe uses the same total number of training tasks as Behavior Cloning in Table <ref type="table">1</ref> and<ref type="table" target="#tab_0">2.</ref> (3) Trajectory-Level RL Algorithm: training the student with RL over the full horizon with sparse task-completion rewards, using the GRPO <ref type="bibr" target="#b37">(Shao et al., 2024)</ref> or ARPO <ref type="bibr" target="#b7">(Dong et al., 2026)</ref> algorithm. Note that RL baselines are also warm-started with BC, rather than trained from scratch.</p><p>We also evaluate stronger teacher-guided baselines in Appendix D, including a PRM-style step-reward baseline, onpolicy distillation, and ReLIFT <ref type="bibr" target="#b23">(Ma et al., 2026)</ref>; these baselines use richer supervision and higher training cost.</p><p>Our proposed SCoRe is evaluated in two sequential phases: (i) SCoRe-SFT, a correction-based SFT phase where the model is trained on capability-matched and deficiencylocalized data; and (ii) SCoRe-RL, a short-horizon RL phase with rollouts from the verified prefix and key-step rewards for reproducing the teacher's fix or avoiding errors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Evaluation.</head><p>To match the evaluation settings of ARPO <ref type="bibr" target="#b7">(Dong et al., 2026)</ref>, we measure open-domain QA tasks using a token-level F1 score against the ground truth. For mathematical reasoning and deep search tasks, correctness is judged by Qwen2.5-72B-Instruct by compar-Table <ref type="table">1</ref>. Overall performance on eight challenging reasoning tasks for Student: Qwen2.5-7B-Instruct. The best results among same-size models are bolded. "Avg." denotes the average across tasks. Results for GRPO and ARPO are mostly from <ref type="bibr" target="#b7">Dong et al. (2026)</ref>, and all evaluation settings follow <ref type="bibr" target="#b7">Dong et al. (2026)</ref>. More base models and distillation baselines are reported in Appendix Tables <ref type="table" target="#tab_5">6</ref> and<ref type="table" target="#tab_6">7</ref>. Since most reasoning benchmarks were released before 2024, we do not use Qwen3-8B (training data cutoff to October 2024) due to potential data leakage risks. AIME24 and AIME25 results are averaged over five runs due to their small size.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Method</head><p>Mathematical ing the generated final answer with the provided ground truth. In Table <ref type="table" target="#tab_6">7</ref> of Appendix D, we also report Exact Match (EM) for a more objective evaluation.</p><p>Implementation. During training and inference, the model employs two tools: a Python code interpreter for mathematical reasoning and precise computation, and an online search engine providing concise, up-to-date snippets. To save time and cost, we did not use a web browser in deep search tasks. SFT training data follows the [Thought-Action-Observation] format with Qwen2.5-72B-Instruct as the teacher. To construct the training data, we collect seed question-answer pairs mainly from the Tool-Star dataset <ref type="bibr" target="#b6">(Dong et al., 2025)</ref>, including NuminaMath <ref type="bibr" target="#b16">(Li et al., 2024)</ref> and Omni <ref type="bibr" target="#b8">(Gao et al., 2025)</ref> for math reasoning, and HotpotQA, 2Wiki-MultiHopQA, and WebWalker for factual QA. Of these, 20% of the trajectories are fully teacher-annotated to create high-quality BC initialization data, giving the student a solid foundation in reasoning-acting skills. The remaining 80% are generated via MPS, producing capability-matched, deficiency-localized data. These minimally corrected trajectories are split evenly: half for correction-based SFT to produce the SCoRe-SFT model, and half for RL. Note that during MPS, a substantial portion of the data can be solved correctly by the student without any teacher intervention.</p><p>We retain only a small subset of these easy cases for training.</p><p>During RL training, the maximum number of rollout steps was set to 8, and any reasoning-action cycles exceeding this limit were considered incomplete. The same configuration was used during inference. For the key-step reward scale R key , we set it to 0.5 based on a small-scale 2k-sample search over {0.3, 0.5, 0.7} on math benchmarks, where 0.5 achieved the best performance. For the format reward R format , we use the standard value of 0.1. Additional details are provided in Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.">Main Results</head><p>TIR prompting excels on ultra-large models but is costly.</p><p>On reasoning tasks, Tool-Integrated Reasoning (TIR) is ef- RL with short-horizon and key-step rewards drives strong performance. On the more challenging Deep Search tasks (Table <ref type="table" target="#tab_0">2</ref>), SCoRe-RL achieves very strong performance and in some cases exceeds the teacher. For Qwen3-8B (Non-thinking mode), it scores 30.5 (+7.7 over BC, +8.3 over GRPO). This is expected: unlike imitation learning, the learning signal in RL comes not only from the teacher but also from the environment. Since the teacher provides only local corrections rather than an optimal policy, SCoRe-RL can explore beyond the teacher's strategies, achieving a large reward R final (as described in Section 4.3).</p><p>Although the RL baseline is competitive, SCoRe-RL remains better. Moreover, this advantage is not simply due to extra teacher guidance or compute: in Appendix Table <ref type="table" target="#tab_7">8</ref>, SCoRe-RL also outperforms stronger teacher-guided baselines such as PRM-style step rewards and on-policy distillation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.">Ablation Study</head><p>In the ablation study, we evaluate the contribution of each SCoRe component on reasoning benchmarks (Table <ref type="table" target="#tab_1">3</ref>). The BC-initialized student (Initial Distillation), trained on a subset of high-quality teacher trajectory data, serves as the explorer for MPS. Unlike the BC baselines in Tables <ref type="table">1</ref> and<ref type="table" target="#tab_0">2</ref>, which use the full teacher data, this model performs poorly.</p><p>In contrast, when the initial model is treated as the explorer and fine-tuned on data generated via MPS, performance improves substantially (SCoRe-SFT), showing that training on such data effectively reinforces weak links in the reasoning chain. Extending to RL brings further improvements:</p><p>(1) Without short-horizon rollouts, stability degrades and performance drops notably, showing that truncation reduces gradient-estimation variance;</p><p>(2) Without key-step rewards, accuracy on multi-step tasks decreases, validating the need for targeted, stepwise guidance beyond final-task rewards.</p><p>The full SCoRe-RL approach, combining both short-horizon rollouts and key-step rewards, achieves the best results.</p><p>Although the full SCoRe pipeline requires extra compute due to MPS, the ablations in Table <ref type="table" target="#tab_1">3</ref> are compute-matched, using the same MPS-generated data and the same GRPO training pipeline as ours. Hence, the gains of the full design are not simply a byproduct of higher training cost.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4.">RL Helps Solve Previously Hard-to-Teach Cases</head><p>We further analyze teacher-student interaction during MPS (Figure <ref type="figure" target="#fig_3">3</ref>(a)). Most tasks require only a single teacher correction, while very few need ≥ 2 interventions, suggesting that one-step correction is usually sufficient. Cases where the student still fails after several one-step corrections are labeled as Hard-to-Teach. Although these cases receive no teacher guidance and make up a small fraction of the data, we retain a subset for RL training rather than discard them.</p><p>This design is also cost-efficient.  per teacher intervention, including both prompt and output tokens, is 811 for math tasks and 1260 for search tasks when only one intervention is needed, rising to 1275 and 2046, respectively, when two interventions are required.</p><p>As shown in Figure <ref type="figure" target="#fig_3">3</ref>(b), on a held-out Hard-to-Teach subset (200 items excluded from training), SFT on MPS data raises performance from 0% to 17.3% on math and 20.4% on search, while RL further improves it to 24.3% and 26.3%, respectively. This suggests that Hard-to-Teach during MPS does not mean unlearnable: on-policy RL can further improve the policy and solve some previously unsolved cases.</p><p>To better understand these gains, we manually inspected 50 cases that were Hard-to-Teach under MPS but became solvable after RL. Only 12% were best explained by generation instability, such as a previously malformed tool call being formatted correctly after RL. In most cases, the improvement reflected interpretable strategy refinement, including better decomposition, retrieval, or added verification. Table <ref type="table" target="#tab_3">4</ref> shows one example: RL prompts the model to verify before submitting the answer, avoiding its earlier mistake. These findings suggest that the gains stem primarily from interpretable strategy learning rather than randomness. More broadly, RL's on-policy nature allows the student's agentic capabilities to improve gradually over training, rather than solving Hard-to-Teach cases through sudden "epiphanies."</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">Conclusion</head><p>We introduce SCoRe, a framework for distilling LLM agents that lets students actively explore problem-solving with min- Question: What role is the actor who starred with Glynn Turman in J.D.'s Revenge best known for? Labeled Answer: Gunnery Sergeant Emil Foley Before RL: Identify actors in J.D.'s Revenge → retrieve a plausible co-star (e.g., Louis Gossett Jr.) → retrieve multiple well-known roles for that actor → return the first plausible one without further checking. After RL: Identify actors in J.D.'s Revenge → retrieve Louis Gossett Jr. as the relevant co-star of Glynn Turman → observe multiple plausible notable roles → issue an extra verification query for Gunnery Sergeant Emil Foley → use the verified result as the final answer. Observed change: RL adds an explicit verification step, rather than merely reproducing teacher corrections. imal, targeted teacher corrections. This yields training data aligned with the student's evolving capabilities and reveals weaknesses for further optimization, helping students advance from imitation to genuine problem-solving. Extensive experiments show that SCoRe achieves expert-level performance and consistently outperforms standard distillation baselines. Future work includes improving reward design and extending the framework to broader multimodal tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Limitations</head><p>Despite reducing compounding error, the method does not eliminate it. The O(H) result should therefore be interpreted as a conditional theoretical characterization under the stated assumptions, rather than as a guarantee that distribution shift is fully resolved in practice. The framework also depends on teacher quality during MPS. A weaker teacher may reduce the amount of usable training data, but the validation mechanism typically filters out incorrect corrections, so its effect is more directly on data yield than on supervision quality.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Impact Statement</head><p>This paper presents work whose goal is to advance the field of machine learning. There are many potential societal consequences of our work, none of which we feel should be specifically highlighted here.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>The Use of Large Language Models (LLMs) in Writing</head><p>An LLM (i.e., OpenAI's GPT-5) was used solely for minor language editing, including grammar correction and slight rephrasing for clarity. It did not contribute to the research design, and all scientific content is entirely the authors' own.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Relation to Closely Related Work</head><p>Why traditional DAgger cannot be directly used in agent distillation: DAgger <ref type="bibr" target="#b34">(Ross et al., 2011)</ref> was designed in 2011 for classical imitation-learning domains (e.g., robotic control), where (i) the state is well-defined and can be judged locally, and (ii) expert labels are treated as reliable supervision. These assumptions break down for LLM agents that act through long-horizon, partially observable, tool-augmented interaction.</p><p>Our SCoRe method evaluates the entire trajectory and identifies mistakes only after seeing the global trajectory, which is necessary to correctly pinpoint where errors occurred. In contrast, DAgger forces the teacher to correct the agent at every step, even though many actions reveal themselves as right or wrong only later through tool feedback or final success or failure. This is suitable for traditional imitation learning but not for agent distillation. Moreover, the teacher model itself can make mistakes or contain noise; DAgger fully trusts the teacher, whereas SCoRe automatically filters out teacher errors, which is crucial.</p><p>Other Closely Related Work: SCoRe is related to prior correction-based methods such as LEMMA <ref type="bibr" target="#b28">(Pan et al., 2025)</ref>, which identify an erroneous step and regenerate from that point. Its key distinction is that SCoRe remains student-centered, which is also the main focus of this paper: after correction, the student itself continues the trajectory, and the resulting verified prefix is further used for short-horizon RL. This strict student-centered design is required by our theory.</p><p>SCoRe is also related to PRM-style methods with step-level rewards <ref type="bibr" target="#b54">(Zhang et al., 2025)</ref>, but it does not train a separate process reward model. Instead, it uses first-error localization on student-generated trajectories to define both rollout starting points and localized rewards.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Proofs of Theoretical Results</head><p>Remark on assumptions. Our analysis adopts the same standard finite-horizon assumptions used in the DAgger compounding-error analysis <ref type="bibr" target="#b34">(Ross et al., 2011)</ref>, including bounded per-step costs and per-step policy deviation probabilities under the relevant state distribution. These assumptions are not introduced specifically for SCoRe; they are the same classical assumptions under which the widely adopted O(H 2 ) compounding-error bound for behavior cloning is derived. Our O(H) result should be interpreted as a comparative bound within this established framework, rather than as an unconditional guarantee for all practical LLM-agent settings.</p><p>Theorem B.1 (BC compounding-error bound). Suppose the student policy π has a one-step deviation probability of at most ε under the expert's state distribution, i.e.,</p><formula xml:id="formula_14">P s∼d π E t π(s) ̸ = π E (s) ≤ ε,</formula><p>and that per-step costs are bounded as c t ∈ [0, 1]. Then the student policy satisfies</p><formula xml:id="formula_15">c(π) ≤ c(π E ) + H(H -1) 2 ε = c(π E ) + O(H 2 ε). (<label>10</label></formula><formula xml:id="formula_16">)</formula><p>The proof below follows the approach of <ref type="bibr" target="#b34">(Ross et al., 2011)</ref>.</p><p>Proof. The core of this proof is to quantify how errors accumulate over time. A single mistake can lead the student policy into a state distribution the teacher has never seen, causing further deviations. We will bound the total cost by analyzing the probability of such deviations at each step.</p><p>For any step t ∈ {1, . . . , H}, define the event E t-1 as the student making no errors in the first t -1 steps, assuming it encounters states from the expert's distribution d π E i :</p><formula xml:id="formula_17">E t-1 := t-1 i=1 {π(s i ) = π E (s i )}, where s i ∼ d π E i . (<label>11</label></formula><formula xml:id="formula_18">)</formula><p>The complementary event, E c t-1 , represents at least one error occurring before step t. By the union bound:</p><formula xml:id="formula_19">P(E c t-1 ) = P t-1 i=1 {π(s i ) ̸ = π E (s i )} ≤ t-1 i=1 P(π(s i ) ̸ = π E (s i )) ≤ (t -1)ε.<label>(12)</label></formula><p>The student's state distribution at step t, d π t , depends on whether an error occurred previously:</p><p>• If E t-1 occurs (no prior errors), then</p><formula xml:id="formula_20">d π t = d π E t .</formula><p>• If E c t-1 occurs (an error was made), the student's trajectory diverges, leading to an arbitrary worst-case state distribution, denoted q t . By the law of total probability, we can express d π t as a mixture:</p><formula xml:id="formula_21">d π t = (1 -p t-1 ) d π E t + p t-1 q t ,<label>(13)</label></formula><p>where p t-1 := P(E c t-1 ). We can now bound the expected cost for the student at step t:</p><formula xml:id="formula_22">E s∼d π t [c t (s)] = (1 -p t-1 ) E s∼d π E t [c t (s)] + p t-1 E s∼qt [c t (s)] ≤ (1 -p t-1 ) E s∼d π E t [c t (s)] + p t-1 • 1 (as c t ∈ [0, 1]) = E s∼d π E t [c t (s)] -p t-1 E s∼d π E t [c t (s)] + p t-1 ≤ E s∼d π E t [c t (s)] + p t-1 ≤ E s∼d π E t [c t (s)] + (t -1)ε.<label>(14)</label></formula><p>This shows the difference in expected cost at step t is bounded by the cumulative error probability up to that point.</p><p>Summing over all H steps:</p><formula xml:id="formula_23">c(π) -c(π E ) = H t=1 E s∼d π t [c t (s)] -E s∼d π E t [c t (s)] ≤ H t=1 (t -1)ε = ε H-1 k=0 k = ε • (H -1)H 2 . (<label>15</label></formula><formula xml:id="formula_24">)</formula><p>Rearranging yields the result.</p><p>Theorem B.2 (SCoRe first-error-correction bound). Let π be a student policy trained via SCoRe with first-error correction, and let π E be the teacher policy. Assume that under the student's own induced state distribution d π t , the per-step error rate is bounded by ε ∈ [0, 1]:</p><formula xml:id="formula_25">P s∼d π t [π(s) ̸ = π E (s)] ≤ ε, ∀ t ∈ {1, . . . , H}.<label>(16)</label></formula><p>Then for any per-step cost function c t : S → [0, 1], the student policy's expected total cost is bounded by</p><formula xml:id="formula_26">c(π) ≤ c(π E ) + Hε.<label>(17)</label></formula><p>Proof. The key advantage of the SCoRe framework is that the student is trained and evaluated on its own state distribution d π t . This on-policy training avoids the covariate shift issue in standard Behavior Cloning. The proof uses a direct bound on the per-step cost difference by leveraging the on-policy error assumption.</p><p>Consider the expected cost of π at any step t. Let</p><formula xml:id="formula_27">G t := {π(s) = π E (s)}, s ∼ d π t ,</formula><p>i.e., the student takes the same action as the teacher. Its complement G c t := {π(s) ̸ = π E (s)} is the error event. By the law of total expectation,</p><formula xml:id="formula_28">E s∼d π t [c t (s)] = E[c t (s) | G t ] • P(G t ) + E[c t (s) | G c t ] • P(G c t ).<label>(18)</label></formula><p>From the assumption,</p><formula xml:id="formula_29">P(G c t ) ≤ ε, so P(G t ) ≥ 1 -ε.<label>(19)</label></formula><p>Now, we bound the conditional expectations:</p><formula xml:id="formula_30">• If G c t occurs, the cost is at most 1 since c t ∈ [0, 1]. Thus, E[c t (s) | G c t ] ≤ 1.</formula><p>• If G t occurs, the student follows the teacher's action. The cost over these states is aligned with the teacher's cost.</p><p>Hence,</p><formula xml:id="formula_31">E[c t (s) | G t ] ≤ E s∼d π E t [c t (s)].</formula><p>Plugging these bounds in:</p><formula xml:id="formula_32">E s∼d π t [c t (s)] ≤ E s∼d π E t [c t (s)] • P(G t ) + 1 • P(G c t ) ≤ E s∼d π E t [c t (s)](1 -P(G c t )) + P(G c t ) = E s∼d π E t [c t (s)] -P(G c t ) • E s∼d π E t [c t (s)] + P(G c t ).<label>(20)</label></formula><p>As E s∼d π E t [c t (s)] ≥ 0, the negative term can be dropped:</p><formula xml:id="formula_33">E s∼d π t [c t (s)] ≤ E s∼d π E t [c t (s)] + P(G c t ).<label>(21)</label></formula><p>Applying the error bound P(G c t ) ≤ ε, we get the per-step inequality:</p><formula xml:id="formula_34">E s∼d π t [c t (s)] ≤ E s∼d π E t [c t (s)] + ε.<label>(22)</label></formula><p>Summing over the horizon:</p><formula xml:id="formula_35">c(π) -c(π E ) = H t=1 E s∼d π t [c t (s)] -E s∼d π E t [c t (s)] ≤ H t=1 ε = Hε.<label>(23)</label></formula><p>This yields the desired bound.</p><p>Theorem B.3 (Variance bound for shortened rollout). Under bounded rewards |r t | ≤ R max , bounded policy score norms ∥∇ θ log π θ (a t |s t )∥ ≤ G max , and discount γ ∈ (0, 1), the truncated policy gradient estimator</p><formula xml:id="formula_36">g k = H t=k ∇ θ log π θ (a t |s t ) • H t ′ =t γ t ′ -t r t ′<label>(24)</label></formula><p>satisfies</p><formula xml:id="formula_37">Var[g k ] ≤ C (1 -γ) 2 (H -k + 1) - γ(1 -γ H-k+1 ) 1 -γ 2 , C := G 2 max R 2 max ,<label>(25)</label></formula><p>and the bound decreases monotonically as k increases.</p><p>Proof. The estimator (24) can be written as a sum of random variables:</p><formula xml:id="formula_38">g k = H t=k X t , X t := ∇ θ log π θ (a t |s t ) G t ,<label>(26)</label></formula><p>where G t is the discounted return from t:</p><formula xml:id="formula_39">G t := H t ′ =t γ t ′ -t r t ′ .<label>(27)</label></formula><p>Under the boundedness assumptions,</p><formula xml:id="formula_40">∥∇ θ log π θ (a t |s t )∥ ≤ G max ,<label>(28)</label></formula><formula xml:id="formula_41">|G t | ≤ R max • 1 -γ H-t+1 1 -γ . (<label>29</label></formula><formula xml:id="formula_42">)</formula><p>The norm of each term ∥X t ∥ is therefore bounded by:</p><formula xml:id="formula_43">∥X t ∥ ≤ G max |G t | ≤ G max R max 1 -γ H-t+1 1 -γ . (<label>30</label></formula><formula xml:id="formula_44">)</formula><p>To bound the variance, we bound the norm of the total gradient estimator g k using the triangle inequality and the timedependent bound on |G t | from (29):</p><formula xml:id="formula_45">∥g k ∥ = H t=k X t ≤ H t=k ∥X t ∥ ≤ H t=k G max R max 1 -γ H-t+1 1 -γ = G max R max 1 -γ H t=k (1 -γ H-t+1 ).<label>(31)</label></formula><p>The summation can be computed by letting j = H -t + 1:</p><formula xml:id="formula_46">H-k+1 j=1 (1 -γ j ) = (H -k + 1) - H-k+1 j=1 γ j = (H -k + 1) -γ 1 -γ H-k+1 1 -γ .<label>(32)</label></formula><p>Substituting this back gives the bound on the norm of g k :</p><formula xml:id="formula_47">∥g k ∥ ≤ G max R max 1 -γ (H -k + 1) - γ(1 -γ H-k+1 ) 1 -γ . (<label>33</label></formula><formula xml:id="formula_48">)</formula><p>The variance is bounded by the second moment,</p><formula xml:id="formula_49">Var[g k ] ≤ E[∥g k ∥ 2 ].</formula><p>Since our bound on ∥g k ∥ is a deterministic constant, we have:</p><formula xml:id="formula_50">Var[g k ] ≤ C (1 -γ) 2 (H -k + 1) - γ(1 -γ H-k+1 ) 1 -γ 2 ,<label>(34)</label></formula><p>where C := G 2 max R 2 max , this bound decreases monotonically as k increases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C. Datasets and implementation details</head><p>Benchmarks and Evaluation Protocol. We evaluate on exactly the same benchmark datasets and official test splits as ARPO <ref type="bibr" target="#b7">(Dong et al., 2026)</ref>, ensuring a fair comparison. Table <ref type="table" target="#tab_4">5</ref> shows the composition and scale of the test benchmark. Open-domain QA tasks are measured using averaged token-level F1 against the ground truth, following ARPO's protocol,  <ref type="bibr" target="#b20">(Lightman et al., 2023)</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="500">problems</head><p>High-difficulty MATH subset with university-level algebra, calculus, and number theory. OlymMath <ref type="bibr" target="#b42">(Sun et al., 2025)</ref> 200 problems Olympiad-level mathematics to evaluate the model's abilities in hard cases.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Factual</head><p>HotPotQA <ref type="bibr" target="#b52">(Yang et al., 2018)</ref> 200 QA pairs Wikipedia-based multi-hop QA on complex retrieval and reasoning. 2Wiki <ref type="bibr" target="#b13">(Ho et al., 2020)</ref> 200 QA pairs Multi-document QA requiring multi-step reasoning from two Wikipedia articles. Musique <ref type="bibr" target="#b45">(Trivedi et al., 2022)</ref> 200 QA pairs Multi-hop QA benchmark for semantic understanding and logical inference. Bamboogle <ref type="bibr" target="#b31">(Press et al., 2023)</ref> 125 QA pairs Two-hop questions that are challenging for common web search engines yet have evidence available on Wikipedia.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Deep Search</head><p>GAIA <ref type="bibr" target="#b25">(Mialon et al., 2024)</ref> 103 queries Reasoning, web navigation, and tool-use tasks for AI assistant evaluation. HLE <ref type="bibr" target="#b30">(Phan et al., 2025)</ref> 500 queries Interdisciplinary and abstract problems demanding advanced reasoning. WebWalker <ref type="bibr" target="#b48">(Wu et al., 2025)</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="200">queries</head><p>Web-navigation tasks in dynamic, multihop retrieval settings. xBench <ref type="bibr" target="#b4">(Chen et al., 2025)</ref> 100 queries</p><p>Deep-search test of breadth and depth in agent reasoning.</p><p>while correctness on mathematical reasoning and deep search tasks is judged by Qwen2.5-72B-Instruct under the LLM-as-a-judge paradigm <ref type="bibr" target="#b55">(Zheng et al., 2023)</ref>. In Appendix Table <ref type="table" target="#tab_6">7</ref>, we also report Exact Match (EM).</p><p>Supervised Fine-Tuning. For BC initialization and SCoRe-SFT, we fine-tune all backbones using the LLaMAFactory framework <ref type="bibr" target="#b56">(Zheng et al., 2024)</ref> with a learning rate of 7 × 10 -6 , the AdamW optimizer with weight decay 0.1, and a global batch size of 128 for 3 epochs. Training employs DeepSpeed ZeRO-3 <ref type="bibr" target="#b33">(Rasley et al., 2020)</ref> and FlashAttention-2 <ref type="bibr" target="#b5">(Dao, 2024)</ref> for efficiency, with BF16 mixed precision and a maximum sequence length of 4096 tokens. All tool execution outputs are excluded from the loss; we compute the loss only on natural-language reasoning text and tool invocation requests, ensuring that the model focuses on reasoning quality rather than memorizing tool responses. The training data consists of two distinct categories: search and math. For BC initialization, we use 2,031 search trajectories and 2,080 math trajectories, while SCoRe-SFT employs 4,990 search and 5,019 math trajectories for correction-based fine-tuning.</p><p>Reinforcement Learning. The SCoRe-RL phase performs short-horizon fine-tuning using the GRPO algorithm <ref type="bibr" target="#b37">(Shao et al., 2024)</ref> within the VERL framework <ref type="bibr" target="#b38">(Sheng et al., 2025)</ref>. We adopt a global batch size of 128, a PPO mini-batch size of 16, a rollout size of 16, and a maximum response length of 4,096 tokens. Training is conducted for 3 epochs on 8×NVIDIA H20 GPUs, using 5,271 search trajectories and 5,639 math trajectories.</p><p>For factual reasoning datasets, the search tool is implemented via the Google Search API. To reduce tool-call latency during both training and inference, we include only the textual snippets returned by the API as the [Observation] content, omitting full browser navigation or long-form summarization. This design substantially reduces retrieval time while preserving sufficient context to answer queries effectively. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D. Additional Experiment Results</head><p>More baselines in reasoning benchmarks. Table <ref type="table" target="#tab_6">7</ref> compares CoT Distillation, Agent Distillation, and our proposed SCoRe-RL, with all methods evaluated using the exact-match metric on math reasoning benchmarks, following <ref type="bibr" target="#b14">(Kang et al., 2025)</ref>. CoT Distillation trains smaller models to replicate step-by-step reasoning traces generated by large LLMs via Chain-of-Thought prompting. While simple and effective, its reliance on static reasoning limits generalization to novel knowledge or precise computation and can lead to hallucinations. Agent Distillation <ref type="bibr" target="#b14">(Kang et al., 2025)</ref> transfers both reasoning and tool-use skills from LLM agents by imitating complete [Thought-Action-Observation] trajectories.</p><p>Its training process is similar to our BC baseline in the main experiments (Tables <ref type="table">1</ref> and<ref type="table" target="#tab_0">2</ref>), but introduces additional enhancements: a first-thought prefix to produce higher-quality trajectories and a self-consistent action generation strategy to improve inference robustness.</p><p>Agent Distillation has been shown to outperform vanilla CoT Distillation by incorporating structured, agent-style reasoning into the distillation process. SCoRe-RL further exploits correction-based trajectories and RL to deliver substantial performance gains. On Qwen2.5-7B-Instruct, SCoRe-RL attains an average score of 49.3, a +7.5 improvement over Agent Distillation (41.8), with notable gains on challenging benchmarks such as AIME (+5.6) and OlymMATH (+4.6). On Qwen2.5-3B-Instruct, it raises the average score to 42.1, +5.0 over Agent Distillation (37.1). These results demonstrate that SCoRe-RL enables small models to achieve significant improvements beyond existing distillation baselines, For math tasks, performance is measured as agreement between generated and reference answers, using Qwen2.5-72B-Instruct; QA tasks are evaluated using the F1 score for answer similarity. The evaluation protocol matches that used in the main paper.</p><p>narrowing the gap to much larger teacher models.</p><p>More baselines in deep search benchmarks. We additionally implement three stronger baselines, and compare with them on the deep search benchmarks.</p><p>First, we implement a PRM-style baseline (BC + GRPO (Step Reward)), where the teacher evaluates each Thought-Action-Observation step following the general setup of <ref type="bibr" target="#b54">Zhang et al. (2025)</ref>. The reward is defined as the proportion of steps judged to move toward the correct solution, providing denser teacher-guided supervision than binary task-success rewards.</p><p>Besides, we implement On-Policy Distillation (OPD) <ref type="bibr" target="#b22">(Lu &amp; Lab, 2025)</ref>. Since OPD typically requires the teacher and student to come from the same model family, for the deep search setting with a Qwen3-8B student we use the largest dense Qwen3 model as the teacher. This teacher is slightly stronger than the main teacher used in SCoRe.</p><p>We also implement ReLIFT <ref type="bibr" target="#b23">(Ma et al., 2026)</ref>, an interleaved RL-SFT baseline originally proposed for reasoning tasks. Since our setting involves agentic reasoning with tool use, the number of hardest samples, i.e., queries on which all rollout attempts fail, is relatively small. To provide ReLIFT with sufficient online SFT data, we use twice the training data, with seed question-answer pairs drawn from ToolStar, the same source as ours.</p><p>The results in Table <ref type="table" target="#tab_7">8</ref> suggest that teacher guidance alone is not sufficient. The PRM-style baseline already provides dense teacher supervision at every step, yet it still underperforms SCoRe-RL. As illustrated in Figure <ref type="figure" target="#fig_0">1</ref>, SCoRe retains teacher corrections only when they are validated by the student's success, and further combines such verified guidance with short-horizon RL. We believe this coupling of verification and localized policy optimization is a key advantage of SCoRe.</p><p>On-policy distillation also underperforms SCoRe. A likely reason is that it directly imitates teacher trajectories that may not be well matched to the student's current capabilities. Although this mismatch may be reduced with substantially more data and compute as the student improves, under our training budget SCoRe remains more effective.</p><p>SCoRe-RL also outperforms ReLIFT. We suppose that short-horizon RL provides a more stable optimization signal in our setting, whereas ReLIFT may require a larger training budget and more ReLIFT-style hard samples to achieve comparable performance.</p><p>RL vs. SFT. In the main experiments, SCoRe was first initialized via BC on 5K samples, followed by SFT on 5K MPS- generated samples and RL on another 5K samples. We further examine whether using all data for SFT yields additional gains and assess the impact of SFT data scale. As shown in Figure <ref type="figure">4</ref>, for both mathematical and search tasks, MPS-generated data improves performance; however, increasing the SFT set from 5K to 10K offers no clear benefit and in some cases slightly degrades results. In contrast, RL training consistently delivers substantial improvements across tasks, indicating that SFT alone is insufficient, while RL is particularly effective for agentic-style tasks.</p><p>We also compare our SCoRe-RL against a DPO baseline using the same MPS-generated data. As shown in Figure <ref type="figure" target="#fig_4">5</ref>, DPO yields only marginal improvements over SCoRe-SFT, whereas SCoRe-RL achieves large gains on all four benchmarks. This is because DPO requires high data diversity. Specifically, DPO requires multiple alternative completions under the same prefix to fully leverage preference learning. By contrast, SCoRe's short-horizon RL directly optimizes the policy using true task-level returns, avoids reliance on large and diverse preference pairs, and stabilizes training by rolling out from the verified prefix preceding the error.  Question: What is the award that the performer of the song "Smoke On The Water" earned? Labeled Answer: Rock and Roll Hall of Fame</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E. Prompts used in Mentored Problem-Solving</head><p>Step 0 (Student overall idea) &lt;first thought&gt; To find out the award that the performer of the song "Smoke On The Water" earned, I will first need to identify the performer of the song. Once I have the name of the performer, I can then search for any awards they have won. I will use a search tool to gather this information. &lt;/first thought&gt;</p><p>Step 1 (Correct prefix) &lt;thought&gt; I need to find out who performed the song "Smoke On The Water" and then search for any awards they have won. &lt;/thought&gt; web_search("performer of Smoke On The Water")</p><p>Observation: Web Pages: ... (The search results show that "Smoke On The Water" was performed by Deep Purple, with Ian Gillan as lead singer).</p><p>Step </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. Comparison between imitation-based distillation and our SCoRe framework. (a) Prior methods clone entire teacher trajectories. (b) Our approach lets the student explore independently; upon completion, the teacher reviews the full trajectory and minimally intervenes by correcting only the earliest error. Correction-based SFT mitigates the compounding errors of pure imitation. RL rollouts then start from this verified prefix, improving stability and efficiency.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. The SCoRe framework. (a) A student agent attempts a task, and the teacher provides a single-step correction at the first error, creating student-centered training data. (b) The student is initially trained to imitate full solution trajectories via supervised fine-tuning. (c)The student is further improved through reinforcement learning, using shortened rollouts starting from the prefix preceding the teacher's correction and targeted rewards at the corrected steps to guide exploration.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Teacher intervention frequency during the MPS phase, and performance on Hard-to-Teach data after training. Categories: 0 = solved by student alone, 1 = 1 teacher correction, ≥2 = 2 or more corrections. Hard data = unsolved cases, even with the teacher's help.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. Performance comparison of SCoRe-SFT, SCoRe-RL, and a DPO baseline. While DPO uses the same MPS-generated data as SCoRe-RL in a preference-learning formulation, it yields only marginal gains over SCoRe-SFT. The evaluation protocol matches that used in the main paper.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 6</head><label>6</label><figDesc>Figure 6 and 7 illustrate how prompts are used to guide the teacher to find the wrong step and correct it, whileTable 9 and 10 present examples of MPS data generation.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 2 .</head><label>2</label><figDesc>Performance on more free-form benchmarks for deep search. Given their difficulty and need for stronger base reasoning, we include the latest Qwen3-8B for evaluation. Since most deep search benchmarks were released in 2025, this poses little risk of data leakage. More baselines (PRM-style, On-Policy Distillation, ReLIFT<ref type="bibr" target="#b23">(Ma et al., 2026)</ref>) are presented in Table8of Appendix D.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell cols="2">Reasoning</cell><cell></cell><cell></cell><cell cols="2">Factual Reasoning</cell><cell></cell><cell>Avg.</cell></row><row><cell></cell><cell>AIME24</cell><cell>AIME25</cell><cell cols="2">MATH500</cell><cell>OlymMath</cell><cell>HQA</cell><cell>2Wiki</cell><cell>MuSiQ</cell><cell>Bamb</cell></row><row><cell></cell><cell></cell><cell cols="4">Larger Models (TIR Prompting)</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>DeepSeek-V3 (671B)</cell><cell>44.0</cell><cell>33.3</cell><cell>84.8</cell><cell></cell><cell>21.0</cell><cell>60.1</cell><cell>78.5</cell><cell>37.0</cell><cell>73.2</cell><cell>54.0</cell></row><row><cell>Qwen2.5-72B-Instruct</cell><cell>32.7</cell><cell>35.3</cell><cell>77.4</cell><cell></cell><cell>17.0</cell><cell>60.5</cell><cell>75.5</cell><cell>36.8</cell><cell>73.2</cell><cell>51.1</cell></row><row><cell></cell><cell></cell><cell cols="4">Student: Qwen2.5-7B-Instruct</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Behavior Cloning (BC)</cell><cell>22.0</cell><cell>14.7</cell><cell>72.8</cell><cell></cell><cell>15.5</cell><cell>58.1</cell><cell>70.3</cell><cell>26.6</cell><cell>63.6</cell><cell>43.0</cell></row><row><cell>BC + GRPO</cell><cell>22.6</cell><cell>26.0</cell><cell>78.0</cell><cell></cell><cell>25.0</cell><cell>59.0</cell><cell>76.1</cell><cell>30.6</cell><cell>68.4</cell><cell>48.2</cell></row><row><cell>BC + ARPO</cell><cell>32.0</cell><cell>27.4</cell><cell>78.8</cell><cell></cell><cell>18.0</cell><cell>58.8</cell><cell>76.1</cell><cell>31.1</cell><cell>71.5</cell><cell>49.2</cell></row><row><cell>SCoRe-SFT</cell><cell>26.7</cell><cell>18.7</cell><cell>73.4</cell><cell></cell><cell>18.5</cell><cell>59.5</cell><cell>72.8</cell><cell>29.2</cell><cell>69.8</cell><cell>46.1</cell></row><row><cell>SCoRe-RL</cell><cell>38.0</cell><cell>28.7</cell><cell>82.0</cell><cell></cell><cell>26.5</cell><cell>61.4</cell><cell>76.8</cell><cell>32.2</cell><cell>72.8</cell><cell>52.3</cell></row><row><cell></cell><cell>Method</cell><cell></cell><cell>GAIA</cell><cell>HLE</cell><cell>XBench</cell><cell cols="2">WebWalker</cell><cell>Avg.</cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="4">Larger Models (TIR Prompting)</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">DeepSeek-V3 (671B)</cell><cell>40.8</cell><cell>10.6</cell><cell>32.0</cell><cell></cell><cell>46.0</cell><cell>32.4</cell><cell></cell></row><row><cell cols="3">Qwen2.5-72B-Instruct</cell><cell>32.0</cell><cell>7.8</cell><cell>31.0</cell><cell></cell><cell>38.5</cell><cell>27.3</cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="5">Student: Qwen3-8B (Non-thinking)</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="3">Behavior Cloning (BC)</cell><cell>27.2</cell><cell>8.4</cell><cell>21.0</cell><cell></cell><cell>34.5</cell><cell>22.8</cell><cell></cell></row><row><cell></cell><cell>BC + GRPO</cell><cell></cell><cell>32.0</cell><cell>7.8</cell><cell>20.0</cell><cell></cell><cell>29.0</cell><cell>22.2</cell><cell></cell></row><row><cell></cell><cell>BC + ARPO</cell><cell></cell><cell>38.8</cell><cell>8.8</cell><cell>25.0</cell><cell></cell><cell>30.5</cell><cell>25.8</cell><cell></cell></row><row><cell></cell><cell>SCoRe-SFT</cell><cell></cell><cell>28.2</cell><cell>10.0</cell><cell>22.0</cell><cell></cell><cell>41.5</cell><cell>25.4</cell><cell></cell></row><row><cell></cell><cell>SCoRe-RL</cell><cell></cell><cell>40.8</cell><cell>11.0</cell><cell>27.0</cell><cell></cell><cell>43.0</cell><cell>30.5</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 3 .</head><label>3</label><figDesc>Ablation study of various components of SCoRe. Student: Qwen2.5-7B-Instruct.</figDesc><table><row><cell>Phase</cell><cell>Design</cell><cell></cell><cell cols="2">Mathematical Reasoning</cell><cell></cell><cell cols="2">Factual Reasoning</cell><cell>Avg.</cell></row><row><cell></cell><cell></cell><cell cols="7">AIME24 AIME25 MATH500 OlymMath HQA 2Wiki MuSiQ Bamb</cell></row><row><cell>SFT</cell><cell>Initial Distillation (BC init)</cell><cell>20.0</cell><cell>23.3</cell><cell>70.8</cell><cell>7.0</cell><cell>54.4 67.6</cell><cell>27.0</cell><cell>63.7 41.7</cell></row><row><cell cols="2">SFT SFT on MPS data (SCoRe-SFT)</cell><cell>26.7</cell><cell>18.7</cell><cell>73.4</cell><cell>18.5</cell><cell>59.5 72.8</cell><cell>29.2</cell><cell>69.8 46.1</cell></row><row><cell>RL</cell><cell>RL W/O short-horizon</cell><cell>30.0</cell><cell>20.0</cell><cell>78.0</cell><cell>25.0</cell><cell>58.0 75.3</cell><cell>30.2</cell><cell>70.7 48.4</cell></row><row><cell>RL</cell><cell>RL W/O key-step rewards</cell><cell>33.3</cell><cell>20.0</cell><cell>80.6</cell><cell>24.0</cell><cell>61.1 76.7</cell><cell>30.3</cell><cell>71.7 49.7</cell></row><row><cell>RL</cell><cell>Full design (SCoRe-RL)</cell><cell>38.0</cell><cell>28.7</cell><cell>82.0</cell><cell>26.5</cell><cell>61.4 76.8</cell><cell>32.2</cell><cell>72.8 52.3</cell></row><row><cell cols="4">fective for very large models: DeepSeek-V3 (671B)</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">scores 54.0 on average, and Qwen2.5-72B-Instruct</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">scores 51.1, showing how TIR combines strong LLM rea-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">soning with the precision of external tools. But in agent</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">settings, such models also incur high latency and token costs,</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="4">which grow with both token volume and interaction turns.</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p><p><p><p><p><p>SCoRe matches teacher performance on reasoning and deep search with smaller backbones. Tables</p>1 and 2</p>report results on reasoning and deep search. On smaller backbones, our method uses MPS trajectories from a studentled process with one-step teacher correction, and trains the model with correction-based SFT and short-horizon RL with key-step rewards. This yields large gains: averaged over math and factual reasoning benchmarks, SCoRe-RL with Qwen2.5-7B-Instruct scores 52.3, and outperforms BC by 9.3 and GRPO by 4.1. Similar trends hold for other base models (Qwen2.5-3B-Instruct and Llama-3.1-8B-Instruct; Appendix Table</p>6</p>). Ability-aligned training thus enables small models to match much larger ones at lower cost.</p>SCoRe-SFT outperforms behavior cloning under the same data budget. With only teacher-annotated trajectories, BC performance is limited. Under the same data budget, SCoRe-SFT yields consistent gains across backbones on both reasoning and deep search, showing that MPS-constructed data reduces compounding error growth from O(H 2 ) to O(H), where H is the horizon length. This also shows that even without RL, training on correctionbased trajectories substantially outperforms BC distillation.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Teacher intervention frequency (Math vs Search)</head><label></label><figDesc></figDesc><table><row><cell cols="7">2 Hard data (a) Math 2.7% 11.0% 2.2% 13.7% Search</cell></row><row><cell>1</cell><cell></cell><cell>15.3%</cell><cell cols="2">25.3%</cell><cell></cell><cell></cell></row><row><cell>0</cell><cell></cell><cell></cell><cell></cell><cell cols="2">58.8%</cell><cell>71.0%</cell></row><row><cell></cell><cell cols="6">0 10 20 30 40 50 60 70 80 Proportion (%)</cell></row><row><cell>SCoRe RL</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">24.3% 26.3%</cell></row><row><cell>SCoRe SFT</cell><cell>0</cell><cell>5</cell><cell>10</cell><cell>15 Accuracy (%) 17.3% 20 20.4%</cell><cell cols="2">25</cell><cell>30</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>The average token usage</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 4 .</head><label>4</label><figDesc>A representative Hard-to-Teach case that becomes solvable after RL.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 5 .</head><label>5</label><figDesc>Overview of evaluation benchmarks used in our experiments.</figDesc><table><row><cell>Category</cell><cell>Dataset</cell><cell>Test Size</cell><cell>Description</cell></row><row><cell></cell><cell>AIME24 1</cell><cell>30 problems</cell><cell>2024 AIME math problems in algebra and</cell></row><row><cell></cell><cell></cell><cell></cell><cell>geometry; used to assess advanced reason-</cell></row><row><cell></cell><cell></cell><cell></cell><cell>ing.</cell></row><row><cell></cell><cell>AIME25 2</cell><cell>30 problems</cell><cell>2025 AIME I&amp;II covering algebra, com-</cell></row><row><cell></cell><cell></cell><cell></cell><cell>binatorics, geometry, and number theory.</cell></row><row><cell>Math</cell><cell>MATH500</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 6 .</head><label>6</label><figDesc>Overall performance on eight challenging reasoning tasks for other base models. The best outcomes among models of the same size are bolded. "Avg." denotes the average score across tasks. Results for GRPO and ARPO are mostly taken from<ref type="bibr" target="#b7">(Dong et al., 2026)</ref>.</figDesc><table><row><cell>Method</cell><cell></cell><cell cols="2">Mathematical Reasoning</cell><cell></cell><cell></cell><cell cols="2">Factual Reasoning</cell><cell></cell><cell>Avg.</cell></row><row><cell></cell><cell>AIME24</cell><cell>AIME25</cell><cell>MATH500</cell><cell>OlymMath</cell><cell>HQA</cell><cell>2Wiki</cell><cell>MuSiQ</cell><cell>Bamb</cell><cell></cell></row><row><cell></cell><cell></cell><cell cols="3">Student: Qwen2.5-3B-Instruct</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Behavior Cloning (BC)</cell><cell>13.3</cell><cell>13.3</cell><cell>65.6</cell><cell>9.5</cell><cell>51.7</cell><cell>63.7</cell><cell>26.8</cell><cell>61.2</cell><cell>38.3</cell></row><row><cell>BC + GRPO</cell><cell>20.0</cell><cell>13.3</cell><cell>72.0</cell><cell>16.0</cell><cell>56.5</cell><cell>64.5</cell><cell>24.7</cell><cell>65.2</cell><cell>41.5</cell></row><row><cell>BC + ARPO</cell><cell>20.0</cell><cell>20.0</cell><cell>71.4</cell><cell>14.5</cell><cell>58.5</cell><cell>67.4</cell><cell>28.7</cell><cell>66.8</cell><cell>43.4</cell></row><row><cell>SCoRe-SFT</cell><cell>20.0</cell><cell>13.3</cell><cell>67.0</cell><cell>12.5</cell><cell>55.9</cell><cell>71.6</cell><cell>27.8</cell><cell>67.5</cell><cell>42.0</cell></row><row><cell>SCoRe-RL</cell><cell>26.7</cell><cell>20.0</cell><cell>72.4</cell><cell>17.5</cell><cell>59.2</cell><cell>75.6</cell><cell>29.0</cell><cell>73.2</cell><cell>46.7</cell></row><row><cell></cell><cell></cell><cell cols="3">Student: Llama3.1-8B-Instruct</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Behavior Cloning (BC)</cell><cell>6.7</cell><cell>6.7</cell><cell>58.0</cell><cell>8.5</cell><cell>55.6</cell><cell>65.5</cell><cell>28.6</cell><cell>69.1</cell><cell>37.3</cell></row><row><cell>BC + GRPO</cell><cell>13.3</cell><cell>13.3</cell><cell>62.4</cell><cell>14.5</cell><cell>57.8</cell><cell>71.8</cell><cell>31.0</cell><cell>68.2</cell><cell>41.5</cell></row><row><cell>BC + ARPO</cell><cell>23.3</cell><cell>16.7</cell><cell>64.6</cell><cell>11.0</cell><cell>65.4</cell><cell>75.5</cell><cell>34.8</cell><cell>73.8</cell><cell>45.6</cell></row><row><cell>SCoRe-SFT</cell><cell>6.7</cell><cell>10.0</cell><cell>60.0</cell><cell>10.0</cell><cell>59.5</cell><cell>71.7</cell><cell>31.1</cell><cell>71.4</cell><cell>40.1</cell></row><row><cell>SCoRe-RL</cell><cell>26.7</cell><cell>20.0</cell><cell>65.4</cell><cell>16.0</cell><cell>64.2</cell><cell>76.5</cell><cell>35.3</cell><cell>76.2</cell><cell>47.5</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 7 .</head><label>7</label><figDesc>Comparison with Agent Distillation<ref type="bibr" target="#b14">(Kang et al., 2025)</ref> on mathematical tasks. Results with a gray background are reported from the original paper. All math tasks are evaluated by exact match, consistent with<ref type="bibr" target="#b14">Kang et al. (2025)</ref>.</figDesc><table><row><cell>Method</cell><cell cols="5">MATH500 GSM-Hard AIME OlymMATH Avg.</cell></row><row><cell></cell><cell cols="2">Qwen2.5-32B-Instruct</cell><cell></cell><cell></cell><cell></cell></row><row><cell>CoT Prompting</cell><cell>79.2</cell><cell>74.6</cell><cell>13.3</cell><cell>6.0</cell><cell>43.3</cell></row><row><cell>Agent Prompting</cell><cell>69.2</cell><cell>76.4</cell><cell>21.1</cell><cell>11.5</cell><cell>44.6</cell></row><row><cell></cell><cell cols="3">Student: Qwen2.5-7B-Instruct</cell><cell></cell><cell></cell></row><row><cell>CoT Distillation + RAG</cell><cell>68.0</cell><cell>60.6</cell><cell>6.7</cell><cell>5.0</cell><cell>35.1</cell></row><row><cell>Agent Distillation</cell><cell>67.8</cell><cell>72.4</cell><cell>15.6</cell><cell>11.5</cell><cell>41.8</cell></row><row><cell>SCoRe-RL</cell><cell>80.2</cell><cell>79.7</cell><cell>21.2</cell><cell>16.0</cell><cell>49.3</cell></row><row><cell></cell><cell cols="3">Student: Qwen2.5-3B-Instruct</cell><cell></cell><cell></cell></row><row><cell>CoT Distillation + RAG</cell><cell>59.6</cell><cell>53.2</cell><cell>5.6</cell><cell>4.5</cell><cell>30.7</cell></row><row><cell>Agent Distillation</cell><cell>60.2</cell><cell>65.4</cell><cell>15.6</cell><cell>7.0</cell><cell>37.1</cell></row><row><cell>SCoRe-RL</cell><cell>69.2</cell><cell>70.2</cell><cell>18.0</cell><cell>11.0</cell><cell>42.1</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 8 .</head><label>8</label><figDesc>Additional baseline results on deep search. We report stronger baselines, including On-Policy Distillation (OPD), a PRM-style baseline with step-level rewards, and ReLIFT. For OPD, we use Qwen3-32B, the largest dense Qwen3 model, as the teacher for the Qwen3-8B student, since the teacher and student typically must come from the same model family.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">Method</cell><cell></cell><cell cols="2">GAIA</cell><cell>HLE</cell><cell></cell><cell>XBench</cell><cell cols="3">WebWalker</cell><cell>Avg.</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="6">Student: Qwen3-8B (Non-thinking)</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>OPD</cell><cell></cell><cell></cell><cell>30.1</cell><cell></cell><cell>9.2</cell><cell></cell><cell>20.0</cell><cell></cell><cell>37.5</cell><cell></cell><cell>24.2</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="5">BC + GRPO (Step Reward)</cell><cell>34.0</cell><cell></cell><cell>9.6</cell><cell></cell><cell>23.0</cell><cell></cell><cell>35.5</cell><cell></cell><cell>25.5</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">ReLIFT</cell><cell></cell><cell>35.0</cell><cell></cell><cell>9.4</cell><cell></cell><cell>23.0</cell><cell></cell><cell>39.5</cell><cell></cell><cell>26.7</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell cols="2">SCoRe-RL</cell><cell></cell><cell>40.8</cell><cell></cell><cell>11.0</cell><cell></cell><cell>27.0</cell><cell></cell><cell>43.0</cell><cell></cell><cell>30.5</cell></row><row><cell>20 40 60 80</cell><cell>72.4</cell><cell cols="2">73.4 MATH500 71.2</cell><cell>82.0</cell><cell>5 10 15 20 25 30</cell><cell>18.0</cell><cell cols="2">OlymM 18.5 16.5</cell><cell>26.5</cell><cell>10 20 30 40 50 60 70 80</cell><cell>68.8</cell><cell cols="2">Bamb 69.8 63.5</cell><cell>72.8</cell><cell>5 10 15 20 25 30 35</cell><cell>29.1</cell><cell>29.2</cell><cell>28.1</cell><cell>32.2</cell></row><row><cell>0</cell><cell cols="2">SFT-10k SFT-5k</cell><cell>SFT-2k</cell><cell>RL</cell><cell>0</cell><cell cols="2">SFT-10k SFT-5k</cell><cell>SFT-2k</cell><cell>RL</cell><cell>0</cell><cell cols="2">SFT-10k SFT-5k</cell><cell>SFT-2k</cell><cell>RL</cell><cell>0</cell><cell cols="2">SFT-10k SFT-5k</cell><cell>SFT-2k</cell><cell>RL</cell></row></table><note><p><p><p><p>MuSiQ</p>Figure</p>4</p>. Performance of models trained with SFT on MPS-generated data (data scales: 10K, 5K, 2K), compared to an RL-trained model.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 10 .</head><label>10</label><figDesc>An example of MPS data generation for a music trivia question, with wrong step and teacher correction. Teacher corrections are highlighted in orange.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head></head><label></label><figDesc>2 (Correct prefix) &lt;thought&gt; The search results indicate the performer is Deep Purple (lead singer Ian Gillan). Next, I need to search for any awards that Ian Gillan or Deep Purple have won. &lt;/thought&gt; web_search("awards won by Ian Gillan") Observation: Web Pages: ... (Found references to Ivor Novello Award for International Achievement, Legend Award at 2008 World Music Awards, and Classic Rock Innovator Award).Step 3 (Student incorrect attempt) &lt;thought&gt; The most relevant award is the Ivor Novello Award for International Achievement, received by Ian Gillan, Roger Glover, and Ian Paice of Deep Purple. I will use this as the final answer. &lt;/thought&gt; final_answer_print("Ivor Novello Award for International Achievement") Observation: Ivor Novello Award for International Achievement(Incorrect in context)Teacher correction at Step 3:Error Analysis: While Deep Purple members did win the Ivor Novello Award, the question asks for the award that the performer of "Smoke On The Water" earned. However, the band has not received this award in any context directly related to "Smoke on the Water". &lt;thought&gt; The most significant award for Deep Purple, especially tied to the legacy of "Smoke On The Water", is their Rock and Roll Hall of Fame induction in 2016. I will verify this. &lt;/thought&gt; web_search("Deep Purple Rock and Roll Hall of Fame") Observation: Web Pages: ... (Confirmed -Deep Purple inducted into the Rock and Roll Hall of Fame in 2016). Step 4 (Student continues after correction) &lt;thought&gt; Based on confirmation, the correct award is Rock and Roll Hall of Fame. &lt;/thought&gt; final_answer_print("Rock and Roll Hall of Fame") Observation: Rock and Roll Hall of Fame &lt;answer&gt; Rock and Roll Hall of Fame &lt;/answer&gt;</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_0"><p>RL optimizes through exploration rather than imitation; the training signal is not fully determined by the teacher, and the policy is therefore not bounded by the teacher.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="4" xml:id="foot_1"><p>Our SCoRe framework also includes a BC phase for coldstart initialization, but unlike the BC baseline in Table1 and 2, which uses the full teacher-annotated training set, the BC phase of SCoRe uses only 20% of the data to endow the student with basic reasoning-action skills.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_2"><p>https://huggingface.co/datasets/HuggingFaceH4/aime_2024</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_3"><p>https://huggingface.co/datasets/math-ai/aime25</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>This work was supported in part by the grants from <rs type="funder">National Science and Technology Major Project</rs> (No. <rs type="grantNumber">2023ZD0121104</rs>), and the <rs type="funder">Anhui Natural Science Foundation</rs> (No. <rs type="grantNumber">2508085ZD006</rs>).</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_W4Rnz8Y">
+					<idno type="grant-number">2023ZD0121104</idno>
+				</org>
+				<org type="funding" xml:id="_YY7RU3P">
+					<idno type="grant-number">2508085ZD006</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>FIND WRONG STEP PROMPT</head><p>You are a precise evaluator. Your task is to analyze a step-by-step reasoning process (step 1 is a first-thought prefix, which is an overall idea for solving this problem, and the remaining steps are the "thought-code cycle") and determine if the final answer is correct.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>INSTRUCTIONS:</head><p>1. Review the entire "Thought-Code Cycle" history provided below. 2. Compare the final answer to the true answer. 3. If the answer is correct:</p><p>-The "error analysis", "correction start step" and "correction suggestion" fields in your JSON output should be null.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">If the answer is incorrect:</head><p>-Pinpoint the exact step in the cycle where the error occurred in "correction start step".</p><p>-Explain the nature of the error (e.g., "The calculation in step 1 was correct, but the rounding in step 2 was incorrect.").</p><p>-Suggest a specific correction for the erroneous step. 5. Conclude your response with a single JSON object on a new line. The JSON object must contain the following keys: "is correct", "error analysis", "correction start step", "correction suggestion".</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>EXAMPLE (Incorrect Answer):</head><p>Question: What is 10 / 3, rounded to the nearest integer? Correct Answer: 3 Thought-Code Cycle:</p><p>Step 1: &lt;first thought&gt;I will use the math packages of python to solve the problem.&lt;/first thought&gt; Step 2: Thought: I will divide 10 by 3 and then round the result up. Code: '''python import math result = math.ceil(10 / 3) print(result) ''' Observation: 4</p><p>Step 3: Thought: I will provide the final answer. Code: '''python final_answer_print("\\boxed{{result}}") ''' Observation: 4 YOUR RESPONSE: '''json { "is_correct": false, "error_analysis": "...", "correction_start_step": 2, "correction_suggestion": "..." } ''' </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>IMPORTANT:</head><p>1. Always provide a 'Thought:' sequence, and a 'Code: "'python' sequence ending with '"'' sequence, else you will fail. For math problems that are not multiple-choice, always output the final answer using LaTeX \boxed format. Provide the exact value (e.g., \\boxed{{\\frac{{19}}{{14}}}}, \\boxed{{\\sqrt{{2}}}}), not a decimal approximation (e.g., \\boxed{{0.642857}}, \\boxed{{1.41}}). 2. Write simple and short code for each step, and don't try to solve the whole problem in one go. A good code block should only do one thing and include only a brief comment that explains it. 3. You are given a failed experience, please pay attention to it! BUT Don't ACT LIKE YOU'RE CORRECTING A MISTAKE. 4. In the end you have to return a final answer, use the final_answer_print tool to print it, or you will be in an endless loop! Please only give the 'Thought and Code' for the current cycle.   </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Achiam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Adler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ahmad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Akkaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><forename type="middle">L</forename><surname>Aleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Altenschmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Altman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Anadkat</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.08774</idno>
+		<title level="m">GPT-4 technical report</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Hindsight experience replay</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Andrychowicz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Ray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schneider</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Fong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Welinder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mcgrew</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tobin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Abbeel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zaremba</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Never give up: Learning directed exploration strategies</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">P</forename><surname>Badia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Sprechmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vitvitskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Piot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kapturowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Tieleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Arjovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pritzel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bolt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Enhancing reasoning abilities of small LLMs with cognitive alignment</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Fang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="7423" to="7438" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Gong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.13651</idno>
+		<title level="m">Tracking agents productivity scaling with profession-aligned real-world evaluations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Flashattention-2: Faster attention with better parallelism and work partitioning</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Dao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">2024</biblScope>
+			<biblScope unit="page" from="35549" to="35562" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-R</forename><surname>Wen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.16410</idno>
+		<title level="m">Tool-star: Empowering llm-brained multi-tool reasoner via reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Agentic reinforced policy optimization</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-R</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Fourteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Omni-math: A universal olympiad level mathematic benchmark for large language models</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Thirteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Pal: Program-aided language models</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Callan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Neubig</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Machine Learning</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="10764" to="10799" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Grattafiori</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Dubey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Jauhri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Pandey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kadian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Al-Dahle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Letman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mathur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Schelten</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Vaughan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.21783</idno>
+		<title level="m">The llama 3 herd of models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">D</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Bi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.12948</idno>
+		<title level="m">Deepseek-R1: Incentivizing reasoning capability in LLMs via reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Measuring mathematical problem solving with the MATH dataset</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Burns</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kadavath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Basart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Steinhardt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track</title>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Constructing a multi-hop qa dataset for comprehensive evaluation of reasoning steps</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A.-K</forename><forename type="middle">D</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Sugawara</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Aizawa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 28th International Conference on Computational Linguistics</title>
+		<meeting>the 28th International Conference on Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="6609" to="6625" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Distilling llm agent into small models with retrieval and code tools</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Hwang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="106501" to="106538" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Hg-dagger: Interactive imitation learning with human experts</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Kelly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Sidrane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Driggs-Campbell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">J</forename><surname>Kochenderfer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2019 International Conference on Robotics and Automation (ICRA)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="8077" to="8083" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Numinamath: The largest public dataset in ai4maths with 860k pairs of competition math problems and solutions</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Beeching</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Tunstall</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Lipkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Soletskyi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Rasul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">Q</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Shen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Hugging Face repository</title>
+		<imprint>
+			<biblScope unit="volume">13</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<biblScope unit="page">9</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Chain-of-agents: End-to-end agent foundation models via multi-agent distillation and agentic rl</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.13167</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Search-o1: Agentic search-enhanced large reasoning models</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="5420" to="5438" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Empowering large reasoning models with deep research capability</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-R</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Webthinker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="120091" to="120131" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Let&apos;s verify step by step</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lightman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cobbe</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Agentbench: Evaluating LLMs as agents</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">On-policy distillation. Thinking Machines Lab: Connectionism</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">M</forename><surname>Lab</surname></persName>
+		</author>
+		<idno type="DOI">10.64434/tml.20251026</idno>
+		<ptr target="https://thinkingmachines.ai/blog/on-policy-distillation" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Learning what reinforcement learning can&apos;t: Interleaved online fine-tuning for hardest questions</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Qiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><forename type="middle">H</forename><surname>Wong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cui</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Fourteenth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Teaching small language models to reason</title>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">C</forename><surname>Magister</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Mallinson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Adamek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Malmi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Severyn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 61st Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="1773" to="1781" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">GAIA: a benchmark for general AI assistants</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Mialon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Fourrier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Human-level control through deep reinforcement learning</title>
+		<author>
+			<persName><forename type="first">V</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">A</forename><surname>Rusu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Veness</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">G</forename><surname>Bellemare</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Riedmiller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">K</forename><surname>Fidjeland</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Ostrovski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">nature</title>
+		<imprint>
+			<biblScope unit="volume">518</biblScope>
+			<biblScope unit="issue">7540</biblScope>
+			<biblScope unit="page" from="529" to="533" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Mroueh</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.06639</idno>
+		<title level="m">Reinforcement learning with verifiable rewards: Grpo&apos;s effective loss, dynamics, and success amplification</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Learning from errors for mathematical advancement in LLMs</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ming</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><forename type="middle">V</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lemma</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="11615" to="11639" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><forename type="middle">B</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Levine</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.00177</idno>
+		<title level="m">Advantage-weighted regression: Simple and scalable off-policy reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Humanity&apos;s last exam</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Phan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gatti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">B C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Shaaban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Shi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.14249</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Measuring and narrowing the compositionality gap in language models</title>
+		<author>
+			<persName><forename type="first">O</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lewis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2023</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="5687" to="5711" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<author>
+			<persName><forename type="first">C</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">C</forename><surname>Acikgoz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hakkani-Tür</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Toolrl</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.13958</idno>
+		<title level="m">Reward is all tool learning needs</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Deepspeed: System optimizations enable training deep learning models with over 100 billion parameters</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Rasley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Rajbhandari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Ruwase</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>He</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 26th ACM SIGKDD international conference on knowledge discovery &amp; data mining</title>
+		<meeting>the 26th ACM SIGKDD international conference on knowledge discovery &amp; data mining</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="3505" to="3506" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">A reduction of imitation learning and structured prediction to no-regret online learning</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Gordon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Bagnell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the fourteenth international conference on artificial intelligence and statistics</title>
+		<meeting>the fourteenth international conference on artificial intelligence and statistics</meeting>
+		<imprint>
+			<date type="published" when="2011">2011</date>
+			<biblScope unit="page" from="627" to="635" />
+		</imprint>
+	</monogr>
+	<note>JMLR Workshop and Conference Proceedings</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Klimov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.06347</idno>
+		<title level="m">Proximal policy optimization algorithms</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.03300</idno>
+		<title level="m">Deepseekmath: Pushing the limits of mathematical reasoning in open language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Hybridflow: A flexible and efficient rlhf framework</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twentieth European Conference on Computer Systems</title>
+		<meeting>the Twentieth European Conference on Computer Systems</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="1279" to="1297" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Alfworld: Aligning text and embodied environments for interactive learning</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Shridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M.-A</forename><surname>Cote</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bisk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Trischler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hausknecht</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Mastering chess and shogi by self-play with a general reinforcement learning algorithm</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hubert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Guez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lanctot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Sifre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kumaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Graepel</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1712.01815</idno>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.23829</idno>
+		<title level="m">Crossing the reward bridge: Expanding rl with verifiable rewards across diverse domains</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<author>
+			<persName><forename type="first">H</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">X</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-R</forename><surname>Wen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.21380</idno>
+		<title level="m">Challenging the boundaries of reasoning: An olympiad-level math benchmark for large language models</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><surname>Team</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Anil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J.-B</forename><surname>Alayrac</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Soricut</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schalkwyk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Hauth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Millican</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.11805</idno>
+		<title level="m">a family of highly capable multimodal models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Behavioral cloning from observation</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Torabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Warnell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Stone</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twenty-Seventh International Joint Conference on Artificial Intelligence</title>
+		<meeting>the Twenty-Seventh International Joint Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4950" to="4957" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Multihop questions via single-hop question composition</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Musique</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="539" to="554" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Executable code actions elicit better llm agents</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-first International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Emergent abilities of large language models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Tay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bommasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Borgeaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yogatama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Metzler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">H</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dean</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Fedus</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<idno type="ISSN">2835-8856</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Webwalker: Benchmarking LLMs in web traversal</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Xie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 63rd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="10290" to="10305" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">The rise and potential of large language model based agents: A survey</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Science China Information Sciences</title>
+		<imprint>
+			<biblScope unit="volume">68</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">121101</biblScope>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Peng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.12594</idno>
+		<title level="m">A comprehensive survey of deep research: Systems, methodologies, and applications</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.15115</idno>
+		<title level="m">Qwen2.5 technical report</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">A dataset for diverse, explainable multi-hop question answering</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hotpotqa</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2018 conference on empirical methods in natural language processing</title>
+		<meeting>the 2018 conference on empirical methods in natural language processing</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="2369" to="2380" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<biblScope unit="page">2023</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">The lessons of developing process reward models in mathematical reasoning</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="10495" to="10516" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">Judging llm-as-a-judge with mt-bench and chatbot arena. Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-L</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Xing</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="46595" to="46623" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Llamafactory: Unified efficient fine-tuning of 100+ language models</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Luo</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd annual meeting of the association for computational linguistics</title>
+		<meeting>the 62nd annual meeting of the association for computational linguistics</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="page" from="400" to="410" />
+		</imprint>
+	</monogr>
+	<note>system demonstrations</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

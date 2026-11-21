@@ -1,0 +1,1237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">In-Model Context Compression with Agentic Soft Tokens for Long-Horizon LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-30">October 30, 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Xuning</forename><surname>He</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Kai</forename><surname>Fan</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">Nanyang Technological University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Runyu</forename><surname>Zhang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Binghuan</forename><surname>Wang</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">Nankai University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yuxiang</forename><surname>Zhang</surname></persName>
+							<affiliation key="aff3">
+								<orgName type="institution">Tongji University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xue</forename><surname>Jiang</surname></persName>
+							<affiliation key="aff4">
+								<orgName type="institution">Peking University</orgName>
+								<address>
+									<addrLine>85 75 -22.53% Base 1 2 3 4 5 6 7</addrLine>
+								</address>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Yihong</forename><surname>Dong</surname></persName>
+							<email>dongyh@sjtu.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><roleName>Agent Tools</roleName><surname>Llm</surname></persName>
+						</author>
+						<title level="a" type="main">In-Model Context Compression with Agentic Soft Tokens for Long-Horizon LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-30">October 30, 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">0EB9B7B7D698E61F8DD008E66001A8AB</idno>
+					<idno type="arXiv">arXiv:2610.41291v2[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:06+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Long-horizon LLM agents play an important role in solving complex and sustained tasks, with ever-growing interaction contexts. However, these accumulated contexts will raise substantial computational cost and obscure key decision-relevant evidence. Existing methods typically train external compressors or context-management agents to rewrite context as shorter hard-token sequences, but such external selection may not align with the LLM's evolving representation and is necessarily lossy. In this paper, we introduce Agentic Soft-Token Compression (ASTC), a training-free compression method using soft tokens within LLM agent for long-horizon tasks. Specifically, ASTC uses the model's native recurrent dynamics to determine the already absorbed information, leveraging the commonly-used hybrid Gated Delta Network (GDN)-attention. It then carries this information forward as agentic soft tokens while retaining exact values as hard tokens. The resulting compact sequence reduces later-layer computation and yields reusable KV caches, extending the savings across the agent's trajectory. Extensive experiments on long-horizon tasks show that ASTC matches or exceeds the uncompressed agent's accuracy with up to 59.84% fewer end-to-end Attention Pairs, while trained compressors require 12.3×-194.9× more Attention Pairs per successful task. These findings highlight agentic soft tokens as a model-native way to carry absorbed context forward as the task representation evolves.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large language models (LLMs) are increasingly deployed as agents that execute multi-step workflows rather than produce isolated responses. Each step appends system instructions, skills, earlier decisions, tool interactions, code, and environmental feedback to the next model call. The resulting context connects decisions across time, so losing an early constraint or observation can trigger an inconsistent action whose effects propagate through the remaining trajectory. Preserving the full context, however, increases prefill and attention computation, enlarges the key-value (KV) cache, and forces relevant evidence to compete with stale or redundant information. Long-horizon agents therefore face the central challenge of controlling this growing cost without disrupting the cross-step information flow required for coherent decisions.</p><p>Reducing context under this constraint is not an ordinary summarization problem. Agent context mixes semantic content with exact values. Explanations, code, and repeated observations can become redundant once the acting LLM has integrated their information, whereas identifiers, API arguments, and numerical values may determine later actions and must remain exact. Information that has little effect on the current action may also become decisive several steps later. Such delayed relevance makes one-shot importance estimates unreliable. Compressibility therefore cannot be inferred from length, repetition, or semantic similarity alone. It depends on what the acting LLM has already absorbed, what the current decision requires, and what a future step may need to recover. Because compression recurs as the trajectory grows, each operation must save more computation than it consumes. Effective context compression must therefore compact information already absorbed by the acting LLM, preserve exact or potentially useful evidence as the task evolves, and deliver savings across subsequent decoding and agent steps.</p><p>Existing context-compression methods typically rely on training, using either hard-token or soft-token compression. Hard-token methods prune or rewrite text, risking irreversible loss of exact values <ref type="bibr" target="#b8">(Jiang et al., 2023;</ref><ref type="bibr" target="#b21">Pan et al., 2024;</ref><ref type="bibr">Xu et al., 2024a;</ref><ref type="bibr" target="#b11">Kang et al., 2026;</ref><ref type="bibr" target="#b16">Liu et al., 2026)</ref>. Soft-token methods preserve continuous representations but require separately trained encoders or compressors <ref type="bibr" target="#b19">(Mu et al., 2023;</ref><ref type="bibr" target="#b4">Chevalier et al., 2023;</ref><ref type="bibr" target="#b5">Ge et al., 2024;</ref><ref type="bibr" target="#b14">Li et al., 2026)</ref>. More fundamentally, separately trained compressors create a model-taste gap. The information they learn to preserve may not match what the acting LLM has already absorbed or will need later. This motivates an in-model approach that uses the acting LLM's recurrent state to determine compressibility and carries absorbed information forward as agentic soft tokens.</p><p>In this paper, we introduce Agentic Soft-Token Compression (ASTC), a training-free approach that uses the acting LLM's own computation to decide what its growing context must retain. The early layers have read the full context and the later layers would otherwise continue to process every original token. Figure <ref type="figure" target="#fig_0">1</ref> places this boundary within a continuing agent workflow and shows how the choice of compression stage changes task accuracy and workload. In hybrid Gated Delta Network (GDN)-attention models <ref type="bibr" target="#b28">(Yang et al., 2025)</ref>, ASTC uses the native recurrent state as a memory of the context already processed. If a token's contribution is largely predictable from the preceding state, ASTC further checks whether it remains recoverable after the full observation has been processed. This guards against treating information overwritten by later updates as redundant. For content passing both checks, ASTC pools eligible hidden states into agentic soft tokens for later layers, while retaining protected exact values, such as identifiers and numbers, as explicit hard tokens. The shorter sequence reduces attention work for the current prediction and creates smaller KV caches that remain reusable as the agent continues. Each compression decision is therefore informed by what the model has already absorbed, and its benefit extends across the trajectory.</p><p>Across diverse long-horizon tasks, ASTC maintains task quality close to or above the uncompressed model while reducing end-to-end Attention Pairs by up to 59.84%. Preserving exact values avoids the sharp accuracy loss seen when protection is removed, while the compact cache continues to save attention work over later decisions with only small changes in action distributions. The same training-free criterion extends beyond tool observations, matching uncompressed accuracy with 19.48% fewer Decode KV interactions under full-history compression and reducing workload in additional long-context and code-repair tasks. ASTC combines the highest task accuracy with the lowest Attention Pairs per successful task, a 12.3×-194.9× advantage over trained compressors.</p><p>Our contributions are summarized as follows:</p><p>• We identify the core challenge of long-horizon compression as reducing context cost without losing future-relevant evidence or diverging from the acting LLM's task representation.</p><p>• We introduce ASTC, a training-free method that uses native recurrent dynamics to retain exact values as hard tokens and carry absorbed content forward as soft tokens with reusable compact KV caches across subsequent agent steps.</p><p>• We bound trained-compressor objective mismatch, establish conditions under which ASTC has lower next-token distortion than equal-length hard-token representations, and quantify attention savings from cache reuse.</p><p>• Across long-horizon tasks, ASTC achieves comparable or better accuracy with up to 59.84% fewer end-to-end Attention Pairs and a 12. <ref type="bibr">3×-194.9×</ref> advantage in end-to-end Attention Pairs per successful task over trained compressors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Motivation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">In-Model Soft Tokens</head><p>Context compression determines both how many tokens remain and which evidence reaches the acting LLM. Existing methods make this decision before the model processes the compressed context, either pruning tokens or rewriting earlier interactions as shorter text <ref type="bibr" target="#b8">(Jiang et al., 2023;</ref><ref type="bibr" target="#b21">Pan et al., 2024;</ref><ref type="bibr" target="#b11">Kang et al., 2026;</ref><ref type="bibr" target="#b16">Liu et al., 2026)</ref>. This ordering creates a selection mismatch because the value of a context span is not intrinsic to its text. It depends on how the acting LLM represents the current task, what it has already absorbed, and which action it is about to take; the same observation can be redundant at one step and decisive at another. An external compressor must approximate this model-dependent boundary from text alone. In a long-horizon trajectory, a mistaken deletion can propagate because later decisions are made from the retained context.Hard-token output adds a second bottleneck because retained information must be serialized as a shorter sequence of vocabulary tokens, so exact structure or features distributed across positions must be reconstructed as short text. Even a correctly selected span can therefore lose task-relevant information when forced into a short textual rewrite. Moving compression inside the model lets the acting LLM judge compressibility where task information is represented, while soft tokens retain information in continuous contextual representations. In-model selection and soft-token representation are therefore complementary, letting the acting LLM judge what matters and preserve that information in its own representation space, thereby avoiding both external selection mismatch and discrete textual reconstruction.  We analyze agent trajectories from real-world user interactions across systems such as Fable 5, GPT-5.6 Sol, Kimi K3, and GLM-5.2 <ref type="bibr" target="#b0">(Anthropic, 2026;</ref><ref type="bibr">OpenAI, 2026;</ref><ref type="bibr" target="#b18">Moonshot AI, 2026;</ref><ref type="bibr" target="#b29">Z.AI, 2026)</ref>. As Figure <ref type="figure">3</ref> shows, a consistent pattern emerges across these trajectories. Tool observations occupy the largest share of the accumulated context and continue to grow as the agent interacts with its environment. In our experiments, tool observations are the primary compression target.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Tool Observations</head><p>Tool observations are difficult to compress because they mix compressible natural-language and code spans with exact values, such as paths, identifiers, and checksums, that later actions may consume verbatim. Our preliminary experiments show that the former tolerates aggressive compression, whereas changing a single character in the latter can invalidate a later action. This heterogeneity makes tool observations a demanding but informative testbed. Effective agent compression must therefore compact semantic information distributed across many tokens without altering the exact values on which future actions depend.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Model-Native Selection</head><p>Our initial approach followed existing work by training a separate in-model compressor to produce soft tokens. We inserted an attention-MLP compressor after either a single backbone layer or multiple layers, thereby compressing the hidden sequence once or repeatedly, and trained it with On-policy distillation (OPD). Comparing these variants with ACON and LCLM reveals a consistent pattern: training-based compression incurs substantial preparation cost yet delivers weak task performance, while repeated intervention across more layers offers no remedy (Figure <ref type="figure" target="#fig_1">2</ref>) <ref type="bibr" target="#b11">(Kang et al., 2026;</ref><ref type="bibr" target="#b14">Li et al., 2026)</ref>. This failure reflects a difficult optimization problem. An auxiliary compressor must infer what the acting LLM has already absorbed, retain information that later steps may require, and emit features compatible with downstream layers, all through an objective separate from the LLM's native prediction process.</p><p>Hybrid GDN-attention models already compute a signal closely aligned with this decision during their normal forward pass. A GDN recurrent state acts as an online associative memory. Its gated delta update can be written as <ref type="bibr" target="#b28">(Yang et al., 2025</ref>)</p><formula xml:id="formula_0">S t = α t S t-1 + β t r t k ⊤ t , r t = v t -α t S t-1 k t ,<label>(1)</label></formula><p>where α t controls how much previous memory survives, β t controls the write strength, and r t is the part of the incoming value that cannot be recovered from the retained state. Information already represented by the state produces a small correction, whereas novel or conflicting information changes the memory more strongly. The update therefore measures information relative to what the acting LLM currently remembers, not importance inferred from surface form alone. Moreover, the gate and delta update are optimized jointly with the LLM's predictions, so this distinction shares the representation space and task state used by downstream layers. Reusing GDN dynamics avoids teaching an auxiliary compressor to approximate the acting LLM's own notion of novelty. Training-free selection is therefore not merely a cheaper alternative; it follows from recognizing that the acting LLM has already performed the information judgment that compression requires.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Related Work</head><p>Discrete context compression shortens the sequence before it reaches the acting LLM. Selective Context <ref type="bibr" target="#b15">(Li et al., 2023)</ref> prunes redundant spans; LLMLingua <ref type="bibr" target="#b8">(Jiang et al., 2023)</ref> and LongLLMLingua <ref type="bibr" target="#b9">(Jiang et al., 2024)</ref> rank tokens for prompt pruning; LLMLingua-2 <ref type="bibr" target="#b21">(Pan et al., 2024)</ref> learns selection from distilled labels; and RECOMP <ref type="bibr">(Xu et al., 2024a)</ref> trains compressors for retrieved evidence. For extended agent workflows, ACON <ref type="bibr" target="#b11">(Kang et al., 2026)</ref> optimizes textual compression guidelines from task failures, while Context as a Tool (CAT) <ref type="bibr" target="#b16">(Liu et al., 2026)</ref> trains SWE-Compressor to invoke context management during execution. MEM1 <ref type="bibr" target="#b31">(Zhou et al., 2026)</ref> instead trains a compact memory jointly with agent reasoning. While these lines reduce accumulated context, text-level selection can discard exact evidence or diverge from the acting LLM's evolving task representation, and learned memory policies require additional training.</p><p>Soft-token methods retain information in continuous states. Gist Tokens <ref type="bibr" target="#b19">(Mu et al., 2023)</ref> learns compressed prompt activations, AutoCompressors <ref type="bibr" target="#b4">(Chevalier et al., 2023)</ref> produce recursive summary vectors, and ICAE <ref type="bibr" target="#b5">(Ge et al., 2024)</ref> trains compact memory slots. Sentinel Tokens <ref type="bibr" target="#b23">(Ren et al., 2023)</ref> and Activation Beacon <ref type="bibr" target="#b30">(Zhang et al., 2025)</ref> compress intermediate activations for later processing. DAST <ref type="bibr" target="#b3">(Chen et al., 2025)</ref> allocates soft tokens according to contextual information density, while Latent Context Language Models (LCLMs) <ref type="bibr" target="#b14">(Li et al., 2026)</ref> train dedicated encoder-decoder models for large-scale compression. For tool-using LMs, <ref type="bibr">Xu et al. (2024b)</ref> combine compressed representations with raw tokens for exact tool interfaces. These studies show that continuous memory can support incremental reuse and coexist with exact-token retention. Their compression behavior is nevertheless learned through model adaptation or auxiliary components, and their primary settings differ from a growing history of agent actions and observations. ASTC brings the continuous memory studied in soft-token compression to the growing histories addressed by agent context-management work. By operating within the acting LLM without a separately trained compressor, it keeps compression tied to the model's evolving task representation.</p><p>To the best of our knowledge, ASTC is among the first training-free, in-model soft-token methods for context compression in long-horizon LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Agentic Soft Token</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Agentic Soft-Token Compression</head><p>At step a, early layers process every token in the uncached suffix ∆X (a) , using cache K (a-1) &lt; for prior context. ASTC then compresses the new hidden states in tool-observation spans O subject to protection mask P:</p><formula xml:id="formula_1">H new ℓ ⋆ = F 0:ℓ ⋆ (∆X (a) ; K (a-1) &lt; ) ∈ R m×d , H new ℓ ⋆ = C(H new ℓ ⋆ ; O, P) ∈ R m×d , m ≤ m.</formula><p>(2)</p><p>P keeps recognized exact values and the action boundary as hard tokens, although it may miss some exact fields. For each GDN head h, let S i-1,h be its state before position i, with key k i,h , value v i,h , and decay α i,h = exp(g i,h ). Let v i and δ i concatenate the head-wise vectors. The first test measures innovation relative to the recurrent state:</p><formula xml:id="formula_2">δ i,h = v i,h -α i,h R(S i-1,h , k i,h ), χ i = RMS(δ i ) RMS(v i ) + ϵ , (<label>3</label></formula><formula xml:id="formula_3">)</formula><p>where R(S, k) = Sk. A small χ i means the incoming value was largely predicted by the preceding state. Prediction at position i does not ensure that later updates retain the value, so ASTC also reads the observation-end state S o,h with a fixed, untrained spectral basis Q h ∈ R d k,h ×M , using the pooling slot budget M:</p><formula xml:id="formula_4">v i,h = S o,h Q h (Q ⊤ h Q h + λI) -1 Q ⊤ h k i,h , ψ i = RMS(v i -v i ) RMS(v i ) + ϵ . (<label>4</label></formula><formula xml:id="formula_5">)</formula><p>Here v i concatenates the per-head reads. ASTC selects an unprotected position only when it is both locally predictable (χ i &lt; τ χ ) and still readable at the endpoint (ψ i &lt; τ ψ ).</p><p>The selected positions still need a compact representation. ASTC partitions them into at most M causal groups, trims outliers around a member of each group, and mean-pools the retained states of group G at the boundary:</p><formula xml:id="formula_6">z G = cast 1 |G| ∑ i∈G h FP32 i . (<label>5</label></formula><formula xml:id="formula_7">)</formula><p>The replacement stays in the acting model's hidden space rather than being rewritten as text. Only multi-position groups with maximum post-cast relative hidden-state error at most τ h become agentic soft tokens. Protected, rejected, and unmerged positions remain hard tokens. Each soft token takes its group's latest logical position, and a stable sort restores causal order.</p><p>Compression leaves the pre-boundary caches at their original-token lengths, while downstream attention caches the shorter mixed sequence. This cache is reused during decoding and later agent steps, so an accepted merge saves work beyond the prefill in which it occurs. Algorithm 1 specifies the per-observation commit gate; bounded pooling is detailed in Appendix M.1.</p><p>Algorithm 1 ASTC at one prefill step with a persistent hybrid cache</p><p>Require: Uncached suffix ∆X (a) , existing layer-specific hybrid cache K (a- </p><formula xml:id="formula_8">C o ← {i ∈ E o : χ i &lt; τ χ } 10: Continue to the next observation if |C o | &lt; r o + 1 11: C o ← {i ∈ C o : ψ i &lt; τ ψ } 12: Continue to the next observation if |C o | &lt; r o + 1 13: (M o , Z o ) ← BoundedPool(H new ℓ ⋆ [C o ], M, τ h ) 14: if |M o | -|Z o | ≥ r o then 15:</formula><p>Replace M o by Z o at each group's greatest logical position 16:</p><p>end if 17: end for 18: Stably sort the mixed new suffix by logical position 19: Run F ℓ ⋆ +1:L on that suffix with its existing cache; update downstream attention KV and GDN recurrent and convolutional states 20: Apply final norm and LM head to the last protected original position 21: return next-token logits and K (a)   Here B is the minimum downstream token-layer reduction, L rem counts layers after the boundary, and ρ is the minimum reduction as a fraction of eligible positions in each observation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Theoretical Analysis</head><p>We examine what native selection can certify, how a compact cache saves work over time, and how merging can shift downstream attention. The distributional claims below concern a fixed next-token prefix; they do not imply identical agent trajectories.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Model-Native Selection and Continuous Representation</head><p>Fix a history, a next-token prefix, and a boundary ℓ ⋆ . Let H be the full boundary sequence and Z a length-k replacement at fixed logical positions. We measure the acting model's next-token distortion by These tests describe state coverage, but replacing positions can also shift downstream attention and recurrent states. For a fixed next-token prefix, suppose those effects admit aligned local perturbations e j and the remaining logit map is L j -Lipschitz at each site. Write l and l for their logits, and p and p for their next-token distributions. With E = ∑ j L j e j , we obtain</p><formula xml:id="formula_9">D θ (H, Z) = D KL p &gt;ℓ ⋆ θ (• | H) ∥ p &gt;ℓ ⋆ θ (• | Z) .<label>(6)</label></formula><formula xml:id="formula_10">∥ l -l∥ ∞ ≤ E, D KL (p∥ p) ≤ 2E.<label>(8)</label></formula><p>Hence the next-token distribution changes little when E is small, and the greedy token is unchanged if its original logit margin exceeds 2E. The selector tests alone do not bound every term in E. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Stability</head><formula xml:id="formula_11">Z∈A soft k D θ (H, Z) ≤ min Z∈A hard k D θ (H, Z), D θ (H, Z ASTC ) &lt; min Z∈A hard k D θ (H, Z) if E &lt; δ k (H) 2 /4. (<label>9</label></formula><formula xml:id="formula_12">)</formula><p>The first inequality describes representational capacity. The second gives a sufficient condition for ASTC's particular soft-token output to outperform every length-k hard-token representation. Its premise is not guaranteed by the selector thresholds; proofs appear in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">One-Pass and Amortized Efficiency</head><p>The boundary also determines when savings arise. Early layers still read the new block, but later attention sees fewer positions in the same pass; the avoided work must exceed selection and pooling cost for a net gain. Once the shorter KV cache persists, subsequent queries revisit fewer keys.</p><p>Theorem 5.1 (Amortized attention-pair reduction). Suppose the affected downstream layers contain A &gt; full causal attention layers. Before one commit, the current prefill has physical length n phys , including an unchanged cached prefix, and all r removed positions belong to the newly processed block. Under the same continuation of N q later queries reaching these layers, assume the compared caches retain their r-position difference. Then the total reduction in query-key token pairs is</p><formula xml:id="formula_13">∆Q = A &gt; r 2n phys -r + 1 2 + N q . (<label>10</label></formula><formula xml:id="formula_14">)</formula><p>Table <ref type="table">1</ref>. Accuracy and end-to-end inference workload on three long-horizon agentic benchmarks. The first term counts the current prefill, while N q counts reuse of the same compact cache. Savings therefore accumulate without another compression decision. The proof in Appendix A.6 concerns attention pairs rather than wall-clock speedup.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Downstream Attention Reweighting</head><p>Compression can also change which evidence downstream attention emphasizes. A redundant group may attract attention through multiplicity alone. The following idealized lemma isolates that effect.</p><p>Lemma 5.2 (Attention mass under idealized merging). For the same downstream query in both runs, after the last logical position of a merged group G (|G| = g &gt; 1), assume its members and representative share score s and value v G . Let retained positions have unchanged scores and values, with unnormalized mass Z R &gt; 0 and attention-weighted value v R . Their total attention masses before and after replacement, A R and A R , satisfy</p><formula xml:id="formula_15">A R -A R = Z R (g -1)e s (Z R + e s )(Z R + ge s ) &gt; 0, u ⊤ ( o -o) = ( A R -A R )u ⊤ (v R -v G )<label>(11)</label></formula><p>for any linear readout direction u.</p><p>The group retains one representative but loses the extra attention weight of its g -1 copies. If the retained value has a larger projection along u than v G , the attention output shifts toward it. This describes an idealized local effect, not a guarantee of improved task accuracy. Appendix A.7 proves the lemma and bounds the unequal-score and unequal-value cases separately.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head><p>We evaluate ASTC with a frozen Qwen3.5-9B acting model on AppWorld <ref type="bibr" target="#b24">(Trivedi et al., 2024)</ref>, OfficeBench <ref type="bibr" target="#b25">(Wang et al., 2024)</ref>, and 8-Objective QA <ref type="bibr" target="#b31">(Zhou et al., 2026;</ref><ref type="bibr" target="#b11">Kang et al., 2026)</ref>. We compare with uncompressed Base, prompt-based deletion (Prompting), LLMLingua <ref type="bibr" target="#b8">(Jiang et al., 2023)</ref>, LLMLingua-2 <ref type="bibr" target="#b21">(Pan et al., 2024)</ref>, ACON UT and UTCO <ref type="bibr" target="#b11">(Kang et al., 2026)</ref>, and LCLM <ref type="bibr" target="#b14">(Li et al., 2026)</ref>.</p><p>We report two configurations that differ in compression scope: ASTC (Tools) compresses eligible tool observations, while ASTC (Context) extends compression to eligible spans across the full context. Both configurations use the same training-free compression mechanism with identical hyperparameter settings and preserve protected exact values as hard tokens. Unless otherwise stated, subsequent analyses use ASTC (Tools). We measure task quality and end-to-end Decode KV, Attention Pairs, and Generated Tokens. Decode KV counts decoding query-cache interactions; Attention Pairs counts causal query-key pairs across prefill, decoding, and auxiliary calls. Detailed setups and additional experiments are in Appendices L-M.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Main Results</head><p>Table <ref type="table">1</ref> shows that ASTC (Tools) offers a favorable balance of task quality and inference workload under the distinct interaction demands of the three benchmarks. On AppWorld, it is the only evaluated method that improves accuracy over Base while reducing all three workload measures; competing compressors obtain isolated savings but sacrifice accuracy or increase work elsewhere. ASTC (Context) matches Base's AppWorld accuracy while reducing all three workload measures. On OfficeBench, ASTC (Tools) achieves the highest accuracy and the lowest Attention Pairs, while ASTC (Context) reduces Decode KV and generated tokens further. Both configurations exceed Base accuracy. On 8-Objective QA, ASTC (Context) achieves the best EM and F1, while ASTC (Tools) uses fewer Decode KV interactions, Attention Pairs, and generated tokens. Both configurations improve answer quality over Base while reducing all three workload measures. LCLM has the lowest measured workload but answers none of the tasks correctly; ACON UTCO reduces Decode KV and Attention Pairs further than ASTC but has lower answer quality. Taken together, these results place ASTC's value at the trajectory level, where retained task quality and cumulative inference workload must be judged together.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Model-Native Selector Controls</head><p>We  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Persistence After One Commit</head><p>Compression helps a long-horizon agent only if its shorter KV cache remains useful when later steps revisit it, without substantially changing the agent's decisions. To isolate this mechanism, we branch from archived Base trajectories, allow at most one ASTC commit in one branch, and replay identical subsequent action tokens and tool results in both. This fixed continuation separates the effect of persistent cache compression from changes caused by diverging actions or observations. With no further commits allowed, savings at later horizons reflect reuse of the initial cache update rather than repeated compression. At successive action horizons during the shared continuation, we measure KL divergence between conditional action-token distributions and cumulative Attention Pairs saved since the commit. Figure <ref type="figure">6</ref> shows that the distributions remain close while savings recur at later actions, supporting the proposed amortization across the trajectory. A separate autonomous one-commit run probes whether this local stability carries through to task outcomes; its success is somewhat lower than archived Base and full ASTC, and differing archive versions make the comparison descriptive. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>33.3%</head><p>Archived Base</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>32.1%</head><p>One commit</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>29.2%</head><p>All-requirements success (%)</p><p>Mean cumulative pairs saved (M) Figure <ref type="figure">6</ref>. One-commit cache reuse on AppWorld: action-distribution KL divergence (left), saved Attention Pairs (middle), and autonomous task success (right).    </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.4">Component Ablations</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.5">Cross-Model Transfer</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>Long-horizon agents must retain evidence for future decisions as context grows, while separately trained compressors may drift from the acting LLM's evolving task representation. ASTC uses native recurrent dynamics after early layers have read the full sequence, carrying absorbed content as agentic soft tokens and keeping exact values as hard tokens. The shorter sequence cuts later-layer computation and creates a compact KV cache whose savings persist across subsequent decisions. Without compressor training, ASTC keeps accuracy close to or above the uncompressed agent with up to 59.84% fewer end-to-end Attention Pairs; in the controlled comparison, it attains the highest accuracy and lowest Attention Pairs per successful task. Ablations and fixed-continuation analysis link these gains to exact-value protection, model-native selection, and persistent cache reuse. These results show how the acting LLM can compact absorbed context into reusable state without losing exact evidence for later decisions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>AI Use Statement</head><p>Generative AI tools were used to polish the language and presentation of author-provided manuscript text, including rephrasing and reorganizing sections for clarity. The authors reviewed all AI-assisted edits and take full responsibility for the paper's content.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Theoretical Derivations</head><p>The distributional comparisons below fix an agent history, a next-token prefix, and a compression boundary while preserving original logical positions. They bound one conditional next-token distribution and do not claim that independently generated trajectories remain identical. The workload proof separately counts later queries while the compressed cache persists, and the attention-mass proof fixes one downstream query.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Surrogate-Objective Mismatch</head><p>Let A k be the same nonempty feasible set for both objectives, and assume the minima below exist.</p><p>Write</p><formula xml:id="formula_16">D(Z) = D θ (H, Z) and J(Z) = J tr (H, Z). If sup Z∈A k |D(Z) -J(Z)| ≤ ε and Z tr ∈ A k satisfies J(Z tr ) ≤ inf Z∈A k J(Z) + ξ, then, for Z ⋆ θ ∈ arg min Z∈A k D(Z), D(Z tr ) ≤ J(Z tr ) + ε ≤ J(Z ⋆ θ ) + ξ + ε ≤ D(Z ⋆ θ ) + 2ε + ξ. (<label>12</label></formula><formula xml:id="formula_17">)</formula><p>Optimality of Z ⋆ θ gives the nonnegative lower endpoint. If J = D and ξ = 0, a trained method can attain the optimum. Thus the upper bound separates objective mismatch from optimization error but gives no lower bound on the realized gap and does not order ASTC and trained methods. It also does not apply across unequal feasible sets, such as unrestricted soft states and text-reachable hard states.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Model-Native Selection Bounds</head><p>Write D v = ∑ h d v,h for the total value width across GDN heads. For each head h, the update</p><formula xml:id="formula_18">S i,h = α i,h S i-1,h + β i,h δ i,h k ⊤ i,h with β i,h ≥ 0 gives the rank-one identity ∥S i,h -α i,h S i-1,h ∥ F = β i,h ∥δ i,h ∥ 2 ∥k i,h ∥ 2 . (<label>13</label></formula><formula xml:id="formula_19">)</formula><p>The implemented RMS aggregates values across heads. Hence ∥δ i,h ∥ 2 ≤ ∥δ i ∥ 2 = √ D v χ i (RMS(v i ) + ϵ). Accepting a position with χ i &lt; τ χ and ψ i &lt; τ ψ therefore implies</p><formula xml:id="formula_20">∥S i,h -α i,h S i-1,h ∥ F &lt; β i,h τ χ √ D v (RMS(v i ) + ϵ)∥k i,h ∥ 2 , ∥v i -v i ∥ 2 &lt; τ ψ √ D v (RMS(v i ) + ϵ). (<label>14</label></formula><formula xml:id="formula_21">)</formula><p>Both are local to the GDN state and the specified endpoint reader. They do not constrain the attention scores of the same token. Pre-boundary layers process every original token and preserve their recurrent state, so, conditional on the same future input tokens, that state is unchanged by the boundary replacement. The remaining possible perturbation enters through the compressed downstream sequence and its attention caches.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Downstream Attention Stability</head><p>Consider one attention head, the same fixed query vector in both runs after the greatest logical position of a candidate group G, and its replacement. Assume at least one retained position exists and all retained keys and values are unchanged in this local comparison. Let R be the other positions visible to this query, and define W G = ∑ i∈G e s i , W R = ∑ i∈R e s i , and w z = e s z , where s i and s z are the original and replacement attention scores for this query. Define</p><formula xml:id="formula_22">a G = W G W R + W G , b G = w z W R + w z , vG = ∑ i∈G e s i v i W G , vR = ∑ i∈R e s i v i W R . (<label>15</label></formula><formula xml:id="formula_23">)</formula><p>The two attention outputs and their difference are exactly</p><formula xml:id="formula_24">o = (1 -a G ) vR + a G vG , o = (1 -b G ) vR + b G v z , o -o = (b G -a G )(v z -vR ) + a G (v z -vG ). (<label>16</label></formula><formula xml:id="formula_25">)</formula><p>The triangle inequality gives</p><formula xml:id="formula_26">∥ o -o∥ 2 ≤ |b G -a G |∥v z -vR ∥ 2 + a G ∥v z -vG ∥ 2 .</formula><p>If the value map is L V -Lipschitz on the group and its representative, and every member is within hidden-state radius r G of the representative, the second term is at most a G L V r G ; the attention-mass term remains separate.</p><p>The attention-mass condition cannot be omitted. As a counterexample, take g &gt; 1 identical group values v G , one retained value v R ̸ = v G , and equal attention scores. If the soft representative has value v G and the same score, then a G = g/(g + 1) but b G = 1/2, so the two outputs differ despite zero within-group reconstruction error. The GDN innovation and endpoint read error can also be zero in a hybrid model whose attention projections are independent of that state. Thus the native tests alone cannot certify unchanged downstream decisions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Downstream Recurrent Stability</head><p>Post-boundary GDN layers also consume the shortened sequence. Consider one such layer and align the original and compressed runs at the logical endpoint t G of a group G. Starting from the same state, let their states there differ by e G . For later tokens that supply identical keys, values, and gates to this layer, the GDN recurrence has the affine form</p><formula xml:id="formula_27">S t = α t S t-1 (I -β t k t k ⊤ t ) + β t v t k ⊤ t . (<label>17</label></formula><formula xml:id="formula_28">)</formula><p>Its state map is ρ t -Lipschitz in Frobenius norm with</p><formula xml:id="formula_29">ρ t = α t ∥I -β t k t k ⊤ t ∥ 2 .</formula><p>Induction therefore gives, after m such tokens,</p><formula xml:id="formula_30">∥S t G +m -S t G +m ∥ F ≤ e G m ∏ u=1 ρ t G +u . (<label>18</label></formula><formula xml:id="formula_31">) If ∥k t ∥ 2 ≤ 1, 0 ≤ β t ≤ 1, and 0 ≤ α t ≤ 1, then ρ t ≤ α t ≤ 1.</formula><p>This result is conditional on identical later inputs to that GDN layer. It does not bound the initial defect e G , which concerns a different downstream layer from the GDN used to compute χ and ψ.</p><p>For a full-model statement, assume an alignment between the two finite causal computations at every group endpoint. Assume further that they can be joined by a sequence of hybrids in which each adjacent pair differs at one affected attention output or downstream recurrent state, with all its upstream inputs equal. Let e j bound that local difference (using the attention bound above or a state-defect bound), and let the map from that quantity to the next-token logits be L j -Lipschitz on the segment between the two values. Applying the triangle inequality to the successive hybrid logits proves</p><formula xml:id="formula_32">∥ l -l∥ ∞ ≤ E := ∑ j L j e j . (<label>19</label></formula><formula xml:id="formula_33">)</formula><p>Because log-sum-exp is 1-Lipschitz in the infinity norm, each log-probability changes by at most 2E and D KL (p∥ p) ≤ 2E. If the original largest logit exceeds the second largest by more than 2E, its index remains the greedy next token. This theorem is conditional: χ, ψ, and the pooling threshold alone do not supply all e j or L j . It concerns the fixed next-token prefix and does not extend to independently generated trajectories without further stability assumptions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.5 Continuous Representation at a Fixed Budget</head><p>Fix k and logical position IDs π at the compression boundary; hold the cached prefix and all untouched boundary states fixed. The notation F 0:ℓ ⋆ (t 1:k ; π) evaluates all candidate sequences at those same positions. For a finite vocabulary V, the hard-token reachable set A hard</p><formula xml:id="formula_34">k = {F 0:ℓ ⋆ (t 1:k ; π) : t 1:k ∈ V k } contains at most |V | k states. In the idealized continuous comparison, A soft k = R k×d contains this set.</formula><p>For any distortion D θ defined on both sets, inf</p><formula xml:id="formula_35">Z∈A soft k D θ (H, Z) ≤ min Z∈A hard k D θ (H, Z). (<label>20</label></formula><formula xml:id="formula_36">)</formula><p>This inclusion alone cannot establish a strict advantage: the acting model might assign the same next-token distribution to a reachable hard state and to the full sequence.</p><p>Let p H be the full-context next-token distribution and</p><formula xml:id="formula_37">δ k (H) = min Z∈A hard k ∥p H -p &gt;ℓ ⋆ θ (• | Z)∥ 1 .</formula><p>For any two categorical distributions p, q, Pinsker's inequality in natural-log units is</p><formula xml:id="formula_38">D KL (p∥q) ≥ 1 2 ∥p -q∥ 2 1 . (<label>21</label></formula><formula xml:id="formula_39">)</formula><p>For completeness, take A = {i : p i ≥ q i }, a = p(A), and b = q(A). Then ∥p -q∥ 1 = 2(ab). Grouping outcomes into A and its complement cannot increase KL, while the binary KL as a function of a has second derivative 1/[a(1a)] ≥ 4 and vanishes with zero derivative at a = b. Hence binary KL is at least 2(ab) 2 , which proves Equation <ref type="formula" target="#formula_38">21</ref>. It follows that min</p><formula xml:id="formula_40">Z∈A hard k D θ (H, Z) ≥ 1 2 δ k (H) 2 . (<label>22</label></formula><formula xml:id="formula_41">)</formula><p>If δ k (H) &gt; 0, no hard-token sequence of length k reproduces the full-context next-token distribution exactly. The finiteness of the hard output set makes this condition equivalent to p H being absent from that set.</p><p>For ASTC's particular output Z ASTC , the conditional logit bound in Equation <ref type="formula" target="#formula_32">19</ref>gives</p><formula xml:id="formula_42">D θ (H, Z ASTC ) ≤ 2E. Therefore E &lt; δ k (H) 2 /4 =⇒ D θ (H, Z ASTC ) &lt; min Z∈A hard k D θ (H, Z). (<label>23</label></formula><formula xml:id="formula_43">)</formula><p>The statement compares equal physical length, fixed positions, and one next-token distribution. Its premise requires an actual bound on all downstream attention and recurrent defects. The ambient continuous set is larger than ASTC's attainable mean-pooled set, and finite-precision execution further restricts it. Thus the set inclusion establishes capacity, while Equation 23 specifies when one ASTC representation realizes a strict advantage.</p><p>For completeness, the pre-cast representative in Equation <ref type="formula" target="#formula_6">5</ref>is the least-squares solution. With hG = |G| -1 ∑ i∈G h i , the identity</p><formula xml:id="formula_44">∑ i∈G ∥h i -z∥ 2 2 = ∑ i∈G ∥h i -hG ∥ 2 2 + |G|∥z -hG ∥ 2 2 (24)</formula><p>shows that the FP32 mean minimizes squared hidden-state error. This does not minimize downstream KL; ASTC checks reconstruction again after casting.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.6 Proof of Theorem 5.1</head><p>Proof. Let p be the unchanged physical length of the cached prefix and m the number of newly processed positions before the commit, so n phys = p + m and 0 &lt; r &lt; m. At one full causal attention layer, the new queries create</p><formula xml:id="formula_45">Q before = pm + m(m + 1) 2 (25)</formula><p>query-key pairs: each attends the p cached keys and its causal prefix in the new block. After replacing r new positions, the unchanged cached prefix still contributes p keys, but only mr new queries remain. Thus</p><formula xml:id="formula_46">Q after = p(m -r) + (m -r)(m -r + 1) 2 . (<label>26</label></formula><formula xml:id="formula_47">)</formula><p>Subtracting gives the same-pass reduction</p><formula xml:id="formula_48">Q before -Q after = pr + r(2m -r + 1) 2 = r(2n phys -r + 1) 2 . (<label>27</label></formula><formula xml:id="formula_49">)</formula><p>The fresh-prefill case is p = 0. Every later query that actually reaches this attention layer under the same fixed continuation has exactly r fewer historical keys while the compared caches retain their length difference; N q such queries add rN q saved pairs. Summing over the A &gt; affected full-attention layers proves Equation <ref type="formula" target="#formula_13">10</ref>. The group positions need not be contiguous because the count depends on the physical length after stable sorting, not on which original positions were merged. The result excludes work already spent on the cached prefix and assumes no intervening change to the compared cache that alters this r-position difference. A future token compressed before reaching these layers is not counted in N q .</p><p>A.7 Proof of Lemma 5.2</p><p>Proof. The query follows the greatest logical position of G, so all g original members are visible in the uncompressed run and their one representative is visible in the compressed run. Their identical scores give group unnormalized masses ge s and e s , respectively. Because the retained positions are unchanged, their attention masses are</p><formula xml:id="formula_50">A R = Z R Z R + ge s , A R = Z R Z R + e s . (<label>28</label></formula><formula xml:id="formula_51">)</formula><p>Direct subtraction yields</p><formula xml:id="formula_52">A R -A R = Z R (g -1)e s (Z R + e s )(Z R + ge s ) &gt; 0,<label>(29)</label></formula><p>since g &gt; 1 and Z R &gt; 0. The two attention outputs are</p><formula xml:id="formula_53">o = A R v R + (1 -A R )v G , o = A R v R + (1 -A R )v G . (<label>30</label></formula><formula xml:id="formula_54">)</formula><p>Subtracting and taking the inner product with any u gives Equation <ref type="formula" target="#formula_15">11</ref>. Positivity of the projected change requires u ⊤ (v Rv G ) &gt; 0; it is not a claim about arbitrary nonlinear decisions. If scores or values differ, the exact identity in Equation <ref type="formula" target="#formula_24">16</ref>separates attention-mass shift from value error.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Agent Trajectory Examples</head><p>Figure <ref type="figure" target="#fig_5">7</ref> shows two AppWorld trajectories. ASTC retains exact fields as hard tokens and replaces selected history positions with soft tokens. The reported attention-pair reductions describe logical computation in these trajectories, not measured wall-clock speedups. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>VENMO</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Component-Ablation Details</head><p>Each ASTC variant in </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Additional Dataset Experiments</head><p>We evaluate ASTC with the frozen Qwen3.5-9B model on RULER 32K <ref type="bibr" target="#b7">(Hsieh et al., 2024)</ref>, LongBench v2 <ref type="bibr" target="#b2">(Bai et al., 2024)</ref>, and interactive code repair on MBPP <ref type="bibr" target="#b1">(Austin et al., 2021)</ref>. The respective sample counts are 260, 503, and 427. All comparisons use a matched Base run within each benchmark; the protocols are detailed in Appendix M.5. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Cross-Model Transfer</head><p>For the Qwen3.5-9B and Kimi-Linear comparisons in Section 6.5, we use the following model-specific configurations. Each frozen model uses a reader calibrated for its own internal state and a matching uncompressed Base run. ASTC compresses eligible tool observations while keeping API contracts and authentication content explicit. Qwen3.5-9B uses Stage 3, while Kimi-Linear uses Stage 5. Within each model, Base and ASTC share task IDs and decoding settings; these settings need not match across models. Kimi-Linear covers the first 68 Test-Normal tasks in official order; Qwen3.5-9B covers all 168.</p><p>On Kimi-Linear, ASTC reduces Decode KV, Attention Pairs, and generated tokens. Successes rise from one to three on its 68-task subset. These Kimi-Linear results do not establish a general accuracy gain across backbones.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F Soft Aggregation and Subsequent Attention Reads</head><p>We test the value of soft aggregation and whether later attention uses the resulting representatives on all 168 AppWorld Test-Normal tasks, with Qwen3.5-9B, Stage 3, and Tool compression. The equal-length hard control uses the same groups, representative counts, and representative positions as ASTC on a common input prefix, but keeps the hidden state of each group's last original token instead of aggregating its member states. This isolates the representation choice at a fixed length budget. In a second control, read-masked soft representatives become inaccessible to attention starting from the next forward pass after their creation. Their physical KV entries and logical positions remain in place, and GDN updates follow the original rule. This control tests subsequent attention access while retaining the recurrent-state path.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>G Measured Runtime and Memory</head><p>We supplement the analytical workload counts with measured task latency, throughput, and peak GPU memory for Qwen3.5-9B on AppWorld and 8-Objective QA (Tables <ref type="table" target="#tab_15">6</ref> and<ref type="table" target="#tab_16">7</ref>). Mean task latency falls by approximately 3.7% on AppWorld and 13.45% on QA, and QA's P95 latency falls by 19.31%. AppWorld successes increase from 54 to 56, while QA EM/F1 increases from 28.91/37.51 to 30.81/39.18. Thus the task-level latency reductions accompany the reported task-quality results. The compression-entry host timer accounts for approximately 0.065% and 0.40% of ASTC's mean task latency on AppWorld and QA, respectively. AppWorld queue completion time decreases by 8.67% and queue token throughput increases by 3.64%. These queue statistics include startup, model loading, and warmup, and also depend on task scheduling. Per-GPU token throughput is slightly lower for ASTC on both datasets. Peak GPU memory is slightly lower on AppWorld and higher on QA; NVML sampling includes model weights, workspaces, and caches. The measured gains therefore concern task latency and the reported queue run, with distinct behavior in per-GPU throughput and memory.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>H Paired Uncertainty on OfficeBench and QA</head><p>We follow ACON's official task selection and subtask expansion: OfficeBench contains 95 evaluation subtasks from 46 parent task groups, and accuracy is successful subtasks divided by 95. The 8-Objective QA set contains 99 tasks and 792 objectives. We use 10,000 paired bootstrap replicates, resampling the same task records for Base and ASTC in each replicate and recomputing quality differences and ratios of cumulative resource totals. The OfficeBench intervals use the 95 subtasks as sampling units.</p><p>QA uses the 99 tasks as units, sampling all eight objectives of each task together to preserve their dependence. All quality-difference intervals in Table <ref type="table" target="#tab_17">8</ref> include zero. The OfficeBench workload intervals and the QA Tools workload intervals lie below 100%, whereas the QA Context workload intervals include the Base level. Thus the positive quality point estimates have uncertainty, while the evidence for resource reduction varies by dataset and scope.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>I Comparison at a Similar Attention Budget</head><p>We compare ASTC with an ACON UTCO operating point at a similar total Attention Pairs budget on 8-Objective QA (Table <ref type="table" target="#tab_18">9</ref>). This ACON UTCO configuration is specific to the budget comparison.</p><p>ASTC uses 11.54% less total attention and reaches the same 30.81% EM point estimate; ACON UTCO has a 1.03-point higher F1 score. With 10,000 paired bootstrap replicates over tasks, sampling each task's eight objectives together, the ASTC-minus-ACON EM difference is 0.00 percentage points (95% CI <ref type="bibr">[-4.04, 4</ref>.17]), and the F1 difference is -1.03 points (95% CI <ref type="bibr">[-5.92, 3.77]</ref>). Both quality-difference intervals include zero. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>J Matched-Length LLMLingua-2 Control</head><p>We construct a controlled hard-token variant using a frozen LLMLingua-2 scorer, sharing Qwen3.5-9B, Tool compression, protection rules, the Stage-3 boundary, and generation settings with ASTC. For a common input prefix, if ASTC aggregates a span of m positions into k soft representatives, the control retains the hidden states of k original positions according to LLMLingua-2 scores. All protected positions remain unchanged, so physical retained length is exactly matched on the shared input. End-to-end trajectories can still diverge after these controlled compression choices. Attention Pairs includes auxiliary scorer calls. Under this length control, ASTC completes 12 more AppWorld tasks, a 7.14-percentage-point success gain (paired 95% CI <ref type="bibr">[2.98, 11.90]</ref>). On OfficeBench, it completes five more subtasks, a 5.26-point gain (95% CI <ref type="bibr">[-1.05, 11.58]</ref>). The AppWorld interval excludes zero, while the OfficeBench interval includes zero. Including auxiliary scoring, ASTC uses 18.44% and 23.85% fewer total Attention Pairs than the matched control on AppWorld and OfficeBench, respectively. Table <ref type="table" target="#tab_19">10</ref> shows that the control has lower Decode KV and Generated Tokens, while ASTC has higher accuracy point estimates and lower total attention workload.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>K AppWorld Test-Challenge</head><p>We evaluate all 417 AppWorld Test-Challenge tasks using the existing Qwen3.5-9B, Stage-3, Tool-scope configuration and compression thresholds, without retuning on Challenge.  <ref type="bibr">[-4.32, 2.40]</ref>). Attention Pairs decrease by 20.57%, with a Base-relative ratio of 79.43% (95% CI [74.17%, 85.12%]). Attention workload therefore decreases on the harder split, while the task-success difference remains uncertain. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>L Adapted FastKV and KVzip Baselines</head><p>We extend the AppWorld comparison to FastKV <ref type="bibr" target="#b10">(Jo et al., 2026)</ref> and KVzip <ref type="bibr" target="#b12">(Kim et al., 2025)</ref>, adapted to the frozen Qwen3.5-9B model. We evaluate all 168 Test-Normal tasks with official scoring, greedy decoding, at most 50 agent steps, 768 output tokens per action, and a 32,768-token context, following the AppWorld protocol in Appendix M.2. Both adapted baselines are training-free, with no weight updates, and apply their KV operations only to the eight full-attention layers at indices <ref type="bibr">3,</ref><ref type="bibr">7,</ref><ref type="bibr">11,</ref><ref type="bibr">15,</ref><ref type="bibr">19,</ref><ref type="bibr">23,</ref><ref type="bibr">27,</ref><ref type="bibr">31</ref>.</p><p>FastKV uses capacity 512, a Token-Selective Propagation (TSP) layer of 15, and TSP length 2,048, with window size 8, max pooling, and kernel size 7. KVzip uses retention ratio 0.3 and reconstruction chunk size 2,000. Its adaptation protects the system instructions and current user task while compressing earlier actions and tool observations. Workload is normalized to Base (100%). FastKV and KVzip results correspond to the Qwen3.5-9B adaptations described above.</p><p>Table <ref type="table" target="#tab_22">12</ref> reports 0 and 19 successes for the adapted FastKV and KVzip baselines, compared with 56 for ASTC. Both baselines reduce Decode KV, but their end-to-end Attention Pairs rise to 561.23% and 5,976.41% of Base, respectively. ASTC improves task success while reducing all three workload measures. Under this closed-loop protocol, reducing the decoding cache alone is insufficient to preserve task quality or reduce total attention work; the comparison evaluates complete agent trajectories under the stated adaptation settings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M Experimental Setup and Protocols</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M.1 General Setup</head><p>Benchmarks. We evaluate ASTC on three long-horizon agentic benchmarks with distinct interaction structures. AppWorld provides a simulated ecosystem of everyday applications and APIs for interactive coding agents; we use its full 168-task Test-Normal split <ref type="bibr" target="#b24">(Trivedi et al., 2024)</ref>. OfficeBench covers realistic office-automation workflows that require planning, application switching, and grounded actions across productivity software <ref type="bibr" target="#b25">(Wang et al., 2024)</ref>. 8-Objective QA groups eight Natural Questions into each task and requires an agent to gather evidence with a Wikipedia search tool before returning all eight answers <ref type="bibr" target="#b13">(Kwiatkowski et al., 2019;</ref><ref type="bibr" target="#b31">Zhou et al., 2026;</ref><ref type="bibr" target="#b11">Kang et al., 2026)</ref>. Together, they test compression across API interaction, office automation, and multi-question information gathering.</p><p>Implementation. The three main benchmarks start from Qwen3.5-9B. Base and ASTC keep its parameters frozen and share the agent scaffold, prompts, decoding policy, context limit, and action budget. External compressors use the benchmark task splits and evaluators; their model services and adaptation-specific limits are detailed in Appendix M.3. In particular, LCLM adds trained Bridge and decoder LoRA parameters, so its evaluated decoder is adapted rather than identical to the frozen Base.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model checkpoints.</head><p>The main experiments use Qwen/Qwen3.5-9B at Hugging Face revision c202 236235762e1c871ad0ccb60c8ee5ba337b9a (Qwen <ref type="bibr" target="#b22">Team, 2026)</ref>. The transfer study also uses moonshotai/Kimi-Linear-48B-A3B-Instruct at revision e1df551a447157d4658b573f 9a695d57658590e9 <ref type="bibr">(Moonshot AI, 2025)</ref>.</p><p>Bounded pooling. Selected positions are divided into at most M groups in causal order. In each group, an existing member closest to the mean direction anchors an initial trim by relative ℓ 2 error. ASTC then averages the remaining states in FP32, casts the mean to the runtime dtype, and accepts a group of at least two members only if its maximum post-cast relative error is at most τ h . Rejected and trimmed positions remain hard tokens. This check bounds hidden-state reconstruction, not downstream attention scores.</p><p>Baselines. Base is the uncompressed acting LLM. We compare ASTC with representative hard-token approaches, including prompt-based deletion (Prompting), LLMLingua <ref type="bibr" target="#b8">(Jiang et al., 2023)</ref>, LLMLingua-2 <ref type="bibr" target="#b21">(Pan et al., 2024)</ref>, and the UT and UTCO variants of ACON <ref type="bibr" target="#b11">(Kang et al., 2026)</ref>, as well as LCLM, a trained soft-token compressor <ref type="bibr" target="#b14">(Li et al., 2026)</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M.2 Benchmark-Specific Configurations</head><p>For the three main benchmarks in Table <ref type="table">1</ref>, we follow the benchmark tasks, agent scaffolds, modelserving settings, inference limits, and evaluation procedures of ACON <ref type="bibr" target="#b11">(Kang et al., 2026)</ref>. The benchmark settings and ASTC-specific compression policies are detailed below. OfficeBench. We follow ACON's official Test list and subtask expansion, yielding 95 evaluation subtasks from 46 parent task groups. Accuracy is the number of successful subtasks divided by 95. We use Qwen3.5-9B, seed 20260920, and the official environment and evaluator. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M.3 Baseline Reproduction and Cost Accounting</head><p>We adapt the public baseline implementations to the Qwen3.5-9B acting checkpoint and the benchmark evaluators described above. We distinguish three forms of preparation: using an already pretrained scoring model, optimizing a textual compression guideline on training tasks, and updating compressor or decoder parameters. These have different costs and should not all be described as parameter training.</p><p>The settings below describe our implementations rather than assert identity with every setting in the original papers. The matched-scope, matched-protection, and matched-length LLMLingua-2 comparison is a separate control in Appendix J.</p><p>ACON: guideline optimization and fixed test-time inference. We use ACON's UT and UTCO guideline-optimization procedures <ref type="bibr" target="#b11">(Kang et al., 2026)</ref>, with Qwen3.5-9B serving the acting and online compression roles in our reproduction; the retained observation-policy optimizer calls also identify the model as qwen35-9b. Training-task trajectories and the initial guideline provide the optimizer inputs.</p><p>The UT procedure proposes revised guidelines from trajectory analyses, evaluates the candidates with agent rollouts, and selects a guideline using the retained regression results. UTCO starts from the selected UT guideline and additionally optimizes the length of compressed histories or observations, with candidate generation, evaluation, and selection. The selected guideline is then fixed for Test; test-time compression still requires model calls to rewrite the eligible history or observation as text.</p><p>Neither the UT nor UTCO reproduction updates the acting model or compressor weights. We do not run ACON's optional compressor/agent LoRA distillation stages for these two baselines.</p><p>Offline preparation therefore includes trajectory collection, guideline optimizer calls, and candidate evaluation/selection; online inference includes the agent and its actual compression calls. We account for these phases separately. For a concrete retained preparation record, the AppWorld observationpolicy UTCO optimizer logged 69 calls with 665,733 input and 50,487 output tokens, totaling 716,220 tokens. This is an optimizer-only subtotal, not the complete cost of UTCO from initialization: it excludes the reused UT stage, training-task rollouts, and candidate evaluations. The corresponding initial-guideline Train90 rollout alone logged 7,611,026 input-plus-output tokens. History-policy and observation-policy search runs have separate logs and must not be combined as if they were the same run.</p><p>LLMLingua v1: causal token scoring. We use the public PromptCompressor implementation <ref type="bibr" target="#b8">(Jiang et al., 2023)</ref>, replacing its causal scoring backbone with Qwen3.5-9B. The scoring service loads this model in BF16 and performs no additional parameter training. It retains discrete tokens rather than producing soft representations. The recorded service calls compress_prompt with a requested retention rate of 0.30, iterative_size equal to the input's token count (at least one), token-level filtering enabled, and sentence-and context-level filtering disabled. These are explicit reproduction choices; in particular, using Qwen3.5-9B as the scorer is an adaptation of the public method. The observation-policy integration leaves ineligible short observations unchanged; the AppWorld and OfficeBench observation thresholds are 1,024 and 64 tokens, respectively. Requested retention is a local compressor setting, not a claim that the complete agent context or end-to-end workload is 30% of Base.</p><p>LLMLingua-2: pretrained token classification. We use the public implementation <ref type="bibr" target="#b21">(Pan et al., 2024)</ref> with a frozen pretrained classifier. Specifically, we enable use_llmlingua2=True and load microsoft/llmlingua-2-xlm-roberta-large-meetingbank. The checkpoint is an XLM RobertaForTokenClassification model with 24 layers, hidden size 1,024, and 16 attention heads. It was already trained by its authors; we do not fine-tune it on our benchmark tasks. Our service uses retention rate 0.30 and passes newline and question mark as force_tokens. The observation-policy runs use the same 1,024-token AppWorld and 64-token OfficeBench triggers as above. Their compressed text is returned to the agent; ASTC's recurrent-state selector, protectedposition mask, and soft-token pooling are not invoked by these ordinary baseline services. The separate matched-length control intentionally supplies ASTC's target positions and protection mask before applying LLMLingua-2 scores, and is labeled as such.</p><p>LCLM: pretrained components and Qwen adaptation. We initialize from the archived public latent-context/0.6b-4b-LCLM-4x compressor <ref type="bibr" target="#b14">(Li et al., 2026)</ref>. We retain and freeze its 0.6B encoder and pretrained 1,024 → 2,560 adapter. The trigger is at least 12 older turns eligible for archiving, excluding the most recent three turns; these three turns remain verbatim, compression is applied at most once per task, and interactions added afterward remain verbatim. The nominal 4× factor therefore applies to encoded older history, not the complete context. This archived launcher permits 50 interactions and 128 new tokens per action, rather than ASTC's 768-token action limit; its action parsing and progress guards are part of the adapter implementation. The runner-shaped training encodes archived events separately, whereas this one-shot inference runner encodes their concatenation, so the input constructions are not identical. These settings should be considered when interpreting the adaptation result, which does not by itself establish a general limitation of LCLM. Auxiliary Attention Pairs: definition and coverage. An auxiliary scorer is not free simply because its parameters are frozen. For LLMLingua v1, a causal scoring forward with q new positions and a cached prefix of length c contributes</p><formula xml:id="formula_55">A v1 (q, c) = 8 qc + q(q + 1) 2 , (<label>31</label></formula><formula xml:id="formula_56">)</formula><p>where eight is the number of full-attention layers in Qwen3.5-9B. Counts are summed over actual forwards, including repeated scoring windows and recomputation; cached prefix-prefix pairs are not counted again unless recomputed. For LLMLingua-2, bidirectional attention in the 24-layer classifier contributes</p><formula xml:id="formula_57">A v2 = 24 ∑ j n 2 j ,<label>(32)</label></formula><p>where n j is the valid, non-padding length of each executed window, including repeated windows and special tokens processed by the model. These definitions count token-position pairs per full-attention layer, not attention heads, GPU FLOPs, or recurrent GDN operations. Token selection by a classifier does not itself generate autoregressive text tokens; model calls that rewrite context do.</p><p>The formulas specify how auxiliary forwards should be accounted for; they do not recover missing measurements. In particular, retained QA8 LLMLingua service logs do not record every internal q, c pair or classifier window length. Their available agent-side Attention counts are lower bounds until those scorer traces are included. QA8 Prompting/ACON compression costs use the retained history-based reconstruction when native service usage is missing and are estimates rather than exact forward traces. The retained QA8 LCLM one-pass diagnostic counts Qwen-decoder work only, omits encoder work, and produces no nonempty final predictions; its small counts should not be interpreted as successful end-to-end compression. Normalizing historical runs to the latest Base also does not establish identical serving kernels across runs. We therefore distinguish accounting definitions, recorded totals, and reconstructed or missing components, and report measured latency and memory separately from analytical workload.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M.4 ASTC with</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M.5 Additional-Dataset Protocols</head><p>RULER. We evaluate the same 32K inputs in Base and ASTC with the frozen Qwen3.5-9B model and a 32,768-token context limit. RULER scores answers by task-specific string matching and averages over its 13 task configurations. We use 20 examples per task, rather than the reference configuration's 500. Thus the reported accuracy is a 260-example aggregate; matching aggregate scores do not imply identical results on every task or at the larger default sample size. ASTC uses the Stage-3 data branch with (χ, ψ) = (0.60, 0.80) and merge-error threshold 0.50. Decode KV and Attention Pairs are analytical query-cache and causal-pair counts; Gen. is generated tokens, all normalized to Base.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>LongBench v2.</head><p>We use all 503 four-choice questions in the public train split <ref type="bibr" target="#b2">(Bai et al., 2024)</ref>. Base and ASTC share the frozen Qwen3.5-9B model and a 262,144-token context limit; examples that exceed the limit are truncated before either method processes them. Of the 503 examples, 100 require truncation. The inference configuration permits at most 16 new tokens; the recorded runs generate two tokens per example in both variants. ASTC uses the Stage-3 catalog branch with (χ, ψ) = (0.55, 0.74), merge-error threshold 0.55, and minimum net removal of one token. Overall and subgroup accuracy are exact-match rates for the extracted choice. Reported KV counts and cache bytes are analytical logical workload measures, not latency or measured peak device memory.</p><p>For MBPP, we use the sanitized task snapshot from Archer <ref type="bibr" target="#b6">(He et al., 2026)</ref>.</p><p>MBPP. We use its 427 sanitized MBPP problems <ref type="bibr" target="#b1">(Austin et al., 2021)</ref>. This interactive code-repair protocol is not numerically comparable with one-shot MBPP evaluations. The model submits a complete Python program, receives public-test feedback, and revises it; a third attempt is allowed if the second fails. The final program is scored once. Both variants use greedy decoding, at most 768 generated tokens per attempt, and a 32,768-token context limit. ASTC uses its Stage-3 calibration, thresholds, and 16-soft-token bound. Initial prompts, completed code, and public-test feedback are eligible for compression, while special control tokens remain explicit. Both variants re-prefill the full transcript before each turn; workload includes these repeated prefills and all decoding calls.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure 1. ASTC's agent framework and compression workflow (left), and its AppWorld performance across compression stages with Qwen3.5-9B (right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Training/preparation costs of ASTC, In-model OPD, ACON UTCO, and LCLM (left), and their AppWorld accuracy and Attention Pairs per successful task (right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>FullFigure 4 .</head><label>4</label><figDesc>Figure 4. Overall architecture and workflow of ASTC, including in-model compression and KV cache reuse.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. AppWorld selector controls: task success (left), paired success differences (middle), and end-to-end Attention Pairs (right).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 7 .</head><label>7</label><figDesc>Figure 7. ASTC compression in Venmo and Spotify agent trajectories.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>AppWorld.</head><label></label><figDesc>We evaluate all 168 AppWorld 0.1.3.post1 Test-Normal tasks under this ACON-aligned setup. The frozen Qwen3.5-9B agent uses greedy decoding, at most 50 actions, 768 output tokens per action, and a 32,768-token logical context. The model seed is 20260914, and task i uses seed 20260912 + i in the released task order. ASTC operates after zero-based GDN layer 10 and before attention layer 11, retaining at most 16 soft tokens per tool observation. Its fixed reader is calibrated from 22 records across 12 Train/Dev tasks, without weight updates. Each head uses leading eigenvectors of trace-normalized tool-end state covariances; the ridge and RMS stabilizers are λ = 10 -4 and ϵ = 10 -6 . The compression thresholds for eligible data are χ &lt; 0.60, ψ &lt; 0.80, and merge error ≤ 0.50. Catalog observations remain verbatim and are not compressed. A commit must save at least 256 downstream token-layer positions and 5% of eligible tool positions. API contracts, catalogs, and exact-value fields are protected.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head></head><label></label><figDesc>Context-Wide EligibilityScope of the Context variant. ASTC (Tools) makes eligible tool-observation spans available to the selector. ASTC (Context) extends this eligibility to the bodies of completed system, user, assistant, and tool messages in the actual model input. It uses the same native innovation and readability signals, fixed reader, and bounded hidden-state pooling as the corresponding Tools configuration. It introduces no learned compressor or additional weight updates. Context-wide eligibility does not mean that every message or token is compressed: protected positions and candidates rejected by either signal test or the pooling bound remain hard tokens.Only closed message bodies are considered. Role labels, chat-template delimiters, special tokens, and the unfinished assistant generation prefix remain explicit. Pooling respects individual span boundaries chunked prefill. Consequently, we do not attribute cross-request prefix-cache reuse to the QA8 Context result; its actual repeated prefills are included in the workload.Accounting and interpretation. The early layers still process the logical input before the merge boundary. Decode KV and Attention Pairs use the actual physical lengths at each full-attention layer, including replayed attention forwards. Signal extraction, selection, pooling, scope preparation, snapshots, and replay also contribute to measured latency; the analytical pair count does not represent all of their GPU work. Thus broader eligibility need not reduce total Attention Pairs, wall-clock time, or peak memory relative to Tools. Runtime measurements are reported in Appendix G, separately from analytical workload.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>end for 6: Run F 0:ℓ ⋆ on ∆X (a) with its existing cache; update early-layer caches and obtain H new ℓ ⋆ 7: During this run, capture native GDN tensors and read endpoint states only for non-bypassed spans 8: for each non-bypassed observation o ∈ O do 9:</head><label></label><figDesc></figDesc><table><row><cell></cell><cell>1) , closed observation spans O in this</cell></row><row><cell></cell><cell>suffix, protection mask P, frozen F, boundary ℓ ⋆ , reader Q, thresholds τ χ , τ ψ , τ h , group cap M, budget B,</cell></row><row><cell></cell><cell>remaining-layer count L rem , fraction ρ</cell></row><row><cell cols="2">Ensure: Next-token logits; updated hybrid cache K (a)</cell></row><row><cell cols="2">1: for each observation o ∈ O do</cell></row><row><cell>2:</cell><cell>E o ← {i ∈ o : P i = 0 and i is an original position}</cell></row><row><cell>3:</cell><cell>r o ← max(⌈B/L rem ⌉, ⌈ρ|E o |⌉)</cell></row><row><cell>4:</cell><cell>Bypass o if it already contains a soft token or |E o | &lt; r o + 1</cell></row><row><cell>5:</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>A separately trained compressor minimizes a surrogate objective J tr , which need not match D θ . On the same nonempty admissible set A k , if both minima are attained, sup Z∈A k |D θ (H, Z) -J tr (H, Z)| ≤ ε, and the returned Z tr is within ξ of the surrogate minimum, then 0 ≤ D θ (H, Z tr )min , while ψ i measures what remains readable at the observation endpoint.</figDesc><table><row><cell>Z∈A k</cell><cell>D θ (H, Z) ≤ 2ε + ξ.</cell><cell>(7)</cell></row><row><cell cols="3">This decomposition exposes a possible source of error, but does not establish a nonzero gap or rank</cell></row><row><cell>methods with different feasible sets.</cell><cell></cell><cell></cell></row><row><cell cols="3">ASTC instead reads the acting model's own GDN signals. The update in Equation 1 yields a per-head</cell></row><row><cell>write bound proportional to χ i</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head></head><label></label><figDesc>Note. Workload includes auxiliary compressor calls, including LLMLingua, and is relative to Base (100%). Bold and underlined mark the best and second-best values by arrow.</figDesc><table><row><cell>Base</cell><cell>-</cell><cell>32.14</cell><cell>100.00</cell><cell cols="3">100.00 100.00 48.42</cell><cell>100.00</cell><cell cols="5">100.00 100.00 28.91 37.51 100.00</cell><cell cols="2">100.00 100.00</cell></row><row><cell>Hard-token compression</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Prompting</cell><cell>✓</cell><cell>25.00</cell><cell>143.59</cell><cell>64.79</cell><cell cols="2">104.25 52.63</cell><cell>83.09</cell><cell>77.32</cell><cell>91.42</cell><cell cols="2">26.89 36.61</cell><cell>72.34</cell><cell>22.23</cell><cell>214.82</cell></row><row><cell>LLMLingua v1</cell><cell>✗</cell><cell>5.36</cell><cell>131.00</cell><cell>159.75</cell><cell>99.81</cell><cell>24.21</cell><cell>259.99</cell><cell cols="4">319.34 205.51 14.39 20.55</cell><cell>77.45</cell><cell>36.14</cell><cell>102.08</cell></row><row><cell>LLMLingua-2</cell><cell>✗</cell><cell>7.14</cell><cell cols="3">225.53 3,364.23 83.22</cell><cell>44.21</cell><cell>69.59</cell><cell cols="4">961.40 100.50 24.12 33.56</cell><cell>36.92</cell><cell>21.13</cell><cell>80.77</cell></row><row><cell>ACON UT</cell><cell>✗</cell><cell>29.17</cell><cell cols="4">261.91 1,064.69 257.49 49.47</cell><cell cols="5">163.11 1,180.93 135.36 27.53 37.34</cell><cell>51.13</cell><cell>13.34</cell><cell>173.25</cell></row><row><cell>ACON UTCO</cell><cell>✗</cell><cell>30.36</cell><cell cols="4">243.82 1,130.67 255.95 48.42</cell><cell>80.77</cell><cell cols="2">1,197.57 90.43</cell><cell cols="2">28.54 37.40</cell><cell>31.94</cell><cell>12.18</cell><cell>115.34</cell></row><row><cell>Soft-token compression</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>LCLM</cell><cell>✗</cell><cell>6.55</cell><cell>23.94</cell><cell cols="2">1,643.65 35.08</cell><cell>21.05</cell><cell>20.83</cell><cell>641.30</cell><cell>33.37</cell><cell>0.00</cell><cell>0.00</cell><cell>22.47</cell><cell>0.83</cell><cell>0.20</cell></row><row><cell>ASTC (Tools)</cell><cell>✓</cell><cell>33.33</cell><cell>81.37</cell><cell>80.56</cell><cell>94.66</cell><cell>54.74</cell><cell>42.09</cell><cell>40.16</cell><cell>61.24</cell><cell cols="2">30.81 39.18</cell><cell>57.96</cell><cell>74.29</cell><cell>82.02</cell></row><row><cell>ASTC (Context)</cell><cell>✓</cell><cell>32.14</cell><cell>80.52</cell><cell>81.83</cell><cell>95.73</cell><cell>51.58</cell><cell>37.11</cell><cell>40.76</cell><cell>58.91</cell><cell cols="2">31.31 41.40</cell><cell>66.83</cell><cell>77.75</cell><cell>87.40</cell></row></table><note><p><p><p><p>AppWorld</p>OfficeBench 8-Objective QA</p>Method</p>Training-free Acc.% ↑ D-KV% ↓ Attn.% ↓ Gen.% ↓ Acc.% ↑ D-KV% ↓ Attn.% ↓ Gen.% ↓ EM% ↑ F1% ↑ D-KV% ↓ Attn.% ↓ Gen.% ↓</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head></head><label></label><figDesc>ask whether ASTC's GDN signals improve selection beyond what protection and sequence shortening provide. We test this by retaining the acting model, protection rules, and legal group construction while changing the selection rule. Hidden-only uses hidden-state reconstruction error</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>Full rollouts</cell><cell></cell><cell></cell><cell>Same-task difference (95% CI)</cell><cell></cell><cell></cell><cell></cell><cell cols="3">Actual closed-loop workload</cell></row><row><cell>All-requirements success (%)</cell><cell>5 10 15 20 25 30 35 40</cell><cell>33.3%</cell><cell>28.0%</cell><cell>29.2%</cell><cell>Hidden -ASTC Random -ASTC</cell><cell>-5.4 pp [-11.3, +0.6] -4.2 pp [-10.1, +1.8]</cell><cell></cell><cell>Attention pairs / ASTC (%)</cell><cell>20 40 60 80 100 120 140</cell><cell>100.0% 127.07B</cell><cell>114.9% 145.94B</cell><cell>122.1% 155.13B</cell></row><row><cell></cell><cell>0</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>0</cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell>ASTC</cell><cell>Hidden</cell><cell>Random</cell><cell></cell><cell>-12 -10 Success difference (percentage points) -8 -6 -4 -2 0</cell><cell>2</cell><cell>4</cell><cell></cell><cell>ASTC</cell><cell>Hidden</cell><cell>Random</cell></row></table><note><p><p><p>to test whether local fidelity suffices; Random assigns fixed random scores to test whether protected grouping alone explains the gains. Each policy runs the full AppWorld in closed loop, allowing compression choices to shape later actions, tool observations, and workload. Figure</p>5</p>compares task success with end-to-end Attention Pairs and shows ASTC's strongest joint outcome, consistent with the value of model-native selection. Because trajectories and compression events differ, the comparison evaluates complete policies; paired bootstrap uncertainty makes the success advantage suggestive rather than conclusive. The comparison suggests that the acting model's accumulated state supplies information about compressibility beyond local reconstruction.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 2 .</head><label>2</label><figDesc>Component ablations on AppWorld.VariantAcc.% ↑ D-KV% ↓ Attn.% ↓ Gen.% ↓</figDesc><table><row><cell>Base</cell><cell>32.14</cell><cell>100.00</cell><cell>100.00</cell><cell>100.00</cell></row><row><cell>Prompting</cell><cell>25.00</cell><cell>143.59</cell><cell>64.79</cell><cell>104.25</cell></row><row><cell>ASTC</cell><cell>33.33</cell><cell>81.55</cell><cell>80.70</cell><cell>94.83</cell></row><row><cell>No protection</cell><cell>20.83</cell><cell>98.46</cell><cell>68.63</cell><cell>127.05</cell></row><row><cell>No χ</cell><cell>32.14</cell><cell>84.79</cell><cell>78.11</cell><cell>97.76</cell></row><row><cell>No ψ</cell><cell>32.74</cell><cell>89.72</cell><cell>86.08</cell><cell>99.65</cell></row><row><cell>ASTC (deletion)</cell><cell>32.74</cell><cell>88.83</cell><cell>86.85</cell><cell>99.58</cell></row></table><note><p><p><p>Prompting is a deletion reference reported in Table</p>1</p>.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 2</head><label>2</label><figDesc></figDesc><table><row><cell>includes ASTC (deletion), which</cell></row><row><cell>keeps the protection mask and both GDN</cell></row><row><cell>selection tests but removes selected positions</cell></row><row><cell>without emitting soft tokens. Its accuracy re-</cell></row><row><cell>mains close to that of full ASTC, benefiting</cell></row><row><cell>from the same model-native selection mecha-</cell></row><row><cell>nism. In contrast, Prompting applies conven-</cell></row><row><cell>tional hard-token deletion without ASTC's</cell></row><row><cell>selector and achieves only 25.00% accuracy.</cell></row></table><note><p>Removing protection sharply lowers accuracy to 20.83% despite reducing Attention Pairs. Losing API contracts, identifiers, or other exact values can invalidate later actions and lengthen recovery trajectories, explaining why these values must remain explicit. Removing either selection test also lowers accuracy and raises Decode KV and Generated Tokens relative to full ASTC. These ablations show how model-native selection, exact-value protection, and soft-token retention work together to preserve useful context while reducing inference work.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 3 .</head><label>3</label><figDesc>Cross-model transfer on AppWorld.</figDesc><table><row><cell>Qwen3.5-9B</cell><cell>Base ASTC</cell><cell>32.14 33.33</cell><cell>100.00 81.55</cell><cell>100.00 80.70</cell></row><row><cell>Qwen3.8-27B</cell><cell>Base ASTC</cell><cell>78.57 77.98</cell><cell>100.00 91.70</cell><cell>100.00 64.43</cell></row><row><cell>Kimi-Linear-48B-A3B</cell><cell>Base ASTC</cell><cell>1.47 4.41</cell><cell>100.00 84.01</cell><cell>100.00 88.76</cell></row></table><note><p><p>Model</p>Method Acc.% ↑ D-KV% ↓ Attn.% ↓</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 3</head><label>3</label><figDesc></figDesc><table><row><cell>evaluates cross-model transfer</cell></row><row><cell>on AppWorld, with workload normal-</cell></row><row><cell>ized to each model's Base. ASTC re-</cell></row><row><cell>duces Decode KV and Attention Pairs</cell></row><row><cell>for all three models. On Qwen3.8-27B,</cell></row><row><cell>Attention Pairs decrease by 35.57%</cell></row><row><cell>with an accuracy decrease of 0.59 per-</cell></row><row><cell>centage points, while the other two</cell></row><row><cell>models improve accuracy. These re-</cell></row><row><cell>sults support the transferability of</cell></row><row><cell>ASTC's training-free compression cri-</cell></row><row><cell>terion; additional details are provided in Appendix E.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head></head><label></label><figDesc>Table 2 changes one component while keeping the frozen model and inference configuration fixed. ASTC (deletion) retains the protection mask and both GDN selection tests, then deletes ASTC-selected positions instead of emitting soft tokens. It tests the retained representation with model-native selection still in place. Prompting is reproduced from Table1as a separate prompt-based text-level deletion reference. Prompting compresses the full context in AppWorld, whereas the ASTC ablations target eligible tool observations. Their comparison therefore does not isolate the effect of selection alone; the remaining ASTC variants provide the matched component comparisons.Without χ, accuracy returns to Base's 32.14%, two fewer successes than full ASTC. Attention Pairs fall to 78.11%, but Decode KV and Generated Tokens rise relative to full ASTC. Without ψ, accuracy is 32.74% and all three workload measures rise. The tests address distinct cases: new writes to recurrent state and values no longer readable at the endpoint. ASTC (deletion) achieves 32.74% accuracy, compared with 25.00% for Prompting and 33.33% for full ASTC. Its strong performance already benefits from ASTC's model-native selection. Relative to full ASTC, it loses one success and raises Decode KV, Attention Pairs, and Generated Tokens from 81.55%, 80.70%, and 94.83% to 88.83%, 86.85%, and 99.58%, respectively. This comparison measures the additional contribution of retaining the selected information as soft tokens.</figDesc><table><row><cell>Removing protection lowers accuracy from 33.33% to 20.83% (21 fewer successes), even as Attention</cell></row><row><cell>Pairs fall to 68.63% of Base; Generated Tokens rise to 127.05%. Losing API contracts, identifiers, or</cell></row><row><cell>exact values can invalidate later actions and lengthen recovery trajectories.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 4 .</head><label>4</label><figDesc>Additional-dataset results.</figDesc><table><row><cell></cell><cell></cell><cell>RULER 32K</cell><cell></cell><cell></cell><cell cols="2">LongBench v2</cell><cell></cell><cell>MBPP</cell><cell></cell></row><row><cell>Base</cell><cell>97.173</cell><cell>100.00</cell><cell>100.00</cell><cell>40.95</cell><cell>100.00</cell><cell>2.065</cell><cell>84.78</cell><cell>100.00</cell><cell>100.00</cell></row><row><cell>ASTC</cell><cell>97.173</cell><cell>93.96</cell><cell>85.57</cell><cell>40.95</cell><cell>92.93</cell><cell>1.921</cell><cell>84.07</cell><cell>92.42</cell><cell>92.45</cell></row><row><cell cols="10">On RULER, ASTC matches Base's aggregate answer score to the reported precision while reducing</cell></row><row><cell cols="10">Decode KV by 6.04% and Attention Pairs by 14.43%. It migrates 1,045,409 of 6,485,833 eligible tokens</cell></row><row><cell cols="10">into 1,468 soft tokens, for a 12.56% net prompt-token reduction. This 20-example-per-task run is</cell></row><row><cell cols="6">smaller than RULER's 500-example reference configuration.</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="10">LongBench v2 yields 206/503 correct for both variants, with four Base-only and four ASTC-only</cell></row><row><cell cols="10">successes. ASTC reduces Decode KV visits by 7.07%, all-layer final KV tokens by 6.19%, and analytical</cell></row><row><cell cols="10">KV-cache bytes by 6.98%. The subgroup changes are mixed (Base/ASTC: Easy 44.79/45.83%, Hard</cell></row><row><cell cols="10">38.59/37.94%; Short 44.44/45.56%, Medium 40.00/39.53%, Long 37.04/36.11%). The 262,144-token</cell></row><row><cell cols="10">limit truncates 100 examples in each variant; these figures do not establish a wall-clock speedup.</cell></row><row><cell cols="10">On MBPP, ASTC compresses at least one span in 182/427 trajectories and reduces workload; its</cell></row></table><note><p><p><p>Method Acc.% ↑ D-KV% ↓ Attn.% ↓ Acc.% ↑ D-KV% ↓ Cache TB ↓ Pass% ↑ D-KV% ↓ Attn.% ↓ paired success difference is -0.70 percentage points (95% bootstrap interval</p>[-1.87, 0.23]</p>). Mean generated tokens per problem are 89.2/89.4 on RULER, 2.0/2.0 on LongBench, and 337.4/329.0 on MBPP (Base/ASTC). The MBPP run does not establish a success-rate improvement.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 5 .</head><label>5</label><figDesc>Soft aggregation and subsequent attention access on AppWorld.</figDesc><table><row><cell>Representation</cell><cell>Later attention access</cell><cell>Acc.% ↑</cell><cell>D-KV% ↓</cell><cell>Attn.% ↓</cell><cell>Gen.% ↓</cell></row><row><cell>Base</cell><cell>-</cell><cell>32.14</cell><cell>100.00</cell><cell>100.00</cell><cell>100.00</cell></row><row><cell>Equal-length hard</cell><cell>✓</cell><cell>30.95</cell><cell>89.20</cell><cell>85.72</cell><cell>99.08</cell></row><row><cell>ASTC soft</cell><cell>✓</cell><cell>33.33</cell><cell>81.37</cell><cell>80.56</cell><cell>94.66</cell></row><row><cell>ASTC soft</cell><cell>✗</cell><cell>27.38</cell><cell>89.17</cell><cell>85.06</cell><cell>99.25</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head>Table 5</head><label>5</label><figDesc></figDesc><table /><note><p>shows that aggregation reaches 33.33% accuracy, compared with 30.95% for a single original state per group; blocking subsequent attention access lowers accuracy to 27.38%. These results support soft tokens as a way to aggregate group information within a limited length budget and retain a representation useful to later reasoning. Equal length is enforced on common inputs; compression choices can still lead to different autonomous trajectories and cumulative workloads.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 6 .</head><label>6</label><figDesc>Measured task latency, per-GPU throughput, and peak GPU memory.</figDesc><table><row><cell></cell><cell></cell><cell>Mean latency</cell><cell>P95 latency</cell><cell>Token/s/</cell><cell>Peak GPU</cell></row><row><cell>Dataset</cell><cell>Method</cell><cell>(s/task) ↓</cell><cell>(s/task) ↓</cell><cell>GPU ↑</cell><cell>memory (GiB) ↓</cell></row><row><cell>AppWorld</cell><cell>Base ASTC</cell><cell>73.69 71.00</cell><cell>210.08 207.47</cell><cell>24.87 24.43</cell><cell>21.68 21.46</cell></row><row><cell>8-Objective QA</cell><cell>Base ASTC</cell><cell>182.11 157.62</cell><cell>339.27 273.77</cell><cell>26.95 25.54</cell><cell>34.72 36.97</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_16"><head>Table 7 .</head><label>7</label><figDesc>Queue-level performance and host-side compression timings. Per-task average host-side time in milliseconds. Selection and pooling are components of the compression-entry total.</figDesc><table><row><cell></cell><cell></cell><cell>Queue time</cell><cell>Queue</cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="5">Dataset Selection  AppWorld Method (min) ↓ token/s ↑ Base 37.70 136.10 0 ASTC 34.43 141.05 5.664</cell><cell>0 13.292</cell><cell>0 46.005</cell></row><row><cell>8-Objective QA</cell><cell>Base ASTC</cell><cell>--</cell><cell>--</cell><cell>0 280.057</cell><cell>0 144.705</cell><cell>0 631.412</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p>* Pooling * Entry total * *</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_17"><head>Table 8 .</head><label>8</label><figDesc>Paired 95% bootstrap intervals for quality differences and workload ratios.</figDesc><table><row><cell>Dataset</cell><cell>Comparison</cell><cell></cell><cell cols="2">∆Acc./EM (pp)</cell><cell>∆F1 (pp)</cell></row><row><cell>OfficeBench</cell><cell>Tools / Base</cell><cell></cell><cell cols="2">+6.32 [-3.16, 16.84]</cell><cell>-</cell></row><row><cell>OfficeBench</cell><cell cols="2">Context / Base</cell><cell cols="2">+3.16 [-6.32, 12.63]</cell><cell>-</cell></row><row><cell>8-Objective QA</cell><cell>Tools / Base</cell><cell></cell><cell cols="2">+1.89 [-2.78, 6.57]</cell><cell>+1.67 [-4.07, 7.31]</cell></row><row><cell>8-Objective QA</cell><cell cols="2">Context / Base</cell><cell cols="2">+2.40 [-2.40, 7.32]</cell><cell>+3.89 [-1.79, 9.51]</cell></row><row><cell>Dataset</cell><cell>Comparison</cell><cell>D-KV%</cell><cell></cell><cell>Attn.%</cell><cell>Gen.%</cell></row><row><cell>OfficeBench</cell><cell>Tools / Base</cell><cell cols="2">42.09 [24.29, 68.34]</cell><cell>40.16 [26.39, 58.79]</cell><cell>61.24 [45.92, 80.55]</cell></row><row><cell>OfficeBench</cell><cell>Context / Base</cell><cell cols="2">37.11 [21.75, 61.04]</cell><cell>40.76 [26.59, 61.05]</cell><cell>58.91 [43.66, 78.90]</cell></row><row><cell>8-Objective QA</cell><cell>Tools / Base</cell><cell cols="2">57.96 [32.74, 98.63]</cell><cell>74.29 [54.52, 99.31]</cell><cell>82.02 [64.41, 98.68]</cell></row><row><cell>8-Objective QA</cell><cell>Context / Base</cell><cell cols="2">66.83 [37.88, 118.23]</cell><cell>77.75 [57.96, 104.03]</cell><cell>87.40 [68.14, 109.92]</cell></row><row><cell cols="6">Entries are point estimates [95% CI]. Quality differences are ASTC minus Base in percentage points; workload ratios are</cell></row><row><cell cols="2">percentages of Base (100%).</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_18"><head>Table 9 .</head><label>9</label><figDesc>ASTC and ACON UTCO at similar attention budgets on 8-Objective QA.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>Attention</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Method</cell><cell>EM% ↑</cell><cell>F1% ↑</cell><cell>Pairs (T) ↓</cell><cell>Attn.% ↓</cell><cell>D-KV% ↓</cell><cell>Gen.% ↓</cell></row><row><cell>Base</cell><cell>28.91</cell><cell>37.51</cell><cell>2.0785</cell><cell>100.00</cell><cell>100.00</cell><cell>100.00</cell></row><row><cell>ASTC</cell><cell>30.81</cell><cell>39.18</cell><cell>1.5442</cell><cell>74.29</cell><cell>57.96</cell><cell>82.02</cell></row><row><cell>ACON UTCO</cell><cell>30.81</cell><cell>40.21</cell><cell>1.7457</cell><cell>83.99</cell><cell>93.20</cell><cell>101.0</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_19"><head>Table 10 .</head><label>10</label><figDesc>ASTC and a LLMLingua-2 control with matched scope, protection, and retained length.</figDesc><table><row><cell>Dataset</cell><cell>Method</cell><cell>Acc.% ↑</cell><cell>D-KV% ↓</cell><cell>Attn.% ↓</cell><cell>Gen.% ↓</cell></row><row><cell>AppWorld</cell><cell>ASTC LLMLingua-2 (matched)</cell><cell>33.33 26.19</cell><cell>81.37 77.05</cell><cell>80.56 98.78</cell><cell>94.66 90.16</cell></row><row><cell>OfficeBench</cell><cell>ASTC LLMLingua-2 (matched)</cell><cell>54.74 49.47</cell><cell>42.09 35.56</cell><cell>40.16 52.73</cell><cell>61.24 55.79</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_20"><head></head><label></label><figDesc>Table 11 reports a success rate of 19.90% for ASTC and 20.86% for Base. The paired success-rate difference is -0.96 percentage points (95% CI</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_21"><head>Table 11 .</head><label>11</label><figDesc>ASTC on all 417 AppWorld Test-Challenge tasks without retuning.</figDesc><table><row><cell>Method</cell><cell>Acc.% ↑</cell><cell>D-KV% ↓</cell><cell>Attn.% ↓</cell><cell>Gen.% ↓</cell></row><row><cell>Base</cell><cell>20.86</cell><cell>100.00</cell><cell>100.00</cell><cell>100.00</cell></row><row><cell>ASTC</cell><cell>19.90</cell><cell>87.13</cell><cell>79.43</cell><cell>95.34</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_22"><head>Table 12 .</head><label>12</label><figDesc>Training-free cache comparators adapted to Qwen3.5-9B on AppWorld.</figDesc><table><row><cell></cell><cell>Training-</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Method</cell><cell>free</cell><cell>Successes</cell><cell>Acc.% ↑</cell><cell>D-KV% ↓</cell><cell>Attn.% ↓</cell><cell>Gen.% ↓</cell></row><row><cell>Base</cell><cell>-</cell><cell>54/168</cell><cell>32.14</cell><cell>100.00</cell><cell>100.00</cell><cell>100.00</cell></row><row><cell>ASTC</cell><cell>✓</cell><cell>56/168</cell><cell>33.33</cell><cell>81.37</cell><cell>80.56</cell><cell>94.66</cell></row><row><cell>FastKV (adapted)</cell><cell>✓</cell><cell>0/168</cell><cell>0.00</cell><cell>2.53</cell><cell>561.23</cell><cell>55.40</cell></row><row><cell>KVzip (adapted)</cell><cell>✓</cell><cell>19/168</cell><cell>11.31</cell><cell>87.98</cell><cell>5,976.41</cell><cell>145.73</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_23"><head></head><label></label><figDesc>. These external-compressor comparisons are reported on AppWorld and OfficeBench; 8-Objective QA also includes Prompting, both LLMLingua variants, both ACON variants, and LCLM. The newly reported AppWorld LLMLingua and OfficeBench Prompting and LLMLingua runs compress observations; other archived configurations use their saved history or observation policies. ASTC evaluates both tool-observation and full-context compression in-model. These original operating points do not by themselves match every baseline's compression target and retained length; the separately controlled comparison is in Appendix J. The exact eligibility, protection, and cache handling of ASTC (Context) are specified in Appendix M.4. Baseline preparation, inference policies, and auxiliary-count coverage are specified in Appendix M.3. We distinguish model-parameter adaptation from ACON's textual guideline optimization and from loading a pretrained LLMLingua scorer. The latter two services do not perform additional parameter training in our reproduction. Decode KV counts query-cache interactions during autoregressive decoding. Attention Pairs includes prefill and recorded auxiliary model calls, while Generated Tokens counts discrete outputs from acting and rewriting models. Missing auxiliary traces and reconstructed components are identified in Appendix M.3; an unrecorded scorer is not treated as zero-cost. These are analytical counts, not measured latency or GPU operations. Each workload metric in Table1is normalized to Base within its benchmark. Measured latency, throughput, and GPU memory are reported separately in Appendix G.</figDesc><table><row><cell>Workload metrics.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_24"><head></head><label></label><figDesc>The agent uses at most 50 iterations, 768 output tokens per action, and a 32,768-token context. OfficeBench uses the same Stage-3 boundary as AppWorld, with thresholds χ &lt; 0.55, ψ &lt; 0.70, and merge error ≤ 0.55 for both data and catalog branches. In ASTC (Tools), only later byte-identical repetitions of an application-interface scaffold are eligible for compression; the first copy, changed scaffolds, observations, task instructions, system text, and prior actions remain explicit. Base and ASTC share the prompt and action budget. ASTC (Context) extends the eligible bodies as detailed in Appendix M.4, using the same OfficeBench thresholds. All methods evaluate the same 99 ACON Test tasks, each with eight objectives, for 792 question-answer targets. For Base and ASTC, the frozen Qwen3.5-9B acting model uses BF16 with vLLM 0.18.0, a 131,072-token model limit, engine seed 42, and at most 30 agent iterations. ASTC compresses eligible tool content at the AppWorld layer boundary; the reported policy uses (χ, ψ) = (0.55, 0.75) for ordinary tool data. EM and F1 score the eight answers per task. All methods share the benchmark task IDs and evaluator; historical baseline serving and adaptation details are specified in Appendix M.3. Workload is normalized to the corresponding Base run, with the accounting coverage noted there.</figDesc><table><row><cell>8-Objective QA.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_25"><head></head><label></label><figDesc>To use the same initial Qwen3.5-9B backbone as ASTC, we replace the original 4B decoder with Qwen3.5-9B and add a Bridge consisting of RMS normalization, a 2,560 → 4,096 linear layer, GELU, and a 4,096 → 4,096 linear layer. Only this new Bridge and decoder LoRA parameters are trainable; the original Qwen weights remain frozen. LoRA has rank 8, alpha 16, dropout 0.05, and no trained bias. It targets q_proj, k_proj, v_proj, o_proj, in_proj_qkv, in_proj_z, out_proj, gate_proj, up_proj, and down_proj. Thus LCLM starts from the same acting checkpoint but uses a task-adapted decoder at evaluation; it is not an unchanged frozen-actor baseline.For the archived AppWorld adaptation, interaction trajectories yield 2,526 next-action examples from 159 records spanning 29 training tasks, with 1,411 validation examples from 98 records spanning 19 disjoint tasks. The inference-aligned adaptation optimizes teacher-forced next-action loss plus an auxiliary recap loss with weight 0.3; no future-trajectory target is enabled. The tested rolling-history adaptation explicitly initializes its Bridge and LoRA from this inference-aligned checkpoint and then trains on runner-shaped, action-only targets, with older events represented as latents and the most recent three turns supplied as text. This is the initialization chain used by the evaluated AppWorld checkpoint. Both adaptation stages use AdamW with learning rate 2 × 10 -4 , weight decay 0.01, gradient-norm clipping at 1.0, and seed 42. The rolling-history launcher runs one epoch, capped at 2,526 updates, with one example per update.</figDesc><table /><note><p><p><p>The AppWorld Table</p>1</p>row uses the archived v19 one-shot runner and its rolling-history Bridge+LoRA checkpoint; the official replay passes all tests on 11/168 tasks. At inference, the task instruction and older history are concatenated and encoded in windows of at most 1,024 tokens. Consecutive groups of four encoder states are mean-pooled, passed through the frozen adapter and new Bridge, and supplied to Qwen as soft embeddings.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_26"><head></head><label></label><figDesc>OfficeBench uses a separately adapted Bridge+LoRA checkpoint. Its retained adaptation data contain 2,533 training examples from 261 records across 18 task families and 260 validation examples from 24 records across two disjoint families, with action/recap supervision in the inference-aligned format. The QA8 one-pass adaptation is another benchmark-specific run: its launcher trains Bridge+LoRA for one epoch capped at 1,400 updates, using AdamW at 2 × 10 -4 , weight decay 0.01, seed 42, a 2,048-token memory budget, and action/recap target caps of 96/48 tokens. It does not establish that the AppWorld, OfficeBench, and QA8 results came from one shared fine-tuned checkpoint.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_27"><head></head><label></label><figDesc>The Context rows in Table1use the same benchmark task sets as their Tools references. In the selected AppWorld Context run, the net numbers of removed positions are 5,361 for Assistant and 234,519 for Tool; System and User positions enter the candidate set but produce no accepted net removal under these thresholds. This distinguishes the implemented scope from the compression actually accepted. AppWorld Context solves 54/168 tasks, compared with Tools' 56/168; OfficeBench Context solves 49/95, compared with 52/95; and QA8 Context has EM/F1 of 31.31/41.40, compared with 30.81/39.18. Context therefore tests the scope extension rather than establishing uniform dominance over Tools. Paired uncertainty should be interpreted at the task level as described in Appendix H, keeping QA8's eight objectives together.</figDesc><table /></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix Contents</head><p>Protection rules. The scope extension retains the existing Tool masks rather than marking all tool output compressible. In AppWorld, catalog observations remain verbatim and are not compressed. Protected API contracts, authentication observations, and exact-value fields retain their original provenance guards. Completed assistant actions classified as authentication or contract access are protected as whole blocks. For newly eligible message bodies, the implementation protects token pieces overlapping numbers or identifiers containing digits or underscores. AppWorld additionally preserves action fences and reasoning/tool-result delimiters. These are explicit recognition rules, not a claim to identify every semantically important string.</p><p>OfficeBench preserves the first canonical copy of each application-interface scaffold and permits the later byte-identical copies to remain eligible as in Tools. Other completed message-body spans can enter the ordinary-data branch, with literal and protocol protection. In QA8, the mask is constructed over the bodies actually produced by the Qwen chat template, using token offsets and literal guards. This matters because rendering can remove older assistant reasoning. The proxy checks the input-token digest and prompt length against the vLLM worker; it does not locate eligible spans by searching for source text that is absent from the rendered input.</p><p>Fixed selector settings. Table <ref type="table">13</ref> records the settings used for both Tools and Context within each benchmark. All use Stage 3, after zero-based GDN layer 10 and before attention layer 11, with at most 16 soft representatives per eligible span. The original grouping, post-cast relative-error check, minimum net saving, and protected-position rules remain active. The minimum-saving settings are 256 downstream token-layer positions and 5% of the eligible span. We do not introduce a separate χ/ψ sweep for the Context rows. Newly eligible AppWorld non-Tool content follows the data branch; the QA8 worker likewise loads the data branch for its message spans. The reported AppWorld Context run applies the original selector bounds without an additional veto based solely on whether the current prefill pays back that rebuild immediately; its cost is included even when a merge is accepted.</p><p>OfficeBench uses a persistent prefill-prefix snapshot and replays the local completed-assistant/newinput suffix when needed, rather than rebuilding the entire accumulated transcript at every step. QA8 uses the vLLM integration with request-specific eligibility metadata and a compact physical view of layers 11-31. Its recorded serving configuration disables cross-request prefix caching and enables</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><surname>Anthropic</surname></persName>
+		</author>
+		<ptr target="https://www.anthropic.com/news/claude-fable-5-mythos-5" />
+		<title level="m">Claude Fable 5 and Claude Mythos 5</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Program synthesis with large language models</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Augustus</forename><surname>Odena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Nye</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2108.07732</idno>
+		<ptr target="https://arxiv.org/abs/2108.07732" />
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">LongBench v2: Towards deeper understanding and reasoning on realistic long-context multitasks</title>
+		<author>
+			<persName><forename type="first">Yushi</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shangqing</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaozhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shulin</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiazheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiao</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juanzi</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.15204</idno>
+		<ptr target="https://arxiv.org/abs/2412.15204" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">DAST: Context-aware compression in LLMs via dynamic allocation of soft tokens</title>
+		<author>
+			<persName><forename type="first">Shaoshen</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangning</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zishan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongqin</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunlong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinshuo</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zifei</forename><surname>Shan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiwei</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinghui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hai-Tao</forename><surname>Zheng</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2025.findings-acl.1055</idno>
+		<ptr target="https://aclanthology.org/2025.findings-acl.1055/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2025</title>
+		<imprint>
+			<date type="published" when="2025">20544-20552, 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Adapting language models to compress contexts</title>
+		<author>
+			<persName><forename type="first">Alexis</forename><surname>Chevalier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anirudh</forename><surname>Ajith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danqi</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.232</idno>
+		<ptr target="https://aclanthology.org/2023.emnlp-main.232" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="3829" to="3846" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">In-context autoencoder for context compression in a large language model</title>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Si-Qing</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Furu</forename><surname>Wei</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=uREj4ZuGJE" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Archer: Adaptive reuse of cached hidden states for efficient rollback in diffusion language models</title>
+		<author>
+			<persName><forename type="first">Xuning</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingyuan</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zinan</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongding</forename><surname>Tao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huanyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ge</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xue</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yihong</forename><surname>Dong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2608.08086</idno>
+		<ptr target="https://arxiv.org/abs/2608.08086" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">RULER: What&apos;s the real context size of your long-context language models</title>
+		<author>
+			<persName><forename type="first">Cheng-Ping</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simeng</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samuel</forename><surname>Kriman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shantanu</forename><surname>Acharya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dima</forename><surname>Rekesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boris</forename><surname>Ginsburg</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2404.06654</idno>
+		<ptr target="https://arxiv.org/abs/2404.06654" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">LLMLingua: Compressing prompts for accelerated inference of large language models</title>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Qiu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.825</idno>
+		<ptr target="https://aclanthology.org/2023.emnlp-main.825" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="13358" to="13376" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">LongLLM-Lingua: Accelerating and enhancing LLMs in long context scenarios via prompt compression</title>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xufang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Qiu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.acl-long.91</idno>
+		<ptr target="https://aclanthology.org/2024.acl-long.91" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1658" to="1677" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">FastKV: Decoupling of context reduction and KV cache compression for prefill-decoding acceleration</title>
+		<author>
+			<persName><forename type="first">Dongwon</forename><surname>Jo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiwon</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yulhwa</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jae-Joon</forename><surname>Kim</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2026.findings-acl.1610</idno>
+		<ptr target="https://aclanthology.org/2026.findings-acl.1610/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2026</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="32167" to="32186" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">ACON: Optimizing context compression for long-horizon LLM agents</title>
+		<author>
+			<persName><forename type="first">Minki</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Ning</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongge</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huseyin</forename><forename type="middle">A</forename><surname>Inan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukas</forename><surname>Wutschitz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanzhi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Sim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saravan</forename><surname>Rajmohan</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2510.00615" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 43rd International Conference on Machine Learning</title>
+		<meeting>the 43rd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">KVzip: Queryagnostic KV cache compression with context reconstruction</title>
+		<author>
+			<persName><forename type="first">Jang-Hyun</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinuk</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sangwoo</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jae</forename><forename type="middle">W</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sangdoo</forename><surname>Yun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyun</forename><forename type="middle">Oh</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="DOI">10.52202/085713-5585</idno>
+		<ptr target="https://proceedings.neurips.cc/paper_files/paper/2025/hash/f" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">38</biblScope>
+		</imprint>
+	</monogr>
+	<note>4eaa4b8f2d08edb3f0af990d56134ea-Abstract-Conference.html</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Natural questions: A benchmark for question answering research</title>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Kwiatkowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennimaria</forename><surname>Palomaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olivia</forename><surname>Redfield</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Collins</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ankur</forename><surname>Parikh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Alberti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danielle</forename><surname>Epstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Devlin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenton</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kristina</forename><surname>Toutanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Kelcey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming-Wei</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andrew</forename><forename type="middle">M</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Slav</forename><surname>Petrov</surname></persName>
+		</author>
+		<idno type="DOI">10.1162/tacl_a_00276</idno>
+		<ptr target="https://aclanthology.org/Q19-1026/" />
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="452" to="466" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">End-to-end context compression at scale</title>
+		<author>
+			<persName><forename type="first">Ang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sean</forename><surname>Mcleish</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haozhe</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nimit</forename><surname>Kalra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zaiqian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Artem</forename><surname>Gazizov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anoop</forename><surname>Venkata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavya</forename><surname>Suhas Kumar Morisetty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harshitha</forename><surname>Kailkhura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuang</forename><surname>Menon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><forename type="middle">R</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Bartoldson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sanae</forename><surname>Goldstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Micah</forename><surname>Lotfi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavel</forename><surname>Goldblum</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Izmailov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2606.09659</idno>
+		<ptr target="https://arxiv.org/abs/2606.09659" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Compressing context to enhance inference efficiency of large language models</title>
+		<author>
+			<persName><forename type="first">Yucheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Guerin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenghua</forename><surname>Lin</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.391</idno>
+		<ptr target="https://aclanthology.org/2023.emnlp-main.391/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="6342" to="6353" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Context as a tool: Context management for long-horizon SWE-agents</title>
+		<author>
+			<persName><forename type="first">Shukai</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinyang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianglong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Dai</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2026.findings-acl.1032</idno>
+		<ptr target="https://aclanthology.org/2026.findings-acl.1032/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2026</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="page" from="20604" to="20617" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<title level="m" type="main">Hugging Face model card</title>
+		<ptr target="https://huggingface.co/moonshotai/Kimi-Linear-48B-A3" />
+		<editor>Moonshot AI. Kimi-Linear-48B-A3B-Instruct</editor>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>d4658b573f9a695d57658590e9</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Official model release</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">I</forename><surname>Moonshot</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Kimi</surname></persName>
+		</author>
+		<ptr target="https://www.kimi.com/news/kimi-k3" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Learning to compress prompts with gist tokens</title>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Mu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lisa</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Goodman</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/paper_files/paper/2023/hash/" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+		</imprint>
+	</monogr>
+	<note>f143aa2154e7f4d5e22d68-Abstract.html</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">GPT-5.6 Sol. Official model documentation</title>
+		<ptr target="https://developers.openai.com/api/docs/models/gpt-5.6-sol" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+		<respStmt>
+			<orgName>OpenAI</orgName>
+		</respStmt>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">LLMLingua-2: Data distillation for efficient and faithful task-agnostic prompt compression</title>
+		<author>
+			<persName><forename type="first">Zhuoshi</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianhui</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huiqiang</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Menglin</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xufang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jue</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingwei</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Rühle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqing</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chin-Yew</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Vicky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lili</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongmei</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.findings-acl.57</idno>
+		<ptr target="https://aclanthology.org/2024.findings-acl.57" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2024</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="963" to="981" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Qwen</forename><surname>Team</surname></persName>
+		</author>
+		<ptr target="https://huggingface.co/Qwen/Qwen3.5-9" />
+		<title level="m">Qwen3.5-9B. Hugging Face model card</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note>ccb60c8ee5ba337b9a</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Context compression for auto-regressive transformers with sentinel tokens</title>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Siyu Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kenny</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhu</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2023.emnlp-main.794</idno>
+		<ptr target="https://aclanthology.org/2023.emnlp-main.794/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2023 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="12860" to="12867" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">AppWorld: A controllable world of apps and people for benchmarking interactive coding agents</title>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mareike</forename><surname>Hartmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruskin</forename><surname>Manku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinty</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niranjan</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.acl-long.850</idno>
+		<ptr target="https://aclanthology.org/2024.acl-long.850/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="16022" to="16076" />
+		</imprint>
+	</monogr>
+	<note>Long Papers)</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Of-ficeBench: Benchmarking language agents across multiple applications for office automation</title>
+		<author>
+			<persName><forename type="first">Zilong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuedong</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zimin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Da</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Yuchen Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.19056</idno>
+		<ptr target="https://arxiv.org/abs/2407.19056" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">RECOMP: Improving retrieval-augmented LMs with context compression and selective augmentation</title>
+		<author>
+			<persName><forename type="first">Fangyuan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weijia</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eunsol</forename><surname>Choi</surname></persName>
+		</author>
+		<ptr target="https://proceedings.iclr.cc/paper_files/paper/2024/hash/bda" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations, 2024a</title>
+		<imprint>
+			<date>88ed2892f5e61c9a9bf215c566913-Abstract-Conference. html</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Concise and precise context compression for tool-using language models</title>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunlong</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honglin</forename><surname>Mu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutai</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinghao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanjun</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dandan</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingfu</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wanxiang</forename><surname>Che</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2024.findings-acl.974</idno>
+		<ptr target="https://aclanthology.org/2024.findings-acl.974/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2024</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="16430" to="16441" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Gated delta networks: Improving Mamba2 with delta rule</title>
+		<author>
+			<persName><forename type="first">Songlin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Kautz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ali</forename><surname>Hatamizadeh</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2412.06464" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">GLM-5.2: Built for long-horizon tasks</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ai</surname></persName>
+		</author>
+		<ptr target="https://z.ai/blog/glm-5.2" />
+	</analytic>
+	<monogr>
+		<title level="m">Official model release</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Long context compression with activation beacon</title>
+		<author>
+			<persName><forename type="first">Peitian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shitao</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ninglu</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiwei</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhicheng</forename><surname>Dou</surname></persName>
+		</author>
+		<ptr target="https://proceedings.iclr.cc/paper_files/paper/2025/hash" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>b3ce9a74af0ef0d876-Abstract-Conference.html</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">MEM1: Learning to synergize memory and reasoning for efficient long-horizon agents</title>
+		<author>
+			<persName><forename type="first">Zijian</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ao</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaoxuan</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sunghwan</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alok</forename><surname>Prakash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniela</forename><surname>Rus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan Kian Hsiang</forename><surname>Low</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Paul</forename><forename type="middle">Pu</forename><surname>Liang</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=XY8AaxDSLb" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

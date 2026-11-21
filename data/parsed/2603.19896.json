@@ -1,0 +1,143 @@
+{
+  "arxiv_id": "2603.19896",
+  "title": "Utility-Guided Orchestration for Cost-Efficient Tool-Augmented LLM Services",
+  "abstract": "Tool-augmented large language model (LLM) services can solve complex tasks through retrieval and external tools, but current execution paradigms often trade adaptability for efficiency. Fixed workflows are predictable but rigid, while freeform reasoning loops such as ReAct may over-execute and issue redundant tool calls. We propose a lightweight utility-guided orchestration framework that formulates agent control as a costaware sequential decision problem over a compact action space: respond, retrieve, tool call, verify, and stop. An interpretable utility function balances expected gain, step-cost proxies, uncertainty, and redundancy. Experiments on multi-hop question answering show that the policy offers a controllable qualitycost trade-off and reduces token consumption by up to 10.6% in the semantic-redundancy setting while preserving similar answer quality. The framework is intended as an inspectable control layer for practical LLM services rather than a universally dominant accuracy optimizer.",
+  "sections": [
+    {
+      "heading": " INTRODUCTION",
+      "section_type": "introduction",
+      "text": "Large language models (LLMs) are evolving from standalone text generators into interactive systems that reason, retrieve evidence, call tools, and operate in external environments [1], [2], [3], [4], [5], [6], [7]. Recent work shows that multi-step reasoning, planning, program use, and reflection can improve complex task solving [8], [9], [10], [11], [12], [13], [14], [15], [16], [17], [18], [19]. Agent benchmarks such as WebShop, ALFWorld, and ToolQA further show that evaluation must consider not only final answers but also the efficiency and controllability of intermediate trajectories [20], [21], [22]. This is especially important in cloud services, where token budgets, latency, and adaptive computation are practical constraints [23], [24], [25], [26], [27].\n\nExisting systems mainly follow two execution paradigms. Fixed workflows predefine action sequences through prompts, roles, or pipelines, as in MetaGPT, ChatDev, AutoGen, and DSPy [28], [29], [30], [31]. They provide predictable costs but adapt poorly to query difficulty. Free-form reasoning loops such as ReAct, Toolformer, Gorilla, and ToolLLM let the model decide when to reason and invoke tools [1], [2], [3], [32]. They are adaptive, but can produce long trajectories and redundant retrieval or tool calls.\n\nAlthough these paradigms have achieved encouraging results, they exhibit critical limitations in practical cloud deployments:\n\n• Limited adaptability. Fixed pipelines cannot adjust execution to the marginal utility of new evidence. • Over-execution. Free-form agents may generate long trajectories and redundant tool calls, increasing token use and latency without proportional accuracy gains. • Implicit stopping. Prompt-driven continuation and termination make the quality-cost trade-off difficult to inspect or regulate. To decouple reasoning from execution control, this work introduces a utility-guided orchestration framework for toolaugmented LLM services. Agent execution is modeled as an explicit decision process over a compact action space, with stop and verify treated as first-class actions. A lightweight utility function combines gain, cost, uncertainty, and redundancy signals, forming an interpretable interface between the LLM and its environment.\n\nThe main contributions of this work are summarized as follows:\n\n• We propose a lightweight orchestration framework that shifts agent execution from implicit prompt-driven behavior to an explicit utility-guided decision process.",
+      "n_words": 345
+    },
+    {
+      "heading": " MOTIVATION",
+      "section_type": "introduction",
+      "text": "Tool-augmented LLM agents often solve complex tasks through iterative reasoning and external tool invocations. Existing frameworks, however, can produce unnecessarily long trajectories. Redundant reasoning steps increase token consumption, latency, and prompt context growth, which directly affects practical LLM service efficiency.\n\nTo illustrate this issue, consider a typical multi-hop question from the HotpotQA dataset: The answer requires identifying the founder of SpaceX (Elon Musk) and then the university he attended (University of Pennsylvania). Ideally, only a few retrieval operations are needed. In practice, our HotpotQA analysis shows that ReActstyle agents use 3.47 reasoning steps per query on average, although many questions can be solved within two retrieval operations. Extra steps often repeat related entities, rephrase the same sub-question, or retrieve irrelevant documents. In our experiments, semantic redundancy control reduces token consumption by 10.6% while maintaining similar answer quality, indicating that a meaningful portion of cost comes from avoidable intermediate actions.\n\nThese observations motivate the design of a lightweight orchestration mechanism that explicitly controls agent execution. Instead of relying solely on fixed pipelines or unconstrained reasoning loops, the proposed framework evaluates candidate actions based on their potential utility and execution cost. By explicitly balancing reasoning benefit and computational overhead, the agent can avoid redundant operations while maintaining effective multi-step reasoning capability.",
+      "n_words": 209
+    },
+    {
+      "heading": " DESIGN",
+      "section_type": "method",
+      "text": "Figure 1 illustrates the proposed orchestration framework. The goal is not to replace the reasoning capability of the underlying LLM, but to add an explicit control layer that decides when the agent should continue reasoning, which operation should be executed next, and when execution should terminate. Compared with fixed workflows, this design adapts to query difficulty and intermediate evidence; compared with unconstrained reasoning loops, it exposes cost and redundancy as first-class control signals.",
+      "n_words": 73
+    },
+    {
+      "heading": "A. Problem Formulation",
+      "section_type": "other",
+      "text": "We model tool-using agent orchestration as a sequential decision problem. Given a user query q, the agent observes state s t at step t and selects the next action a t . The action space is intentionally compact: A = {respond, retrieve, tool call, verif y, stop}.\n\n(\n\nrespond generates an answer from the current state; retrieve obtains external evidence; tool_call invokes an external API or computation tool; verify checks the current answer or evidence; and stop terminates execution. This space covers the major control decisions in practical toolaugmented agents while remaining small enough to analyze. The controller repeats action selection until stop is chosen or a predefined execution limit is reached. The objective is to obtain a sufficiently accurate trajectory without unnecessary reasoning length, redundant tool usage, or excessive token cost. Thus, agent execution is treated as a quality-cost tradeoff rather than a pure reasoning problem.\n\nThe compact action space separates semantic task solving from systems-level orchestration. The LLM may still generate rich reasoning traces or tool arguments internally, while the controller decides only whether the next operation is answering, retrieving, invoking a tool, verifying, or stopping. Modeling verify and stop explicitly lets the controller compare them with retrieval and response generation under the same utility scale.",
+      "n_words": 208
+    },
+    {
+      "heading": "B. Agent State Representation",
+      "section_type": "method",
+      "text": "At step t, the state s t contains four categories of information: the original query and current working context; prior actions and intermediate reasoning traces; external observations returned by retrieval or tools; and execution-status signals such as step count and budget metadata. This explicit state lets the controller distinguish, for example, whether evidence is still missing, whether recent retrieval has already produced enough information, and whether the trajectory is becoming overly long.\n\nThe state is not intended to be a fully learned world model. It is a structured control interface between the LLM and the environment, designed to make continuation and stopping decisions inspectable.\n\nThe state representation is deliberately compact: it stores what the user asked, what has already been tried, what evidence has been observed, and how much budget has been consumed. This avoids turning the controller itself into a new source of prompt growth while retaining the signals most relevant to redundant execution and premature stopping.",
+      "n_words": 158
+    },
+    {
+      "heading": "C. Utility-Guided Action Selection",
+      "section_type": "other",
+      "text": "Each candidate action a ∈ A receives a utility score:\n\nThe next action is selected by\n\nWe do not claim that Eq. ( 2) is an optimal reinforcementlearning policy or that its terms are calibrated probabilities. Instead, the utility function is a lightweight, interpretable scoring mechanism that turns implicit prompt-driven behavior into an explicit decision process. A useful action should have high expected benefit and low expected cost; repeated or lownovelty actions should be penalized. The explicit utility also separates reasoning from execution control. The LLM remains responsible for generating answers, interpreting evidence, and interacting with tools, while the controller decides whether another operation is worth performing. This separation makes it possible to inspect which term pushes a trajectory to continue, stop, retrieve, or verify. It also allows alternative cost definitions to be substituted without redesigning the whole agent.\n\nOperationally, the controller evaluates all candidate actions with the same score, so a selected action can be traced to a small set of component values and weights. The weights λ 1 , λ 2 , and λ 3 tune the relative strength of cost, uncertainty, and redundancy penalties for different deployment requirements.\n\nThis design is intentionally heuristic rather than fully learned. A learned policy could in principle optimize these decisions from trajectory rewards, but it would require a larger training set, stable reward definitions, and retraining when tool prices or service-level objectives change. The utility form instead exposes a small number of knobs that can be adjusted by operators. For example, a low-latency service can increase the cost weight, while an analysis-oriented service can relax the cost penalty and increase uncertainty control.",
+      "n_words": 271
+    },
+    {
+      "heading": "D. Utility Components",
+      "section_type": "other",
+      "text": "a) Estimated Gain.: Gain(a | s t ) measures the selfestimated marginal value of executing action a. When evidence is incomplete, retrieve or tool_call may have high gain; when evidence appears sufficient, respond or stop may be favored. This heuristic signal preserves the ability to continue on genuinely difficult queries. b) Step-Cost.: StepCost(a | s t ) is a normalized proxy for the cost of taking another step. It discourages unnecessary trajectory expansion while keeping the controller cheap to compute. It is not an exact substitute for token usage or wallclock latency; Section IV compares it with token-and latencyaware variants.\n\nWe use a proxy because exact runtime and token cost may only be known after an action finishes. A controller that needs those exact measurements before every decision would itself introduce overhead. The proxy therefore acts as a lightweight regularizer that biases the agent away from unnecessary continuation, while the empirical evaluation checks whether this bias is aligned with observed cost. c) Uncertainty.: Uncertainty(a | s t ) reflects the agent's self-estimated confidence in the sufficiency of current evidence. Higher uncertainty penalizes premature termination, while lower uncertainty favors responding or stopping. This prevents a cost-aware controller from becoming overly aggressive.\n\nd) Redundancy.: Redundancy(a | s t ) penalizes repeated or semantically similar actions. It targets a common failure mode of free-form agents: issuing similar retrieval or tool calls after useful evidence has already been obtained. The term reduces token consumption and makes trajectories more compact and interpretable.\n\nRedundancy can be measured exactly, by repeated actions or retrieval strings, or semantically, by comparing the meaning of the current candidate action with previous actions or observations. Exact matching is cheap; semantic matching catches paraphrased repetitions at higher overhead.\n\nTogether, these four terms are not meant to form a universal decomposition of agent intelligence. They provide a practical control surface for studying the quality-cost trade-off of toolusing LLM systems. This framing is especially important for deployment settings where final answer quality must be considered together with latency, token budget, and trajectory stability.\n\nThe same formulation can also represent heterogeneous tool costs. Although the present implementation uses a single retrieval interface, production agents may combine local retrieval, remote search, database access, code execution, function calling, and additional model invocations. These operations have different latency, price, failure modes, and retry behavior. A utility-guided controller can encode such differences through action-specific cost terms or tool-specific redundancy penalties. For instance, a cheap local retrieval action can be allowed more often, while an expensive remote API call can require higher expected gain or higher uncertainty before being selected. This keeps the controller portable while making cost assumptions explicit.",
+      "n_words": 440
+    },
+    {
+      "heading": "E. Implementation Details",
+      "section_type": "experiments",
+      "text": "The controller is implemented as a wrapper around a standard tool-augmented LLM loop. At each step, it serializes the user query, recent actions, retrieved observations, and step metadata into a compact controller prompt. The LLM estimates the heuristic signals, which are clipped to [0, 1] before scoring so that no single unbounded self-report dominates the decision. Candidate actions are scored under the same utility template: evidence-seeking actions such as retrieve or tool_call receive gain from expected new information, while respond and stop receive gain from estimated state sufficiency. After selection, the execution module performs the action and appends the observation to the state. This keeps the controller separate from the model and retriever, making it possible to replace either component or add tools without changing the surrounding evaluation harness.",
+      "n_words": 129
+    },
+    {
+      "heading": "F. Execution Loop and Termination",
+      "section_type": "other",
+      "text": "Starting from the user query, the system constructs an initial state, scores all candidate actions, selects the highest-utility action, executes it, and updates the state with the resulting observation. Termination occurs when stop is selected, a step budget is exhausted, or a fallback condition is triggered. Because stopping is governed by the same utility logic as retrieval, tool use, and verification, the final trajectory is bounded, inspectable, and suitable for cost-sensitive deployment. Each selected action can be logged with its component scores, making post-hoc analysis more direct. Operators can inspect whether an expensive trajectory came from high uncertainty, repeated retrieval with weak redundancy penalties, or an insufficient cost weight, then update the corresponding utility component instead of rewriting the entire prompt or agent loop.",
+      "n_words": 124
+    },
+    {
+      "heading": " EVALUATION",
+      "section_type": "experiments",
+      "text": "This section evaluates the proposed framework from four perspectives: overall quality-cost trade-off, reasoning depth, workflow fairness, and utility-component behavior.",
+      "n_words": 19
+    },
+    {
+      "heading": "A. Experimental Setup",
+      "section_type": "experiments",
+      "text": "We evaluate all methods on a fixed sample of 200 Hot-potQA development examples, using the same base model, local BM25 retriever, and sampled question set throughout. Experiments run on Ubuntu 22.04.5 with dual Intel Xeon Gold 6330 CPUs, 1 TB memory, and 8 NVIDIA A800-SXM4-40 GB GPUs. The language model is served through a vLLMbased OpenAI-compatible endpoint, and retrieval uses a local BM25 index over the HotpotQA corpus. We report F1, token consumption, wall-clock time, and F 1/tokens.\n\nThe compared methods include direct answering, fixed workflow baselines, a threshold controller, ReAct, and our utility-guided policy. For the policy, expected_gain and uncertainty are clipped LLM self-estimates rather than calibrated probabilities. The default cost term is step_cost; token-and latency-based variants are controlled comparisons. The implementation and scripts are open source in our GitHub repository.",
+      "n_words": 132
+    },
+    {
+      "heading": "B. Main Results",
+      "section_type": "results",
+      "text": "Figures 2(a) and 2(b) summarize the global quality-cost trade-off from token and latency perspectives, while Table ?? reports exact numbers.\n\nReAct achieves the strongest F1 (0.2662), confirming the value of flexible multi-step reasoning. Our policy(step_cost) reaches F 1 = 0.2360 and exposes continuation, stopping, and redundant retrieval through explicit utility terms. The result therefore supports the policy as an interpretable quality-cost controller, not as a universal accuracy replacement for free-form reasoning. usage and latency rise. This supports treating orchestration as a decision over whether another step is worth its marginal cost.",
+      "n_words": 91
+    },
+    {
+      "heading": "C. Reasoning Depth Analysis",
+      "section_type": "results",
+      "text": "The cost-definition comparison clarifies the role of step_cost. Token-and latency-aware variants reach higher F1 (0.2562 and 0.2447), while all variants remain in a similar cost regime. Thus, the step proxy is a deployment-friendly default that can be replaced by precise instrumentation without changing the decision framework.",
+      "n_words": 46
+    },
+    {
+      "heading": "D. Workflow Fairness Analysis",
+      "section_type": "results",
+      "text": "To address the concern that the workflow baseline is too weak, we add workflow-search-twice and workflow-search-verify. The former slightly improves F1 (0.1698 vs. 0.1625) but nearly doubles wall time, while the latter performs worse and is more expensive. Fixed extra retrieval or verification can help some difficult cases, but it also wastes cost on easy cases, motivating state-dependent orchestration.\n\nThis comparison is included to make the evaluation fairer to fixed pipelines. A minimal workflow alone could make the proposed controller look stronger simply because the baseline is under-specified. The two augmented workflows test whether adding more fixed actions is enough to close the gap. The results suggest that the issue is not merely the number of steps, but the inability to choose steps conditionally. Some questions benefit from extra retrieval or verification, while others are already answerable after the first evidence item. A utility controller can express this distinction at inference time.",
+      "n_words": 152
+    },
+    {
+      "heading": "E. Redundancy Analysis",
+      "section_type": "results",
+      "text": "Semantic redundancy control preserves answer quality (0.2370 vs. 0.2360 F1) while reducing tokens from 1294.2 to 1156.6 and tool calls from 1.56 to 1.40. Wall time increases from 1.138 to 1.346 because semantic comparison adds local overhead, so the current benefit is token and trajectory compactness rather than runtime acceleration. The unchanged F1 suggests that many removed operations are low-value repetitions.\n\nThis result is also useful for interpreting the deployment value of redundancy control. In our local retrieval setting, a repeated retrieval call is not very expensive, so reducing tool calls does not automatically reduce wall-clock time. In hosted LLM services, however, repeated actions often consume paid tokens, expand the prompt context, and may call remote direct@1 direct@3 direct@5 policy@1 policy@3 policy@5 react@1 react@3 react@5 threshold@1 threshold@3 threshold@5 workflow@1 workflow@3 workflow@5 a Token-based quality-cost trade-off direct@1 direct@3 direct@5 policy@1 policy@3 policy@5 react@1 react@3 react@5 threshold@1 threshold@3 threshold@5 workflow@1 workflow@3 workflow@5 b Latency-based quality-cost trade-off APIs whose latency is outside the model server. Under such conditions, trajectory compactness can have operational value even when the local benchmark shows only token savings. The semantic variant should therefore be read as a conservative demonstration: it removes repeated behavior without a measurable quality drop, while leaving lower-overhead redundancy detection as an engineering optimization.",
+      "n_words": 209
+    },
+    {
+      "heading": "F. Heuristic Signals and Ablations",
+      "section_type": "results",
+      "text": "Expected gain is behaviorally meaningful: continue-rate is near zero in the lowest gain bucket and rises sharply in mid/high-gain ranges. Its Pearson correlation with final F1 is 0.1479, while uncertainty is noisier (0.0131), so these values should be treated as control heuristics rather than calibrated probabilities. Ablations reinforce this interpretation. Removing gain, uncertainty, redundancy, or stop-related control usually increases cost more than quality; removing gain or stop raises average tokens above 2700 while reaching only F 1 = 0.2621. Overall, the evidence supports controllable orchestration in a controlled retrieval setting, with broader multi-tool validation left for future work. Figure 3 provides the same pattern visually. The full policy is not the highest-F1 configuration in absolute terms, but it avoids the large token increase caused by removing gain or stop control. This matters for service deployment because operators usually need a stable operating point rather than an unconstrained search for marginal accuracy. The ablation therefore supports the central claim: explicit orchestration makes quality-cost behavior tunable and diagnosable, even when the underlying heuristic signals remain imperfect.\n\nThe evaluation therefore addresses two practical concerns: stronger fixed workflows show the cost of unconditional extra actions, and the semantic redundancy experiment separates token savings from latency reduction. Together, these results position the method as a controllable service mechanism rather than a claim of absolute dominance.",
+      "n_words": 220
+    },
+    {
+      "heading": " CONCLUSION",
+      "section_type": "conclusion",
+      "text": "This paper presents a lightweight utility-guided orchestration framework for tool-augmented LLM agents. By scoring a compact action space with gain, cost, uncertainty, and redundancy signals, the framework turns continuation and stopping into explicit decisions. The resulting controller does not universally outperform strong free-form baselines, but it provides a competitive and inspectable mechanism for managing quality-cost trade-offs.\n\nThe utility components currently rely on self-estimated heuristic signals rather than calibrated probabilistic estimators, and the evaluation focuses on HotpotQA-style multi-hop question answering with a single retrieval tool. Future work will study learned utility estimation, lower-overhead redundancy detection, memory-aware orchestration, heterogeneous tool costs, and broader multi-tool tasks such as code execution, web automation, and API composition.",
+      "n_words": 112
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "TABLE I :",
+      "captions": "MAIN RESULTS",
+      "content": "Method | F1 Tokens Wall Time Efficiency\ndirect | 0.0719 | 93.0 | 0.122 | 0.000772\nworkflow (minimal) | 0.1625 | 451.2 | 0.461 | 0.00036\nworkflow-search-twice | 0.1698 | 514.1 | 0.902 | 0.00033\nworkflow-search-verify | 0.063 1041.2 | 1.617 | 6.1e-05\nthreshold | 0.1255 | 350.3 | 0.394 | 0.000358\nreact | 0.2662 | 546.6 | 0.56 | 0.000487\npolicy (step-cost) | 0.236 1294.2 | 1.138 | 0.000182"
+    },
+    {
+      "kind": "table",
+      "label": "TABLE II :",
+      "captions": "COST DEFINITION COMPARISON",
+      "content": "Method | F1 Tokens Wall Time Efficiency\nworkflow (minimal) | 0.1625 | 451.2 | 0.461 | 0.00036\nreact | 0.2662 | 546.6 | 0.56 | 0.000487\nthreshold | 0.1255 | 350.3 | 0.394 | 0.000358\npolicy (step-cost) | 0.236 1294.2 | 1.138 | 0.000182\npolicy (token-cost) | 0.2562 1308.6 | 1.215 | 0.000196\npolicy (latency-cost) 0.2447 1272.9 | 1.152 | 0.000192"
+    },
+    {
+      "kind": "table",
+      "label": "TABLE III",
+      "captions": "",
+      "content": " | : WORKFLOW FAIRNESS | \nMethod | F1 Tokens Wall Time Efficiency Tool Calls\nworkflow (minimal) | 0.1625 | 451.2 | 0.461 | 0.00036 | 1.0\nworkflow-search-twice | 0.1698 | 514.1 | 0.902 | 0.00033 | 2.0\nworkflow-search-verify | 0.063 1041.2 | 1.617 | 6.1e-05 | 2.0"
+    },
+    {
+      "kind": "table",
+      "label": "TABLE IV",
+      "captions": "",
+      "content": ": EXACT vs. SEMANTIC REDUNDANCY CON-\nTROL |  |  |  | \nMethod | F1 Tokens Wall Time Tool Calls Redundant Tool Calls\npolicy (step cost) | 0.2360 1294.2 | 1.138 | 1.56 | 0.44\npolicy (semantic redundancy) 0.2370 1156.6 | 1.346 | 1.40 | 0.43"
+    },
+    {
+      "kind": "table",
+      "label": "TABLE V",
+      "captions": "",
+      "content": " | : POLICY ABLATION | \nMethod | F1 Tokens Wall Time Efficiency\nfull policy | 0.2383 1273.3 | 1.113 | 0.000187\n-expected-gain 0.2621 2716.6 | 1.897 | 9.6e-05\n-uncertainty | 0.2487 1669.7 | 1.378 | 0.000149\n-redundancy | 0.2435 1792.7 | 1.403 | 0.000136\n-stop | 0.2621 2716.6 | 1.892 | 9.6e-05"
+    }
+  ],
+  "n_words": 2938,
+  "quality_flags": []
+}

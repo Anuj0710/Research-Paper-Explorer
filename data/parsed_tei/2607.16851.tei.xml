@@ -1,0 +1,1482 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">AgentBrew: Lifelong Knowledge Brewing from Strong Teachers to Weak LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-07-18">18 Jul 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yangqin</forename><surname>Jiang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Hong Kong</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Chao</forename><surname>Huang</surname></persName>
+							<email>chaohuang75@gmail.com</email>
+							<affiliation key="aff0">
+								<orgName type="institution">The University of Hong Kong</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">AgentBrew: Lifelong Knowledge Brewing from Strong Teachers to Weak LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-07-18">18 Jul 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">C66EFA27A3E2226492033548251ABC8B</idno>
+					<idno type="arXiv">arXiv:2607.16851v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Deploying LLM agents typically requires a compact test-time student, even if a stronger teacher is available during training. We study knowledge brewing: distilling a teacher's interactive experience into a persistent external memory for the student. Crucially, this requires no weight updates, expert demonstrations, ground-truth labels, or test-time teacher access. This setting poses two challenges: environments provide only sparse, binary feedback, and teacher-authored notes must be inherently tailored to be concretely executable by a substantially weaker student. To address these hurdles, we propose AgentBrew, comprising two coupled components. First, a failure-triggered teacher-Ralph Loop mitigates sparse feedback by transforming student failures into environment-validated notes. Second, student-aware synthesis calibrates teacher knowledge to the weak executor's operational granularity, yielding model-specific, actionable guidance. Extensive evaluations and comprehensive ablations across coding, math, and tool-use tasks demonstrate that this asymmetric, training-free brewing paradigm produces highly capable yet deployable LLM agents. * Chao Huang is the Corresponding Author. 1 We use brewing to denote the offline process of distilling teacher knowledge into a persistent external memory, validated on the target student. By notes we mean structured, retrievable corrective rules-conceptually similar to hints or procedural knowledge in prior work, but specifically validated to be executable by the student.</p><p>Preprint. Under review.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large language model (LLM) agents now solve interactive tasks in coding, math, and tool-use environments <ref type="bibr" target="#b0">[1]</ref><ref type="bibr" target="#b1">[2]</ref><ref type="bibr" target="#b2">[3]</ref><ref type="bibr" target="#b3">[4]</ref>. In production, however, the agent that must serve requests is often a small or API-only model: fine-tuning may be unavailable, inference cost must stay low, and model weights are treated as fixed after deployment. A natural alternative is teacher-student agent brewing 1 : a stronger teacher agent T (large LLM) distills interaction experience during a training period, while a compact student agent S (small LLM) runs alone at test time with only retrieved external knowledge. The central question is how to convert brewing-time interaction into durable notes that raise S's effective capability without updating its parameters.</p><p>Two challenges make this setting substantially harder than either self-evolution or standard distillation alone. Challenge I: sparse environment feedback. Real benchmarks and deployed APIs typically expose only a terminal binary reward R ∈ {0, 1}-pass or fail-together with the agent's own rollout, but no ground-truth solution, expert trajectory, or step-level label. When S fails, the only extra signal is the failure trajectory τ S (x); when it succeeds, no teacher intervention is needed. Challenge II: teacher-student capability gap (i.e., knowledge is model-specific). In the deployment scenario above, T is intentionally much stronger than S, yet the notes stored in memory must be written by T and executed by S. Knowledge that reads well to a strong model often fails in practice for Figure <ref type="figure" target="#fig_0">1</ref>: Accuracy on MATH and GSM8K under different brew-time teacher-student LLM pairings (test student: Qwen3-14B). Strong (S)/weak (W) denote DeepSeek-Chat-v3.1 and Qwen3-14B.</p><p>Existing work addresses only parts of the problem. Self-evolving agents <ref type="bibr" target="#b4">[5,</ref><ref type="bibr" target="#b5">6]</ref> can improve from environment feedback without weight updates, but they usually (i) evolve the same model that both acts and learns, (ii) continue adapting at test time, and (iii) are not built for asymmetric teacher-student "brewing", where notes must be validated for a fixed weak executor. Agent distillation <ref type="bibr" target="#b6">[7,</ref><ref type="bibr" target="#b7">8]</ref> can compress teacher behavior into trajectories or reusable artifacts, but it typically depends on labeled pairs or successful teacher rollouts, and it transfers knowledge at a teacher-level abstraction rather than as student-executable notes certified to work on the weak executor. Accordingly, we organize our investigation around three questions: Q1 (Learning signal). When Env exposes only binary R and no expert data, how can a weak agent extract useful knowledge from failures, and how can we verify that knowledge before storing it? Q2 (Capability gap). How can a strong teacher author knowledge that a substantially weaker student can execute-not merely parse-given that both generation and validation are biased by the gap? Q3 (Lifelong accumulation). How can validated, student-calibrated knowledge accumulate across tasks in external memory-without updating student weights S-while keeping test-time inference lightweight and stable?</p><p>We propose a brew-serve framework (Figure <ref type="figure" target="#fig_1">2</ref>) that maps Q1-Q3 to three coupled components: a failure-triggered teacher-Ralph Loop, student-aware note synthesis, and a lifelong memory M. We call it AgentBrew: brewing is the Ralph Loop <ref type="bibr" target="#b8">[9]</ref> that iteratively distills certified notes from failures, and student-aware synthesis tailors each note to its executor as a brewer adapts method to the ingredients. Brewing on D train proceeds as follows. Student S rolls out each task in Env; when R=0, teacher T reads (x, τ S (x))-the only supervision beyond binary pass/fail-and drafts a structured candidate note. The note is authored with student-aware prompting and an action-oriented schema so that T targets S's reading level and operational granularity rather than its own. The Ralph Loop then stages the note and re-rolls S on the same task: recovery (R=1) certifies the note using environment feedback alone, and rejects guidance that remains plausible to T yet unusable for the weak executor. A curator deduplicates certified notes and appends them to M, which grows across the training stream without updating S. Serving on D test reads from frozen M ⋆ : T is inactive, S retrieves skill-scoped top-k notes, and completes each task in a single rollout with no iterative reflection or online memory writes. AgentBrew is guided by a simple principle: knowledge is not universal-it must fit the agent that executes it. Our main contributions are:</p><p>• Brew-serve under sparse feedback. We develop a lifelong knowledge-building method for a fixed weak agent using only binary feedback from the environment, without expert trajectories, test-time labels, or any weight updates.</p><p>• Student-calibrated transfer. We introduce student-aware note synthesis that proactively authors teacher knowledge at S's operational granularity, paired with Ralph recovery as a reactive filter that certifies notes on the weak executor rather than on teacher plausibility alone.</p><p>• Comprehensive Evaluation. We benchmark AgentBrew on three typical agent tasks (i.e., coding, math, and tool-use) under a shared brew-serve protocol, with ablations study assessing the effectiveness of our methods.</p><p>2 The AgentBrew Framework Objective. Brew a persistent memory M ⋆ on D train that maximizes held-out success:</p><formula xml:id="formula_0">M ⋆ ∈ arg max M E x∼Dtest R x, τ S (x | M) ,<label>(1)</label></formula><p>where τ S (x | M) is the trajectory rolled out by student agent S with the top-k notes from M prepended to its prompt. All lifelong gain is stored in M ⋆ , not in the student agent's weights. ). Here we summarize how they interact:</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Framework Overview</head><p>• Brewing phase (on D train ). For each task x, the student agent S attempts x in Env. If R=1, the teacher is not invoked and the pipeline advances to the next task. If R=0, the teacher agent T reads (x, τ S (x)) and, via student-aware prompting, proposes a structured candidate note n. The Ralph Loop <ref type="bibr" target="#b8">[9]</ref> injects n into S and re-rolls out on the same task x: a successful re-rollout (R=1) validates n, whereas persistent failure triggers revision or discard. Notes that pass the Ralph Loop are merged by a curator agent-performing deduplication and quality gating only, as correctness is already certified by the environment-and appended to M. This cycle repeats over the training stream, progressively brewing M ⋆ .</p><p>• Serving phase (on D test ). At test time, memory is read-only and the teacher agent T is inactive.</p><p>Given a new task x, S retrieves the top-k notes from frozen memory M ⋆ (via skill-scoped routing and reranking), prepends them to its prompt, and completes x in a single environment rollout-without an iterative reflection loop or additional validation calls. If retrieval returns no notes, S falls back to its vanilla policy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">From Binary Feedback to Validated Knowledge</head><p>The brewing phase must extract durable knowledge from failures when Env exposes only a terminal reward R ∈ {0, 1}: no step-level labels, no expert trajectories, and no oracle explanations. We address Q1 by treating each failure as a supervision event. Here we detail the failure-triggered activation pipeline, the note representation written by T , and curation before durable writes. During brewing, each task x ∈ D train begins with a rollout by student agent S, producing τ S (x) and reward R ∈ {0, 1}. Binary R is the sole external supervision signal from Env: no step-level labels, no expert trajectories, and no oracle explanations are provided. If R = 1, the pipeline advances to the next task without invoking T . If R = 0, we trigger T on the tuple (x, τ S (x), FAIL). Unlike Supervised Fine-Tuning (SFT), T never conditions on a reference solution; it diagnoses the failure mode from the student trajectory and task text alone, then proposes a corrective note. This design makes learning possible in settings where only pass/fail feedback is available. Algo. 1 summarizes the control flow.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.2">Structured Note Generation</head><p>Given a failure, T outputs a candidate note n as structured JSON rather than a worked example. Each note is an abstract, reusable rule intended for retrieval on future tasks with similar structure:</p><p>• note_key: unique identifier (reused when updating an existing rule);</p><p>• trigger_pattern: task features that should activate the note;</p><p>• corrective_rule: an executable fix directive for S;</p><p>• minimal_steps: a short ordered checklist lowering interpretation cost for a weak LLM;</p><p>• tags: domain or skill labels for routing;</p><p>• quality_score: initial confidence, later updated from validation statistics.</p><p>Notes deliberately avoid storing full solutions to x; they compress failures into transferable guardrails. Granularity and wording are calibrated to the student agent's capability.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3.3">Note Curator</head><p>When the Ralph Loop returns validated = TRUE, Algo. 1 passes the environment-certified note to curator agent C before any durable write. C does not re-judge factual correctness-recovery in Env already certifies utility to S on the brewing task x. Its role is strictly operational on the memory store:</p><p>(i) Deduplication: compare n against existing entries in M via lexical and semantic similarity; merge near-duplicates by updating an existing note_key instead of appending redundant rules.</p><p>(ii) Quality tracking: adjust quality_score from historical validation outcomes (acceptances, recoveries, and downstream usage).</p><p>(iii) Write gating: persist n to M only if it passes redundancy and quality thresholds; otherwise discard despite a successful Ralph Loop round.</p><p>Accepted notes are appended under an append-only policy, extending M without overwriting prior knowledge or modifying the student LLM.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Bridging the Capability Gap</head><p>Teacher agent T is substantially stronger than student agent S, leading to the capability gap <ref type="bibr" target="#b9">[10]</ref> between to agents. We address Q2 with a two-stage design. First, reactive validation : the Ralph Loop <ref type="bibr" target="#b8">[9]</ref> re-rolls S on the failed task with a candidate note staged in memory and accepts n only when Env returns R=1, using terminal reward-not teacher or student self-judgment-as the certification signal. Second, proactive synthesis : student-aware prompting and note schema calibrate what T writes before validation, so proposals match S's reading level and operational granularity. Ralph provides the environment-grounded filter; proactive synthesis improves validation yield and transferability.</p><p>• Why same-level generation fails. Prior work on knowledge transfer, such as ACE <ref type="bibr" target="#b10">[11]</ref>, assumes that the knowledge producer and consumer have comparable reasoning ability. When T is substantially stronger than S, this assumption breaks down <ref type="bibr" target="#b11">[12,</ref><ref type="bibr" target="#b12">13]</ref>: notes often omit intermediate reasoning, use mismatched vocabulary, or specify steps at a granularity too coarse for S to follow. Such notes may appear plausible to T yet leave S unable to recover.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4.1">Reactive Validation: Ralph Loop</head><p>Teacher-generated notes can be plausible yet useless or harmful to S. Self-judgment <ref type="bibr" target="#b4">[5]</ref> by T or S is insufficient because capability gaps bias both generation and critique. The Ralph Loop is the environment-validation stage of brewing: it asks whether a candidate note actually helps S recover on the failed task, using only terminal rewards from Env.</p><p>Provisional staging. After T proposes n, ADDPROVISIONAL(M, n) places n in a provisional slot-visible to RETRIEVE(M, x) during re-attempts on x, but not yet part of durable long-term memory. Provisional entries simulate "what if this note were already in M?" for the validation rollouts; ROLLBACKPROVISIONAL removes the slot if validation fails, and COMMIT promotes a curated note only after C approves persistence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Environment validation.</head><p>With n staged provisionally, we re-run S on the same task x, retrieving N that includes n along with any notes already committed for x. Let τ (r) S (x | n) denote the r-th re-attempt trajectory and R (r) its terminal reward. The Ralph Loop accepts n when recovery occurs:</p><formula xml:id="formula_1">R (r) = 1 for some re-attempt r ∈ {1, . . . , Rmax},<label>(2)</label></formula><p>where R max caps extra environment calls. If no attempt succeeds, ROLLBACKPROVISIONAL(M) discards the staging slot; optionally T revises n from the latest failed trajectory τ (r) before the next r. On success, the loop returns validated = TRUE and leaves n provisionally staged for C; Algo. 1 then invokes curation.</p><p>Algo. 2 details the validation procedure. It uses only R (r) from Env-never ground-truth labels on D test and never oracle answers during serving. At test time, no Ralph Loop calls are made; validated knowledge is consumed from the frozen M ⋆ in a single rollout.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4.2">Proactive Synthesis:Student-Aware Teacher Prompting</head><p>Ralph validation alone is a costly filter: when T drafts ACE-style bullets that omit steps S cannot infer, most proposals fail within R max . We therefore instruct T to treat S as the sole intended reader: notes must read like a checklist for a junior agent, not an expert post-mortem. Given (x, τ S (x)) from a failed rollout, T follows a three-step synthesis protocol before emitting JSON:  (i) Failure-mode identification: Parse τ S (x) and the environment report to label the dominant error type (e.g., wrong API call order, sign error, misread constraint).</p><formula xml:id="formula_2">N ← RETRIEVE(M, x) τ (r) ← ROLLOUT(S, x, N ) R (r) ← EVAL(Env, x, τ (r) ) if R (r) = 1 then validated ← TRUE break //</formula><p>(ii) Capability-gap localization: Attribute the error to a specific missing skill or knowledge fragment at S's level-not a vague "logical mistake"-distinguishing representation errors from execution errors where possible.</p><p>(iii) Executable rule extraction: Emit a corrective procedure in imperative form ("first do A, then B, watch for C"), banning appeals to tacit understanding ("deeply analyze X") that S cannot operationalize.</p><p>The prompt also states S's model class and known weaknesses (e.g., limited multi-step arithmetic, brittle tool syntax), biasing T toward shorter sentences, explicit ordering, and surface-level triggers grounded in τ S (x).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5">Lifelong Memory</head><p>AgentBrew addresses Q3 by treating external memory M as the sole durable state: validated notes accumulate across D train , and student agent S reads from a frozen M ⋆ at test time. No gradient updates or adapter weights are applied; effective capability grows because M grows. We structure M to limit cross-domain interference, append new knowledge without erasing old entries, and retrieve notes with a serving pipeline tuned for single-pass inference.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5.1">Skill-Scoped Memory Architecture</head><p>A monolithic note pool induces cross-scope interference: notes from one skill are retrieved on unrelated tasks. We therefore partition M into disjoint skill scopes {M s } s∈S , each indexing notes for a single capability or environment slice. Every note stores tags and an optional scope identifier; during curation, the teacher writes it to the corresponding M s . At test time, retrieval first selects a scope subset M scope ⊆ M and ranks notes only within that subset-never over the full pool.</p><p>Scope routing is orthogonal to note ranking. When x does not clearly specify a scope, we choose M scope using three signals, in order: (i) explicit scope or tool names in x; (ii) lexical or semantic similarity between x and a scope-description catalog maintained alongside M; (iii) actions observed in the student rollout τ S (x) when (i)-(ii) are inconclusive.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5.2">Continual Accumulation and Stability</head><p>During brewing, accepted notes are merged with append-only semantics: curator deduplication may update an existing note_key, but validated rules are never deleted to make room for new ones, avoiding catastrophic forgetting of earlier skills. Each note record tracks usage statistics and quality_score so frequently harmful or redundant entries can be down-weighted at retrieval time without erasing history.</p><p>Train and test streams are strictly separated. While processing D train , M is writable. On D test , M ⋆ is frozen read-only: no teacher calls, no provisional writes, and no statistic updates that leak test-task content back into the store. This guarantees that performance on held-out tasks measures generalization from brewed knowledge, not online adaptation to test labels or test-task feedback.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.5.3">Test-Time Knowledge-Augmented Inference</head><p>Serving reuses the objective in Eq. 1 with a fixed retrieval-and-rollout procedure (Appendix A.1). Given task x, we encode a query q(x) from the instruction, select the skill scope, and retrieve candidate notes from M ⋆ scope using dense or hybrid lexical-semantic scoring. Candidates are reranked by score(n, x) = sim(q(x), n)</p><formula xml:id="formula_3">• ρ(n) • ϕ(n),<label>(3)</label></formula><p>where sim(•) is retrieval similarity, ρ(n) is the stored quality_score (and success-rate prior), and ϕ(n) is a frequency penalty that down-weights notes over-selected in past tasks to promote diversity. Rather than hard-dropping low-scoring notes, soft suppression applies ϕ(n) and a relative-score floor: notes below a fraction of the top score are dampened but may still appear when the pool is sparse, reducing brittle all-or-nothing retrieval. The top-k notes are formatted and prepended to S's prompt; S then performs one ROLLOUT in Env. If retrieval returns an empty set, S falls back to its vanilla policy with no memory augmentation.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Evaluation</head><p>3.1 Experimental Setup</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.1">Tasks and Benchmarks</head><p>We evaluate AgentBrew across three representative agent scenarios-coding, math, and tool-useeach probing a distinct capability profile: synthesizing executable programs from natural-language specifications, performing multi-step symbolic reasoning, and completing long-horizon tasks through interactive API calls. More details are in App. A.2.</p><p>• For the coding tasks, we evaluate AgentBrew on MBPP <ref type="bibr" target="#b13">[14]</ref>, a benchmark of roughly 1,000 entry-level Python programming tasks, and MBPP+ <ref type="bibr" target="#b14">[15]</ref>, an extension that applies stricter unit testing to a curated subset to reduce spurious passes.</p><p>• For the math tasks, we evaluate AgentBrew on MATH <ref type="bibr" target="#b15">[16]</ref>, comprising challenging competitionlevel problems, and GSM8K <ref type="bibr" target="#b16">[17]</ref>, which tests multi-step grade-school arithmetic reasoning. We score final-answer accuracy using the Qwen2.5-Math <ref type="bibr" target="#b17">[18]</ref> evaluation framework.</p><p>• For the tool-use tasks, we evaluate AgentBrew on AppWorld <ref type="bibr" target="#b1">[2]</ref>, an interactive benchmark where agents write and execute Python code to complete realistic, multi-app daily tasks in a simulated environment with multiple APIs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.2">Models, Baselines and Metrics</head><p>• LLM Models. In our experiments, we use deepseek-chat-v3.1 <ref type="bibr" target="#b18">[19]</ref> by default for the teacher agent and qwen3-14b <ref type="bibr" target="#b19">[20]</ref> by default for the student agent.</p><p>• Baseline Methods. The main baseline methods we compare against include: Simple RAG, ExpeL <ref type="bibr" target="#b5">[6]</ref>, Reflexion <ref type="bibr" target="#b4">[5]</ref>, ACE <ref type="bibr" target="#b10">[11]</ref>, ReAct <ref type="bibr" target="#b20">[21]</ref>, and LoRA <ref type="bibr" target="#b21">[22]</ref>. Among these, Simple RAG refers to saving the successful trajectories of the teacher agent during training, and directly retrieving these trajectories during testing to help the student agent complete the task.</p><p>• Evaluation Metrics. We use accuracy for math tasks, the strict EvalPlus <ref type="bibr" target="#b14">[15]</ref> benchmark for coding tasks, and Task Goal Completion (TGC) for tool-use tasks (i.e., AppWorld) as our evaluation metrics. ). Reflexion's advantage is concentrated on math benchmarks, where iterative self-correction from explicit pass/fail signals is most beneficial for multi-step arithmetic reasoning. These trends support that routing binary failure feedback through a strong teacher and validating notes before storage yields more useful knowledge than unaided student self-reflection, particularly when weak-model reflection is insufficient for complex code generation and API interaction.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Main Performance Evaluation</head><p>(ii) Student-calibrated transfer vs. teacher-agnostic memory. Simple RAG, ExpeL, and ACE also use a strong teacher to build external memory (Group III), but none explicitly calibrates that memory to the weak student or validates it on the executor that must use it at test time. AgentBrew consistently outperforms ACE across math, coding, and tool-use, and achieves the best or tied-best results against Simple RAG and ExpeL on most benchmarks-with particularly clear gains on harder coding and tool-use splits such as MBPP+ and AppWorld test_challenge. These results support that bridging the teacher-student capability gap through student-aware authoring and environment-side validation is key to turning teacher knowledge into guidance that a fixed weak agent can actually follow. This efficiency gap arises from differing validation mechanisms. Without Ralph, notes are generated post-hoc without proof of utility, forcing the curator to act as the sole quality gate and reject 61-73% of them. In Full Ralph, the loop acts as an implicit pre-filter: provisional notes reach the Curator only after demonstrably helping the student recover. This student-validated signal cuts the rejection rate to 24-39% and guarantees that every committed note is empirically effective. The result is a richer, reliably grounded knowledge base that drives Full Ralph's superior test-time performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Ablation Study</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.5">Qualitative Example: Why Brewed Notes Generalize</head><p>A natural concern is whether notes validated by recovery on a specific brew task encode task-specific patches rather than transferable knowledge. The structured note schema is explicitly designed to prevent this: fields such as trigger_pattern, corrective_rule, and not_applicable_when constrain the teacher to describe when and how to apply a rule, not to memorize answers. Below is a representative note brewed from a MATH training problem involving factorial simplification.</p><p>This note encodes a general algebraic strategy without storing any final numeric answer-the brew task's correct result ( √ 576 = 24) is absent. Instead, it captures the abstract corrective rule (simplify before computing), its precondition (shared factors exist), and the failure signature that should trigger retrieval (premature full computation). The not_applicable_when field further constrains the note's scope, preventing retrieval on tasks where the rule does not apply. Quantitatively, this single note was retrieved and used on 1,200 distinct test tasks with a 55.6% success rate when applied, confirming that the structured schema successfully distills reusable heuristics rather than task-specific patches.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Example Brewed Note (MATH, factorial simplification)</head><p>[Trigger] When should this note be retrieved?</p><p>The student computes the full factorial before simplifying the expression.</p><p>[Corrective rule] What should the student do instead?</p><p>Simplify the expression algebraically before performing any calculations to reduce computational complexity and avoid errors.</p><p>[Minimal pattern] How to execute, step by step.</p><p>Cancel common factors in the numerator and denominator before calculating the full value of the factorial.</p><p>[Anti-pattern] What behavior to avoid.</p><p>Directly computing the full factorial without simplifying the expression first, which increases the risk of computational errors and unnecessary complexity.</p><p>[Not applicable when] When to suppress this note.</p><p>When the denominator does not share any common factors with the numerator or when simplification is not possible.</p><p>[Evidence] The failure trajectory that triggered this note.</p><p>The student computed 8! = 40320, divided it by 70 to get 576, and then took the square root to arrive at 24, but incorrectly claimed the result was 64 and 8, suggesting a misunderstanding of the computation steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.6">Effectiveness of Knowledge Brewing on Different LLMs</head><p>To determine whether AgentBrew relies on specific model pairings, we evaluate various combinations of teachers (active only on D train ) and students (active at brewing and serving) on AppWorld test_normal, reporting TGC. Holding the rest of the pipeline fixed, we compare three teachers (GLM-5.1 <ref type="bibr" target="#b22">[23]</ref>, DeepSeek-Chat-v3.1, and None) against two student backbones (DeepSeek-Chat-v3.1 and Qwen3-14B). Figure <ref type="figure" target="#fig_3">3</ref> shows the results, yielding the following insights:</p><p>(i) A strong teacher aids diverse LLM pairings. Across both student backbones, invoking a strong teacher during brewing strictly outperforms the None baseline (where students learn only from their own failures). TGC increases from 41.1% to 46.4% for DeepSeek-Chat-v3.1, and from 22.0% to 31.55% for Qwen3-14B. These gains confirm that AgentBrew robustly generalizes across different vendor and capability combinations.  (ii) Teacher strength does not strictly dictate transfer success. While strong teachers consistently beat the baseline, optimal teacher-student pairings vary: DeepSeek-Chat-v3.1 pairs best with Qwen3-14B (31.55% vs. 29.8%), while GLM-5.1 pairs best with DeepSeek-Chat-v3.1 (46.4% vs. 44.6%). The smaller gap between teachers on Qwen3-14B likely stems from the student's limited execution capacity-notes that pass brewing may still fail at serving time, making differences in teacher quality harder to realize. This observation strongly motivates Agent-Brew's student-side validation: rather than assuming teacher-optimal text is universally beneficial, notes must be explicitly validated against the target student's capabilities. Overall, the upward trend at 1500-2000 problems suggests that AgentBrew benefits from additional brewing data on MATH.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.8">Real-World Deployment: A Case Study on Terminal-Bench</head><p>To complement the controlled academic benchmarks above, we deploy AgentBrew on Terminal-Bench 2.0 <ref type="bibr" target="#b23">[24]</ref>, a benchmark comprising 89 real-world terminal tasks spanning 16 categories including software engineering, system administration, data science, security, and scientific computing. We use a stratified 25/64 train/test split and integrate AgentBrew into the Claude Code <ref type="bibr" target="#b24">[25]</ref> agent harness, with deepseek-v4-pro <ref type="bibr" target="#b25">[26]</ref> as the teacher and deepseek-v4-flash as the student.</p><p>The full pipeline mirrors our main experiments: student baseline, teacher baseline, per-task brewing, category-level curation, Ralph validation, and final serve.  Main Results. Figure <ref type="figure" target="#fig_5">5</ref> summarizes the key findings. The standalone student achieves only 45.3% pass rate, while the teacher reaches 50.0%. With AgentBrew-brewed skills, the student climbs to 51.6%, surpassing the stronger teacher while costing $0.04 per task-a 33% reduction from the teacher's $0.06. The one-time brewing cost across all training tasks totals approximately $116, which is amortized over unlimited downstream deployments.</p><p>Key Findings. This case study demonstrates three practical properties of AgentBrew beyond the controlled benchmarks in prior subsections. First, the method generalizes to open-ended, real-world agent tasks spanning 16 qualitatively distinct categories-not just math, coding, and tool-use. Second, the cost advantage is realized under actual API pricing: the student+AgentBrew combination delivers teacher-surpassing quality at roughly two-thirds the cost of the teacher alone. Third, the skill injection overhead is negligible at test time: on the 23 "easy" tasks where all three configurations pass, AgentBrew costs $0.01 per task-identical to the bare student-indicating that retrieved skills do not inflate token consumption on tasks the student already handles well. These findings corroborate our earlier analyses: the Ralph Loop's student-side validation ensures stored knowledge is empirically effective, and student-aware synthesis prevents the teacher from producing guidance the weak executor cannot follow.</p><p>4 Related Work 4.1 Self-Improving Agents from Environment Feedback LLM agents interleave language reasoning with environment actions (e.g., ReAct <ref type="bibr" target="#b20">[21]</ref> and Toolformerstyle tool-use <ref type="bibr" target="#b26">[27]</ref>). Beyond one-shot prompting, a self-evolving agent literature studies how agents improve from interaction rather than offline expert labels, often leveraging sparse environment feedback as the main supervision for accumulating reusable competence <ref type="bibr" target="#b27">[28]</ref>. Representative approaches differ in what they evolve and what feedback they require: verbal self-improvement systems treat language as mutable memory by writing critiques after failures (e.g., Reflexion <ref type="bibr" target="#b4">[5]</ref> and Self-Refine <ref type="bibr" target="#b28">[29]</ref>), while experience-driven skill libraries extract reusable procedures from interaction to grow pools or code-based repositories (e.g., ExpeL <ref type="bibr" target="#b5">[6]</ref> and Voyager <ref type="bibr" target="#b29">[30]</ref>). More modular self-evolution and long-horizon memory frameworks push adaptation toward reusable protocols or persistent external stores (e.g., Alita <ref type="bibr" target="#b30">[31]</ref> and OMNE <ref type="bibr" target="#b31">[32]</ref>), and playbook-style context engineering closes executionreflection-curation loops by revising structured bullets (e.g., ACE <ref type="bibr" target="#b10">[11]</ref>). Overall, most self-evolving agents assume same-capability evolution and adapt online at test time, learning from successes or rich feedback, whereas AgentBrew instead performs offline "brewing" of environment-validated, student-aware notes under binary supervision only, and then serves them via a frozen memory at test time.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Knowledge Transfer and Lifelong Memory for LLM Agents</head><p>Knowledge distillation has been widely used to compress large language models and has recently been extended to agent settings by transferring behavior from a teacher to a student across different transfer channels <ref type="bibr" target="#b32">[33,</ref><ref type="bibr" target="#b33">34]</ref>. At the trajectory level, structured span supervision and retrieval-augmented rollouts train students to imitate interleaved reasoning-action traces <ref type="bibr" target="#b6">[7,</ref><ref type="bibr" target="#b34">35]</ref>. In contrast, structure-level distillation compresses trajectories into interaction graphs or subgoal plans to preserve high-level task structure <ref type="bibr" target="#b35">[36,</ref><ref type="bibr" target="#b36">37]</ref>. Training-free approaches further store reusable external artifacts: for example, AgentDistill extracts Model-Context-Protocols (MCPs) from successful teacher trajectories into an inference-time MCP-Box <ref type="bibr" target="#b7">[8]</ref>. RAG Distillation similarly distill teacher-to-student knowledge from failure-extracted hints, but internalize it into model weights via fine-tuning at the teacher's abstraction level, without calibrating knowledge to the student's capability or supporting incremental accumulation without re-training <ref type="bibr" target="#b37">[38]</ref>. Related memory-based and lifelong-retrieval settings maintain external knowledge without parameter updates <ref type="bibr" target="#b31">[32,</ref><ref type="bibr" target="#b38">39,</ref><ref type="bibr" target="#b39">40,</ref><ref type="bibr" target="#b1">2]</ref>.Overall, our work addresses the limitations of protocol-like artifact transfer and teacher-dependent abstractions by generating studentvalidated corrective notes from student failures using only binary rewards.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>We study a practical deployment scenario for LLM agents where a strong teacher is available during training but only a fixed, weaker student serves at test time-with no weight updates, no teacher access, and only binary pass/fail feedback. The core challenge is that teacher knowledge, however insightful, often fails when executed by a substantially weaker student. We introduced AgentBrew, a training-free brew-serve framework built on the principle that knowledge must be calibrated to its executor. Its three components directly address the key obstacles: a failure-triggered teacher with Ralph Loop validation converts sparse binary feedback into environment-certified notes (Q1); studentaware synthesis paired with reactive validation bridges the teacher-student capability gap (Q2); and an append-only skill-scoped memory accumulates knowledge across tasks without modifying the student model (Q3). Extensive experiments across coding, math, tool-use, and a real-world Terminal-Bench deployment demonstrate that AgentBrew consistently lifts a fixed weak student, surpassing teacher-agnostic memory baselines. Table <ref type="table">4</ref> summarizes the original public benchmark sizes and the processed splits used in our experiments.</p><p>Math. MATH and GSM8K originally contain 7,500 and 7,473 training problems respectively. For computational efficiency during brewing, we only use the first 1,000 problems from their official train splits. For evaluation, we use the complete official test splits (5,000 for MATH and 1,319 for GSM8K), reporting accuracy under symbolic equivalence checking.</p><p>Coding. We build on the sanitized MBPP benchmark (427 Python tasks), which is a subset of the original MBPP corpus (∼500/500 train/test partition). Following the standard convention, we use tasks with task_id ∈ <ref type="bibr" target="#b10">[11,</ref><ref type="bibr">510]</ref> for train (257 tasks) and task_id &gt; 510 for test (163 tasks). MBPP+ extends MBPP with stronger tests (378 tasks) but provides no explicit train/test split. Thus, we construct a strictly held-out test set by filtering out all MBPP+ tasks whose IDs overlap with our MBPP train split, retaining 154 tasks for evaluation. We report Pass@1 using native assertions for MBPP and EvalPlus tests for MBPP+.</p><p>Tool-use. AppWorld originally provides 729 interactive API tasks partitioned into train (90 tasks), dev (57), test_normal (168), and test_challenge (417). We directly brew on the official train split and evaluate on the two official test splits of increasing difficulty: test_normal and test_challenge. We report Task Goal Completion (TGC) over tasks and Scenario Goal Completion (SGC).</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>2. 1</head><label>1</label><figDesc>Problem FormulationSetup. We examine interactive tasks x (e.g., math, coding, or tool-use). A fixed student agent S, powered by a small LLM, interacts with an environment Env for up to H steps to yield a trajectory τ S (x) and a binary terminal reward R(x, τ ) ∈ 0, 1. Notably, Env provides no ground-truth solutions, labels, or expert trajectories. During training (Dtrain), a stronger teacher agent T , driven by a large LLM, is introduced: upon any failure by S, T analyzes the task and the failed trajectory to synthesize structured notes into an external memory bank M. During testing (Dtest), M is frozen and T is entirely absent; instead, S solves tasks in a single pass augmented by notes retrieved from M. Overall, learning is driven purely by environment feedback and failure trajectories, without offline demonstrations, test-time oracle labels, or updates to the parameters of S.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Overall framework of the proposed AgentBrew. AgentBrew operationalizes the objective in Sec. 2.1 via a brew-serve paradigm (Figure 2): The full system comprises three design choices, each addressing a research question raised in the introduction: (Q1) a failure-triggered teacher turns sparse binary feedback from Env into structured candidate notes, with a curator merging environment-certified entries into M (Sec. 2.3); (Q2) reactive Ralph validation plus proactive student-aware synthesis bridge the capability gap between teacher and student agents (Sec. 2.4); and (Q3) a lifelong memory M accumulates validated notes across tasks without updating the student LLM (Sec. 2.5). Here we summarize how they interact:</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Performance on AppWorld test_normal under different teacher-student LLM pairings.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Test pass rate and cost per task on Terminal-Bench 2.0 (64 test tasks). (a) Left: pass rate comparison. AgentBrew surpasses the teacher model (51.6% vs. 50.0%) while starting from a substantially weaker student (45.3%). (b) Right: average cost per task. AgentBrew costs $0.04/task-33% less than the teacher's $0.06/task. Dashed lines mark the teacher's reference level.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head></head><label></label><figDesc>Failure-triggered teacher activation on D train .</figDesc><table><row><cell cols="2">2.3.1 Failure-Triggered Teacher Activation</cell></row><row><cell cols="2">Algorithm 1: Input: Dtrain, student S, teacher T , memory M, environment Env</cell></row><row><cell>for each x ∈ Dtrain do</cell><cell></cell></row><row><cell>N ← RETRIEVE(M, x)</cell><cell cols="2">// retrieved notes for x (may be ∅)</cell></row><row><cell>τS (x) ← ROLLOUT(S, x, N )</cell><cell></cell></row><row><cell>R ← EVAL(Env, x, τS (x))</cell><cell cols="2">// R ∈ {0, 1}; sole external supervision from Env</cell></row><row><cell>if R = 1 then</cell><cell></cell></row><row><cell>continue</cell><cell></cell><cell>// success: T not invoked</cell></row><row><cell>end</cell><cell></cell></row><row><cell>else</cell><cell></cell></row><row><cell cols="2">n ← DRAFTNOTE(T , x, τS (x), FAIL)</cell><cell>// no reference solution</cell></row><row><cell cols="2">RALPHLOOP(x, n, S, T , C, M, Env)</cell><cell>// refinement and curation</cell></row><row><cell>end</cell><cell></cell></row><row><cell>end</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head></head><label></label><figDesc>Algorithm 2: Ralph Loop: environment validation of a candidate note on task x.</figDesc><table /><note><p>Input: task x, candidate note n, agents S, T , memory M, environment Env, budget Rmax Output: validated ∈ {TRUE, FALSE} ADDPROVISIONAL(M, n) // stage n for Retrieve only; not durable yet validated ← FALSE for r = 1 to Rmax do</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 1 :</head><label>1</label><figDesc>Main Results on Three Agent Scenarios. ( * indicates AgentBrew significantly outperforms the strongest baseline in Group I and Group III at p&lt;0.05 under a two-proportion z-test.)Table1reports main results on all six benchmarks. Unless noted otherwise, every method uses Qwen3-14B as the test-time generator.</figDesc><table><row><cell>Method</cell><cell>Teacher</cell><cell>Test-time</cell><cell>Math</cell><cell></cell><cell cols="2">Coding</cell><cell></cell><cell>Tool-Use</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="6">MATH (%) GSM8K (%) MBPP (%) MBPP+ (%) Normal (%) Challenge (%)</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="3">Group I: Student-Only, Single Rollout</cell><cell></cell><cell></cell><cell></cell></row><row><cell>ReAct</cell><cell>✗</cell><cell>1 rollout</cell><cell>71.66</cell><cell>86.12</cell><cell>51.02</cell><cell>68.83</cell><cell>22.00</cell><cell>11.30</cell></row><row><cell>SFT(LoRA) 2</cell><cell>✗</cell><cell>1 rollout</cell><cell>61.50</cell><cell>87.11</cell><cell>-</cell><cell>-</cell><cell>-</cell><cell>-</cell></row><row><cell></cell><cell></cell><cell cols="5">Group II: Student-Only, Multi-Rollout + Test-Time Feedback</cell><cell></cell><cell></cell></row><row><cell>Reflexion (k=2)</cell><cell>✗</cell><cell>2 rollouts + fb</cell><cell>77.12</cell><cell>91.51</cell><cell>54.22</cell><cell>70.78</cell><cell>29.76</cell><cell>14.63</cell></row><row><cell>Reflexion (k=3)</cell><cell>✗</cell><cell>3 rollouts + fb</cell><cell>80.06</cell><cell>93.10</cell><cell>60.54</cell><cell>70.13</cell><cell>36.31</cell><cell>17.75</cell></row><row><cell></cell><cell></cell><cell cols="5">Group III: Teacher-Augmented Brewing, Single Rollout</cell><cell></cell><cell></cell></row><row><cell>Simple RAG</cell><cell>✓</cell><cell>1 rollout</cell><cell>74.32</cell><cell>82.56</cell><cell>60.54</cell><cell>71.43</cell><cell>29.17</cell><cell>13.19</cell></row><row><cell>ExpeL</cell><cell>✓</cell><cell>1 rollout</cell><cell>70.60</cell><cell>88.10</cell><cell>61.22</cell><cell>68.18</cell><cell>28.57</cell><cell>10.80</cell></row><row><cell>ACE AgentBrew</cell><cell>✓ ✓</cell><cell>1 rollout 1 rollout</cell><cell>73.82 75.96  *</cell><cell>87.87 88.17  *</cell><cell>58.61 61.22</cell><cell>64.29 71.43  *</cell><cell>26.79 31.55  *</cell><cell>10.55 15.35  *</cell></row></table><note><p><p><p>(i) Strong-teacher brewing vs. student-only reflection. ReAct and Reflexion (Table</p>1</p>, Groups I-II) rely entirely on the weak student at test time: ReAct acts in a single pass, while Reflexion adds multiple reflection rounds that re-attempt each task after observing explicit binary feedback from the environment. The Reflexion setup with k&gt;1 is therefore a stronger inference protocol than our single-rollout serving (Group III), as it consumes additional test-time trials and outcome signals that are unavailable to all other methods. Even so, AgentBrew clearly outperforms ReAct across all three scenarios, and despite using only one test-time attempt, matches or exceeds Reflexion (k=2) on coding and tool-use-MBPP (61.22% vs. 54.22%), MBPP+ (71.43% vs. 70.78%), AppWorld Normal (31.55% vs. 29.76%), and AppWorld Challenge (15.35% vs. 14.63%</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2 :</head><label>2</label><figDesc>Ablation Study on MATH Scenario. Serving relies solely on brewing-time quality scores, omitting soft suppression during retrieval. • w/ Strong Student Knowledge: A strong LLM (DeepSeek-Chat-V3.1) replaces the weak student during the brewing phase, while test-time inference continues to use Qwen3-14B.</figDesc><table><row><cell>Variant</cell><cell cols="2">MATH (%) GSM8K (%)</cell></row><row><cell>w/o Ralph Loop</cell><cell>75.58</cell><cell>84.61</cell></row><row><cell>w/o Memory</cell><cell>71.66</cell><cell>86.12</cell></row><row><cell>w/o Test-Time Suppression</cell><cell>74.98</cell><cell>84.84</cell></row><row><cell>w Strong Student Knowledge</cell><cell>74.92</cell><cell>85.52</cell></row><row><cell>AgentBrew</cell><cell>75.96</cell><cell>88.17</cell></row></table><note><p>Variant settings. • w/o Ralph Loop: The teacher drafts notes upon student failure without performing Ralph recovery checks. • w/o Memory: The external memory is disabled; no notes are stored or retrieved at test time. • w/o Test-Time Suppression:</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 3 :</head><label>3</label><figDesc>Training-phase statistics for Full Ralph vs. w/o Ralph on MATH and GSM8K.</figDesc><table><row><cell></cell><cell>MATH</cell><cell></cell><cell cols="2">GSM8K</cell></row><row><cell>Metric</cell><cell cols="4">Full Ralph w/o Ralph Full Ralph w/o Ralph</cell></row><row><cell>Training success rate</cell><cell>92.2%</cell><cell>89.6%</cell><cell>91.3%</cell><cell>87.6%</cell></row><row><cell>Failed tasks</cell><cell>78</cell><cell>104</cell><cell>87</cell><cell>124</cell></row><row><cell>Ralph committed tasks</cell><cell>28</cell><cell>0</cell><cell>44</cell><cell>0</cell></row><row><cell>Direct-write tasks</cell><cell>20</cell><cell>28</cell><cell>22</cell><cell>48</cell></row><row><cell>Total write tasks</cell><cell>48</cell><cell>28</cell><cell>66</cell><cell>48</cell></row><row><cell>Note write rate</cell><cell>61.5%</cell><cell>26.9%</cell><cell>75.9%</cell><cell>38.7%</cell></row><row><cell>Curator rejections</cell><cell>30</cell><cell>76</cell><cell>21</cell><cell>76</cell></row><row><cell>Curator rejection rate</cell><cell>38.5%</cell><cell>73.1%</cell><cell>24.1%</cell><cell>61.3%</cell></row><row><cell>Notes in knowledge base</cell><cell>39</cell><cell>27</cell><cell>43</cell><cell>33</cell></row><row><cell cols="5">During training, the Ralph Loop directly improves task-solving performance, with Full Ralph</cell></row><row><cell cols="5">achieving success rates of 92.2% on MATH and 91.3% on GSM8K (compared to 89.6% and 87.6%</cell></row></table><note><p>w/o Ralph). More importantly, Ralph fundamentally changes knowledge accumulation. Despite encountering more training failures (104 vs. 78 on MATH; 124 vs. 87 on GSM8K), the w/o Ralph variant produces fewer final notes (27 vs. 39 on MATH; 33 vs. 43 on GSM8K). The root cause is the note conversion rate: Full Ralph translates 61.5% and 75.9% of failures into committed notes, while w/o Ralph converts a mere 26.9% and 38.7%.</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_0"><p>SFT(LoRA)  is only evaluated on math, where ground-truth answers are available for supervised training. Coding and tool-use tasks provide only binary pass/fail signals without reference solutions, making supervised fine-tuning infeasible.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>A Appendix / supplemental material A.1 Test-Time Serving Process. Algorithm 3: Test-time serving on D test with frozen M ⋆ .</p><p>Input: Dtest, frozen memory M ⋆ , student agent S, environment Env, top-k k, rerank params ρ, ϕ for each task x ∈ Dtest do q ← ENCODEQUERY(x)</p><p>Algo. 3 formalizes the test-time inference procedure introduced in Sec. 2.5.3 and Sec. 2.2. For each test task x, the instruction is first encoded into a retrieval query q that captures key textual signals such as task descriptions and tool names (line 2). The skill-scoped router ROUTESCOPE then selects a partition M scope ⊆ M ⋆ following the scoping policy in Sec. 2.5.1-explicit scope hints in x are matched first, then lexical similarity against category descriptions, and finally runtime cues when available-confining subsequent retrieval to a relevant skill subset and preventing cross-domain interference (line 3). Candidate notes C are drawn from M scope via dense or hybrid similarity scoring and reranked via Eq. 3, which modulates each note's retrieval similarity by its historical quality_score ρ(n) and a frequency penalty ϕ(n); soft suppression dampens notes below a relativescore floor without hard-dropping them, preserving recall when the candidate pool is sparse. The top-k notes N k are then formatted and prepended to S's system prompt (lines 4-5). If N k is non-empty, S performs a single ROLLOUT with memory augmentation; if retrieval returns no notes, the system falls back to the student's vanilla policy with no augmentation (lines 6-8). Critically, no teacher agent, Ralph Loop validation, or provisional memory writes are invoked during serving-the frozen M ⋆ is consumed read-only, and every task is completed in exactly one rollout, matching the inference budget of a bare student. Finally, the environment returns a binary terminal reward R ∈ {0, 1} (line 9), consistent with the sparse-feedback regime used throughout brewing and requiring no test-time labels or oracle solutions. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Detailed Setting of Benchmarks</head></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Tora: A tool-integrated reasoning agent for mathematical problem solving</title>
+		<author>
+			<persName><forename type="first">Zhibin</forename><surname>Gou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihong</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yeyun</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujiu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minlie</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Duan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">2024</biblScope>
+			<biblScope unit="page" from="48362" to="48395" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Appworld: A controllable world of apps and people for benchmarking interactive coding agents</title>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mareike</forename><surname>Hartmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruskin</forename><surname>Manku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vinty</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shashank</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niranjan</forename><surname>Balasubramanian</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="16022" to="16076" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yangqin</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.22009</idno>
+		<title level="m">Lightagent: Mobile agentic foundation models</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Swe-agent: Agent-computer interfaces enable automated software engineering</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlos</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Lieret</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="50528" to="50652" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Reflexion: Language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="8634" to="8652" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Expel: Llm agents are experiential learners</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong-Jin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gao</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="19632" to="19642" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenglun</forename><surname>Kong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyan</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changdi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianqi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Geng</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pu</forename><surname>Zhao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.13820</idno>
+		<title level="m">Structured agent distillation for large language model</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinzhe</forename><surname>Juan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yimin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ling</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongcheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifu</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zixin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongru</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.14728</idno>
+		<title level="m">Training-free agent distillation with generalizable mcp boxes</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Defines the Ralph Loop: an iterative bash loop feeding a fixed prompt to a coding agent</title>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Huntley</surname></persName>
+		</author>
+		<ptr target="https://ghuntley.com/ralph/" />
+	</analytic>
+	<monogr>
+		<title level="m">Blog post, 2025</title>
+		<imprint/>
+	</monogr>
+	<note>Ralph wiggum as a &quot;software engineer. with externalized state (files, git, tests</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Small models struggle to learn from strong reasoners</title>
+		<author>
+			<persName><forename type="first">Yuetai</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Yue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangchen</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fengqing</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luyao</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bill</forename><surname>Yuchen Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhaskar</forename><surname>Ramasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Radha</forename><surname>Poovendran</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="25366" to="25394" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Agentic context engineering: Evolving contexts for self-improving language models</title>
+		<author>
+			<persName><forename type="first">Qizheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changran</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shubhangi</forename><surname>Upasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyuan</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fenglu</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vamsidhar</forename><surname>Kamanuru</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jay</forename><surname>Rainton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengmeng</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanchen</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.04618</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Unveiling the key factors for distilling chain-ofthought reasoning</title>
+		<author>
+			<persName><forename type="first">Xinghao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijing</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guo</forename><surname>Wenjin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Miaoran</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanjun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yirong</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijie</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dietrich</forename><surname>Klakow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenjie</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="15094" to="15119" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Improved knowledge distillation via teacher assistant</title>
+		<author>
+			<persName><forename type="first">Mehrdad</forename><surname>Seyed Iman Mirzadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ang</forename><surname>Farajtabar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nir</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akihiro</forename><surname>Levine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hassan</forename><surname>Matsukawa</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Ghasemzadeh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI conference on artificial intelligence</title>
+		<meeting>the AAAI conference on artificial intelligence</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="5191" to="5198" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Program synthesis with large language models</title>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Austin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Augustus</forename><surname>Odena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxwell</forename><surname>Nye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Henryk</forename><surname>Michalewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Dohan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ellen</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carrie</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Terry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2108.07732</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Is your code generated by chatgpt really correct? rigorous evaluation of large language models for code generation</title>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chunqiu</forename><surname>Steven Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuyao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingming</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="21558" to="21572" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Measuring mathematical problem solving with the math dataset</title>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Collin</forename><surname>Burns</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurav</forename><surname>Kadavath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akul</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Basart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Steinhardt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.03874</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Training verifiers to solve math word problems</title>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reiichiro</forename><surname>Nakano</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2110.14168</idno>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengpeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengyuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.10671</idno>
+		<title level="m">Qwen2 technical report</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aixin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bei</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bochao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengda</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenggang</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengqi</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chong</forename><surname>Ruan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.19437</idno>
+		<title level="m">Deepseek-v3 technical report</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anfeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenxu</forename><surname>Lv</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.09388</idno>
+		<title level="m">Qwen3 technical report</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2210.03629" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Lora: Low-rank adaptation of large language models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Edward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yelong</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phillip</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyuan</forename><surname>Wallis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhi</forename><surname>Allen-Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shean</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Iclr</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page">3</biblScope>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Aohan</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenyu</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengxiao</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinkai</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Da</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chendi</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenghua</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengxing</forename><surname>Xie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.15763</idno>
+		<title level="m">Glm-5: from vibe coding to agentic engineering</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">Mike</forename><forename type="middle">A</forename><surname>Merrill</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><forename type="middle">G</forename><surname>Shaw</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicholas</forename><surname>Carlini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boxuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harsh</forename><surname>Raj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ivan</forename><surname>Bercovich</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeong Yeon</forename><surname>Shin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Walshe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Kelly Buchanan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.11868</idno>
+		<title level="m">Terminal-bench: Benchmarking agents on hard, realistic tasks in command line interfaces</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title/>
+		<ptr target="https://docs.anthropic.com/en/docs/claude-code" />
+	</analytic>
+	<monogr>
+		<title level="j">Anthropic. Claude code</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">Anyi</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bangcai</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingxuan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingzheng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bochao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaofan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenchen</forename><surname>Ling</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2606.19348</idno>
+		<title level="m">Towards highly efficient million-token context intelligence</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">4</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">Timo</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jane</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberto</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roberta</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maria</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">A survey of self-evolving agents: On path to artificial super intelligence</title>
+		<author>
+			<persName><forename type="first">Huan-Ang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyue</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengkang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinzhe</forename><surname>Juan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongzhang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shilong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2507.21046</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Self-refine: Iterative refinement with self-feedback</title>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Madaan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niket</forename><surname>Tandon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prakhar</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Skyler</forename><surname>Hallinan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wiegreffe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Uri</forename><surname>Alon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nouha</forename><surname>Dziri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shrimai</forename><surname>Prabhumoye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="46534" to="46594" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Voyager: An open-ended embodied agent with large language models</title>
+		<author>
+			<persName><forename type="first">Guanzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linxi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.16291</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Alita: Generalist agent enabling scalable agentic reasoning with minimal predefinition and maximal self-evolution</title>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tongcheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinzhe</forename><surname>Juan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiacheng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifu</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yimin</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zixin</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihan</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xun</forename><surname>Jiang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.20286</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Long term memory: The foundation of ai self</title>
+		<author>
+			<persName><forename type="first">Xun</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Han</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaying</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shihao</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiling</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Tang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2410.15665</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title level="m" type="main">Distilling the knowledge in a neural network</title>
+		<author>
+			<persName><forename type="first">Geoffrey</forename><surname>Hinton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oriol</forename><surname>Vinyals</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1503.02531</idno>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Distilling reasoning capabilities into smaller language models</title>
+		<author>
+			<persName><forename type="first">Kumar</forename><surname>Shridhar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alessandro</forename><surname>Stolfo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mrinmaya</forename><surname>Sachan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2023</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="7059" to="7073" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Distilling llm agent into small models with retrieval and code tools</title>
+		<author>
+			<persName><forename type="first">Minki</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jongwon</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Seanie</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaewoong</forename><surname>Cho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sung</forename><forename type="middle">Ju</forename><surname>Hwang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="106501" to="106538" />
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">Justin</forename><surname>Chih-Yao Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Swarnadeep</forename><surname>Saha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Stengel-Eskin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Magdi</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.01620</idno>
+		<title level="m">Structured distillation of multi-agent interaction graphs improves reasoning in smaller language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Maryam</forename><surname>Hashemzadeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elias</forename><surname>Stengel-Eskin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarath</forename><surname>Chandar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc-Alexandre</forename><surname>Cote</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2405.02749</idno>
+		<title level="m">Subgoal distillation: A method to improve small language agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Fine-tuning with rag for improving llm learning of new skills</title>
+		<author>
+			<persName><forename type="first">Humaid</forename><surname>Ibrahim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolai</forename><surname>Rozanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marek</forename><surname>Rei</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.01375</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Packer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivian</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shishir_G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Wooders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph_E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<title level="m">Memgpt: towards llms as operating systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Ama-bench: Evaluating longhorizon memory for agentic applications</title>
+		<author>
+			<persName><forename type="first">Yujie</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boqin</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junbo</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haocheng</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhongming</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haozhou</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lanxiang</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhilash</forename><surname>Shankarampeta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zimeng</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wentao</forename><surname>Ni</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.22769</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

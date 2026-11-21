@@ -1,0 +1,1925 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">AgentGL: Towards Agentic Graph Learning with LLMs via Reinforcement Learning</title>
+				<funder ref="#_XENxsgR">
+					<orgName type="full">National Natural Science Foundation of China</orgName>
+				</funder>
+				<funder ref="#_ArgvFtz">
+					<orgName type="full">Shanghai Science and Technology Program</orgName>
+				</funder>
+				<funder>
+					<orgName type="full">NYU Shanghai Boost Fund</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Yuanfu</forename><surname>Sun</surname></persName>
+							<email>yuanfu.sun@nyu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">New York University</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">New York University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Kang</forename><surname>Li</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">Tsinghua University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Dongzhe</forename><surname>Fan</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">New York University</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">New York University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jiajin</forename><surname>Liu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">New York University</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+								</address>
+							</affiliation>
+							<affiliation key="aff1">
+								<orgName type="institution">New York University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Qiaoyu</forename><surname>Tan</surname></persName>
+							<email>qiaoyu.tan@nyu.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">New York University</orgName>
+								<address>
+									<settlement>Shanghai</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">AgentGL: Towards Agentic Graph Learning with LLMs via Reinforcement Learning</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">54882032EC27508D4C98CEC18D9D15D7</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large Language Models (LLMs) increasingly rely on agentic capabilities-iterative retrieval, tool use, and decision-making-to overcome the limits of static, parametric knowledge. Yet existing agentic frameworks treat external information as unstructured text and fail to leverage the topological dependencies inherent in real-world data. To bridge this gap, we introduce Agentic Graph Learning (AGL), a paradigm that reframes graph learning as an interleaved process of topology-aware navigation and LLM-based inference. Specifically, we propose AgentGL, the first reinforcement learning (RL)-driven framework for AGL. AgentGL equips an LLM agent with graphnative tools for multi-scale exploration, regulates tool usage via search-constrained thinking to balance accuracy and efficiency, and employs a graph-conditioned curriculum RL strategy to stabilize long-horizon policy learning without step-wise supervision. Across diverse Text-Attributed Graph (TAG) benchmarks and multiple LLM backbones, AgentGL substantially outperforms strong GraphLLMs and GraphRAG baselines, achieving absolute improvements of up to 17.5% in node classification and 28.4% in link prediction. These results demonstrate that AGL is a promising frontier for enabling LLMs to autonomously navigate and reason over complex relational environments. The code is publicly available at <ref type="url" target="https://github.com/sunyuanfu/AgentGL">https://github.com/sunyuanfu/AgentGL</ref>.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large Language Models (LLMs) have achieved strong performance across NLP tasks through their broad linguistic and reasoning capabilities <ref type="bibr">(Achiam et al., 2023;</ref><ref type="bibr">Yang et al., 2025</ref>). Yet their parametric knowledge alone is insufficient for many specialized or fast-evolving domains <ref type="bibr">(Lewis et al., 2020)</ref>. To bridge this gap, Retrieval-Augmented Generation (RAG) <ref type="bibr" target="#b7">(Gao et al., 2023)</ref> and more recent agentic search frameworks <ref type="bibr" target="#b26">(Li et al., 2025;</ref><ref type="bibr">Jin et al., 2025;</ref><ref type="bibr">Chen et al., 2025)</ref> allow LLMs to iteratively query external resources and integrate retrieved evidence into a dynamic chain of thought.</p><p>Despite the power of agentic paradigms, they mainly operate on unstructured text, overlooking the relational structures that underpin many corpora. In critical domains such as citation networks <ref type="bibr" target="#b48">(Yang et al., 2016)</ref>, social platforms <ref type="bibr" target="#b10">(Hamilton et al., 2017)</ref>, and commercial ecosystems <ref type="bibr" target="#b35">(Shchur et al., 2018)</ref>, information naturally manifests as Text-Attributed Graphs (TAGs), where meaning is derived from the interplay between textual content and graph topology. Consequently, agentic systems that rely solely on lexical similarity cannot harness these structural dependencies. This raises a central question: Can the agentic learning paradigm be extended to graph-structured environments to enable dynamic, topology-aware reasoning, and how can such a system be built efficiently?</p><p>Existing graph learning efforts only partially address this need. Traditional GNNs <ref type="bibr" target="#b22">(Kipf and Welling, 2016;</ref><ref type="bibr">Velickovic et al., 2017)</ref> model structural signals but struggle with rich textual semantics <ref type="bibr">(Yan et al., 2023)</ref>. Recent LLM-based Graph Models (GraphLLMs) integrate LLMs with graph information via graph-guided prompting or instruction tuning (e.g., GraphGPT <ref type="bibr" target="#b40">(Tang et al., 2024)</ref>, GraphICL <ref type="bibr" target="#b39">(Sun et al., 2025)</ref>), but these models rely on static graph context extracted once at inference time, preventing adaptive exploration. GraphRAG systems <ref type="bibr" target="#b19">(Jimenez Gutierrez et al., 2024;</ref><ref type="bibr" target="#b5">Dong et al., 2025)</ref> construct large text-enriched knowledge graphs (KGs) from corpora, yet these reconstructed KGs are costly to build and do not preserve the native topological correlations present in real TAGs. Consequently, neither GraphLLMs nor GraphRAG offers mechanisms for dynamic evidence acquisition over real-world graph structure.</p><p>This motivates the emergence of Agentic Graph Learning (AGL), a new direction where a LLM agent can autonomously navigate a graph, accumulate structural evidence, and iteratively refine its search trajectory based on on-the-fly reasoning.</p><p>However, realizing AGL is non-trivial due to two fundamental challenges. (C1) Topology-aware navigation. Evidence on a graph is multi-scale: some clues appear in tightly local neighborhoods, whereas others emerge only through broader structural patterns. An agent must decide where to go next in a combinatorial space while avoiding redundant or uninformative regions. (C2) Longhorizon policy optimization. Effective graph reasoning frequently requires multi-step exploration, but ground-truth search trajectories are rarely available. This makes it difficult to learn policies that balance exploration, exploitation, and reasoning depth, and easy for agents to drift into irrelevant branches or incur unnecessary tool calls. Addressing these challenges demands a principled formulation of graph-native action spaces and stable training mechanisms for long-horizon decision-making.</p><p>To address these challenges, we propose AgentGL, a framework that formulates graph learning as an agentic decision-making process optimized through reinforcement learning (RL). AgentGL equips LLM with a suite of graph-native search tools, including local neighborhood expansion, hop-constrained traversal, and global evidence probing that enable multi-scale structural exploration tailored to the task. To prevent oversearching and encourage deeper reasoning on retrieved evidence, we introduce search-constrained thinking, a mechanism that biases the LLM agent toward reflective inference before invoking additional graph queries. To support stable longhorizon learning without step-by-step trajectory supervision, we further develop a graph-conditioned curriculum RL strategy that progressively increases topology exploration difficulty, integrates multifaceted rewards, and enforces efficient use of graph tools under limited budgets. Together, AgentGL enables LLM agents to learn adaptive, topologyaware search policies that significantly enhance performance on diverse graph reasoning tasks.</p><p>✦ We study Agentic Graph Learning (AGL), a new paradigm that treats graph learning as an interleaved process of topology-aware exploration and LLM-based reasoning. This formulation unifies graph structure, text semantics, and agentic decision-making under a single framework.</p><p>✦ We propose AgentGL, the first RL-driven AGL framework that synergizes structural perception, strategic reasoning, and policy learning. Specifically, it orchestrates graph-native search tools and search-constrained thinking to navigate complex topologies, employing graphconditioned curriculum-based RL to optimize the policy without step-wise supervision.</p><p>✦ We evaluate AgentGL across multiple TAG benchmarks and graph tasks, demonstrating strong improvements over leading GraphLLM and GraphRAG baselines. Specifically, it delivers absolute accuracy improvements of up to 17.5% in node classification and up to 28.4% in link prediction across diverse LLM backbones.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Work</head><p>Graph Learning with LLMs. Recent work has focused on bridging the gap between graphstructured data and LLMs to facilitate graph reasoning. One line textualizes local structures into natural-language descriptions to support LLM reasoning and contextualized representations <ref type="bibr" target="#b52">(Zhao et al., 2023;</ref><ref type="bibr" target="#b8">Guo et al., 2023;</ref><ref type="bibr">Chen et al., 2024c;</ref><ref type="bibr" target="#b25">Li et al., 2024;</ref><ref type="bibr" target="#b36">Shi et al., 2024;</ref><ref type="bibr" target="#b6">Fang et al., 2024;</ref><ref type="bibr">He et al.)</ref>. Another line derives graph tokens or structure-aware embeddings and injects them into prompts for graph instruction tuning <ref type="bibr" target="#b40">(Tang et al., 2024;</ref><ref type="bibr">Chen et al., 2024b;</ref><ref type="bibr">Liu et al., 2024b;</ref><ref type="bibr" target="#b38">Sun et al., 2026;</ref><ref type="bibr" target="#b51">Zhang et al., 2025)</ref>, or performs training-free inference via graph in-context learning <ref type="bibr" target="#b39">(Sun et al., 2025;</ref><ref type="bibr" target="#b17">Huang et al., 2023;</ref><ref type="bibr">Liu et al., 2024a)</ref>. Despite progress, these pipelines are largely static, limiting adaptation when additional evidence is needed during inference time.</p><p>Grounding LLMs with External Knowledge.</p><p>While standard RAG improves factuality via static retrieval <ref type="bibr">(Lewis et al., 2020;</ref><ref type="bibr" target="#b7">Gao et al., 2023)</ref>, agentic search advances this by enabling iterative reasoning through reinforcement learning <ref type="bibr">(Jin et al., 2025;</ref><ref type="bibr" target="#b37">Song et al., 2025;</ref><ref type="bibr">Chen et al., 2025)</ref> or prompting <ref type="bibr" target="#b49">(Yao et al., 2022;</ref><ref type="bibr" target="#b32">Press et al., 2023;</ref><ref type="bibr" target="#b26">Li et al., 2025)</ref>. However, these methods predominantly target unstructured text. To incorporate structure, GraphRAG approaches <ref type="bibr" target="#b13">(He et al., 2024;</ref><ref type="bibr" target="#b19">Jimenez Gutierrez et al., 2024;</ref><ref type="bibr" target="#b5">Dong et al., 2025;</ref><ref type="bibr" target="#b25">Han et al., 2024)</ref> retrieve evidence from graphstructured data. Yet, they often rely on synthetic graphs reconstructed from flat corpora and their task objectives are fundamentally different from GL (A.2). Even native-graph methods remain lim-ited: <ref type="bibr">GraphCoT (Jin et al., 2024)</ref> focuses on graph QA, while GraphSearch <ref type="bibr" target="#b27">(Liu et al., 2026)</ref> targets graph learning, yet both rely on heuristic prompting with limited optimization, often yielding suboptimal solutions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Problem Statement</head><p>We study agentic graph learning (AGL) on a TAG G = (V, A, T ), where V is the node set, A is the adjacency matrix, and T = {t v | v ∈ V} contains node texts. In this paper, we focus on two classical GL tasks: Node Classification and Link Prediction. Specifically, given a query Q, a target instance x (e.g., a node v ∈ V or a node pair (u, v) ∈ V × V) and ground-truth label y, the goal is to predict y by grounding the decision in graph-derived evidence. Formally, we formulate AGL as a sequential decision process on graph G. Given a target x and query Q, the policy π θ iteratively samples actions a t ∼ π θ (•|h t ) from S ∪ {ANSWER}, where S denotes a predefined set of graph-native search tools for multi-scale exploration. This interaction yields a trajectory τ containing the accumulated evidence E and the final prediction ŷ. Our goal is to optimize θ to maximize the expected reward R over the dataset D:</p><formula xml:id="formula_0">J (θ) = E τ ∼π θ [R].</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Methodology</head><p>We present the AgentGL framework (Figure <ref type="figure" target="#fig_0">1</ref>), which organizes learning around two complementary components: graph-native policy bootstrapping (Sec. 4.1), where the agent acquires core navigation behaviors, and search-efficiency optimization (Sec. 4.2), which regulates tool use during long-horizon reasoning. Both components are trained under a graph-conditioned curriculum learning regime (Sec. 4.3) designed to improve stability and accelerate convergence.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Graph-Native Search Policy Bootstrapping</head><p>We begin by formulating the RL objective function, designed to empower the LLM agent to autonomously explore the graph structure while preserving its reasoning capabilities, defined as:</p><formula xml:id="formula_1">J (θ) = E (x,Q,y * )∼D τ ∼π θ (•|x,Q,G S ) R(ŷ, y * )-β•D KL (π θ ∥ π ref ) .</formula><p>where G S signifies the graph environment accessed via the toolset S = {τ 1HOP , τ 2HOP , τ SS , τ DENSE }; R(ŷ, y * ) is the outcome-based reward; D KL represents the token-level KL divergence between the current policy π θ and the reference policy π ref ; and β is the coefficient controlling the KL penalty strength. To bootstrap the graph-native search (GNS) policy, we next introduce the GNS tools in S for searching evidence (the text attributes of the collected candidates) directly from the TAG.</p><p>Definition 4.1 (1-hop Neighborhood Search).</p><p>Given a query Q and an input x, we simplify the process by treating x as a pair (u, v)</p><formula xml:id="formula_2">(if x is a single node u, we set v = u). Let C = N 1 (u) ∩ N 1 (v) and U z = N 1 (z) \ C for z ∈ {u, v}.</formula><p>The tool τ 1HOP constructs the result set E by prioritizing common neighbors and balancing exclusive ones:</p><formula xml:id="formula_3">E = TopK(C, K) ∪ z∈{u,v} TopK(U z , k z ),</formula><p>where the quotas k u , k v satisfy k u + k v = max(0, K -|C|) = R and represent the balanced allocation defined by:</p><formula xml:id="formula_4">k u = min (|U u |, max (⌈R/2⌉, R -|U v |)) .</formula><p>Given the candidate nodes returned by the tools, the next question is how we select the most informative ones; we address this with a ranking score. The ranking score for a neighbor n is computed via cosine similarity against a fusion embedding:</p><formula xml:id="formula_5">s(n) = cos (h n , λ r h Q + (1 -λ r )h x ) ,</formula><p>where h (•) denotes the semantic embedding, h x = 1 2 (h u +h v ) averages the target pair, and λ r ∈ [0, 1] balances the query relevance. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Graph-Native Search Tools (GNS Tools)</head><p>Rollout with Multi-turn GNS q q 1 q 2 q B ...  grounding by harmonizing explicit topological dependencies with specific query requirements via a weighted fusion strategy. To transcend structural isolation, the global operators offer broader horizons: τ SS acts as a structural prior, identifying topological pivots to guide macro-level reasoning, while τ DENSE adapts the Dense Retrieval paradigm from RAG to graphs, bridging disconnected nodes via latent semantic correlations. Collectively, these primitives empower LLMs to navigate the graph with the same versatility as navigating text.</p><p>Optimization with RL Algorithms. To enable LLMs to leverage GNS tools for interleaved reasoning while exploring graph structure, and to avoid the high cost of constructing SFT-style supervision, we directly optimize the policy via RL. Specifically, we instantiate AgentGL with two mainstream critic-free policy optimization algorithms: Group Relative Policy Optimization (GRPO) <ref type="bibr">(Shao et al., 2024)</ref> and REINFORCE++ (R++) <ref type="bibr" target="#b15">(Hu et al., 2025)</ref> to optimize the AGL process.</p><p>Template Design and Trajectories. To support interleaved reasoning and graph-native search in a way that is both learnable and automatically evaluable, we cast AGL as a reason-act-observe interaction loop with a strict, machine-parseable interface. Concretely, each prompt specifies (a) a dataset-routed task instruction with a closed label space and target instance text attribute, (b) a toolbox S of GNS pools with per-pool introduction, and (c) other instructions to steer the model toward the required response format. Within the &lt;think&gt; • • • &lt;/think&gt; block, the model may issue at most one retrieval action per round by emitting a pool-specific query tag &lt;|begin_of_query|&gt; tool name:query &lt;|end_of_query|&gt; , after which the environment executes the corresponding GNS tool and returns evidence wrapped in</p><formula xml:id="formula_6">&lt;|begin_of_documents|&gt; • • • &lt;|end_of_documents|&gt; . Formally, let h 0 = (x, Q) denote the initial context.</formula><p>We model the agentic rollout as a recursive state transition process, where the context evolves via the interactive trajectory defined by:</p><formula xml:id="formula_7">h t = h t-1 ⊕ a t , a t G s.t. a t ∼ π θ (• | h t-1 )</formula><p>where the action a t = ⟨s t , q t ⟩ specifies a tool selector s t ∈ S and a textual query q t . The semantic bracket a t G denotes the structural evidence o t (e.g. text attributes) retrieved from graph G. The operator ⊕ recursively appends this interaction turn to the history h t-1 . A rollout terminates either when the agent takes the terminal action and decides to output the final answer in &lt;answer&gt; • • • &lt;/answer&gt; , or when the maximum budget B is exhausted. Reward Shaping. We use a composite reward to provide dense, programmatic supervision for structured tool use while keeping the final objective aligned with task correctness. Concretely, for a trajectory τ with prediction ŷ, we define</p><formula xml:id="formula_8">R(τ ) = r FMT (τ ) + r ACC (ŷ, y) + r COV (τ )</formula><p>Format reward r FMT (τ ) enforces strict adherence to our tool-use template (tool name + query/args + structured think/answer), making trajectories reliably machine-parsable for stable RL. Accuracy reward r ACC (ŷ, y) = λ a I[ŷ = y] anchors optimization to the end task and prevents reward hacking toward purely "well-formatted" behaviors. GNS coverage reward r COV (τ ) encourages early exploration of all proposed tools, which is crucial to prevent early mode collapse to a single default action (one tool or no tool) and to ensure sufficient exploration over the discrete tool-action space.</p><formula xml:id="formula_9">rCOV(τ ) = η |S| j=1 I[∃ t : at = τj] , rCOV(τ ) ≤ |S|η</formula><p>where each tool τ j ∈ S contributes at most once.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Less is More: Mitigating Search Overuse</head><p>While the bootstrapping stage establishes foundational graph navigation capabilities, it prioritizes feasibility over optimality, often defaulting to inefficient, exhaustive retrieval. However, given that the effective neighborhood range is highly instancedependent <ref type="bibr" target="#b43">(Xu et al., 2018)</ref>, the optimal structural context varies substantially across queries. Indiscriminate tool usage is thus counterproductive: it not only incurs computational overhead but creates structural noise that degrades reasoning fidelity.</p><p>To address this, we introduce Search-Constrained Thinking. This phase implicitly optimizes efficiency by compelling the agent to autonomously discern the minimal sufficient trajectory-maximizing accuracy by effectively pruning redundant steps. Accordingly, the optimization goal is formulated as:</p><formula xml:id="formula_10">θ ⋆ = argmin θ Eτ∼π θ [ T (τ ) ] s.t. θ ∈ argmax ϑ JBASE(ϑ)</formula><p>where J BASE denotes the bootstrapping objective and T (τ ) denotes the total search cost of trajectory τ . By treating accuracy as a hard constraint, we restrict the efficiency optimization strictly to the optimal solution space, ensuring the agent learns parsimony without compromising performance.</p><p>Search-Constrained Thinking. To instantiate the implicit optimization target, we introduce a strategy that enforces a "Think more, Search less: Precision via Parsimony" paradigm. This approach couples retrospective verification with cognitive density constraints to substitute redundant retrieval with deep reasoning, via three components: Retrospective Termination Trigger. To preclude habitual search continuation, we inject a cognitive interrupt into the context after each tool execution:</p><p>Let me first carefully review the searched documents of {GNS tool name} and decide whether another search is necessary before proceeding.</p><p>This trigger acts as a soft constraint, compelling the LLM to explicitly evaluate the sufficiency of the current evidence state G τ during training, transforming the search process from a habitual sequence into a series of deliberate, binary decisions.</p><p>Cognitive Density Regularization. To ensure that reduced search frequency stems from efficient information absorption rather than superficial skipping, we impose a penalty on sparse reasoning. Formally, we define segments {s i } as the postretrieval reasoning blocks dedicated to analyzing the acquired context and define a segment as "deficient" if the token length ℓ(s i )&lt; the threshold δ.</p><p>We introduce a depth-oriented term r depth :</p><formula xml:id="formula_11">r depth (z) = α • I[N short = 0] -λ d • N short</formula><p>where N short counts deficient segments. This formulation strictly penalizes fragmented thinking, incentivizing the generation of dense reasoning blocks before further actions.</p><p>Adaptive Reward Transition. Reflecting the shift from exploration to exploitation, we discard the coverage incentive r COV while retaining r FMT for format constraints. The main optimization is thus streamlined to the synergistic maximization of accuracy r ACC and reasoning density r depth . This alignment prioritizes deep internal processing over redundant retrieval, naturally converging onto the minimal sufficient trajectory:</p><formula xml:id="formula_12">R(τ ) = r FMT (τ ) + r ACC (ŷ, y) + r depth (z)</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Graph-Conditioned Curriculum Learning</head><p>To stabilize training and accelerate convergence, we leverage intrinsic graph properties for curriculum design. Unlike reasoning tasks where difficulty estimation relies on expert annotation <ref type="bibr" target="#b14">(Hendrycks et al., 2021)</ref> or expensive pilot rollouts <ref type="bibr" target="#b37">(Song et al., 2025)</ref>, graphs offer a distinct advantage: learnability is directly quantifiable via topological and semantic priors. We formulate an analytical difficulty scoring function S(•) to proxy hardness, enabling a smooth, cost-free training progression from confident to ambiguous instances for different tasks via graph-conditioned curriculum learning (GCCL).</p><p>Node Classification with GCCL. Drawing on prior theoretical insights, node classification difficulty is jointly governed by local homophily and degree magnitude <ref type="bibr" target="#b41">(Tang et al., 2020;</ref><ref type="bibr" target="#b53">Zhu et al., 2020)</ref> in many cases. To derive a robust metric S NC (v) that approximately estimates difficulty, we rectify homophily estimates using the Wilson Lower Bound, augmented by degree magnitude:</p><formula xml:id="formula_13">S NC (v) = pv + z 2 2dv -z pv(1-pv) dv + z 2 4d 2 v 1 + z 2 dv Wilson Lower Bound + η log(1 + d v )</formula><p>where pv is the neighbor label consistency, d v is the degree, z is the standard normal quantile and η regulates the impact of degree priors. This formulation prioritizes structurally prominent hubs (Easy), progresses through intermediate nodes (Medium), and defers ambiguous, heterophilous outliers (Hard).</p><p>Link Prediction with GCCL. Inspired by heuristics in link prediction <ref type="bibr" target="#b50">(Zhang and Chen, 2018;</ref><ref type="bibr" target="#b31">Mao et al., 2023)</ref>, we posit that "easiness" aligns with the consistency between semantic similarity and label existence. For a link pair e = (u, v) with label y e ∈ {0, 1}, we calculate the score based on cosine similarity of node features sim(x u , x v ):</p><formula xml:id="formula_14">SLP(e) = ye • sim(xu, xv) + (1 -ye) • 1 -sim(xu, xv)</formula><p>We prioritize consistent pairs (high-sim positives, low-sim negatives) as Easy. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We conduct extensive experiments to validate the effectiveness of AgentGL. Specifically, we evaluate on 7 TAG datasets spanning 3 domains, compare against 13 baselines across five categories, and test 2 backbone LLMs with different parameter scales. Datasets. We use the following datasets: (1) Citation Networks: OGB-Arxiv <ref type="bibr" target="#b16">(Hu et al., 2020)</ref>, PubMed <ref type="bibr" target="#b33">(Sen et al., 2008)</ref> Across datasets, AgentGL-R++ and AgentGL-GRPO show a consistent stage/algorithmdependent profile: GRPO yields higher NC performance by an average of 0.9% across settings (averaged over Qwen3B/7B), whereas R++ is stronger on LP, improving over GRPO by 3.3% on average across settings. This indicates a clear tradeoff between algorithms, with task-wise advantages that can be selected based on the target domain. Obs 4. Scaling up the backbone enhances AgentGL's agentic graph learning capability. Scaling the backbone from 3B to 7B consistently improves AgentGL on both tasks: the average gain is 9.0% (in-domain) and 11.8% (zero-shot) for NC, and 5.6% (in-domain) and 8.7% (zero-shot) for LP. The improvement is particularly pronounced under zero-shot transfer, indicating that larger backbones better learn and generalize the tool-use policy for adaptive evidence acquisition.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Impact of Multi-Stage Training</head><p>To study the impact of our proposed two-stage RL training: GNS Policy Bootstrapping (GNSPB) and Mitigating Search Overuse (MSO), on both overall performance and search efficiency, we conduct a stage-wise ablation analysis. Specifically, we ablate each training stage and compare the resulting variants in terms of accuracy and tool-call cost, with results reported in Table <ref type="table" target="#tab_7">2</ref>. Obs 5. Omitting any RL training stage of AgentGL leads to concurrent drops in both efficiency and performance. When keeping only the GNSPB stage, the presence of r COV (τ ) encourages the LLM to reliably cover all four tools, which maintains relatively strong performance across datasets; however, it almost always consumes nearfull search budgets, increasing the overall cost. In contrast, when keeping only the MSO stage, the policy tends to collapse during training, converging  to the degenerate behavior of making zero searches and carrying this pattern over to inference, which weakens its search capability and degrades performance, resulting in the worst overall results. Only by combining both stages can the model achieve both strong performance and high efficiency; for example, compared to using GNSPB alone, the full method reduces tool calls by about 17.5% while improving accuracy by an average of 2.4% on NC.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Component-wise Ablation Analysis</head><p>Having established the efficacy of the sequential training, we now isolate the impact of granular components within each stage. Specifically, we ablate individual reward terms and the search-constrained thinking strategy to quantify their distinct contributions to the agent's reasoning capabilities. Obs 6. Each component is critical for maintaining the balance between search steps and model performance.  tion (CDR). We observe that without CDR, driven by RTT, the model attempts to improve search efficiency in the early phases of Stage 2; however, this improvement is unsustainable, and the model eventually converges to a search step magnitude similar to that of Stage 1 (Figure <ref type="figure">2c</ref>). Conversely, without RTT, the model persists in the reasoning mode of Stage 1, failing to achieve any efficiency gains. Only the synergistic combination of both components can stably reduce the average search steps, saving approximately 22% of the search cost when training converges while achieving a 3% improvement in accuracy (Table <ref type="table" target="#tab_8">3</ref>). Furthermore, we perform an ablation study on λ r , which governs the embedding-based weighted search for τ 1HOP and τ 2HOP . As shown in Table <ref type="table" target="#tab_9">4</ref>, the model achieves optimal performance when a balanced weight (λ r = 0.5) is applied. This observation underscores the necessity of harmonizing structural topology with semantic similarity, which is essential for comprehensive AGL.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4">Study of Graph-Conditioned Curriculum Learning (GCCL)</head><p>Obs 7. GCCL serves to stabilize and expedite convergence across distinct training stages. As illustrated in Figure <ref type="figure" target="#fig_2">3</ref>, for Stage 1, GCCL effectively accelerates reward convergence and mitigates oscillations in the later phases of training. A similar trend is observed in Stage 2, where GCCL stabilizes the GNS frequency, maintaining the search steps at a consistently lower magnitude compared to the baseline without GCCL as training progresses. Furthermore, quantitative results in Table <ref type="table" target="#tab_8">3</ref> corroborate that GCCL not only expedites convergence but also yields an accuracy improvement of approximately 0.65%. In essence, GCCL serves as a stabilizing backbone, effectively guiding the LLM through the complex graph exploration space without succumbing to local optima or early-stage volatility.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>In this paper, we propose AgentGL, the first RLdriven agentic framework for graph learning, which reformulates Graph Learning as an interleaved process of topology-aware exploration and LLMbased reasoning. AgentGL leverages graph-native search tools for effective navigation and employs a two-stage RL strategy to balance accuracy and efficiency. Across multiple LLM backbones and benchmark settings, AgentGL consistently outperforms strong baselines, including GraphLLMs and GraphRAG methods, achieving the best average performance across all backbones, with absolute gains of up to 17.5% on node classification and 28.4% on link prediction. We hope this work inspires further research into agent-based approaches for complex graph reasoning tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Limitations</head><p>AgentGL currently operates on text-attributed graphs and does not yet support multimodalattributed graphs, limiting its applicability in settings where nodes contain richer modal information. Moreover, stable performance in the MSO stage depends critically on a careful trade-off in data allocation between the two stages. It also remains worth investigating whether the MSO stage alters the distribution of tool usage during inference time. The MSO stage is designed to be simple, direct, and effective, and we hope it will encourage future research toward more advanced designs. Finally, extending AgentGL to denser graphs also remains a potential direction for future exploration.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Dataset Details</head><p>We evaluate AgentGL on 7 text-attributed graph (TAG) benchmarks spanning three domains: citation networks, e-commerce product graphs, and social networks. Across all TAGs, each node is paired with a piece of natural language text (e.g., title/abstract for papers, product descriptions for items, or post text for online forums), which serves as the semantic grounding for retrieval and reasoning; meanwhile, edges encode native relational structures in the underlying domain, including citation links between papers, co-purchase/co-view relations between products, or interaction/co-posting relations in social platforms. This combination yields a realistic setting for agentic graph learning: the agent must jointly leverage topology (where to search) and semantics (what evidence says) to solve downstream tasks, while avoiding redundant evidence accumulation.</p><p>On each dataset, we consider two classical graphlearning problems: node classification (predicting a node's category label) and link prediction (predicting whether an edge exists between a pair of nodes). Node classification evaluates how effectively the model aggregates multi-hop structural cues together with node text to infer labels, whereas link prediction stresses relational reasoning and neighborhood consistency under sparse supervision. Unless otherwise specified, link prediction is formulated as a binary decision, and node classification uses the original multi-class label space of each dataset. Table <ref type="table" target="#tab_10">5</ref> summarizes key statistics, including the number of nodes, edges, and classes.</p><p>For data splits, except for Reddit and Arxiv-2023, we follow the default split protocol used in GraphICL <ref type="bibr" target="#b39">(Sun et al., 2025)</ref> and apply subsampling. For node classification, on the two training datasets (OGB-Arxiv and OGB-Products), we sample 3,000 training nodes each for optimization, and for each dataset we sample 1,000 nodes from the original test split for evaluation. For Arxiv-2023, we keep the original split <ref type="bibr">(He et al.)</ref> and likewise perform subsampling on its test split for evaluation. For Reddit, since the original benchmark <ref type="bibr" target="#b45">(Yan et al., 2025)</ref> is a multimodal graph, we convert it into a TAG by removing the image attributes of each node and retaining only the original textual fields; we then subsample its test split using the same evaluation protocol. For all datasets, we use Qwen2.5-72B-Instruct to produce concise rewrites of node attributes as a unified preprocessing step. These rewritten attributes are used consistently for AgentGL and all baselines, so as to control context length, and ensure a fair comparison under the same input budget.</p><p>A.2 More Related Work: GraphRAG vs. AGL</p><p>GraphRAG-style methods extend classical RAG by incorporating graph structure into evidence selection and organization, typically for open-ended question answering or long-form generation. In this paradigm, a graph (often a knowledge graph) serves as an index or scaffold that helps retrieve and aggregate textual evidence (documents, passages, entity descriptions, or triples) to ground an LLM's generation <ref type="bibr" target="#b19">(Jimenez Gutierrez et al., 2024;</ref><ref type="bibr" target="#b54">Zhuang et al., 2025)</ref>. The core objective is therefore generation quality (e.g., factuality, faithfulness, relevance), where the graph is an auxiliary structure that improves retrieval and attribution. In contrast, Agentic Graph Learning (AGL) treats the graph as the primary problem instance rather than an external knowledge base. The goal is to solve graph learning/reasoning tasks whose correctness depends on structural signals (e.g., neighborhood composition, multi-hop dependencies, or structural ranking), such as node classification, link prediction, and other graph-native queries. Accordingly, the agent interacts with the environment through graph-native operators that return nodes' text attributes, and the episode terminates with a discrete task decision, instead of free-form generation. This framing yields trajectories that are inherently graph-operational: the policy learns which structural context to acquire under a budget and when to stop, rather than retrieving text to write an answer. Although several recent works <ref type="bibr" target="#b30">(Luo et al., 2025)</ref> have explored agentic GraphRAG, this is not equivalent to agentic graph learning, as the two lines of research focus on fundamentally different objectives. Nevertheless, given their high-level similarities, we select representative (canonical) GraphRAG baselines and adapt them to perform graph reasoning, and we provide a detailed empirical comparison in the experiments section.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.3 Implementation Details</head><p>GraphRAG baselines. For HippoRAG2, Linear-RAG and GraphCoT, we follow their original settings whenever applicable. For HippoRAG2, we use gpt-4o-mini for entity extraction and nv-embed- v2 as the embedding model for retrieval. For Lin-earRAG, we use spaCy for named entity recognition and all-mpnet-base-v2 for embeddings. Both configurations match the default choices reported in their respective papers. To build the retrieval graph in a way that balances downstream task requirements with the original construction scale of these methods, we subsample 500 nodes from each TAG and construct the GraphRAG index using their original node text attributes (before any additional processing), which is then used for retrieval during inference. This subsampled graph is used solely for retrieval/augmentation and is applied consistently across compared methods. For GraphCoT, we follow the original implementation and prompting protocol. In the experiments, we categorize it as a GraphRAG method because it shares key characteristics with other GraphRAG approaches: it is primarily designed for knowledge-intensive QA, and it supports reasoning by retrieving evidence from a graph augmented with external knowledge.</p><p>GraphLLM baselines. All GraphLLM baselines are implemented under the same configurations as reported in their original papers, including their default prompting/formatting, graph-to-text serialization strategies, and hyperparameter choices.</p><p>GNN baselines. For GNN-based baselines, we adopt the same multi-dataset training and transfer protocol as LLaGA <ref type="bibr">(Chen et al., 2024b)</ref>.</p><p>Standard Agentic Search Baselines. As discussed in the paper, these methods do not natively support search over graph-structured evidence. Moreover, allowing unrestricted online search would make the comparison unfair, since they could directly obtain the answer from the web and bypass any reasoning. first extract the predicted label and compare it with the gold category using a normalized string match. The classification reward is set to 1.5 for an exact match, 0 for a mismatch, and negative when the answer is missing (-1.0) or the sample index is invalid (-0.5). We additionally apply a format reward to enforce a clean and machine-parsable trajectory structure. A response receives +0.5 if it contains exactly one &lt;think&gt; block and exactly one &lt;answer&gt; block; otherwise it receives -0.5. We further check that query/document delimiters are well-formed (the numbers of begin/end tags match); this adds +0.1 if consistent and -0.3 otherwise. To prevent leakage of tool I/O into the final prediction, we penalize cases where the answer block contains query/document tags (-0.5), where the answer is overly verbose (more than 12 whitespace-separated tokens, -0.2), or where the answer block contains any residual &lt;think&gt; content (-0.3). To encourage the agent to explore different graph-native search tools in the bootstrapping stage, we add a search-coverage reward on which tool tags appear in the rollout. Each distinct tool used contributes +0.5, capped at 2.0 in total. For Stage 2, we keep the format reward and the classification reward unchanged. The only modification is the cognitive-density reward: if any reasoning segment fails to meet the cognitive density requirement, we apply a penalty of -0.2; otherwise, we add a bonus of +0.5 when all segments satisfy the criterion. The segment-length threshold is set to 100 tokens. For link prediction, the only change is the number of evidence nodes returned by each tool. Specifically, 1-hop Neighborhood Search and 2hop Neighborhood Search still return up to 5 nodes per call, while Structure Salience Search returns 2 nodes and Graph Dense Search returns 3 nodes. AI Usage. We utilized AI exclusively for proofreading assistance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.4 Additional Experiments</head><p>Variance analysis. Sensitivity analysis of K value. We further analyze the sensitivity to the neighborhood size K in the main text. As shown in Table <ref type="table" target="#tab_14">7</ref>, increasing K from 1 to 5 consistently improves accuracy on both OGB-Arxiv and Amazon-Photo, with the best results achieved at K=5 (68.9% and 59.9%, respectively). This suggests that a moderately expanded neighborhood provides more informative structural context for reasoning. In contrast, further increasing K to 7 leads to a slight performance drop on both datasets, indicating that overly large neighborhoods may introduce redundant or noisy information. Overall, these results show that an appropriate neighborhood size is important for balancing contextual richness and noise, and justify our default choice of K=5.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.5 Case Study</head><p>To make AgentGL's decision process more interpretable, we present representative rollouts for both node classification and link prediction. Fig. <ref type="figure">4</ref> shows an NC example from the Amazon domain: the model first forms a hypothesis from the anchor text, then verifies it by querying local neighborhoods (1-hop/2-hop) and a global prior (PageRank). We highlight the key reasoning sentences that directly support the final label, illustrating how evidence aggregation over the graph reduces ambiguity and prevents over-reliance on the anchor text alone. Fig. <ref type="figure">5</ref> provides an LP example from Reddit, where the model validates a potential edge by searching common 1-hop neighbors; the shared copost motif offers strong structural evidence that the two endpoints lie in the same tight cluster. Across cases, the agent typically terminates early once the searched evidence becomes self-consistent, avoiding redundant searches under a bounded budget.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.6 Prompt Template</head><p>We use a standardized prompt format to expose graph-native search tools to the policy in a machine- parsable manner. Figs. 6-13 summarize the templates used for node classification and link prediction. Each prompt consists of a system instruction specifying the task, the available search pools, and strict output constraints, followed by a user message that provides the anchor instance (NC) or a node pair (LP). Placeholders {{...}} are instantiated with dataset-specific task lines, label spaces, relation descriptions, and per-pool Top-K limits, while keeping the action interface invariant across domains. During inference (and RL rollouts), all tool calls must appear inside a single &lt;think&gt; block, and the final prediction must be emitted as exactly one label enclosed by &lt;answer&gt; tags. This design ensures consistent trajectory logging, robust automatic reward computation, and reproducible evaluation under a fixed search budget. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Q:Figure 1 :</head><label>1</label><figDesc>Figure 1: Method Overview. Equipped with graph-native search tools (Top-Left) for structural evidence mining, AgentGL employs a two-stage training strategy building on GCCL (Top-Right). The training progresses from Stage 1: Policy Bootstrapping (Bottom-Left), which uses shaped rewards to instill tool proficiency, to Stage 2: Mitigating Search Overuse (Bottom-Right), which optimizes the trade-off between search efficiency and reasoning accuracy.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Ablation study of GCCL in different stages for AgentGL(7B)-GRPO on NC.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Algorithm 1 :</head><label>1</label><figDesc>AgentGL: Agentic Graph Learning with RL Input: Graph G; stage data D(1) , D(2) ; tools S = {τ 1HOP , τ 2HOP , τ SS , τ DEN SE }; ref policy π ref ; KL coeff β; budget B; rollouts N ; GCCL params: (z, η) (NC), Sim (LP); Stage-1 params: λ a , η cov ; Stage-2 params: λ a , α, λ d , δ; RL alg ALG ∈ {GRPO, R++}. Output: Optimized π θ . 1 foreach s ∈ {1, 2} do // Two RL Stages 2D ← D (s) 3 if x is node then // NC: S N C (v) = WLB(p v , d v ; z) + η log(1 + d v ) 4 Scores ← CalcDiffNC(D, G; z, η) 5 else 6 Scores ← CalcDiffLP(D; Sim) // S LP (e) = y e Sim(x u , x v ) + (1 -y e )(1 -Sim(x u , x v )) 7 {C E , C M , C H } ← SplitByDifficulty(D, Scores) 8 if s = 1 then // Stage 1: Graph-Native Search Policy Bootstrapping // R(τ ) = r FMT (τ ) + r ACC (ŷ, y) + r COV (τ )9 else // Stage 2: Mitigating Search Overuse (inject retrospective trigger after each tool call) // R(τ ) = r FMT (τ ) + r ACC (ŷ, y) + r depth (z) (discard r COV ) 10 foreach k ∈ {E, M, H} do 11 while stage-s budget not exhausted do 12 B ← SampleBatch(C k ) 13 foreach (x, Q, y) ∈ B do 14 for n ← 1 to N do 15τ (n) ← Rollout(π θ , G, S; x, Q, B, s) // a t = ⟨s t , q t ⟩ or ANSWER 16 r FMT ← FmtReward(τ (n) ); 17 r ACC ← AccReward(ŷ (n) , y) = λ a 1[ŷ (n) = y] 18 if s = 1 then 19 r COV ← CoverageReward(τ (n) ) = η cov j 1[∃t : a t = τ j ] 20 R (n) ← r FMT + r ACC + r COV 21 else 22 r depth ← DepthReward(τ (n) ; α, λ d , δ) = α1[N short = 0] -λ d N short 23 R (n) ← r FMT + r ACC + r depth24 θ ← UpdatePolicy(θ, {τ (n) , R (n) }, π ref , β; ALG) // GRPO/R++ w/ KL</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Anchor 1-hop Neighborhood Search 2-hop Neighborhood Search similar Structure Salience Search Graph Dense Search</head><label></label><figDesc>Local vs. Global and Structure vs. Semantics. τ 1HOP and τ 2HOP facilitate precise local</figDesc><table><row><cell>Definition 4.2 (2-hop Neighborhood Search). τ 2HOP follows an analogous retrieval logic to Defi-nition 4.1, substituting scope N 1 (•) with N 2 (•). Definition 4.3 (Structure Salience Search). Lever-aging precomputed PPR scores (Jeh and Widom, 2003) s ′ (v), τ SS retrieves the TopK globally salient candidates from the entire graph, ranking by s ′ (v) for nodes or the mean 1 2 (s(i) + s(j)) for pairs. Definition 4.4 (Graph Dense Search). The tool τ DENSE operates identically to Definition 4.3, except that it substitutes the structural score s ′ (•) with the semantic relevance measured by the cosine similar-ity of node or pair embeddings ϕ(•). Remark 4.5 (Design Rationale). This toolkit is de-signed to ensure comprehensive coverage of the graph information space, spanning two critical di-mensions: Problem Understanding</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Pair A (PA): 0.98 Curriculum Design Label A Label B Curriculum Design ... ... ... Easy Medium Hard PC: 0.96 (Cosine Similarity) PB: 0.39 Semantic Priors ... Medium Hard Easy PA PN ... PB PN ... PC PN NC LP : &lt;think&gt; Let me</head><label></label><figDesc>reason about the category of this Amazon product. First, I &lt;think&gt; Let me reason about the category of this Amazon product. First, I need some local neighborhood information to help with the reasoning, so I'll perform a 1-hop search to see which products are commonly purchased together with it. &lt;|begin_of_query|&gt; 1-hop: Fluker's Cricket Quencher gel water &lt;|end_of_query|&gt; &lt;|begin_of_documents|&gt; (1) Reptile UVB lamp 5% UVB &lt;|end_of_documents|&gt; -Doc(1) is reptile lighting, not feeder-insect hydration; lexical match is weak. -Still suggests the local neighborhood leans toward reptile husbandry supplies.</figDesc><table><row><cell cols="2">Train with Multi</cell><cell></cell></row><row><cell cols="2">RL Algorithms</cell><cell></cell></row><row><cell>GRPO</cell><cell>REINFORCE++</cell><cell>Topological</cell></row><row><cell></cell><cell></cell><cell>Priors</cell></row><row><cell></cell><cell>Policy Model</cell><cell>Graph-Conditioned Curriculum Learning (GCCL)</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>&lt;|begin_of_query|&gt; 2-hop: feeder insects hydration gel drown-free (Learn to use tools to support reasoning)</head><label></label><figDesc></figDesc><table><row><cell>need some local neighborhood</cell></row><row><cell>information to help with the</cell></row><row><cell>reasoning, so I'll perform a 1-hop</cell></row><row><cell>search to see which products...</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>(1) Learn to use tools to support reasoning</head><label></label><figDesc></figDesc><table><row><cell></cell><cell>τ 1HOP</cell><cell></cell><cell>τ 2HOP</cell><cell>τ SS</cell><cell>τ DENSE</cell></row><row><cell cols="2">Reward</cell><cell cols="2">Correctness Format</cell></row><row><cell cols="2">Shaping</cell><cell cols="2">GNS Coverage</cell></row><row><cell></cell><cell cols="3">GNS Bootstrapping</cell></row><row><cell></cell><cell cols="3">|�| (# GNS Tool Types)</cell></row><row><cell># GNS Tool Use</cell><cell cols="2">Learning Tool Use</cell><cell>Converging to Full Tool Use</cell><cell>Problem Understanding</cell></row><row><cell></cell><cell></cell><cell cols="2">Training steps</cell></row><row><cell></cell><cell cols="2">Average Tool Use</cell><cell>Accuracy</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Rollout with Multi-turn GNS (Policy Bootstrapping Stage) ...</head><label></label><figDesc></figDesc><table><row><cell>Multi-domain</cell></row><row><cell>Graph Learning Questions</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 1 :</head><label>1</label><figDesc>For a fair comparison, we use the same LLM backbone as AgentGL for all baselines whose final reasoner is an LLM. For GraphRAG baselines, we construct the graph-based retrieval corpus by collecting the node texts involved in our experiments. For standard agentic search baselines, since they lack native graph-search capability, we replace their original online-search space with the set of graph nodes, ensuring that they can be properly applied to graph reasoning tasks; implementation details are provided in the appendix. Other settings, such as SFT and RL training procedures, follow the original papers. The other implementation details are provided in the Appendix A.3. AgentGL achieves an average gain of 26.3% in-domain and 22.4% in zero-shot transfer. These improvements are consistent across model scales: with Qwen3B, AgentGL improves over the baselines by 14.5% on in-domain NC and 26.3% on in-domain LP, and by 26.6% and 22.4% on zero-shot NC and LP, respectively. ↑64.5 8.0 ↑42.8 10.0 ↑50.2 1.9 ↑63.6 7.1 ↑40.0 55.5 ↑38.1 74.7 ↑18.8 51.0 ↑24.8 49.8 ↑19.7 50.5 ↑24.1 52.0 ↑38.1 53.2 ↑34.8 RevGAT 58.9 ↑9.0 56.7 ↑12.9 13.5 ↑65.1 12.1 ↑38.8 5.6 ↑54.6 1.3 ↑64.2 8.2 ↑38.9 59.0 ↑34.6 73.5 ↑20.0 55.8 ↑20.0 59.4 ↑10.1 50.7 ↑23.9 61.8 ↑28.3 61.8 ↑26.2 SAGE 60.1 ↑7.8 56.9 ↑12.7 11.1 ↑67.5 8.2 ↑42.7 7.4 ↑52.8 3.6 ↑61.9 3.1 ↑44.0 61.0 ↑32.6 73.4 ↑20.1 50.9 ↑24.9 51.6 ↑17.9 50.3 ↑24.3 50.5 ↑39.6 57.6 ↑30.4 Performance Comparison on Node Classification and Link Prediction benchmarks under In-Domain and Zero-shot Transfer settings. The best results are highlighted in bold. The metric used for two tasks is ACC (%). Red values (↑) indicate the absolute gain over baselines. These denote the average improvement of the two RL variants; for GNN comparisons, they represent the average gain across 3B and 7B backbones.</figDesc><table><row><cell>, and Arxiv-2023 (He</cell></row><row><cell>et al.); (2) Amazon Products: OGB-Products</cell></row><row><cell>(Hu et al., 2020), Amazon-Photo, and Amazon-</cell></row><row><cell>Computers (Shchur et al., 2018); and (3) Social</cell></row><row><cell>Networks: Reddit (Yan et al., 2025). Additional</cell></row><row><cell>dataset details and data splits are provided in the</cell></row><row><cell>Appendix A.1.</cell></row><row><cell>Baselines. We compare AgentGL against a di-</cell></row><row><cell>verse set of up-to-date, strong baselines span-</cell></row><row><cell>ning (1) GNNs ( ): GraphSAGE (2021), GCN</cell></row><row><cell>(2016) and RevGAT (2021); (2) GraphLLMs</cell></row><row><cell>( ): LLaGA (2024a), GraphGPT (2024), Graph-</cell></row><row><cell>Prompter (2024b) and GraphICL(-S1) (2025);</cell></row><row><cell>(3) GraphRAG ( ): LinearRAG (2025), Hip-</cell></row><row><cell>poRAG2 (2025) and GraphCoT (A special kind of</cell></row></table><note><p><p><p><p>5.1 Overall Performance</p>We first evaluate in-domain and zero-shot transfer performance, with results listed in Table</p>1</p>. For all methods, we train only on OGB-Arxiv and OGB-Products using different Qwen backbones, and then test on the test splits of all datasets. Based on these results, we summarize the following observations: Obs 1. AgentGL consistently achieves the best performance across multiple tasks and domains, under diverse graph-reasoning regimes. For node classification (NC), with Qwen7B as the backbone, AgentGL outperforms the baselines by an average of 12.7% on the in-domain evaluation and 24.4% on the zero-shot transfer setting. For link prediction (LP), ing Qwen7B LP as an example, AgentGL achieves 47.4% and 23.2% higher in-domain performance than GraphRAG and GraphLLM, respectively; these substantial margins are sustained under zeroshot transfer at 35.4% and 26.9%. This trend sug-</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 2 :</head><label>2</label><figDesc></figDesc><table><row><cell>gests that static context injection is more brittle</cell></row><row><cell>to distribution shifts, while AgentGL's interleaved</cell></row><row><cell>searching, reasoning loop can adaptively acquire</cell></row><row><cell>task-relevant evidence and suppress irrelevant con-</cell></row><row><cell>text, leading to more robust transfer.</cell></row><row><cell>Obs 3. Different RL algorithms yield comple-</cell></row><row><cell>mentary strengths for AgentGL across graph</cell></row><row><cell>tasks.</cell></row></table><note><p>Ablation study on different RL training stages. The red (↑) and green (↓) denote absolute percentage gains and declines, respectively. #Search represents the average search count on the test set of each dataset (Budget=4). The percentage calculation and comparison for the number of searches are conducted based on the budget.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 3 :</head><label>3</label><figDesc>Component-wise ablations of AgentGL. Red numbers denote the absolute improvements.</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell>2.4</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>2.2</cell><cell></cell></row><row><cell></cell><cell>w/o CDR w/o RTT w/ RTT+CDR</cell><cell>Train Reward</cell><cell>1.4 1.6 1.8 2.0</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>1.2</cell><cell cols="2">w/o CDR</cell><cell>w/ RTT+CDR</cell><cell>w/o RTT</cell></row><row><cell></cell><cell></cell><cell></cell><cell>0</cell><cell>10</cell><cell>20 Training Step 30 40</cell><cell>50</cell><cell>60</cell></row><row><cell cols="2">(c) Ablation of CDR/RTT</cell><cell cols="4">(d) Ablation of CDR/RTT</cell></row><row><cell cols="6">Figure 2: Ablation study of AgentGL(7B)-GRPO on</cell></row><row><cell cols="6">NC: Analysis of valid GNS counts and training rewards.</cell></row><row><cell>Model</cell><cell>OGB-Arxiv</cell><cell cols="4">Amazon-Photo</cell><cell>Avg.</cell></row><row><cell>AGENTGL</cell><cell>68.9</cell><cell></cell><cell></cell><cell>59.9</cell><cell>64.4</cell></row><row><cell>w/o rCOV</cell><cell>65.2 ↑3.7</cell><cell></cell><cell cols="2">55.4 ↑4.5</cell><cell>60.3 ↑4.1</cell></row><row><cell>w/o CDR</cell><cell>65.9 ↑3.0</cell><cell></cell><cell cols="2">57.1 ↑2.8</cell><cell>61.5 ↑2.9</cell></row><row><cell>w/o RTT</cell><cell>65.4 ↑3.5</cell><cell></cell><cell cols="2">56.5 ↑3.4</cell><cell>61.0 ↑3.4</cell></row><row><cell>w/o GCCL</cell><cell>68.2 ↑0.7</cell><cell></cell><cell cols="2">59.3 ↑0.6</cell><cell>63.8 ↑0.6</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_9"><head>Table 4 :</head><label>4</label><figDesc>Impact of the hyperparameter λ r .</figDesc><table><row><cell>For Stage 1, as illustrated in Fig-</cell></row><row><cell>ure 2a, in the absence of r COV (τ ), the model fails</cell></row><row><cell>to acquire effective search habits during training.</cell></row><row><cell>Consequently, as training steps increase, the agent</cell></row><row><cell>eventually degenerates to ceasing search operations</cell></row><row><cell>entirely, maintaining a suboptimal reward level</cell></row><row><cell>(Figure 2b). Regarding Stage 2, we conducted an</cell></row><row><cell>ablation study on the Retrospective Termination</cell></row><row><cell>Trigger (RTT) and Cognitive Density Regulariza-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 5 :</head><label>5</label><figDesc>Dataset statistics used in this paper across three domains. #Classes correspond to the node classification label space; link prediction is treated as binary.</figDesc><table><row><cell>Domain</cell><cell>Dataset</cell><cell>#Nodes</cell><cell>#Edges</cell><cell>#Classes</cell></row><row><cell>Citation Network</cell><cell>OGB-Arxiv</cell><cell>169,343</cell><cell>1,166,245</cell><cell>40</cell></row><row><cell>Citation Network</cell><cell>PubMed</cell><cell>19,717</cell><cell>44,338</cell><cell>3</cell></row><row><cell>Citation Network</cell><cell>Arxiv-2023</cell><cell>46198</cell><cell>78548</cell><cell>40</cell></row><row><cell>Amazon Products</cell><cell>OGB-Products (subset)</cell><cell>54,025</cell><cell>74,420</cell><cell>47</cell></row><row><cell>Amazon Products</cell><cell>Amazon-Photo</cell><cell>48,362</cell><cell>500,939</cell><cell>12</cell></row><row><cell>Amazon Products</cell><cell>Amazon-Computers</cell><cell>87,229</cell><cell>721,107</cell><cell>10</cell></row><row><cell>Social Network</cell><cell>Reddit</cell><cell>15,894</cell><cell>566,160</cell><cell>20</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head>Table 6</head><label>6</label><figDesc></figDesc><table><row><cell>reports the perfor-</cell></row><row><cell>mance variance over three independent runs under</cell></row><row><cell>our RL training setup. Overall, the observed vari-</cell></row><row><cell>ances are modest across both node classification</cell></row><row><cell>and link prediction, suggesting that AgentGL train-</cell></row><row><cell>ing is reasonably stable in practice. A consistent</cell></row><row><cell>trend is that smaller backbones exhibit larger vari-</cell></row><row><cell>ance than their larger counterparts (e.g., 3B vs. 7B),</cell></row><row><cell>which aligns with the intuition that smaller mod-</cell></row><row><cell>els are more sensitive to stochasticity in sampling</cell></row><row><cell>and policy optimization. This gap is especially no-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 6 :</head><label>6</label><figDesc>Variance of performance over 3 runs for node classification (NC) and link prediction (LP) on two datasets.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head>Table 7 :</head><label>7</label><figDesc>Sensitivity analysis of K value (AgentGL-7B-GRPO, Node Classification).</figDesc><table><row><cell>Acc (%)</cell><cell cols="4">K = 1 K = 3 K = 5 K = 7</cell></row><row><cell>OGB-Arxiv</cell><cell>65.7</cell><cell>68.1</cell><cell>68.9</cell><cell>68.6</cell></row><row><cell>Amazon-Photo</cell><cell>56.2</cell><cell>59.1</cell><cell>59.9</cell><cell>59.7</cell></row></table></figure>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head n="8">Acknowledgments</head><p>We sincerely thank the anonymous reviewers, AC and SAC for their valuable feedback. This research is partially supported by <rs type="funder">National Natural Science Foundation of China</rs> (<rs type="grantNumber">62402320</rs>), <rs type="funder">Shanghai Science and Technology Program</rs> (<rs type="grantNumber">24YF2731000</rs>), and the <rs type="funder">NYU Shanghai Boost Fund</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_XENxsgR">
+					<idno type="grant-number">62402320</idno>
+				</org>
+				<org type="funding" xml:id="_ArgvFtz">
+					<idno type="grant-number">24YF2731000</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Case Study: Node Classification (NC)</p><p>Target instance text attribute: Tripod is not sturdy enough for heavy use; legs bulge and move, hinge is weak. Not recommended for rifles or kneeling shots.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ground truth label: Tripods &amp; Monopods Model prediction: Tripods &amp; Monopods (✓ Matched) Model response:</head><p>&lt;think&gt; The anchor summary is already strongly indicative of a tripod: it talks about leg sections bulging, the legs shifting under load, and a weak hinge, plus mentions kneeling shots / rifles (a common tripod/spotting-scope/shooting-use context). I'll still start with local graph evidence and only expand if anything looks like it could actually be an accessory rather than the tripod itself. Round 1 -1-hop: Make the query reflect both the mechanical failure points (hinge/legs) and the use case (kneeling/shoot ing) so the nearest co-purchases are maximally revealing. &lt;|begin_of_query|&gt;1-hop:tripod weak hinge legs bulge unstable kneeling shooting&lt;|end_of_query|&gt; &lt;|begin_of_documents|&gt; (1) Budget tripod; quick leg locks; okay for light cameras but wobbles when fully extended.</p><p>(2) Tripod for spotting scope / range; stable at low height, awkward for kneeling positions.</p><p>(3) Lightweight travel tripod with ball head; users mention leg flex and hinge durability issues. (4) "Heavy duty" tripod claims; complaints about loose joints and bulging leg sections under load.</p><p>(5) Compact aluminum tripod; fine for occasional use, not recommended for heavy rifles or heavy camera rigs. &lt;|end_of_documents|&gt; These direct neighbors read like the same product family: tripods criticized for stability, load rating, and joint/hinge reliability-plus the same shooting/kneeling angle shows up. That's enough to lean hard toward "Tripods &amp; Monopods," but I'll expand once to check whether the node could be a tripod component (e.g., a head/plate) that's being discussed with tripod-like language. Round 2 -2-hop: Probe for whether the neighborhood shifts toward "plates/heads/clamps" as the main object, or stays centered on the support legs/column system. &lt;|begin_of_query|&gt;2-hop:tripod load capacity leg locks center column wobble head loosens&lt;|end_of_query|&gt; &lt;|begin_of_documents|&gt; (1) Tripod head loosens and tilt lock slips; fine for phones, not for heavier cameras.</p><p>(2) Tripod legs slip under load; center column wobble; advertised rating overstated.</p><p>(3) Monopod suggested as alternative; compared directly against tripods for portability.</p><p>(4) Video tripod: smooth pan but poor tilt stability for heavier rigs.</p><p>( (2) Common ball head / tripod head frequently paired with tripods.</p><p>(3) Tripod carry bag / case often co-purchased for transport.</p><p>(4) Universal quick-release plate accessory used across tripod brands.</p><p>(5) Well-known travel tripod line referenced in comparisons <ref type="bibr">(compact fold, lightweight)</ref>. &lt;|end_of_documents|&gt; This is exactly the ecosystem we'd expect when the anchor is a tripod: the graph surfaces other tripods and the usual companion pieces (head/plate/bag), but the core story remains "support legs + stability under load," matching the anchor summary. A fourth "similar" search would likely be redundant, so I'll stop here. &lt;/think&gt; &lt;answer&gt;Tripods &amp; Monopods&lt;/answer&gt; Case Study: Link Prediction (LP) -Reddit</p><p>Target instance text attribute: Node U: laggar falcon -falco jugger -tal chappar, rajasthan, india Node V: greater hoopoe-lark : the courtship display of the male consists of rising with fluttering wing-strokes and then diving down with closed wings to a perch. -banni grassland, gujarat, india</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ground truth label: yes</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Model prediction: yes (✓ Matched)</head><p>Model response:</p><p>&lt;think&gt; U and V are both bird-observation style Reddit posts with the same "species -location -India" pattern. The fastest way to verify that is to check for common 1-hop if they share multiple direct neighbors that are themselves highly consistent, that's strong evidence of an edge.   Dataset Inserts: Arxiv</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>TASK_LINE :</head><p>Your task is to predict the category of arXiv computer science ( cs ) papers .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>OUTPUT_REQ :</head><p>-Final output must be exactly : &lt; answer &gt; cs . XX &lt;/ answer &gt; POOLS :</p><p>-1-hop : direct neighbors ( papers that directly cite or are cited by the anchor  Dataset Inserts: Amazon</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>TASK_LINE :</head><p>Your task is to predict the category of Amazon products .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>OUTPUT_REQ :</head><p>-Final output must be exactly one of the listed Amazon categories inside &lt; answer &gt;... &lt;/ answer &gt;.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>POOLS :</head><p>-1-hop : direct neighbors ( products that are frequently co -purchased with the anchor  Dataset Inserts: Reddit</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>TASK_LINE :</head><p>Your task is to predict the subreddit category of a Reddit post .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>OUTPUT_REQ :</head><p>-Final output must be exactly one of the listed subreddit categories inside &lt; answer &gt;... &lt;/ answer &gt;.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>POOLS :</head><p>-1-hop : other posts from the same author ( also_posted set ) . Returns up to {{ TOPK_ONE_HOP }} nodes . -2-hop : same as 1 -hop in this dataset ( duplicates allowed THINK / ANSWER FORMAT :</p><p>-Perform all reasoning and search planning inside &lt; think &gt;... &lt;/ think &gt;.</p><p>-Output ONLY the final judgment as &lt; answer &gt; yes &lt;/ answer &gt; or &lt; answer &gt; no &lt;/ answer &gt;.</p><p>-Never leak your chain -of -thought outside of &lt; think &gt;... &lt;/ think &gt;.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>GRAPH SEARCH POOLS :</head><p>-1-hop : prioritize common direct neighbours ( connected to BOTH endpoints U and V ) . If insufficient , fill with non -common 1 -hop neighbours from U and / or V ( balanced when possible ). -2-hop : prioritize common 2 -hop neighbours ( reachable from BOTH endpoints within two hops ) . If insufficient , fill with non -common 2 -hop neighbours from U and / or V ( balanced when possible ) .</p><p>-pagerank : list globally influential reference edges selected offline using PageRank , as complementary structural priors . -similar : retrieve Top -K node pairs most similar to the current pair , including their edge status as reference .  Dataset Inserts: Relation Descriptions (LP)</p><p>[ arxiv / pubmed ] Nodes are research papers . An edge represents a citation linkage between the two papers .</p><p>[ amazon / products ] Nodes are Amazon products . An edge indicates strong co -purchase relationships between the items .</p><p>[ reddit ] Nodes are Reddit posts . An edge indicates strong co -post relationships between the posts .</p><p>[ default ] Nodes come from the same graph dataset ; an edge captures the canonical relation defined for that dataset . </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Josh</forename><surname>Achiam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Adler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandhini</forename><surname>Agarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lama</forename><surname>Ahmad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilge</forename><surname>Akkaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florencia</forename><surname>Leoni Aleman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diogo</forename><surname>Almeida</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Janko</forename><surname>Altenschmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sam</forename><surname>Altman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.08774</idno>
+		<title level="m">Shyamal Anadkat, and 1 others. 2023. Gpt-4 technical report</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Huajun Chen, and 1 others. 2025. Learning to reason with search for llms via reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Mingyang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linzhuang</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianpeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoze</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijie</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenzheng</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haofen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><forename type="middle">Z</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.19470</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<author>
+			<persName><forename type="first">Runjin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Jaiswal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyang</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.08170</idno>
+		<title level="m">Llaga: Large language and graph assistant</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">2024b. Llaga: Large language and graph assistant</title>
+		<author>
+			<persName><forename type="first">Runjin</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Kumar Jaiswal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyang</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-first International Conference on Machine Learning</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">2024c. Exploring the potential of large language models (llms) in learning on graphs</title>
+		<author>
+			<persName><forename type="first">Zhikai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haitao</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongzhi</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaochi</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuaiqiang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenqi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM SIGKDD Explorations Newsletter</title>
+		<imprint>
+			<biblScope unit="volume">25</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="42" to="61" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Junnan</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyu</forename><surname>An</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qian-Wen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linhao</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunsheng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Di</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xing</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.19855</idno>
+		<title level="m">Youtu-graphrag: Vertically unified agents for graph retrieval-augmented complex reasoning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Gaugllm: Improving graph contrastive learning for text-attributed graphs with large language models</title>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongzhe</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daochen</forename><surname>Zha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaoyu</forename><surname>Tan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining</title>
+		<meeting>the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="747" to="758" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kangxiang</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinliu</forename><surname>Pan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxi</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haofen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haofen</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.10997</idno>
+		<title level="m">Retrieval-augmented generation for large language models: A survey</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">2</biblScope>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Gpt4graph: Can large language models understand graph structured data? an empirical evaluation and benchmarking</title>
+		<author>
+			<persName><forename type="first">Jiayan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lun</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hengyu</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyi</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shi</forename><surname>Han</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.15066</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">From rag to memory: Non-parametric continual learning for large language models</title>
+		<author>
+			<persName><forename type="first">Jiménez</forename><surname>Bernal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiheng</forename><surname>Gutiérrez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weijian</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sizhe</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Su</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.14802</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Inductive representation learning on large graphs. Advances in neural information processing systems</title>
+		<author>
+			<persName><forename type="first">Will</forename><surname>Hamilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhitao</forename><surname>Ying</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jure</forename><surname>Leskovec</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page">30</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harry</forename><surname>Shomer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayuan</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongjia</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mahantesh</forename><surname>Halappanavar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subhabrata</forename><surname>Mukherjee</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.00309</idno>
+		<title level="m">Xianfeng Tang, and 1 others. 2024. Retrieval-augmented generation with graphs (graphrag)</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Harnessing explanations: Llm-to-lm interpreter for enhanced text-attributed graph representation learning</title>
+		<author>
+			<persName><forename type="first">Xiaoxin</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Bresson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Laurent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Perold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Hooi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Twelfth International Conference on Learning Representations</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">G-retriever: Retrieval-augmented generation for textual graph understanding and question answering</title>
+		<author>
+			<persName><forename type="first">Xiaoxin</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijun</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitesh</forename><surname>Chawla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Laurent</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yann</forename><surname>Lecun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xavier</forename><surname>Bresson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bryan</forename><surname>Hooi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="132876" to="132907" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Hendrycks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Collin</forename><surname>Burns</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saurav</forename><surname>Kadavath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akul</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Steven</forename><surname>Basart</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawn</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Steinhardt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2103.03874</idno>
+		<title level="m">Measuring mathematical problem solving with the math dataset</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Reinforce++: Stabilizing critic-free policy optimization with global advantage normalization</title>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jason</forename><forename type="middle">Klein</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Shen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.03262</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Open graph benchmark: Datasets for machine learning on graphs</title>
+		<author>
+			<persName><forename type="first">Weihua</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Fey</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marinka</forename><surname>Zitnik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiao</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongyu</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michele</forename><surname>Catasta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jure</forename><surname>Leskovec</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="22118" to="22133" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingjian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaozhu</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaqi</forename><surname>Ma</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.16595</idno>
+		<title level="m">Can llms effectively leverage graph structural information: when and why</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Scaling personalized web search</title>
+		<author>
+			<persName><forename type="first">Glen</forename><surname>Jeh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennifer</forename><surname>Widom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 12th international conference on World Wide Web</title>
+		<meeting>the 12th international conference on World Wide Web</meeting>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+			<biblScope unit="page" from="271" to="279" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Hipporag: Neurobiologically inspired long-term memory for large language models</title>
+		<author>
+			<persName><forename type="first">Jimenez</forename><surname>Bernal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiheng</forename><surname>Gutierrez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Shu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michihiro</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Yasunaga</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="59532" to="59569" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Xianfeng Tang, Suhang Wang, Yu Meng, and 1 others. 2024. Graph chain-of-thought: Augmenting large language models by reasoning on graphs</title>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Bowen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chulin</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kashob</forename><surname>Kumar Roy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruirui</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2404.07103</idno>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Bowen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hansi</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenrui</forename><surname>Yue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinsung</forename><surname>Yoon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sercan</forename><surname>Arik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamed</forename><surname>Zamani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.09516</idno>
+		<title level="m">Search-r1: Training llms to reason and leverage search engines with reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Semisupervised classification with graph convolutional networks</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Thomas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Kipf</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Welling</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1609.02907</idno>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Tim Rocktäschel, and 1 others. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks</title>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandra</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabio</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladimir</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heinrich</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="9459" to="9474" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Training graph neural networks with 1000 layers</title>
+		<author>
+			<persName><forename type="first">Guohao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Müller</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernard</forename><surname>Ghanem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vladlen</forename><surname>Koltun</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="6437" to="6449" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Similarity-based neighbor selection for graph llms</title>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiwei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoyin</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.03720</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Xiaoxi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanting</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajie</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuyao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yutao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peitian</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhicheng</forename><surname>Dou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.05366</idno>
+		<title level="m">Search-o1: Agentic searchenhanced large reasoning models</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Graphsearch: Agentic search-augmented reasoning for zero-shot graph learning</title>
+		<author>
+			<persName><forename type="first">Jiajin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanfu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongzhe</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaoyu</forename><surname>Tan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.08621</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yuyan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sirui</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12950</idno>
+		<title level="m">Wenqi Fan, and Qiaoyu Tan. 2024a. Moleculargpt: Open large language model (llm) for few-shot molecular property prediction</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Can we soft prompt llms for graph learning tasks?</title>
+		<author>
+			<persName><forename type="first">Zheyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoxin</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijun</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nitesh V</forename><surname>Chawla</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Companion Proceedings of the ACM on Web Conference 2024</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="481" to="484" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Graph-r1: Towards agentic graphrag framework via end-to-end reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Haihong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guanting</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qika</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yikai</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangzhi</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zemin</forename><surname>Kuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meina</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaobao</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anh</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Tuan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2507.21892</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Haitao</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juanhui</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harry</forename><surname>Shomer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenqi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Shah</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.00793</idno>
+		<title level="m">Revisiting link prediction: A data perspective</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Measuring and narrowing the compositionality gap in language models</title>
+		<author>
+			<persName><forename type="first">Ofir</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muru</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sewon</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ludwig</forename><surname>Schmidt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noah</forename><forename type="middle">A</forename><surname>Smith</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2023</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="5687" to="5711" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Collective classification in network data</title>
+		<author>
+			<persName><forename type="first">Prithviraj</forename><surname>Sen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Galileo</forename><surname>Namata</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mustafa</forename><surname>Bilgic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lise</forename><surname>Getoor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Galligher</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tina</forename><surname>Eliassi-Rad</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">AI magazine</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="93" to="93" />
+			<date type="published" when="2008">2008</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhihong</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qihao</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Runxin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Bi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haowei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingchuan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">K</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.03300</idno>
+		<title level="m">Yang Wu, and 1 others. 2024. Deepseekmath: Pushing the limits of mathematical reasoning in open language models</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">Oleksandr</forename><surname>Shchur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Mumme</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aleksandar</forename><surname>Bojchevski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephan</forename><surname>Günnemann</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1811.05868</idno>
+		<title level="m">Pitfalls of graph neural network evaluation</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yucheng</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaoyu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuansheng</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaochen</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaixiong</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ninghao</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.19631</idno>
+		<title level="m">Retrieval-enhanced knowledge editing for multi-hop question answering in language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">R1-searcher: Incentivizing the search capability in llms via reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Huatong</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinhao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingqian</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhipeng</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wayne</forename><forename type="middle">Xin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji-Rong</forename><surname>Wen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.05592</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yuanfu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengkang</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiajin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaoyu</forename><surname>Tan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2603.05181</idno>
+		<title level="m">Mario: Multimodal graph reasoning with large language models</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Graphicl: Unlocking graph learning potential in llms through structured prompt design</title>
+		<author>
+			<persName><forename type="first">Yuanfu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengnan</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaoyu</forename><surname>Tan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: NAACL 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="2440" to="2459" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Graphgpt: Graph instruction tuning for large language models</title>
+		<author>
+			<persName><forename type="first">Jiabin</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lixin</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suqi</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Huang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval</title>
+		<meeting>the 47th International ACM SIGIR Conference on Research and Development in Information Retrieval</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="491" to="500" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Investigating and mitigating degree-related biases in graph convoltuional networks</title>
+		<author>
+			<persName><forename type="first">Xianfeng</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huaxiu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwei</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiqi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiliang</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Charu</forename><surname>Aggarwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prasenjit</forename><surname>Mitra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Suhang</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th ACM International Conference on Information &amp; Knowledge Management</title>
+		<meeting>the 29th ACM International Conference on Information &amp; Knowledge Management</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="1435" to="1444" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Yoshua Bengio, and 1 others. 2017. Graph attention networks</title>
+		<author>
+			<persName><forename type="first">Petar</forename><surname>Velickovic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillem</forename><surname>Cucurull</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arantxa</forename><surname>Casanova</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adriana</forename><surname>Romero</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pietro</forename><surname>Lio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">stat</title>
+		<imprint>
+			<biblScope unit="volume">1050</biblScope>
+			<biblScope unit="issue">20</biblScope>
+			<biblScope unit="page" from="10" to="48550" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Representation learning on graphs with jumping knowledge networks</title>
+		<author>
+			<persName><forename type="first">Keyulu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengtao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yonglong</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomohiro</forename><surname>Sonobe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ken-Ichi</forename><surname>Kawarabayashi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefanie</forename><surname>Jegelka</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="5453" to="5462" />
+		</imprint>
+	</monogr>
+	<note>pmlr</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Hao Sun, and 1 others. 2023. A comprehensive study on text-attributed graphs: Benchmarking and rethinking</title>
+		<author>
+			<persName><forename type="first">Chaozhuo</forename><surname>Hao Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruosong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Long</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianan</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenwen</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peiyan</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Han</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="17238" to="17264" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">When graph meets multimodal: benchmarking and meditating on multimodal attributed graph learning</title>
+		<author>
+			<persName><forename type="first">Chaozhuo</forename><surname>Hao Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhigang</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingzheng</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengxin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Senzhang</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V</title>
+		<meeting>the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="5842" to="5853" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anfeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengen</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.09388</idno>
+		<title level="m">Chenxu Lv, and 1 others. 2025. Qwen3 technical report</title>
+		<imprint/>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengyuan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianhong</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianxin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingren</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Dang</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/ARXIV.2412.15115</idno>
+		<imprint/>
+	</monogr>
+	<note>and 22 others. 2024. Qwen2.5 technical report. CoRR, abs/2412.15115</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<analytic>
+		<title level="a" type="main">Revisiting semi-supervised learning with graph embeddings</title>
+		<author>
+			<persName><forename type="first">Zhilin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhudinov</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+			<biblScope unit="page" from="40" to="48" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Karthik R Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The eleventh international conference on learning representations</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">Link prediction based on graph neural networks</title>
+		<author>
+			<persName><forename type="first">Muhan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page">31</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Trustglm: Evaluating the robustness of graphllms against prompt, text, and structure attacks</title>
+		<author>
+			<persName><forename type="first">Qihai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyue</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanfu</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiaoyu</forename><surname>Tan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V</title>
+		<meeting>the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="5912" to="5923" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<author>
+			<persName><forename type="first">Jianan</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Zhuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yikang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Meng</forename><surname>Qu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Bronstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaocheng</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Tang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.01089</idno>
+		<title level="m">Graphtext: Graph reasoning in text space</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Beyond homophily in graph neural networks: Current limitations and effective designs</title>
+		<author>
+			<persName><forename type="first">Jiong</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujun</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingxiao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Heimann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Leman</forename><surname>Akoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Danai</forename><surname>Koutra</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="7793" to="7804" />
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<author>
+			<persName><forename type="first">Luyao</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shengyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yilin</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huachi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinggang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.10114</idno>
+		<title level="m">Linearrag: Linear graph retrieval augmented generation on large-scale corpora</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

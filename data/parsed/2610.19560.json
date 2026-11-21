@@ -1,0 +1,1205 @@
+{
+  "arxiv_id": "2610.19560",
+  "title": "τ -EMOTION-BENCH: EXPOSING THE INTERACTION FRAGILITY OF LLM AGENTS THROUGH REAL-WORLD USER EMOTIONS",
+  "abstract": "In long-horizon tool-calling tasks, LLM agents can fail not only because of tooluse errors, but also because of ineffective interaction with users. Yet existing benchmarks largely assume cooperative and behaviorally stable users, leaving the effect of emotional variation on agent reliability underexplored. We introduce τ -Emotion-Bench, a ten-domain benchmark for evaluating tool-calling agents under controlled emotion-conditioned user interactions while preserving the underlying task objective. To scale both benchmark construction and agent training, we introduce Tracer, a scalable agentic data-generation pipeline that constructs grounded, policy-valid tasks and collects trajectories through an interactive agentuser-environment harness. By allowing dissatisfied users to terminate inefficient interactions, the harness provides an interaction-aware signal that filters trajectories with excessive user dependence and favors effective tool use. Experiments with two user simulators show that frontier agents remain unreliable, with substantial gaps between average task success and consistent task completion. Tracer-generated supervision consistently improves Qwen3 models across scales, generalizes to unseen domains, and transfers to τ -Bench and τ -Trait. Behavioral analyses further show that higher task success is associated with a better balance between tool execution and necessary user follow-up. Overall, τ -Emotion-Bench and Tracer provide a scalable framework for evaluating agent reliability under diverse user behaviors and improving tool-calling agents through interaction-aware supervision. Model https://huggingface.co/tau-emotion-bench/models Dataset https://huggingface.co/tau-emotion-bench/datasets Code https://github.com/sahsaeedi/tau-emotion-bench Website https://tau-emotion-bench.github.io Q w e n 3 -1 . 7 B Q w e n 3 -4 B T r a c e r -H i g h -1 . 7 B",
+  "sections": [
+    {
+      "heading": "INTRODUCTION",
+      "section_type": "introduction",
+      "text": "Large language models have rapidly evolved into agents capable of planning (Zhu et al., 2025), calling external tools, maintaining long-term memory (Uddin et al., 2026), and completing longhorizon tasks in interactive environments (Wang et al., 2024). Recent benchmarks have made these evaluations increasingly realistic by introducing complex tool dependencies, stateful environments, and multi-turn user interactions (Yao et al., 2024;He et al., 2025b;Yu et al., 2026b;Barres et al., 2025). In parallel, recent agent-training methods generate large collections of successful trajectories from executable environments (Li et al., 2025;Liu et al., 2026;Saeidi et al., 2026a;Wang et al., 2026;Xu et al., 2026b). However, both evaluation and data generation still largely rely on terminal task success as the main signal of agent quality (Saeidi et al., 2026c). A trajectory may eventually solve the task while repeatedly asking unnecessary questions, requesting information that could be obtained through tools, or relying excessively on the user instead of interacting with the environment (Mishra et al., 2025). Such trajectories receive positive task reward despite exhibiting undesirable behavior for user-facing agents. This exposes an important limitation of current agent harnesses, which measure whether the task is completed but provide little signal about whether the interaction itself is efficient.\n\nWe introduce τ -Emotion-Bench and Tracer to address this gap through an emotion-conditioned agent-user-environment harness. τ -Emotion-Bench contains 580 executable tasks across ten domains and systematically varies user behavior through five emotion families and fine-grained behavioral attributes while preserving the underlying task objective. Tracer constructs these tasks through grounded, policy-valid tool workflows and uses the same harness to generate training trajectories (See Figure 2). The key difference from conventional trajectory collection is that the user simulator contributes an additional interaction-aware reward signal. When an agent repeatedly asks unnecessary questions or fails to make sufficient progress, the user may become dissatisfied and terminate the interaction, preventing the trajectory from receiving a successful reward even if the task could eventually have been completed. Consequently, Tracer filters out successful but interaction-inefficient behavior and favors trajectories in which the agent asks only for information that is genuinely unavailable while relying more heavily on tools and the environment. This produces training data with a better balance between necessary user interaction and autonomous task execution.\n\nOur experiments show that τ -Emotion-Bench remains challenging even for strong frontier models. With GLM-5.2 as the emotion-conditioned user simulator, the best evaluated model, GLM-5.3, reaches 78.6% Avg@3 but only 66.5% average Pass^3. Under Qwen3-235B-A22B-Instruct-2507 as the user simulator, the strongest model, DeepSeek-V4.1-Flash, reaches 55.9% Avg@3 and only 32.2% average Pass^3. These results leave substantial room for improvement in reliable task completion across both evaluation settings. Importantly, the gains from Tracer supervision remain substantial across model scales. Under GLM-5.2, Tracer-High improves the corresponding Qwen3-1.7B, 4B, and 8B base models by 17. 1-25.2 percentage points in Avg@3, with Tracer-High-8B reaching 54.7%. Tracer-Low, trained on only 1,498 trajectories from four domains, generalizes to six unseen domains and achieves the strongest average Pass^3 among the compared agent-training methods at all three model scales. The learned behavior also transfers to τ -Bench (Yao et al., 2024) and τ -Trait (He et al., 2025a), which use different tasks and user simulators. Our behavioral analyses further show that higher task success is associated with a better balance between tool execution and conversational follow-up, while policy violations and unnecessary interaction remain important failure modes. Together, these results show that emotion-conditioned interaction can serve not only as a stress test for agent reliability, but also as a useful reward signal for collecting more effective agent-training trajectories. Our main contributions are summarized as follows.\n\n• τ -Emotion-Bench. We introduce a ten-domain benchmark and emotion-conditioned agentuser-environment harness for evaluating tool-calling agents under diverse user behaviors while preserving the underlying task objective. • Interaction-aware trajectory generation. We introduce a scalable pipeline for generating grounded agentic tasks and an interaction-aware reward signal that filters inefficient trajectories with excessive user dependence while favoring effective tool use. • Generalizable agent training. We show that Tracer consistently improves Qwen3 models across scales and transfers to unseen domains, external benchmarks, and different user simulators with a relatively small training set.\n\nTable 1: Comparison of existing user interaction benchmarks across task, tool, interaction, diversity, and scalability dimensions. \"✓\" indicates fully addressed, \"✓ -\" indicates partially addressed, and \"✗\" indicates not addressed. A \"-\" indicates that the corresponding information was not found.",
+      "n_words": 721
+    },
+    {
+      "heading": "RELATED WORK",
+      "section_type": "related_word",
+      "text": "Interactive Tool-Use and User Simulation. Agent benchmarks have increasingly shifted from isolated function calls toward stateful interaction among agents, users, and executable environments. ToolTalk, ToolSandbox, and τ -Bench introduce conversational tool use, user simulation, and policyconstrained multi-turn interaction (Farn & Shin, 2023;Lu et al., 2025;Yao et al., 2024), while τ 2 -Bench, VitaBench, and WildToolBench further increase interaction complexity through shared environments, ambiguous requests, shifting intent, and conversational transitions (Barres et al., 2025;He et al., 2025b;Yu et al., 2026a). More recent work studies variation in user behavior, with τ -Trait controlling traits such as impatience and confusion and RealUserSim grounding user behavior in real conversational profiles (He et al., 2025a;Zhu et al., 2026a). Related affective benchmarks, including EIBench and TEA-Bench, focus on emotion management and emotional support (Zhu et al., 2026b;Sui et al., 2026). However, these works do not systematically measure how controlled emotional variation affects task-oriented tool use while preserving the same executable task and success conditions. As summarized in Table 1, τ -Emotion-Bench fills this gap by varying emotion and behavioral expression while keeping the underlying task and environment fixed.",
+      "n_words": 182
+    },
+    {
+      "heading": "Synthetic Environments and Agent",
+      "section_type": "method",
+      "text": "Training. A parallel line of work scales agent training through synthetic environments and executable trajectories. VULCAN constructs deterministic tool-use environments from API specifications and collects executable multi-step trajectories (Saeidi et al., 2026a), while EnvScaler, Agent World Model, and Simia generate stateful environments and training data for supervised and reinforcement learning (Song et al., 2026;Wang et al., 2026;Li et al., 2025). EigenData and SPADE further improve synthetic data generation through executable verification and adaptive environment construction (Gao et al., 2026;Liu et al., 2026). However, these methods primarily assess trajectories through task success, verification, or environment difficulty. In contrast, Tracer introduces an interaction-aware signal through the emotion-conditioned user harness, where unnecessary dependence on the user can lead to dissatisfaction and terminate the trajectory. Consequently, Tracer favors successful trajectories that balance necessary clarification with autonomous tool and environment interaction rather than task completion alone.\n\n3 τ -EMOTION-BENCH",
+      "n_words": 144
+    },
+    {
+      "heading": "PROBLEM FORMULATION",
+      "section_type": "method",
+      "text": "Following τ -Bench (Yao et al., 2024), we formulate each task as a partially observable Markov decision process (S, A, O, T, R, U ), where S is the state space, A is the agent action space, O is the observation space, T is the transition function, R is the task reward, and U is the space of user instructions. The agent interacts with both an executable environment and a simulated user. Accordingly, the action space contains tool calls and natural-language responses, while observations contain tool outputs and user messages.\n\nτ -Emotion-Bench extends this interaction with an emotion condition e ∈ E. Given a task instruction u ∈ U and the interaction history h t , the user response at turn t is sampled according to\n\nThe task instruction, environment, and task objective remain unchanged across emotion conditions. The emotion condition is fixed within an episode, while its expression evolves with the interaction history. The simulator can therefore react differently to successful progress, repeated clarification, unnecessary requests, or other interaction behavior without changing the underlying task.\n\nIn addition to producing natural-language responses, the user can terminate the episode with either ###STOP### or ###UNSATISFIED###. The former indicates that the user considers the interaction complete, following the termination mechanism of τ -Bench, while the latter indicates that the accumulated interaction has become sufficiently unsatisfactory to continue. An episode therefore ends when the task interaction terminates normally, when the user becomes unsatisfied, or when the maximum interaction horizon is reached. If ###UNSATISFIED### is emitted before successful task completion, the trajectory receives -1 reward. This extension preserves the original task objective while allowing the interaction itself to affect whether a trajectory is considered successful.",
+      "n_words": 280
+    },
+    {
+      "heading": "TASK CONSTRUCTION",
+      "section_type": "method",
+      "text": "We construct grounded and executable tasks across ten tool-use domains, following the general interactive tool-use setup represented by τ -Bench, τ -Trait, and ToolOrchestra (Yao et al., 2024;He et al., 2025a;Su et al., 2025). Our construction separates the generation of valid tool workflows from their grounding in concrete environment states. For each domain, we construct a directed tool graph G = (V, E) following the dependency-based formulation of VULCAN (Saeidi et al., 2026a). Each node v ∈ V corresponds to a task-relevant tool, while an edge (v i , v j ) ∈ E indicates that v j can validly follow v i according to the tool interfaces and domain policy. Candidate edges are inferred from tool definitions, execution behavior, and policy constraints, and the graph is manually verified before task generation. We then sample valid paths from G to obtain workflows of varying complexity and compose multiple paths when constructing multi-intent tasks. Detailed sampling configurations are provided in Appendix A, with additional environment details in Appendix D.\n\nA sampled workflow defines the sequence of operations needed to complete a task, but leaves the specific entities and arguments unspecified. The grounding agent fills in these details using the executable environment, producing a valid reference trajectory. The preference agent then turns the grounded task into a natural user request and adds preferences that are feasible without changing the task's intended outcome. Separately, the feeling generator uses the user context and requested actions to describe the user's likely emotional state. It does not access the environment database, so the generated description cannot rely on information that would be unavailable to the user.",
+      "n_words": 270
+    },
+    {
+      "heading": "EMOTION MODELING AND USER SIMULATION",
+      "section_type": "method",
+      "text": "We next map the task-specific feeling generated in Section 3.2 to a controlled emotion condition.\n\nOur emotion space follows the Atlas of Emotions (Ekman, 2016) and contains five families with 22 fine-grained emotions. These are Anger (annoyance, frustration, argumentativeness, bitterness, exasperation), Fear (anxiety, nervousness, dread, desperation), Disgust (dislike, aversion, distaste, repugnance), Sadness (disappointment, discouragement, helplessness, hopelessness, sorrow), and Enjoyment (relief, pride, peace, excitement). We further combine each emotion with three behavioral dimensions covering politeness, urgency, and trust, yielding 594 conditions that capture both what the user feels and how that feeling is expressed. To map each free-form task feeling into this space, we use natural-language anchors and a multi-head classifier over the fine-grained emotion and behavioral attributes, then use semantic similarity to the anchors in the classifier's learned embedding space to select the final condition. The corresponding natural-language instruction is provided to the user simulator rather than the discrete labels. Further details of the taxonomy, anchor construction, and mapping procedure are provided in Appendix A.1.\n\nGiven the selected emotion instruction, the user simulator generates each response conditioned on the task and the evolving conversation history. Rather than enforcing a fixed surface style, the instruction acts as a behavioral constraint, allowing the same emotion condition to be expressed differently as the interaction develops. This provides controlled variation in user behavior without scripting individual turns. The same interaction mechanism is used during Tracer trajectory collection, where the simulator's responses provide an additional signal for selecting trajectories beyond environment-level task success. We verify generated tasks before including them in the benchmark. A task must specify a concrete objective, provide sufficient information for execution, admit an executable reference trajectory, and remain consistent with the corresponding domain policy. Reference trajectories are validated through deterministic replay, while model-based adjudication is used only when the deterministic outcome is inconclusive. All 580 evaluation tasks are additionally reviewed manually under the same criteria, and this process identifies 101 tasks requiring correction before inclusion. As an additional solvability check, a human tool-calling agent successfully completes selected tasks on which the evaluated models fail across all trials.",
+      "n_words": 346
+    },
+    {
+      "heading": "TASK VERIFICATION AND DATA COMPOSITION",
+      "section_type": "method",
+      "text": "The final benchmark contains 70 evaluation tasks from each of Airline, Retail, Telecom, and Telehealth and 50 from each of School, Basketball, Restaurant, Travel, Movie, and Bank. We additionally generate 1,958 training trajectories across the ten domains.",
+      "n_words": 37
+    },
+    {
+      "heading": "EXPERIMENTS",
+      "section_type": "experiments",
+      "text": "We evaluate τ -Emotion-Bench and Tracer through four questions. (Q1) How robust are frontier agents to emotion-conditioned users? (Q2) Can Tracer improve smaller agents and narrow the gap to frontier models? (Q3) Do Tracer-trained behaviors transfer to unseen tool-use domains with less training data? (Q4) Do these gains transfer to benchmarks with different tasks and user simulators? We first describe the evaluated models, training baselines, and evaluation protocol, followed by in-domain, out-of-domain, and cross-benchmark results.",
+      "n_words": 75
+    },
+    {
+      "heading": "EXPERIMENTAL SETUP",
+      "section_type": "experiments",
+      "text": "Models. We evaluate a broad set of strong open-weight and proprietary LLM agents, covering both thinking and non-thinking configurations when available. Our evaluation includes Qwen3-32B (Yang et al., 2025), Qwen3-235B-A22B-Instruct-2507, Qwen3-235B-A22B-Thinking-2507 (Yang et al., 2025), Qwen3.8-27B (Qwen Team, 2026), DeepSeek-V4.1-Flash (Xu et al., 2026a), Gemma-4-31B-it (Team, 2026), GLM-5.3 (GLM-5-Team et al., 2026), Kimi-K2.7-Code (Team et al., 2025), MiniMax-M2.7, MiniMax-M3 (Chen et al., 2026) and Muse-Glimmer-30B (Meta Superintelligence Lab, 2026). To study whether Tracer-generated supervision can improve substantially smaller agents, we additionally fine-tune Qwen3-1.7B, Qwen3-4B, and Qwen3-8B under two training settings.\n\nTracer-High is trained on 1,958 trajectories generated across all ten τ -Emotion-Bench domains, while Tracer-Low is trained on 1,498 trajectories from only Airline, Retail, Telecom, and Telehealth domains. This setup allows us to measure both the effectiveness of Tracer supervision and the extent to which the learned behavior transfers beyond the domains represented in the training data. Further hyperparameter details are included in Appendix B.1.\n\nAgent-Training Baselines. For out-of-domain evaluation, we compare Tracer-Low against existing agent-training approaches applied to the same Qwen3 model scales whenever corresponding results are available. These include AReaL (Fu et al., 2026), EnvScaler (Song et al., 2026), Arctic-AWM (Wang et al., 2026), SPADE (Liu et al., 2026), Simia-Tau-SFT (Li et al., 2025), and Simia-Tau-SFT-RL. The comparison covers both supervised and reinforcement-learning-based agent training approaches and is particularly useful for evaluating whether Tracer's comparatively small training set produces behaviors that transfer to unseen domains.\n\nEvaluation and Metrics. We evaluate all models on 580 tasks across 10 executable environments in τ -Emotion-Bench, as summarized in Table 2. We use the τ -Bench agent harness and evaluate each model with two emotion-conditioned user simulators, Qwen3-235B-A22B-Instruct-2507 and GLM-5.2. Both simulators can terminate an interaction with ###STOP### or ###UNSATISFIED###.\n\nFor consistency, the main results tables report performance with Qwen3-235B-A22B-Instruct-2507 as the user simulator, while detailed results with GLM-5.2 are provided in Appendix C.4. Each task is run for three trials with the user simulator at temperature 0.0 and a maximum of 200 interaction turns. We report Avg@3 as the average success rate across the three trials and Pass^k for k ∈ {1, 2, 3} as the fraction of tasks completed successfully in at least k trials, capturing both overall performance and consistency across repeated interactions.",
+      "n_words": 374
+    },
+    {
+      "heading": "MAIN RESULTS",
+      "section_type": "results",
+      "text": "Frontier agents remain fragile under emotion-conditioned interactions. Figure 1 and Table 3 show that τ -Emotion-Bench remains challenging even for strong frontier models under Qwen3-235B-A22B-Instruct-2507 as the user simulator. DeepSeek-V4.1-Flash performs best with 55.9% Avg@3, followed by GLM-5. We additionally evaluate the same models with GLM-5.2 as the emotion-conditioned user simulator.\n\nAlthough absolute performance increases, the benchmark remains unsaturated. The strongest model, GLM-5.3, reaches 78.6% Avg@3 but only 66.5% average Pass^3, leaving a substantial gap in consistent task completion. Moreover, performance remains highly uneven across domains, with GLM-5.3 reaching 94.3% Pass^3 on Retail but only 40.0% on Telecom. These results show that the reliability gap exposed by τ -Emotion-Bench persists under a second strong user simulator. Detailed results with GLM-5.2 are provided in Appendix C.4.\n\nTracer-tuned models substantially narrow the gap to frontier models. As shown in Table 3 and Figure 1, Tracer tuning produces large and consistent improvements across all three Qwen3 scales under Qwen3-235B-A22B-Instruct-2507 as the user simulator. Tracer-High improves Avg@3 by 13.8-19.7% over the corresponding base models, with comparable gains from 1.7B through 8B. The improvement is also reflected in Pass^3, which increases from 1.2% to 10.4% at 1.7B, from 3.9% to 17.2% at 4B, and from 8.4% to 19.8% at 8B. Notably, Tracer-High-8B reaches 38.1% Avg@3, outperforming several larger frontier models, including MiniMax-M3 at 37.0% and Qwen3-235B-A22B-Thinking-2507 at 36.0%. These results show that the gains from Tracer tuning persist across Aggregate task success does not fully explain how emotion-conditioned interactions affect agent behavior. We therefore analyze the evaluation trajectories along four complementary dimensions. First, we examine policy adherence and the extent to which Tracer tuning reduces unconfirmed or unnecessary actions. Second, we study how task success relates to the balance between tool execution and conversational follow-up, and how this behavior changes after training. Third, we analyze the relationship between empathetic language, follow-up interaction, and task success. Finally, we examine user hallucinations under different emotion conditions and domains to assess the reliability of the simulator. Together, these analyses characterize both the behavioral failures exposed by emotion-conditioned interaction and the stability of the user simulator used to measure them.\n\nPolicy violations persist under emotionconditioned interactions. Figure 4 shows that policy adherence generally improves with overall agent capability. For this analysis, we group frontier models by their Avg@3 relative to Tracer-High-8B, with weaker models scoring below it and stronger models scoring above it. Violation rates are generally higher for base Qwen3 and weaker models and lower for Tracer-High and stronger models. However, substantial violations remain in Airline, Telecom, and Telehealth, with some conditions reaching approximately 67% in Telehealth and 91% in Telecom even among stronger models. Moreover, the similar behavior of Tracer-Low and Tracer-High, including on unseen domains, suggests that Tracer tuning transfers a general tendency to verify user intent before acting. Overall, greater model capability and Tracer tuning generally reduce policy violations, but emotion-conditioned interactions continue to expose failures in policy adherence.\n\nSuccessful interaction depends on a balance between tool use and follow-up. Figure 5 shows that higher performance is generally associated with a moderate balance between tool execution and conversational follow-up across all five emotion conditions. Higher-performing models and Tracertuned models tend to occupy this region while achieving higher Avg@3, whereas more aggressive tool use does not consistently lead to better performance. This pattern is particularly clear under Enjoyment, Disgust, and Fear. Moreover, Tracer tuning generally improves performance over the corresponding Qwen3 base models without shifting toward more tool-heavy interaction. Overall, the figure suggests that successful agents make sufficient progress through tools while limiting follow-up to cases where additional user information is needed. Emotion conditioning does not destabilize the user simulator. A potential confound in τ -Emotion-Bench is that emotional conditioning could cause the simulated user to deviate from its task instruction, making some apparent agent failures originate from the simulator. We therefore examine 6,961 failed trajectories, flag 449 user turns as potential hallucinations, and verify each against the original task instruction with an LLM judge (See Appendix C.1). Only 124 are confirmed as user errors, corresponding to 1.1% of failed trials and at most 1.4% for any emotion family. Moreover, Figure 7 shows that most emotion and domain combinations contain no hallucinations, with the few elevated rates appearing as isolated cases. Although some annotation uncertainty may remain, these results suggest that emotion conditioning does not meaningfully compromise simulator reliability. See Appendices C and E for additional error analysis, task coverage analysis, and the human study.\n\nTraining interaction patterns may help explain Tracer's generalization. To investigate why Tracer-trained models generalize more effectively, we test the hypothesis that training trajectories which emphasize progress through tools while limiting unnecessary follow-up encourage agents to rely more on the environment and less on continued user interaction. Figure 8 .6% for Tracer-High. This distribution is consistent with the interaction-aware signal used by Tracer, which is designed to discourage unnecessary user dependence during trajectory collection. Together, these observations support the hypothesis that the interaction-aware signal helps collect trajectories with a more effective balance between necessary user interaction and autonomous tool use. Since the datasets also differ in other aspects of their construction, this evidence remains correlational.",
+      "n_words": 853
+    },
+    {
+      "heading": "CONCLUSION",
+      "section_type": "conclusion",
+      "text": "We introduced τ -Emotion-Bench, a ten-domain benchmark for evaluating tool-calling agents under controlled emotion-conditioned user interactions. Our evaluation reveals substantial performance degradation and persistent policy failures when agents interact with emotionally variable users. We further proposed Tracer, a scalable approach for generating grounded agentic tasks and training trajectories through an emotion-conditioned agent-user-environment harness. Tracer-tuned models achieve strong performance across both in-domain and out-of-domain evaluations while using substantially less training data than prior agent-training methods. Our behavioral analysis suggests that these gains are linked to a more effective balance between tool execution and necessary user follow-up. This behavior is encouraged by the interaction-aware signal exposed by the harness, which favors efficient task progress rather than task completion alone. Overall, our findings highlight user behavior as an important dimension of agent reliability and show that interaction-aware data generation can provide efficient and transferable supervision for tool-calling agents.",
+      "n_words": 145
+    },
+    {
+      "heading": "LIMITATIONS",
+      "section_type": "limitations",
+      "text": "Our study has two main limitations. First, we evaluate Tracer-generated data only through supervised fine-tuning, and its effectiveness as supervision for reinforcement learning remains unexplored. Second, our experiments focus on tool-calling agents. Extending τ -Emotion-Bench and Tracer to other agent settings, such as coding and web-based agents, is an interesting direction for future work.",
+      "n_words": 54
+    },
+    {
+      "heading": "A DATA STATISTICS",
+      "section_type": "other",
+      "text": "We construct ten emotion-conditioned tool-use benchmarks by reusing the customer-service environments users, database schemas, and tool APIs released with τ -Bench, τ -Trait, and ToolOrchestra (Yao et al., 2024;He et al., 2025a;Su et al., 2025), without modification to the underlying environment logic. For each domain, we generate candidate tool dependency graphs using GPT-4.1, GPT-5.1, GPT-5.2 (Singh et al., 2025;Achiam et al., 2023), GLM-5.2, GLM-5.3, GLM-5.3-flash (GLM-5-Team et al., 2026), Qwen3.8-27B (Qwen Team, 2026), and Qwen3-235B-A22B-Instruct (Yang et al., 2025), and select the highest-quality graph per domain through manual review, before sampling tool traces over it. For each domain's selected tool graph, we sample tool traces by composing 1-3 independent random walks (intents) of length 2-6 tool calls each into a single trace, retaining unique traces after deduplication. Per-domain unique trace counts range from 2,603 (Retail) to 8,175 (Airline), with Telecom, Telehealth, School, Basketball, Restaurant, Travel, Movie, and Bank yielding between 3,344 and 4,641 unique traces each, totaling 42,138 unique traces across the ten domains. We used a different set of traces for generating evaluation and training tasks.",
+      "n_words": 177
+    },
+    {
+      "heading": "A.1 EMOTION MODELING DETAILS",
+      "section_type": "other",
+      "text": "Our emotion taxonomy follows the Atlas of Emotions (Ekman, 2016) and contains 22 fine-grained emotions organized into five families. Anger contains annoyance, frustration, argumentativeness, bitterness, and exasperation. Fear contains anxiety, nervousness, dread, and desperation. Disgust contains dislike, aversion, distaste, and repugnance. Sadness contains disappointment, discouragement, helplessness, hopelessness, and sorrow. Enjoyment contains relief, pride, peace, and excitement.\n\nEach fine-grained emotion is combined with three independent behavioral dimensions. Politeness takes values from {warm, neutral, cold}, urgency from {low, moderate, high}, and trust from {trusting, cautious, skeptical}. Combining the 22 fine-grained emotions with these dimensions yields 594 emotion conditions.\n\nFor each condition, we generate 10 natural-language emotion instructions with GPT-4.1, producing 5,940 anchor instructions that describe how the corresponding user should communicate. We embed these anchors with text-embedding-3-small and use them to train a multi-head classifier that predicts the fine-grained emotion together with politeness, urgency, and trust. Given the task-specific feeling generated during task construction, we project it into the classifier's learned embedding space. We use similarity-weighted votes from the nearest anchor instructions in this space to select the final emotion condition. One of the 10 natural-language anchor instructions for that condition, chosen at random, is then provided to the user simulator rather than the discrete emotion and behavioral labels.",
+      "n_words": 207
+    },
+    {
+      "heading": "A.2 EVALUATION DATA",
+      "section_type": "experiments",
+      "text": "We initially generate 2,266 candidate evaluation tasks from sampled tool traces using the methodology described in Section 3.2 and illustrated in Figure 2. We use Qwen3-235B-A22B-Instruct (Yang et al., 2025) for all generation agents in the Tracer pipeline. Tasks that pass the verification procedure described in Section 3.4 are then rolled out using Qwen3-235B-A22B-Instruct as both the tool-calling agent and the user simulator. This additional rollout stage allows us to observe how the generated tasks behave during interaction and identify cases requiring further modification. After this stage, 884 tasks are retained for manual review.\n\nDuring manual review, we make three main types of modifications.\n\n• Ground-truth edits. We revise 101 tasks by correcting reference parameters, adding missing ground-truth actions, or removing unnecessary actions to ensure that the intended solution is executable and consistent with the corresponding domain policy.\n\n• ID-swap edits. We identify 23 tasks containing internal identifiers such as payment_id that would not normally be known to the user. We replace these identifiers with useraccessible information, such as the last four digits of a payment card, while preserving the intended task.\n\n• Larger rewrites. We revise 23 tasks to introduce policy-relevant challenges that make the interaction more difficult while preserving task solvability. For example, some tasks involve a user requesting an action on behalf of another person after authentication, requiring the agent to follow the domain policy rather than simply execute the user's request.\n\nAfter these revisions, the final benchmark contains 580 evaluation tasks. Airline, Retail, Telecom, and Telehealth each contain 70 tasks, while School, Basketball, Restaurant, Travel, Movie, and Bank each contain 50 tasks. Each task is provided with its emotion instruction and, for controlled comparisons, a corresponding version without emotion conditioning.",
+      "n_words": 284
+    },
+    {
+      "heading": "A.3 TRAINING DATA",
+      "section_type": "method",
+      "text": "Training tasks are generated with the same pipeline as the evaluation tasks. In Airline, Retail, Telecom, and Telehealth, training and evaluation tasks are grounded in the same environment database. In School, Basketball, Restaurant, Travel, Movie, and Bank, the training and evaluation tasks each have their own database. In total, we generate 7,767 training tasks (Table 6). We roll out each training task once with Qwen3.8-27B in thinking mode as the agent and Qwen3-235B-A22B-Instruct as the emotion-conditioned user simulator, with a limit of 50 interaction steps. The agent's reasoning is kept on every assistant turn. Rollouts that failed because of endpoint errors are discarded, leaving 7,048 trajectories.\n\nFigure 9 characterizes the unsuccessful trajectories across fine-grained emotion conditions. Among reward 0 trajectories, Excitement and Peace are the most frequent conditions at 30.1% and 18.1%, respectively. Reward -1 trajectories, which correspond to interactions terminated by an unsatisfied user, also contain a large share of Excitement at 29.3%, but show substantially higher proportions of Frustration and Exasperation at 13.7% and 6.8%, compared with 9.1% and 3.2% among reward 0 trajectories. This difference indicates that interaction-driven termination has a distinct emotional distribution from other unsuccessful rollouts.\n\nWe keep only trajectories with reward 1, i.e. those in which the final database state matches the reference and the user did not end the conversation with ###UNSATISFIED###. This yields 2,723 successful trajectories (38.6% of all rollouts). Three domains, Retail, Telehealth, and Basketball, produce more than 300 successful trajectories each. To keep the training set balanced across domains, we randomly sample 250 trajectories from each of these three domains and keep all successful trajectories from the other seven, which gives the 1,958 trajectories used for Tracer-High. Tracer-Low is trained on all 1,498 successful trajectories from Airline, Retail, Telecom, and Telehealth. longest successful trajectories, with 14.7 and 12.0 tool calls on average, respectively, while Airline has the lowest average at 6.2. Agent reasoning averages 538 characters per assistant turn, with the longest reasoning observed in Airline and Travel at 889 and 779 characters, respectively. Notably, Airline and Travel are also among the three domains with the lowest rollout success rates in Table 6, suggesting that successful completion in these domains is accompanied by greater reasoning effort.",
+      "n_words": 366
+    },
+    {
+      "heading": "Tracer-High",
+      "section_type": "other",
+      "text": "Figure 10 shows the fine-grained emotion composition of the final Tracer-Low and Tracer-High training sets after trajectory selection and domain balancing. Both sets contain substantial coverage across the emotion conditions represented during data collection, but their distributions differ because Tracer-Low contains trajectories from four domains whereas Tracer-High covers all ten domains after subsampling. Excitement and Peace are the two most frequent conditions in both sets, accounting for 28.9% and 28.0% of Tracer-Low and 34.7% and 24.6% of Tracer-High, respectively. Tracer-High also contains a larger proportion of Pride at 11.3%, compared with 6.5% in Tracer-Low, while Anxiety decreases from 15.1% to 8.8%. Despite these differences, neither training set is concentrated in a single fine-grained emotion, providing Tracer with successful interaction trajectories spanning diverse emotional conditions.",
+      "n_words": 124
+    },
+    {
+      "heading": "B TRAINING DETAILS B.1 FINE-TUNING HYPERPARAMETERS",
+      "section_type": "method",
+      "text": "We fine-tune the Qwen-series models using the TRL library (von Werra et al., 2020) on four NVIDIA H100 GPUs, using our generated Tracer data together with the publicly available AreaL data. For the Qwen3 models, the maximum sequence length is set to 32,768. Detailed hyperparameters are provided in Table 8.\n\nWe adapt the conversation-review judge of τ 2 -Bench (Barres et al., 2025) and FAMA (Saeidi et al., 2026b) to analyze failed trajectories. For each failed trajectory (reward ̸ = 1) the judge receives the domain policy, the user simulator's guidelines, the user instruction including its emotion instruction, the reference action sequence, and the full conversation with all tool calls and results. It returns every error it finds, each with its source (agent or user), a severity, one or more fault tags, the turn where it occurs, and a short justification. Agent errors are critical if they caused the failure or violated an important policy, and minor otherwise. We extend the judge with an emotional-outcome label that records whether the user abandoned the conversation and, if so, the dominant reason: dismissive tone, ignored emotional cues, procedural friction, or emotional neglect. We use Qwen3-235B-A22B-Instruct at temperature 0 as the judge and group its fault tags into five categories and fifteen fault types (Table 11). We apply it to eleven models: the Qwen3-1.7B, 4B, and 8B baselines, our Tracer-Low and Tracer-High models at the same scales, Qwen3-235B-A22B-Thinking, and DeepSeek-V4.1-Flash.\n\nFigure 11 aggregates the eight models other than Tracer-Low, yielding 6,961 trajectories with at least one identified fault, and decomposes these failures into five categories and fifteen fault types across domains.\n\nOverall, failures are concentrated in task execution rather than affective interaction. Missing or extra actions account for 25-36% of faults across domains, while incomplete resolution accounts for 20-29% and wrong tool calls for 14-27%. Misread intent is the most frequent individual fault overall at 15.9%, followed by incorrect action order at 13.7%, wrong tool arguments at 12.9%, and missed actions at 12.2%. In contrast, policy and interaction faults contribute only 4-10% in each domain, while emotional neglect remains below 1.7%. Thus, under emotion-conditioned interaction, agents fail primarily by misinterpreting the request or executing the required workflow incorrectly rather than by failing to acknowledge the user's emotional state. To further verify that difficult tasks remain executable, Appendix E.1 reports human tool-calling trials under the same tools, policies, and emotion-conditioned user simulator. The successful human trials provide additional evidence that persistent model failures can arise from the difficulty of maintaining the correct workflow under emotionally variable interaction rather than invalid task construction, leaving substantial headroom for current agents.",
+      "n_words": 434
+    },
+    {
+      "heading": "C.4 DETAILED RESULTS",
+      "section_type": "results",
+      "text": "Tables 12, 13, and 14 report per-domain Pass^1, Pass^2, and Pass^3 on τ -Emotion-Bench. Table 12 covers the evaluated thinking and non-thinking models together with Tracer-Low and Tracer-High, Table 13 covers the Qwen3 base models and existing agent-training methods at the same scales, and Table 14 repeats the evaluation of Table 12 with GLM-5.2 instead of Qwen3-235B-A22B-Instruct as the user simulator. All averages below are unweighted means over the ten domains.\n\nConsistency across trials. Success drops sharply when a task must be solved in more than one trial. DeepSeek-V4.1-Flash falls from 55.9% average Pass^1 to 32.2% Pass^3, GLM-5.3 from 51.9% to 31.7%, and Kimi-K2.7-Code from 49.3% to 26.1%, and most models lose 14-24 points between the two metrics. Even the strongest agents therefore solve only about a third of the tasks in all three trials.",
+      "n_words": 135
+    },
+    {
+      "heading": "D ENVIRONMENT DETAILS D.1 TOOL DEPEDENCY GRAPHS",
+      "section_type": "other",
+      "text": "Figure 14 show the tool dependency graph of every domain, i.e. the adjacency matrix A from which we sample tool traces. Each graph is drawn as two columns: read tools (get_, list_, search_, check_, find_) on the left and write tools on the right, with the order within each column chosen so that tools sharing neighbours sit close together. The domains range from RESTAURANT, with 9 tools and 24 edges, to BANK, with 17 tools and 99 edges. The graphs are small but densely connected: between 24 and 99 of the possible transitions are valid, a density of 0.25-0.43. Between a third and three fifths (34-57%) of all connected tool pairs are valid in both directions, which is what makes the random walks produce varied traces rather than a single canonical ordering. Root-eligible tools, which a walk may start from, are not only lookup tools: more than half of them are write tools such as p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3\n\nNon-thinking Models 20.0 7.1 2.9 25.2 12.9 5.7 25.7 14.8 10.0 6.7 2.9 1.4 5.3 2.7 2.0 15.3 4.7 2.0 8.7 2.0 2.0 0.7 0.0 0.0 1.3 0.0 0.0 14.0 6.7 4.0 EnvScaler 29.0 17.6 12.9 42.9 24.8 17.1 40.9 28.1 22.9 47.1 32.9 22.9 32.0 12.7 6.0 30.0 13.3 6.0 10. p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3 p^1 p^2 p^3\n\nNon-thinking Models",
+      "n_words": 269
+    },
+    {
+      "heading": "D.2 DOMAIN POLICIES",
+      "section_type": "other",
+      "text": "We reproduce each domain's policy verbatim; it is given to the agent as its system prompt.",
+      "n_words": 16
+    },
+    {
+      "heading": "# Airline Agent Policy",
+      "section_type": "method",
+      "text": "The current time is 2024-05-15 15:00:00 EST.\n\nAs an airline agent, you can help users book, modify, or cancel flight reservations.\n\n-Before taking any actions that update the booking database (booking, modifying flights, editing baggage, upgrading cabin class, or updating passenger information), you must list the action details and obtain explicit user confirmation (yes) to proceed. -You should deny user requests that are against this policy.\n\n-You should transfer the user to a human agent if and only if the request cannot be handled within the scope of your actions.",
+      "n_words": 90
+    },
+    {
+      "heading": "→ ## Domain Basic",
+      "section_type": "other",
+      "text": "-Each user has a profile containing user id, email, addresses, date of birth, payment methods, reservation numbers, and membership tier.",
+      "n_words": 20
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Each reservation has an reservation id, user id, trip type (one way, round trip), flights, passengers, payment methods, created time, baggages, and travel insurance information.",
+      "n_words": 25
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-Each flight has a flight number, an origin, destination, scheduled departure and arrival time (local time), and for each date:\n\n→ -If the status is \"available\", the flight has not taken off, available seats and prices are listed.",
+      "n_words": 38
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If the status is \"delayed\" or \"on time\", the flight has not taken off, cannot be booked.",
+      "n_words": 17
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If the status is \"flying\", the flight has taken off but not landed, cannot be booked.\n\n## Book flight -The agent must first obtain the user id, then ask for the trip type, origin, destination.",
+      "n_words": 35
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Passengers: Each reservation can have at most five passengers. The agent needs to collect the first name, last name, and date of birth for each passenger. All passengers must fly the same flights in the same cabin.",
+      "n_words": 37
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-Payment: each reservation can use at most one travel certificate, at most one credit card, and at most three gift cards. The remaining amount of a travel certificate is not refundable. All payment methods must already be in user profile for safety reasons.",
+      "n_words": 43
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "-Checked bag allowance: If the booking user is a regular member, 0 free checked bag for each basic economy passenger, 1 free checked bag for each economy passenger, and 2 free checked bags for each business passenger. If the booking user is a silver member, 1 free checked bag for each basic economy passenger, 2 free checked bag for each economy passenger, and 3 free checked bags for each business passenger. If the booking user is a gold member, 2 free checked bag for each basic economy passenger, 3 free checked bag for each economy passenger, and 3 free checked bags for each business passenger. Each extra baggage is 50 dollars.\n\n-Travel insurance: the agent should ask if the user wants to buy the travel insurance, which is 30 dollars per passenger and enables full refund if the user needs to cancel the flight given health or weather reasons.",
+      "n_words": 149
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "## Modify flight -The agent must first obtain the user id and the reservation id.\n\n-Change flights: Basic economy flights cannot be modified. Other reservations can be modified without changing the origin, destination, and trip type. Some flight segments can be kept, but their prices will not be updated based on the current price. The API does not check these for the agent, so the agent must make sure the rules apply before calling the API!\n\n-Change cabin: all reservations, including basic economy, can change cabin without changing the flights. Cabin changes require the user to pay for the difference between their current cabin and the new cabin class. Cabin class must be the same across all the flights in the same reservation; changing cabin for just one flight segment is not possible.\n\n-Change baggage and insurance: The user can add but not remove checked bags. The user cannot add insurance after initial booking.\n\n→ -Change passengers: The user can modify passengers but cannot modify the number of passengers. This is something that even a human agent cannot assist with. -All reservations can be cancelled within 24 hours of booking, or if the airline cancelled the flight. Otherwise, basic economy or economy flights can be cancelled only if travel insurance is bought and the condition is met, and business flights can always be cancelled. The rules are strict regardless of the membership status. The API does not check these for the agent, so the agent must make sure the rules apply before calling the API!\n\n-The agent can only cancel the whole trip that is not flown. If any of the segments are already used, the agent cannot help and transfer is needed.",
+      "n_words": 283
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-The refund will go to original payment methods in 5 to 7 business days.",
+      "n_words": 14
+    },
+    {
+      "heading": "## Refund",
+      "section_type": "other",
+      "text": "-If the user is silver/gold member or has travel insurance or flies business, and complains about cancelled flights in a reservation, the agent can offer a certificate as a gesture after confirming the facts, with the amount being $100 times the number of passengers.",
+      "n_words": 44
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "-If the user is silver/gold member or has travel insurance or flies business, and complains about delayed flights in a reservation and wants to change or cancel the reservation, the agent can offer a certificate as a gesture after confirming the facts and changing or cancelling the reservation, with the amount being $50 times the number of passengers.\n\n-Do not proactively offer these unless the user complains about the situation and explicitly asks for some compensation. Do not compensate if the user is regular member and has no travel insurance and flies (basic) economy.",
+      "n_words": 94
+    },
+    {
+      "heading": "# Retail agent policy",
+      "section_type": "method",
+      "text": "As a retail agent, you can help users cancel or modify pending orders, return or exchange delivered orders, modify their default user address, or provide information about their own profile, orders, and related products.",
+      "n_words": 34
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-At the beginning of the conversation, you have to authenticate the user identity by locating their user id via email, or via name + zip code. This has to be done even when the user already provides the user id.\n\n→ → -Once the user has been authenticated, you can provide the user with information about order, product, profile information, e.g. help the user look up order id.",
+      "n_words": 68
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-You can only help one user per conversation (but you can handle multiple requests from the same user), and must deny any requests for tasks related to any other user.",
+      "n_words": 30
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Before taking consequential actions that update the database (cancel, modify, return, exchange), you have to list the action detail and obtain explicit user confirmation (yes) to proceed.",
+      "n_words": 27
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Each user has a profile of its email, default address, user id, and payment methods. Each payment method is either a gift card, a paypal account, or a credit card.\n\n→ -Our retail store has 50 types of products. For each type of product, there are variant items of different options. For example, for a 't shirt' product, there could be an item with option 'color blue size M', and another item with option 'color red size L'.\n\n→ →\n\n-Each product has an unique product id, and each item has an unique item id. They have no relations and should not be confused.",
+      "n_words": 104
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Each order can be in status 'pending', 'processed', 'delivered', or 'cancelled'. Generally, you can only take action on pending or delivered orders.",
+      "n_words": 22
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Exchange or modify order tools can only be called once. Be sure that all items to be changed are collected into a list before making the tool call!!! → ## Cancel pending order -An order can only be cancelled if its status starts with 'pending' (e.g. 'pending' or 'pending (item modified)'), and you should check its status before taking the action.",
+      "n_words": 61
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-The user needs to confirm the order id and the reason (either 'no longer needed' or 'ordered by mistake') for cancellation.",
+      "n_words": 21
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-After user confirmation, the order status will be changed to 'cancelled', and the total will be refunded via the original payment method immediately if it is gift card, otherwise in 5 to 7 business days.",
+      "n_words": 35
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "## Modify pending order -An order can only be modified if its status starts with 'pending' (e.g. 'pending' or 'pending (item modified)'), and you should check its status before taking the action.",
+      "n_words": 32
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-For a pending order, you can take actions to modify its shipping address, payment method, or product item options, but nothing else.\n\n→ ### Modify payment -The user can only choose a single payment method different from the original payment method.",
+      "n_words": 41
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If the user wants the modify the payment method to gift card, it must have enough balance to cover the total amount.",
+      "n_words": 22
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-After user confirmation, the order status will be kept 'pending'. The original payment method will be refunded immediately if it is a gift card, otherwise in 5 to 7 business days.",
+      "n_words": 31
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "### Modify items -This action can only be called once per order, and will change the order status to 'pending (item modified)'. After that, the order's items and payment method can no longer be changed, but its shipping address can still be modified and the order can still be cancelled. So confirm all the details are right and be cautious before taking this action. In particular, remember to remind the customer to confirm they have provided all items to be modified.\n\n-For a pending order, each item can be modified to an available new item of the same product but of different product option. There cannot be any change of product types, e.g. modify shirt to shoe.",
+      "n_words": 117
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-The user must provide a payment method to pay or receive refund of the price difference.\n\nIf the user provides a gift card, it must have enough balance to cover the price difference.",
+      "n_words": 33
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "## Return delivered order -An order can only be returned if its status starts with 'delivered' (e.g. 'delivered' or 'delivered (exchange requested)') and it has no return request yet, and you should check its status before taking the action. An item that is already part of an exchange request cannot be returned. Items are counted per unit: if an order has two identical items and one of them is already part of an exchange request, the other one can still be returned.\n\n-The user needs to confirm the order id, the list of items to be returned, and a payment method to receive the refund.",
+      "n_words": 105
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-The refund must either go to the original payment method, or an existing gift card.\n\n-After user confirmation, ' (return requested)' will be added to the order status, and the user will receive an email regarding how to return items.\n\n→ ## Exchange delivered order -An order can only be exchanged if its status starts with 'delivered' (e.g. 'delivered' or 'delivered (return requested)') and it has no exchange request yet, and you should check its status before taking the action. An item that is already part of a return request cannot be exchanged. Items are counted per unit: if an order has two identical items and one of them is already part of a return request, the other one can still be exchanged. In particular, remember to remind the customer to confirm they have provided all items to be exchanged.\n\n-For a delivered order, each item can be exchanged to an available new item of the same product but of different product option. There cannot be any change of product types, e.g. modify shirt to shoe.",
+      "n_words": 176
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-The user must provide a payment method to pay or receive refund of the price difference.\n\nIf the user provides a gift card, it must have enough balance to cover the price difference.\n\n→ →\n\n-After user confirmation, ' (exchange requested)' will be added to the order status, and the user will receive an email regarding how to return items. There is no need to place a new order.",
+      "n_words": 69
+    },
+    {
+      "heading": "# Telecom Agent Policy",
+      "section_type": "method",
+      "text": "As a telecom agent, you can help users manage their customer details, devices, services, and billing.",
+      "n_words": 16
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Before taking any actions that modify the database, you must list out the actions to the user and get their explicit confirmation to proceed.\n\n→ -You should not provide any information, knowledge, or procedures not provided by the user or available tools, or give subjective recommendations or comments.",
+      "n_words": 48
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-You should only make one tool call at a time, and if you make a tool call, you should not respond to the user simultaneously. If you respond to the user, you should not make a tool call at the same time.",
+      "n_words": 42
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-You should deny user requests that are against this policy.\n\n-You should transfer the user to a human agent if and only if the request cannot be handled within the scope of your actions.",
+      "n_words": 34
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-When the user asks you to verify something, make sure to read out the output returned with the relevant tool call you invoke.",
+      "n_words": 23
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Do not suggest any upgrades, payments, or account modifications unless prompted explicitly to do so by the user.",
+      "n_words": 18
+    },
+    {
+      "heading": "→ ## Domain Basic",
+      "section_type": "other",
+      "text": "-Each user has a profile containing customer id, name, demographics, address, account infromation, services, devices, and billing preferences.",
+      "n_words": 18
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Each billing account has information including the customer id, account number, curent balance, last payment, next billing date, monthly charges, total monthly amount, payment history, and billing preferences (such as autopay and paperless).",
+      "n_words": 33
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-Each device has information including the category of the device (mobile_phone, phone, networking, tv, security), the manufacturer (Apple, Samsung, TechCorp, LG, Polycom, SecureTech, Google), and the model (Ex: iPhone 12, Galaxy S23).",
+      "n_words": 32
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-Each service has information including the service id, the name of the plan, the category of the service (mobile, internet, internet, tv, security)",
+      "n_words": 23
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Each support ticket has information including the ticket ID, the customer ID, the status of the ticket (open or closed) and its priority level (low, medium, high). Low is non-urgent, medium is standard, high is important, and urgent is critical (within 24 hours). Before creating a support ticket, determine as best as possible the urgency of the situation. Do not make more than one support ticket for the same issue.\n\n-When adding a service, you have the option to add devices to be associated with the service. When you do this, confirm with the user what devices they would like to add.\n\nThe device ids can be found in the customer's information details.",
+      "n_words": 113
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-When removing a service, all devices associated with that service will be removed from that service.",
+      "n_words": 16
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If the user seeks to switch out one service for another, you must remove the old service, then add the new service with the device ids that used to be associated with the old service.\n\n→ →",
+      "n_words": 37
+    },
+    {
+      "heading": "## Authentication",
+      "section_type": "other",
+      "text": "-When authenticating a user with their email or phone number, make sure to read their customer ID back to them.\n\n→ ## Formatting -If output from a tool call is to be returned to the user, all content should be output to the user verbatim as it appears in the output from the tool call. The only changes that should be made should be purely in eliminating unnecessary formatting, for example from a json dump.",
+      "n_words": 75
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "-All monetary amounts should be returned to 2 decimal places, even if it is a whole number. For example: $20.00.",
+      "n_words": 20
+    },
+    {
+      "heading": "# Telehealth Agent Policy",
+      "section_type": "method",
+      "text": "As a telehealth agent, you can help patients schedule, reschedule, or cancel appointments, provide information about their medical records, connect them with appropriate healthcare providers, and assist with general patient portal inquiries.",
+      "n_words": 32
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-At the beginning of the conversation, you must authenticate the patient identity by locating their patient ID via email, or via name + date of birth. This must be done even when the patient already provides the patient ID.",
+      "n_words": 39
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-Once the patient has been authenticated, you can provide the patient with information about appointments, providers, medical records, and their profile information.",
+      "n_words": 22
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-You can only help one patient per conversation (but you can handle multiple requests from the same patient), and must deny any requests for tasks related to any other patient, unless for aged parents or kids.",
+      "n_words": 36
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-Before taking consequential actions that update the system (schedule, reschedule, cancel appointments), you must list the action details and obtain explicit patient confirmation (yes) to proceed.\n\n→ → -You should not make up any medical information, provide medical advice, or give subjective recommendations about treatment. Always refer patients to their healthcare providers for medical questions.",
+      "n_words": 55
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-You should at most make one tool call at a time, and if you take a tool call, you should not respond to the patient at the same time. If you respond to the patient, you should not make a tool call.",
+      "n_words": 42
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "-You should transfer the patient to human support if and only if the request cannot be handled within the scope of your actions.\n\n→ ## Domain Basics -All times in the database are in 24-hour format. For example \"14:30\" means 2:30 PM.\n\n-Each patient has a profile with demographics (name, date of birth, contact info), address, insurance information, medical history, and emergency contact details.",
+      "n_words": 64
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Healthcare providers have specialties, schedules, consultation fees, and availability. Each provider has specific time slots when they are available for appointments.\n\n→ -Appointments can be in status 'scheduled', 'pending_approval', 'completed', or 'cancelled'. Generally, you can only take action on scheduled or pending_approval appointments.\n\n→ →\n\n-Each appointment has a unique meeting link for the telehealth consultation.\n\n## Patient Authentication -Patients must be authenticated before any sensitive information is shared or actions are taken.\n\n→ -Authentication can be done via email address OR via full name + date of birth (YYYY-MM-DD format).\n\n→ -Both methods must match exactly with the information in the patient database.",
+      "n_words": 104
+    },
+    {
+      "heading": "## Scheduling Appointments",
+      "section_type": "other",
+      "text": "-Patients can schedule appointments with available providers based on the provider's schedule.",
+      "n_words": 12
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Check provider availability before scheduling -providers have specific days and times when they are available.",
+      "n_words": 15
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Appointment types include: routine_checkup, follow_up, consultation, specialist_consultation, sick_visit.\n\n→ -Insurance copays are automatically calculated based on whether it's a primary care visit or specialist visit.",
+      "n_words": 25
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Each scheduled appointment receives a unique appointment ID and meeting link.",
+      "n_words": 11
+    },
+    {
+      "heading": "## Modifying Appointments ### Rescheduling Appointments",
+      "section_type": "other",
+      "text": "-Appointments can only be rescheduled if their status is 'scheduled' or 'pending_approval'.",
+      "n_words": 12
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-The new date and time must be available in the provider's schedule.\n\n-Check for conflicts with other appointments before confirming the reschedule.",
+      "n_words": 22
+    },
+    {
+      "heading": "### Cancelling Appointments",
+      "section_type": "other",
+      "text": "-Appointments can be cancelled if their status is 'scheduled' or 'pending_approval'.\n\n-Cannot cancel completed appointments.\n\n-Cancelled appointment slots become available for other patients.\n\n## Provider Information -Providers have different specialties: Primary Care, Cardiology, Dermatology, Psychiatry, etc.",
+      "n_words": 36
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Each provider has their own schedule with specific available time slots.\n\n-Consultation fees vary by provider and specialty.\n\n-Providers may speak different languages and have varying years of experience.\n\n## Insurance and Billing -Primary care visits typically have lower copays than specialist visits.\n\n-Insurance authorization codes are automatically generated for scheduled appointments.\n\n-Copay amounts are determined by the patient's insurance plan and provider type.",
+      "n_words": 64
+    },
+    {
+      "heading": "## Medical Records and Privacy",
+      "section_type": "other",
+      "text": "-Medical records contain consultation notes, prescriptions, and treatment plans.\n\n-Only share medical information with the authenticated patient.\n\n-Do not provide medical advice or interpret medical results -refer patients to their healthcare providers.\n\n→ ## Technical Support -Meeting links are automatically generated for each appointment.\n\n-If patients have technical issues with the telehealth platform, transfer them to human support.",
+      "n_words": 58
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Provide meeting links and basic instructions for joining telehealth appointments.",
+      "n_words": 10
+    },
+    {
+      "heading": "School Agent Policy",
+      "section_type": "method",
+      "text": "The current time is 2024-05-15 15:00:00 EST.\n\nAs a school agent, you can help users register for courses, modify registrations, cancel registrations, and handle payments and refunds.",
+      "n_words": 27
+    },
+    {
+      "heading": "Read capabilities",
+      "section_type": "other",
+      "text": "-You can retrieve details for students, courses, and registrations.\n\n-You can list departments and list/search courses for a term using filters:\n\n-term (required), department (optional), campus (optional), day (optional), start_after (optional), end_before (optional), open_only (optional).",
+      "n_words": 35
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-You can fetch per-date course meeting status (held, canceled, rescheduled) for a given course and date.",
+      "n_words": 16
+    },
+    {
+      "heading": "Register courses",
+      "section_type": "other",
+      "text": "The agent must first obtain the student_id from the user.\n\nThen collect:\n\n-Term (format YYYY-TERM, e.g., 2025-SPRING).\n\n-Study level: undergraduate, graduate, or continuing_ed.\n\n-Desired courses (course_ids). If the user needs help, use the course search filters to propose options for the provided term.",
+      "n_words": 43
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Grading option for each course: letter (default), pass/fail, or audit. If not specified, default is letter.",
+      "n_words": 16
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Health insurance choice (yes/no). Health insurance adds a $300 fee if yes.\n\nConstraints and system checks:\n\n-All courses must be in the same term requested.\n\n-Registration will fail if any selected course is full.\n\n-Registration will fail if there are schedule conflicts (overlapping days and times across chosen courses).",
+      "n_words": 49
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-The system computes tuition per course based on credits and study level; total due = sum of tuition for all courses + health insurance fee (if selected).\n\n→ -Enrollment status is computed automatically (full-time if total_credits >= 12, else part-time). Overload credits above the standard load are tracked by the system.",
+      "n_words": 51
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Payment:\n\n-Payments must use the student's saved payment methods.\n\n-Provide one or more saved payment methods with amounts that sum exactly to the total due (tuition plus any fees).",
+      "n_words": 29
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-The system will validate that all payment_id values exist in the student's saved payment methods.",
+      "n_words": 15
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Before calling the registration tool, list the proposed registration details (term, study level, selected courses with grading options, health insurance choice, total due, and payment allocation) and obtain explicit user confirmation (yes).\n\n→ →",
+      "n_words": 34
+    },
+    {
+      "heading": "Modify registration",
+      "section_type": "other",
+      "text": "First, the agent must obtain the student_id and registration_id.\n\n-If the user doesn't know their registration_id, the agent should help locate it using available tools (e.g., get_student_details to find the user's registrations or get_registration_details if they have a candidate ID).\n\n→ →",
+      "n_words": 42
+    },
+    {
+      "heading": "Allowed modifications:",
+      "section_type": "other",
+      "text": "-Add courses, drop courses, and/or change grading options.\n\n-All courses in the registration must remain in the same term; you cannot change the term.",
+      "n_words": 24
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Study level remains the same as the existing registration.\n\n-Health insurance selection cannot be changed after initial registration.\n\nConstraints and system checks:\n\n-For added courses, capacity must be available.\n\n-Final schedule (after adds/drops) must have no time conflicts.\n\n-All courses in the updated registration must match the registration's term.\n\nPayment and refund handling:\n\n-The system computes the tuition difference between the old and new course sets (health insurance fee remains unchanged).",
+      "n_words": 71
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If there is an additional charge (tuition increases), the user must provide a single saved payment method (payment_id) for the charge.",
+      "n_words": 21
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If there is a refund (tuition decreases), the system records a negative amount refund. A payment_id may be provided; otherwise, the system will attribute the refund to an appropriate payment record.",
+      "n_words": 31
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Before calling the update tool, list the planned changes (courses to add/drop, any grading option changes, the tuition difference, and the payment/refund method) and obtain explicit user confirmation (yes).\n\n→ →",
+      "n_words": 31
+    },
+    {
+      "heading": "Cancel registration",
+      "section_type": "other",
+      "text": "First, the agent must obtain the student_id and registration_id.\n\n-If the user doesn't know their registration_id, the agent should help locate it using available tools.",
+      "n_words": 25
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "On cancellation: -All courses in the registration are dropped and enrollments reduced accordingly.\n\n-Refunds are issued for all recorded payments as negative amounts to the same payment_ids in the payment history (including any fees paid as part of the registration).",
+      "n_words": 40
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Before calling the cancellation tool, present a summary of the cancellation effects (courses dropped and that refunds for all payments will be recorded) and obtain explicit user confirmation (yes).",
+      "n_words": 29
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Payments and refunds -All charges and refunds must reference saved student payment methods.\n\n-Initial registrations must be fully paid at the time of registration (payments must sum exactly to the total due).",
+      "n_words": 32
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Modifications that increase tuition require a saved payment method for the additional charge.",
+      "n_words": 13
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Modifications that decrease tuition record refunds as negative amounts.\n\n-Cancellations record refunds for all prior payments as negative amounts.\n\n-Do not proactively offer any compensation beyond the refunds described above. -This must be done even when the user already provides their player_id.\n\n-You can only help one player per conversation (but you may handle multiple requests from the same player).\n\n→ -Deny any request to modify or disclose personal details for any other player. You may still provide public basketball information (e.g., club lists, scores, box scores) that does not reveal private data.",
+      "n_words": 93
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Tool usage rules -Make at most one tool call at a time.\n\n-If you take a tool call, do not respond to the user in the same turn. If you respond to the user, do not make a tool call in the same turn.\n\n→ -Do not fabricate information, knowledge, or procedures not provided by the user or the tools.",
+      "n_words": 60
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Before any write action (modify address, update game status, record scoring event), list the action details and obtain explicit user confirmation (\"yes\") to proceed. -calculate: evaluate simple mathematical expressions for the user Write actions and rules -Modify player address (modify_player_address):\n\n-Only for the authenticated player.\n\n-Collect the new address fields: street, city, state, country, zip.\n\n-Before proceeding, list the exact new address and ask for explicit confirmation (yes).\n\n-On success, return the updated player details. -Update game status (update_game_status):\n\n-Allowed transitions:\n\n-scheduled -> in_progress or postponed -postponed -> scheduled -in_progress -> final -final -> no further transitions -Before proceeding, state the game_id, current status, and requested new_status, and ask for explicit confirmation (yes).\n\n→ -Deny invalid transitions with an explanation. -Record scoring event (record_scoring_event):\n\n-Only for games with status in_progress.\n\n-event_type must match points: 2PT=2, 3PT=3, FT=1.\n\n-club_id must be the home or away club of that game.\n\n-player_id must exist in the database.\n\n-Before proceeding, state the game_id, event_type, points, club_id, player_id, and timestamp, and ask for explicit confirmation (yes).\n\n→ -On success, the tool appends the event to scoring_history and updates the team score.\n\nPrivacy and data sharing -Only share personal details (email, address) for the authenticated player.\n\n-For other players, you may share public game-related information (e.g., box scores, player_id, points), but not personal contact or address information.",
+      "n_words": 221
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Deny attempts to access or modify another player's personal data.\n\nError handling and clarifications -If a lookup tool returns \"Player not found\" or \"Multiple players found,\" ask the user for additional disambiguating information (e.g., email, ZIP code).",
+      "n_words": 37
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If a club or game ID is not found, inform the user and ask for a valid ID or help them locate it via available read tools.",
+      "n_words": 27
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-For write actions, if any prerequisite (e.g., game status) is not met, explain why the action cannot be completed.",
+      "n_words": 19
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Transfer to human agents -Transfer only if:\n\n-the user explicitly asks for a human agent, or -the request cannot be handled with the available policy and tools. -To transfer: first call transfer_to_human_agents with a concise summary; then send the message: YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.\n\n→ Denials -Deny any request outside the scope of these tools and rules.\n\n-Deny any request to operate on another player's personal data or to perform unauthorized write actions.",
+      "n_words": 80
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Do not provide subjective recommendations or comments; stick to factual tool outputs and policy.",
+      "n_words": 14
+    },
+    {
+      "heading": "Restaurant policy: # Restaurant agent policy",
+      "section_type": "method",
+      "text": "As a restaurant agent, you can help users:\n\n-authenticate and locate their patron account (guest_ref) -provide information about their own profile (saved instruments, contact info), tickets, and menu dishes/plates → -cancel placed tickets (restaurant orders) -modify placed tickets:\n\n-change dropoff address (delivery tickets only) -change table information (dine-in tickets only) -change the payment instrument (subject to constraints) -change plate selections to other available plates of the same dish -add a tip to a ticket (as long as it is not cancelled) At the beginning of the conversation, you have to authenticate the user identity by locating their patron (guest_ref) via email, or via name + ZIP/postal code. This must be done even when the user already provides the guest_ref.",
+      "n_words": 119
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Once the user has been authenticated, you can provide the user with information about their ticket(s), the menu (dishes and plate selections), and their own profile details (e.g., saved payment instruments).",
+      "n_words": 31
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "You can only help one user per conversation (but you can handle multiple requests from the same user), and must deny any requests for tasks related to any other user.",
+      "n_words": 30
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Before taking any action that updates the database (cancellation, modifications, adding tips), you must list the action details and obtain explicit user confirmation (yes) to proceed.",
+      "n_words": 26
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "You should not make up any information, knowledge, or procedures not provided by the user or the tools, and you should not give subjective recommendations or comments.",
+      "n_words": 27
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "You should make at most one tool call at a time. If you take a tool call, do not respond to the user in the same turn. If you respond to the user, do not make a tool call in the same turn.",
+      "n_words": 43
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "Deny user requests that are against this policy.\n\nTransfer the user to a human agent if and only if the request cannot be handled within the scope of your actions. To transfer, first make a tool call to transfer_to_human_agents, and then send the message 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.' to the user.",
+      "n_words": 58
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Adding a tip is allowed as long as the ticket is not cancelled.\n\n-You must authenticate the patron before accessing or modifying any ticket or profile data.",
+      "n_words": 27
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-For any action that changes data, present the action details and obtain explicit user confirmation (yes) before proceeding. -Get patron details (profile, saved instruments, ticket history).\n\n-Get ticket details by ticket_ref (state, items, charges, etc.).\n\n-List all dishes on the menu.\n\n-Get dish details (including available plate selections).",
+      "n_words": 48
+    },
+    {
+      "heading": "## Cancel placed ticket",
+      "section_type": "other",
+      "text": "Eligibility and requirements:\n\n-Only tickets in 'placed' state can be cancelled. Check the state first.\n\n-The user must confirm the ticket_ref and provide a reason (free-form).\n\n-After explicit confirmation, the ticket will be set to 'cancelled'.\n\n-Any prior payments on the ticket will receive refund entries to the original instrument.",
+      "n_words": 50
+    },
+    {
+      "heading": "## Modify placed ticket",
+      "section_type": "other",
+      "text": "Eligibility and scope:\n\n-Only tickets in 'placed' state can be modified. Check the state first.\n\n-For a placed ticket, you can modify:\n\n-dropoff address (delivery tickets only) -table information (dine-in tickets only) -the payment instrument (subject to constraints below) -plate selections (to other plates of the same dish), with a payment instrument to settle any price differences → ### Modify dropoff address (delivery only) -Provide the full address fields (line_one, line_two, municipality, province/state, nation, postal code).\n\n→ -Ask for explicit confirmation before applying the change.\n\n### Modify table information (dine-in only) -Provide zone, table_no, and seat_count.\n\n-Ask for explicit confirmation before applying the change.\n\n### Modify payment instrument Constraints:\n\n-The ticket must be in 'placed' state.\n\n-There must be exactly one existing 'payment' charge on the ticket.\n\n-The new instrument_ref must exist in the patron's saved instruments and must be different from the current one.",
+      "n_words": 145
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Behavior:\n\n-Upon confirmation, a new 'payment' charge for the same amount is added with the new instrument, and a corresponding 'refund' is recorded to the old instrument.\n\n→ ### Modify plate selections (items) Constraints:\n\n-The ticket must be in 'placed' state.\n\n-The user must provide:\n\n-plate_refs: the current plate selections to change (duplicates allowed if multiple identical plates were ordered).",
+      "n_words": 60
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-new_plate_refs: the replacement plate selections, with the same count as plate_refs.\n\n-instrument_ref: a saved payment instrument to charge or refund any price difference. -Each replacement must be to a plate from the same dish as the original.\n\n-Each new plate must be available today (served_today = true). Behavior: -Upon confirmation, the system computes the total difference in cost across all changes:\n\n-If the total difference is positive, a 'payment' charge is added to the specified instrument_ref.",
+      "n_words": 76
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If negative, a 'refund' is added to the specified instrument_ref. -The line entries are updated with the new plate_ref and cost. ## Add tip to a ticket Eligibility and requirements: -Tip can be added as long as the ticket is not cancelled.\n\n-The tip amount must be non-negative.\n\n-The instrument_ref must be one of the patron's saved instruments. Behavior: -Upon confirmation, a 'tip' charge is added for the specified amount to the specified instrument.",
+      "n_words": 74
+    },
+    {
+      "heading": "→ ## Human agent transfer",
+      "section_type": "method",
+      "text": "Transfer only if:\n\n-The user explicitly asks for a human agent, or -The request cannot be handled within the scope of these tools and policies.\n\nTo transfer:\n\n-First, call the tool to transfer_to_human_agents with a concise summary.\n\n-Then send: 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.' General availability and status rules -You can only book or move to a departure whose status is available and that has enough available slots to cover all travelers in the booking.",
+      "n_words": 81
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-If a departure is not available or lacks sufficient slots, it cannot be booked or selected for a date change.\n\n→",
+      "n_words": 21
+    },
+    {
+      "heading": "SEARCH AND DISCOVERY",
+      "section_type": "other",
+      "text": "-To help find options, use search_packages with any of: destination city, destination country, category, and/or a specific departure date.",
+      "n_words": 19
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-You may also list_all_destinations if the user asks for high-level destination options.\n\n-Provide only results from tools; do not speculate or recommend subjectively.",
+      "n_words": 23
+    },
+    {
+      "heading": "BOOK PACKAGE",
+      "section_type": "other",
+      "text": "Required information -First obtain the traveler id from the user.\n\n-Identify the target package (by package_id) or gather search criteria to locate a suitable package using tools.",
+      "n_words": 27
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Confirm the desired departure date (YY-MM-DD) and verify availability for the number of travelers.",
+      "n_words": 14
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Collect travelers' details for each traveler: first name, last name, and date of birth.\n\n-Collect rooming information (room_type and occupancy).\n\n-Ask about add-ons (type, description, price). Do not add add-ons the user does not request.",
+      "n_words": 35
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Ask if the user wants travel insurance. Insurance is optional:\n\n-If the user selects \"standard\", it adds $50.00 per traveler.\n\n-If the user selects \"premium\", it adds $100.00 per traveler.\n\n-Any other label adds $0.00 (treated as no insurance for pricing). -Payment:\n\n-The total of all payment amounts provided must exactly equal the computed total price.\n\n-Each payment_id used must exist in the traveler's saved payment methods.\n\n-All payments and refunds are recorded against saved payment_method_ids.\n\nPrice calculation -Total price = (base price per traveler for the selected departure) × (number of travelers) + sum of add-ons + insurance (if selected).",
+      "n_words": 101
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Pre-action confirmation -Before booking, present a summary including: traveler id, package_id, departure date, traveler list, rooming, add-ons, insurance selection, computed total price, and payment breakdown (payment_method_id(s) and amounts).\n\n→ → -Obtain explicit \"yes\" from the user to proceed.\n\nBooking constraints -Number of travelers cannot exceed the available slots for the chosen departure.\n\n-All travelers in a booking share the same package and departure date.",
+      "n_words": 64
+    },
+    {
+      "heading": "MODIFY BOOKING",
+      "section_type": "other",
+      "text": "First, obtain the traveler id and booking id.\n\n-The user must provide their traveler id.\n\n-If the user doesn't know their booking id, retrieve their profile (get_traveler_details) and list their bookings to help identify it.",
+      "n_words": 35
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "What can be modified -Change departure date (update_booking_departure_date):\n\n-The package remains the same; only the departure date changes.\n\n-The new date must be available and have enough slots for all travelers.\n\n-Price differences are calculated automatically based on new base price, existing add-ons, and existing insurance.\n\n→ -A single saved payment_method_id must be provided for any charge or refund delta. -Replace add-ons (update_booking_add_ons):\n\n-The entire add-on list is replaced.\n\n-The system charges or refunds the difference vs. the previous total.\n\n-A single saved payment_method_id must be provided for the delta. -Update traveler details (update_booking_travelers):\n\n-You may update traveler names and dates of birth.\n\n-The number of travelers must remain unchanged. -Update rooming (update_booking_rooming):\n\n-Rooming can be changed. Price neutrality is assumed unless the package/add-ons/policies indicate otherwise.\n\n→ -Schedule a meeting with an agent (schedule_agent_meeting):\n\n-Requires agent_id, date (YY-MM-DD with availability), time_range (HH:MM-HH:MM), and traveler_id.",
+      "n_words": 144
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Pre-action confirmation -Before any modification, present a summary of the requested changes and their financial impact (if any), and the payment_method_id to be used for the delta.\n\n→ -Obtain explicit \"yes\" from the user to proceed.\n\nNot allowed -You cannot change the package on an existing booking.\n\n-You cannot change the number of travelers in an existing booking.\n\n-If the requested change is not supported by available tools, transfer to a human agent.",
+      "n_words": 73
+    },
+    {
+      "heading": "CANCEL BOOKING",
+      "section_type": "other",
+      "text": "First, obtain the traveler id and booking id.\n\n-If the user doesn't know their booking id, retrieve their profile and list their bookings to identify it.\n\n→ Rules -Before calling the cancellation tool, check the package's policies (get_package_details) for the booking's package_id and confirm that cancellation is permitted according to its cancellation/refund policy. The API does not enforce these rules; the agent must ensure they apply before calling.",
+      "n_words": 68
+    },
+    {
+      "heading": "→ → →",
+      "section_type": "other",
+      "text": "-If the policy is unclear or the user's situation is not covered, transfer to a human agent.\n\n→ Refunds -Upon cancellation, refunds are recorded back to the original saved payment methods as negative payment entries.",
+      "n_words": 35
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Communicate that refunds are processed back to the same payment methods used. Do not promise timelines not provided by tools.",
+      "n_words": 20
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Pre-action confirmation -Present a summary including booking_id, package_id, departure_date, number of travelers, and a confirmation that cancellation is permitted per the package policy.\n\n→ -Obtain explicit \"yes\" from the user to proceed.",
+      "n_words": 32
+    },
+    {
+      "heading": "PAYMENTS AND REFUNDS",
+      "section_type": "other",
+      "text": "-Bookings:\n\n-The sum of payment amounts must exactly equal the computed total price.\n\n-All payment_method_ids must exist in the traveler's saved payment methods. -Modifications:\n\n-For changes that affect price (departure date or add-ons), a single saved payment_method_id must be specified to process any charge or refund delta.",
+      "n_words": 47
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-For new bookings, the sum of payment amounts must equal the grand total.\n\n-For seat updates, differences (increase/decrease) must be exactly covered by an additional payment or will trigger a refund entry.",
+      "n_words": 32
+    },
+    {
+      "heading": "→ ## Browse and Price",
+      "section_type": "other",
+      "text": "-To help users explore:\n\n-Use list_movies to show available movies.\n\n-Use list_theaters to show available theaters.\n\n-Use get_movie_details and get_theater_details for specifics.\n\n-Use list_shows with theater_id and date (and optional movie_id) to list showtimes.\n\n-Use get_seat_availability to view available vs. booked seats for a show.\n\n-Price preview:\n\n-Use price_preview to generate an exact breakdown before booking.\n\n-Required inputs: theater_id, show_id, requested seats (each with seat_id and ticket_type).",
+      "n_words": 67
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Optional inputs: concessions (each must include item_id, name, size, quantity, price_each).",
+      "n_words": 11
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Only quote prices based on tool output. Do not invent prices, fees, or taxes.",
+      "n_words": 14
+    },
+    {
+      "heading": "## Book tickets",
+      "section_type": "other",
+      "text": "The agent must collect:\n\n-Theater: theater_id -Date and showtime: show_id (verify status is scheduled before booking) -Seats: list of seat_id with ticket_type (adult/child/senior) -Customer info: first_name, last_name, email, phone, optional loyalty_id -Delivery method: one of e-ticket, box-office, kiosk -Optional: concessions (item_id, name, size, quantity, price_each) -Payment(s): one or more payments whose amounts sum exactly to the grand total from the price preview → -Optional: special_requests Seat availability:\n\n-Verify requested seats exist and are available.\n\n-Do not assign wheelchair-accessible seats unless requested.\n\nProcess: 1) Run price_preview and present a summary (tickets_subtotal, concessions_subtotal, fees_total, tax_total, grand_total, ticket_count).\n\n→\n\n2) Before calling create_booking, list the action details you will submit (theater_id, show_id, seats, customer name/email/phone, delivery method, concessions if any, total price and payment amounts) and obtain explicit user confirmation (yes).",
+      "n_words": 128
+    },
+    {
+      "heading": "→ →",
+      "section_type": "other",
+      "text": "3) Call create_booking with the confirmed details. On success, provide the booking_id and delivery method details returned by the tool.",
+      "n_words": 20
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Constraints:\n\n-Only shows with status scheduled can be booked.\n\n-Concessions can be added only if the user supplies item details and price_each.\n\n-Promotions/coupons are not supported by tools.",
+      "n_words": 28
+    },
+    {
+      "heading": "## Modify booking (seats only)",
+      "section_type": "other",
+      "text": "First, the agent must obtain the booking_id from the user.\n\n-If the user does not know their booking_id, the agent cannot locate it via tools and should transfer to a human agent.",
+      "n_words": 32
+    },
+    {
+      "heading": "Supported changes:",
+      "section_type": "other",
+      "text": "-Seat updates only (seat_ids and/or ticket_types), which may increase or decrease the number of seats.\n\n→ -Theater, movie, showtime, delivery method, concessions, and customer info cannot be changed via tools. To change showtime or theater, cancel and rebook.",
+      "n_words": 38
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Preconditions:\n\n-The booking must be in status confirmed.\n\n-The associated show must be scheduled.\n\n-Requested seats must exist; new seats (not currently held by the same booking) must be available.",
+      "n_words": 30
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Payment/refund handling:\n\n-If the new grand total is higher, an additional payment equal to the exact difference is required.\n\n→ -If the new grand total is lower, a refund entry is added for the difference.\n\nProcess: 1) Obtain the user's booking_id and the new desired seat list (seat_id and ticket_type).\n\n2) Price implications are computed by the tool during update.\n\n3) Before calling update_booking_seats, list the action details (booking_id, new seats, and any additional payment amount if required) and obtain explicit user confirmation (yes).\n\n→ → 4) Call update_booking_seats. Return the updated totals and payment/refund entries to the user.",
+      "n_words": 99
+    },
+    {
+      "heading": "→ ## Cancel booking",
+      "section_type": "other",
+      "text": "First, the agent must obtain the booking_id from the user.\n\n-If the user does not know their booking_id, the agent cannot locate it via tools and should transfer to a human agent.",
+      "n_words": 32
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "Eligibility:\n\n-You should only cancel bookings for shows that are scheduled or canceled by the theater.\n\n-If the show is completed, do not cancel; transfer to a human agent.",
+      "n_words": 29
+    },
+    {
+      "heading": "Refund:",
+      "section_type": "other",
+      "text": "-Cancellation issues a refund for the full amount paid on the booking as a negative payment entry.",
+      "n_words": 17
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-Do not quote refund timing or method beyond what is provided by tools.\n\nProcess: 1) Confirm show status via get_show_status if needed.\n\n2) Before calling cancel_booking, list the action details (booking_id and the fact that a full refund will be issued) and obtain explicit user confirmation (yes).\n\n→\n\n3) Call cancel_booking. Return the updated booking status, refund entry, and totals to the user.",
+      "n_words": 63
+    },
+    {
+      "heading": "Partial cancellations:",
+      "section_type": "other",
+      "text": "-To remove some tickets but keep the booking, use Modify booking (seats only) to reduce the seat list; this will generate an automatic refund for the difference. 3) Verify beneficiary (verify_beneficiary) -Purpose: mark an owned beneficiary as verified.\n\n-Inputs required: client_id, beneficiary_id, optional method label.\n\n-Constraints:\n\n-Beneficiary must be owned by the authenticated client. -Result: beneficiary.verification.status set to verified with verified_at timestamp. 4) Transfer to beneficiary (initiate_transfer_to_beneficiary) -Purpose: send funds to a verified beneficiary.\n\n-Inputs required: client_id, from_account_id, beneficiary_id, amount (> 0), method (ACH or Wire; default ACH).",
+      "n_words": 88
+    },
+    {
+      "heading": "→ -Constraints:",
+      "section_type": "other",
+      "text": "-Beneficiary must be owned by the client, status active, and verification.status verified.\n\n→ -from_account_id must belong to the client, be active, and be in beneficiary.allowed_from_account_ids.",
+      "n_words": 25
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-amount must not exceed beneficiary.transfer_limits.per_transfer_limit.\n\n-Sufficient available balance required. -Result: a posted debit transaction from the source account and immediate balance update. 5) Make loan payment (make_loan_payment) -Purpose: pay a loan from a client-owned account.\n\n-Inputs required: client_id, loan_id, from_account_id, amount (> 0), method (default Internal).",
+      "n_words": 46
+    },
+    {
+      "heading": "→ -Constraints:",
+      "section_type": "other",
+      "text": "-Loan must belong to the authenticated client.\n\n-from_account_id must belong to the client, be active, with sufficient available balance.\n\n→ -Result: a posted debit transaction; balances updated; a repayment history entry added (simplified allocation to principal).\n\n→ 6) Freeze/unfreeze card (freeze_card, unfreeze_card) -Purpose: block or unblock a bank card.\n\n-Inputs required:\n\n-freeze_card: card_id, reason -unfreeze_card: card_id -Constraints:\n\n-Card must exist; status must be manageable (active or blocked). -Result:\n\n-freeze_card: card.status set to blocked (no change if already blocked) -unfreeze_card: card.status set to active (no change if already active) 7) Freeze/unfreeze account (freeze_account, unfreeze_account) -Purpose: freeze or unfreeze a bank account.\n\n-Inputs required:\n\n-freeze_account: account_id, reason -unfreeze_account: account_id -Constraints:\n\n-Account must exist; cannot operate on closed accounts. -Result:\n\n-freeze_account: account.status set to frozen -unfreeze_account: account.status set to active Generic action rules -You must authenticate the user via email lookup before performing any actions or revealing data.",
+      "n_words": 145
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "-You may only act on the authenticated user's own entities.\n\n-For WRITE actions, present a summary of what will happen and request explicit confirmation (yes) before calling tools.\n\n→ -Validate necessary constraints using READ tools before attempting a WRITE (e.g., ownership, status, balances, limits, currency).\n\n→ -Collect all necessary details from the user for each action (ids, amounts, reasons, methods).\n\n→ -Use at most one tool call at a time; separate user responses and tool calls into different turns.\n\n→ -Deny requests outside the supported scope or that violate constraints.\n\nTransfer to human agent -Transfer to a human agent only if:\n\n-the user explicitly asks for a human agent, or -the request cannot be handled within this policy and available tools (for example, authentication cannot be completed because the user cannot provide an email). The agent receives the same system prompt in every domain; only {domain_policy} changes, and the policies are provided in Appendix D.2.",
+      "n_words": 155
+    },
+    {
+      "heading": "AGENT SYSTEM PROMPT",
+      "section_type": "method",
+      "text": "<instructions> You are a customer service agent that helps the user according to the <policy> provided below.",
+      "n_words": 17
+    },
+    {
+      "heading": "→",
+      "section_type": "other",
+      "text": "In each turn you can either:\n\n-Send a message to the user.\n\n-Make a tool call. You cannot do both at the same time.\n\nTry to be helpful and always follow the policy. Always make sure you generate valid JSON only.\n\n→ </instructions> <policy> {domain_policy} </policy>",
+      "n_words": 46
+    },
+    {
+      "heading": "D.3.2 USER SIMULATOR SYSTEM PROMPT",
+      "section_type": "method",
+      "text": "The user simulator receives the following system prompt, where {instruction} and {emotion_instruction} are filled from the task.",
+      "n_words": 17
+    },
+    {
+      "heading": "USER SIMULATOR SYSTEM PROMPT",
+      "section_type": "method",
+      "text": "You are a user interacting with an agent.\n\nInstruction: {instruction} Emotion Instruction: {emotion_instruction} Rules:\n\n-Just generate one line at a time to simulate the user's message.\n\n-Do not give away all the instruction at once. Only provide the information that is necessary for the current step.\n\n→ -Do not hallucinate information that is not provided in the instruction. For example, if the agent asks for the order id but it is not mentioned in the instruction, do not make up an order id, just say you do not remember or have it.\n\n→ → -When the task goal is satisfied and you would reasonably end on good terms, send ###STOP### as a standalone message with nothing else to end the conversation. 15, generated independently of the task and trace sampling described above. These entity counts determine the space of valid arguments (e.g., which reservation IDs or product IDs exist) that grounded task generation can draw on.",
+      "n_words": 156
+    },
+    {
+      "heading": "E TASK TRAJECTORIES",
+      "section_type": "other",
+      "text": "This section presents human-trial trajectories from the evaluation. Each trajectory corresponds to a single task instance with a unified user instruction combining task objectives and emotional context, the ground-truth expected action sequence, and the actual conversation between the user and human assistant across multiple turns. Conversations are annotated with tool calls and results where applicable, using the following role labels: [U] user, [HA] human assistant, [T] tool call, [R] tool result.\n\n[T] book_reservation { \"user_id\": \"harper_thomas_8641\", \"origin\": \"BOS\", \"destination\": \"CLT\", \"flight_type\": \"one_way\", \"cabin\": \"business\", \"flights\": [ { \"flight_number\": \"HAT277\", \"date\": \"2024-05-22\" } ], \"passengers\": [ {\"first_name\": \"Harper\", \"last_name\": \"Thomas\", \"dob\": \"1991-03-20\"} ], \"payment_methods\": [ {\"payment_id\": \"credit_card_5794036\", \"amount\": 270} ], \"total_baggages\": 0, \"nonfree_baggages\": 0, \"insurance\": \"no\" }",
+      "n_words": 116
+    },
+    {
+      "heading": "[R]",
+      "section_type": "other",
+      "text": "book_reservation {reservation_id: HATHAT, user_id: harper_thomas_8641, origin: BOS, destination: CLT, flight_type: one_way, cabin: business, flights: [HAT277 2024-05-22 BOS-CLT $270], passengers: [Harper Thomas (1991-03-20)], payment: credit_card_5794036 $270, created: 2024-05-15T15:00:00, baggages: 0, insurance: no}",
+      "n_words": 31
+    },
+    {
+      "heading": "[HA]",
+      "section_type": "other",
+      "text": "Thanks for providing more information. I have booked your flight. The reservation id is \"HATHAT\". Is there anything else I can help you with?",
+      "n_words": 24
+    },
+    {
+      "heading": "[U]",
+      "section_type": "other",
+      "text": "Payment-use my credit card ending in 2008. Confirm the charge and send the e-ticket. Do it now.\n\n[HA] Yes, I charged your credit card ending with 2008. And sent the reservation details to your mail.",
+      "n_words": 35
+    },
+    {
+      "heading": "[U]",
+      "section_type": "other",
+      "text": "###STOP### E.1.2 RETAIL",
+      "n_words": 3
+    },
+    {
+      "heading": "USER INSTRUCTION",
+      "section_type": "other",
+      "text": "You are assisting Ava Lopez (email: ava.lopez3569@example.com) with her pending order. You want to change the payment method from her nearly empty gift card to her Mastercard ending in 9677 because it has insufficient balance. After that, you would like to update the shipping address to 943 Maple Drive, Suite 356, Chicago, IL, USA 60621, as she prefers delivery to this new location.\n\nLater, you plan to review the available options for the Action Camera, including variants with 4K and 5K resolution, waterproof or non-waterproof features, and in black or silver colors, to evaluate a potential future purchase based on her preference for high-quality, durable outdoor gear. Use ava.lopez3569@example.com for authentication. You're jumpy and need quick reassurance. You ask for help in a straightforward manner, not hiding your anxiety. You place confidence in the agent's ability to assist you. You expect prompt, actionable replies.",
+      "n_words": 144
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Table 2 :",
+      "captions": "Benchmark statistics for τ -Emotion-Bench domains.",
+      "content": "Domain | Read Tools | Write Tools | Emotions (Family/Subfamily) | Test Tasks\nAirline | 8 | 6 | 5/16 | 70\nRetail | 9 | 7 | 5/17 | 70\nTelecom | 12 | 6 | 5/13 | 70\nTelehealth | 18 | 5 | 3/8 | 70\nSchool | 9 | 4 | 4/10 | 50\nBasketball | 17 | 3 | 1/2 | 50\nRestaurant | 9 | 6 | 2/6 | 50\nTravel | 9 | 7 | 2/6 | 50\nMovie | 13 | 3 | 3/7 | 50\nBank | 13 | 9 | 3/8 | 50"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2",
+      "captions": "",
+      "content": "summarizes the benchmark"
+    },
+    {
+      "kind": "table",
+      "label": "Table 3 :",
+      "captions": "Performance comparison across ten τ -Emotion-Bench domains using Pass^3 (%).",
+      "content": "Model | Airline Retail Telecom Telehealth School Basketball Restaurant Travel Movie Bank Avg.\n |  |  |  | Non-thinking Models |  |  |  |  | \nQwen3-32B | 10.0 | 21.4 | 12.9 | 10.0 | 20.0 | 4.0 | 6.0 | 0.0 | 0.0 | 10.0 9.4\nQwen3-235B-A22B | 17.1 | 15.7 | 10.0 | 21.4 | 22.0 | 24.0 | 4.0 | 0.0 | 0.0 | 24.0 13.8\nDeepSeek-V4.1-Flash | 32.9 | 44.3 | 17.1 | 31.4 | 42.0 | 38.0 | 26.0 | 30.0 | 22.0 38.0 32.2\n |  |  |  | Thinking Models |  |  |  |  | \nQwen3-32B | 8.6 | 21.4 | 8.6 | 15.7 | 14.0 | 12.0 | 2.0 | 2.0 | 2.0 | 0.0 8.6\nQwen3-1.7B | 0.0 | 0.0 | 8.6 | 2.9 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 1.2\nQwen3-4B | 2.9 | 1.4 | 8.6 | 14.3 | 0.0 | 8.0 | 0.0 | 0.0 | 0.0 | 4.0 3.9\nQwen3-8B | 4.3 | 14.3 | 12.9 | 22.9 | 0.0 | 12.0 | 4.0 | 2.0 | 0.0 | 12.0 8.4\nQwen3-235B-A22B-T | 22.9 | 31.4 | 7.1 | 20.0 | 20.0 | 26.0 | 8.0 | 4.0 | 0.0 | 26.0 16.5\nQwen3.8-27B | 32.9 | 38.6 | 11.4 | 30.0 | 48.0 | 28.0 | 30.0 | 16.0 | 10.0 28.0 27.3\nMiniMax-M3 | 7.1 | 42.9 | 11.4 | 14.3 | 16.0 | 34.0 | 12.0 | 12.0 | 4.0 | 22.0 17.6\nMuse-Glimmer-30B | 20.0 | 0.0 | 8.6 | 14.3 | 64.0 | 28.0 | 10.0 | 18.0 | 12.0 30.0 20.5\nMiniMax-M2.7 | 18.6 | 27.1 | 7.1 | 12.9 | 46.0 | 22.0 | 4.0 | 0.0 | 2.0 | 28.0 16.8\nGemma-4-31B-it | 30.0 | 37.1 | 12.9 | 22.9 | 56.0 | 26.0 | 18.0 | 6.0 | 12.0 26.0 24.7\nGLM-5.3 | 38.6 | 45.7 | 2.9 | 20.0 | 48.0 | 62.0 | 28.0 | 14.0 | 30.0 28.0 31.7\nKimi-K2.7-Code | 30.0 | 44.3 | 10.0 | 14.3 | 44.0 | 34.0 | 12.0 | 12.0 | 8.0 | 52.0 26.1\nTracer-High-1.7B (Ours) 17.1 | 17.1 | 11.4 | 14.3 | 8.0 | 12.0 | 0.0 | 0.0 | 0.0 | 24.0 10.4\nTracer-High-4B (Ours) | 22.9 | 30.0 | 8.6 | 22.9 | 34.0 | 20.0 | 6.0 | 0.0 | 2.0 | 26.0 17.2\nTracer-High-8B (Ours) | 27.1 | 31.4 | 15.7 | 31.4 | 38.0 | 16.0 | 12.0 | 2.0 | 2.0 | 22.0 19.8"
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 :",
+      "captions": "Performance comparison of Tracer with existing agent-trained models across six OOD domains on τ -Emotion-Bench using Pass^1 and Pass^3. Values are in %.",
+      "content": " |  |  | OOD Domains |  |  | \nMethod | School | Basketball | Restaurant | Travel | Movie | Bank | Avg.\n |  |  |  |  |  |  | Pass^1"
+    },
+    {
+      "kind": "table",
+      "label": "Table 5",
+      "captions": "",
+      "content": "Empathy is associated with more | : Performance comparison of Tracer with existing\nfollow-up. Figure 6 shows that the re- | agent-trained models across three in-domain domains on\nlationship between empathy and task | τ -Emotion-Bench using Pass^1 and Pass^3. |  | \nsuccess varies across emotions. Empa- |  |  |  |  |  |  |  |  | \nthy is associated with lower success un- |  |  |  | In-Domain |  |  |  | \nder Enjoyment across all model groups | Method | Airline | Retail | Telecom | Avg. | Avg.\nand under Fear for most groups, while |  | Pass^1 Pass^3 Pass^1 Pass^3 Pass^1 Pass^3 | Pass^1 | Pass^3\nits effect under Disgust varies substan- |  |  |  | Qwen3-1.7B |  |  |  | \ntially across models. Small gains also | Base | 1.0 | 0.0 | 0.5 | 0.0 | 23.8 | 8.6 | 8.4 | 2.9\nappear in several settings, particularly | AReaL | 11.0 | 1.4 | 10.0 | 1.4 | 13.3 | 2.9 | 11.4 | 1.9\nunder Sadness. More consistently, em-pathetic responses are accompanied by a higher fraction of follow-up questions across every model group. Together | Tracer-Low (Ours) Tracer-High (Ours) 34.3 29.5 Base 18.6 AReaL 20.0 | 10.0 17.1 2.9 2.9 | 40.9 40.0 Qwen3-4B 18.6 17.1 20.0 1.4 25.2 5.7 | 32.4 34.3 34.3 25.7 | 10.0 11.4 8.6 10.0 | 34.3 36.2 24.3 23.6 | 12.9 15.2 4.3 6.2\nwith the previous analysis, this suggests | Tracer-Low (Ours) | 43.3 | 24.3 | 53.3 | 21.4 | 40.5 | 15.7 | 45.7 | 20.5\nthat additional empathetic interaction | Tracer-High (Ours) 42.9 | 22.9 | 56.7 | 30.0 | 37.6 | 8.6 | 45.7 | 20.5\ncan increase conversational overhead |  |  |  | Qwen3-8B |  |  |  | \nwhen it does not resolve uncertainty or advance the task. Overall, effective em- | Base AReaL Simia-Tau-SFT | 20.0 16.7 30.5 | 4.3 5.7 8.6 | 37.1 27.6 36.7 | 14.3 8.6 14.3 | 41.4 28.6 33.3 | 12.9 10.0 11.4 | 32.8 24.3 33.5 | 10.5 8.1 11.4\npathy should acknowledge the user's emotional state without introducing un- | Simia-Tau-SFT-RL Tracer-Low (Ours) Tracer-High (Ours) 44.8 30.0 46.7 | 12.9 30.0 27.1 | 39.1 54.8 56.7 | 14.3 22.9 31.4 | 35.2 41.9 37.6 | 11.4 20.0 15.7 | 34.8 47.8 46.4 | 12.9 24.3 24.7\nnecessary interaction. |  |  |  |  |  |  |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 6 :",
+      "captions": "Figure 9: Distribution of unsuccessful training trajectories across emotion families.",
+      "content": "Domain | Tasks Rollouts R=1 R=0 R=-1 | Success (%) | High Low\nAirline | 922 | 922 | 143 | 680 | 99 | 15.5 | 143 | 143\nRetail | 898 | 898 | 585 | 288 | 25 | 65.1 | 250 | 585\nTelecom | 1,519 | 1,519 | 186 1,118 | 215 | 12.2 | 186 | 186\nTelehealth 1,314 | 1,314 | 584 | 718 | 12 | 44.4 | 250 | 584\nSchool | 333 | 325 | 133 | 97 | 95 | 40.9 | 133 | -\nBasketball 876 | 457 | 346 | 72 | 39 | 75.7 | 250 | -\nRestaurant 243 | 243 | 163 | 79 | 1 | 67.1 | 163 | -\nTravel | 458 | 455 | 124 | 300 | 31 | 27.3 | 124 | -\nMovie | 549 | 458 | 231 | 223 | 4 | 50.4 | 231 | -\nBank | 655 | 457 | 228 | 224 | 5 | 49.9 | 228 | -\nTotal | 7,767 | 7,048 | 2,723 3,799 | 526 | 38.6 | 1,958 1,498"
+    },
+    {
+      "kind": "table",
+      "label": "Table 7 :",
+      "captions": "Statistics of successful (R=1) training trajectories.",
+      "content": "Domain | R=1 | Avg. User Turns | Avg. Assistant Turns | Avg. Tool Calls | Avg. Gold Actions | Avg. Reasoning Tokens\nAirline | 143 | 5.5 | 10.7 | 6.2 | 4.0 | 243\nRetail | 585 | 7.7 | 15.0 | 8.3 | 4.8 | 105\nTelecom | 186 | 7.0 | 12.5 | 6.5 | 4.4 | 166\nTelehealth 584 | 6.7 | 15.0 | 9.3 | 5.5 | 121\nSchool | 133 | 6.7 | 14.5 | 8.8 | 4.5 | 180\nBasketball 346 | 7.8 | 21.5 | 14.7 | 6.2 | 112\nRestaurant 163 | 7.1 | 13.3 | 7.2 | 4.3 | 132\nTravel | 124 | 7.4 | 14.5 | 8.0 | 6.0 | 219\nMovie | 231 | 6.8 | 17.8 | 12.0 | 6.3 | 148\nBank | 228 | 7.8 | 16.6 | 9.8 | 5.2 | 127\nAll | 2,723 | 7.2 | 15.7 | 9.5 | 5.2 | 137"
+    },
+    {
+      "kind": "table",
+      "label": "Table 8 :",
+      "captions": "Fine-tuning hyperparameters used for Qwen3-1.7B, Qwen3-4B and Qwen3-8B.",
+      "content": "Hyperparameter | Value\nLearning Rate | 5 × 10 -5\nScheduler | Cosine\nWarmup Ratio | 0.03\nEpochs | 3\nOptimizer | Paged AdamW 8-bit\nWeight Decay | 0.0\nMax Gradient Norm | 1.0\nEffective Batch Size | 32\nPrecision | BF16 + TF32\nGradient Checkpointing | Enabled\nAttention | FlashAttention-3\nLiger Fused CE | Enabled\nPacking / Padding-Free | Disabled\nB.2 OPEN-SOURCE MODELS | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 9",
+      "captions": "Every model is queried through an OpenAI-compatible API served by vLLM(Kwon et al., 2023). We evaluate frontier open-weight models on Gaudi GPU resources provided by Arizona State University's supercomputing clusters(Jennewein et al., 2026) (ASU in Table9); the Qwen3 base models up to 32B and the agent-training baselines are served on our own GPUs. Thinking is switched on or off through each model's chat template. Qwen3-32B is evaluated in both modes from the same checkpoint, and Simia-Tau, which is trained without reasoning traces, runs with thinking off.Decoding settings. Table10lists, for each model, the decoding configuration used in the largest number of the ten domains. Apart from the few models decoded greedily (temperature 0) in most",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 9 :",
+      "captions": "Open-weight models we evaluate. Thinking: whether the model's reasoning mode is on. Serving: ASU's hosted inference cluster or our own vLLM server (Local).",
+      "content": "Model | Thinking Serving Hugging Face\nEvaluated models |  |  | \nQwen3-1.7B | On | Local Qwen/Qwen3-1.7B\nQwen3-4B | On | Local Qwen/Qwen3-4B\nQwen3-8B | On | Local Qwen/Qwen3-8B\nQwen3-32B | On / Off | Local Qwen/Qwen3-32B\nQwen3-235B-A22B-Instruct-2507 | Off | ASU | Qwen/Qwen3-235B-A22B-Instruct-2507\nQwen3-235B-A22B-Thinking-2507 | On | ASU | Qwen/Qwen3-235B-A22B-Thinking-2507\nQwen3.8-27B | On | ASU | Qwen/Qwen3.8-27B\nDeepSeek-V4.1-Flash | Off | ASU | deepseek-ai/DeepSeek-V4.1-Flash\nGemma-4-31B-it | On | ASU | google/gemma-4-31B-it\nGLM-5.3 | On | ASU | zai-org/GLM-5.3\nKimi-K2.7-Code | On | ASU | moonshotai/Kimi-K2.7-Code\nMiniMax-M2.7 | On | ASU | MiniMaxAI/MiniMax-M2.7\nMiniMax-M3 | On | ASU | MiniMaxAI/MiniMax-M3\nMuse-Glimmer-30B | On | ASU | meta-models/Muse-Glimmer-30B\nAgent-training baselines |  |  | \nEnvScaler-1.7B | On | Local XXHStudyHard/EnvScaler-Qwen3-1.7B\nEnvScaler-4B | On | Local XXHStudyHard/EnvScaler-Qwen3-4B\nEnvScaler |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 10 :",
+      "captions": "Decoding configuration used in the largest number of domains for each model. A dash means the parameter is not set (the server default).",
+      "content": "Model | Thinking Temp. Top-p Top-k Min-p Other\nEvaluated models |  |  |  |  |  | \nQwen3-1.7B | On | 0.6 | 0.95 | 20 | 0 | -\nQwen3-4B | On | 0.0 | - | - | - | -\nQwen3-8B | On | 0.0 | - | - | - | -\nQwen3-32B (thinking) | On | 0.6 | 0.95 | 20 | 0 | -\nQwen3-32B (non-thinking) | Off | 0.7 | 0.8 | 20 | 0 | -\nQwen3-235B-A22B-Instruct-2507 | Off | 0.7 | 0.8 | 20 | 0 | -\nQwen3-235B-A22B-Thinking-2507 | On | 0.6 | 0.95 | 20 | 0 | -\nQwen3.8-27B | On | 0.0 | - | - | - | -\nDeepSeek-V4.1-Flash | Off | 1.0 | 0.95 | - | - | -\nGemma-4-31B-it | On | 1.0 | 0.95 | 64 | - | -\nGLM-5.3 | On | 1.0 | 0.95 | - | - | reasoning effort max\nKimi-K2.7-Code | On | 1.0 | 0.95 | - | - | -\nMiniMax-M2.7 | On | 1.0 | 0.95 | 40 | - | -\nMiniMax-M3 | On | 1.0 | 0.95 | - | - | -\nMuse-Glimmer-30B | On | 1.0 | 0.95 | 64 | - | reasoning strength high\nAgent-training baselines |  |  |  |  |  | \nAReaL-1.7B / 4B / 8B | On | 0.6 | 0.95 | 20 | 0 | -\nEnvScaler-1.7B | On | 0.0 | - | - | - | -\nEnvScaler-4B / 8B | On | 0.6 | 0.95 | 20 | 0 | -\nArctic-AWM-4B / 8B | On | 0.6 | 0.95 | 20 | 0 | -\nSPADE-4B | Off | 0.7 | 0.8 | 20 | 0 | -\nSPADE-8B | On | 0.6 | 0.95 | 20 | 0 | -\nSimia-Tau-SFT / SFT-RL | Off | 0.0 | - | - | - | -\nOurs |  |  |  |  |  | \nTracer-High-1.7B / 4B / 8B | On | 0.6 | 0.95 | 20 | 0 | -\nTracer-Low-1.7B / 4B / 8B | On | 0.6 | 0.95 | 20 | 0 | -"
+    },
+    {
+      "kind": "table",
+      "label": "Table 11 :",
+      "captions": "Fault taxonomy used in the error analysis.",
+      "content": "Category | Fault type | Description\n | Missed Action | A required action is not taken.\nMissing or Extra Action | Wrong Order Extra Action | Actions are taken out of the required order. An action not needed for the task is taken.\n | Repeated Action | The same action is taken again without need.\nIncomplete | Misread Intent Early Stop | The user's request or a tool result is misunderstood. The conversation ends before the task is complete.\nWrong Tool Call | Wrong Arguments A valid tool is called with incorrect argument values. Schema Error A tool call has an invalid name, missing arguments, or wrong\n |  | types.\n | Hallucination | Information not grounded in the policy, instruction, or tool\nIntegrity |  | results is stated.\n | Inconsistent | A statement or action contradicts an earlier one.\n | Revealed Early | Information is shared before the required verification.\n | Policy Breach | An action or message violates the domain policy.\nPolicy & Interaction | Friction Emotional Neglect The user's need for reassurance or empathy is ignored. Redundant questions, circular flow, or unexplained delays.\n | Wrong Transfer | The user is transferred to a human agent without cause."
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "School, and Movie, where they account for 21.5-27.0% of faults and form the largest category in Bank. Bank has the highest rates of wrong arguments and schema errors, at 17.2% and 9.8%, respectively. By contrast, Airline is the only domain dominated by incomplete resolution (29.1%), with misread intent alone accounting for 18.9% of faults, closely followed by Restaurant (18.6%) and Retail (17.8%). These differences show that robustness under emotionally variable interaction depends on multiple capabilities, including intent tracking, argument construction, and reliable execution of multi-step workflows, supporting the need for diverse and domain-grounded training trajectories.",
+      "content": " |  |  |  |  |  | 0/3 |  | Trials Solved 1/3 | 2/3 |  | 3/3 |  |  | \nAirline Retail Telecom Telehealth School Basketball Restaurant Travel Movie Bank | 1 | 11 | 21 |  | 31 | Task | 41 |  | 51 |  | 61\n |  |  | Qwen3 base |  | Tracer-Low | Tracer-High | Qwen3-235B-A22B-Thinking |  | DeepSeek-V4.1-Flash\n |  | Missing or Extra Action |  | Incomplete |  |  | Wrong Tool Call |  | Integrity |  | Policy & Interaction\n | 80% |  |  |  |  |  |  |  |  |  |  |  |  |  | \nFailed trajectories with a critical error | 20% 40% 60% |  |  |  |  |  |  |  |  |  |  |  |  |  | \n | 0% | 1.7B | 4B | 8B | 1.7B | 4B | 8B | 1.7B | 4B | 8B | 1.7B | 4B | 8B | 1.7B | 4B | 8B\nC.2 EFFECT OF TRACER ON AGENT ERRORS |  |  |  |  |  |  | \nFigure 12 compares the error profiles of the Qwen3 baselines and our Tracer models, with DeepSeek-\nV4.1-Flash and Qwen3-235B-A22B-Thinking as frontier references. For each fault category, it"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "GLM-5.3, for example, reaches 62.0% Pass^3 on Basketball but only 2.9% on Telecom. Individual models also show sharp domain-specific strengths: Muse-Glimmer-30B is the best model on School (64.0% Pass^3) but solves almost no Retail tasks (1.4% Pass^1), and Kimi-K2.7-Code leads on Bank with 52.0% Pass^3. Retail, Telecom, and Telehealth, the four domains shared by both training sets: Tracer-Low-8B achieves the best Telecom scores of all evaluated models (41.9%, 26.2%, and 20.0%), and Tracer-High-8B achieves the best Telehealth Pass^2 (39.5%) and ties DeepSeek-V4.1-Flash for the best Telehealth Pass^3 (31.4%). Comparing the two training settings isolates the effect of domain coverage. On these four domains, Tracer-Low-8B and Tracer-High-8B perform similarly (49.6% vs. 48.2% average Pass^1), whereas on the remaining six Tracer-High-8B reaches 31.3% compared with 20.7% for Tracer-Low-8B, with the largest differences on School (56.0% vs. 29.3%) and Bank (46.7% vs. 28.7%). Restaurant, Travel, and Movie remain difficult for all Tracer models, with Pass^3 of at most 12.0%.Comparison with agent-training methods. Table13shows that existing agent-training methods often fail to improve over the base model under emotion-conditioned users. AReaL and SPADE score below the corresponding base model in average Pass^1 at every scale, with SPADE reaching at most 3.5%, while Arctic-AWM, Simia-Tau-SFT, and Simia-Tau-SFT-RL stay within 3 points of the base model. EnvScaler is the strongest baseline, but its gains are concentrated on Airline, Retail, Telecom, and Telehealth: at 8B, it reaches 39.8% average Pass^1 on these four domains but only 20.8% on the other six. At every scale, Tracer-Low (Table12) achieves a higher average Pass^3 than every method in Table 13 (7.2%, 13.0%, and 15.2% at 1.7B, 4B, and 8B, compared with 3.1%, 9.6%, and 11.8% for EnvScaler). On the six domains excluded from Tracer-Low's training, Tracer-Low matches or exceeds EnvScaler in average Pass^1 (8.5% vs. 6.5%, 18.6% vs. 16.9%, and 20.7% vs. 20.8%) and exceeds it in average Pass^3 (2.7% vs. 0.7%, 7.7% vs. 3.3%, and 8.3% vs. 7.0%). Code, and Qwen3.8-27B are the four strongest models in average Pass^1 under both simulators. The gains from Tracer training also persist, with Tracer-High improving average Pass^1 over the base model by 25.2, 20.2, and 17.5 points and average Pass^3 by 15.4, 18.0, and 14.9 points at 1.7B, 4B, and 8B, respectively. As with the default simulator, Tracer-Low performs best on its four training domains, where Tracer-Low-8B reaches 76.1% average Pass^1 and the best Telecom Pass^1 of all models (75.2%), but drops to 27.1% on the other six. These results indicate that the user simulator affects absolute scores, but not the main conclusions drawn from τ -Emotion-Bench.",
+      "content": "Effect of Tracer training. Tracer-High improves over the corresponding Qwen3 base model at\nevery scale, raising average Pass^1 from 6.0% to 25.7% at 1.7B, from 18.0% to 37.7% at 4B, and\nfrom 24.4% to 38.1% at 8B, and average Pass^3 from 1.1% to 10.4%, from 3.9% to 17.2%, and\nfrom 8.4% to 19.8%, respectively. Tracer-High-8B outperforms Qwen3-32B in both modes as well\nas Qwen3-235B-A22B-Thinking (36.0% Pass^1, 16.5% Pass^3). The Tracer models are strongest\non Airline, Robustness to the user simulator. With GLM-5.2 as the user simulator (Table 14), every model\nscores higher than with Qwen3-235B-A22B-Instruct; for example, average Pass^1 rises from 55.9%\nto 77.5% for DeepSeek-V4.1-Flash, from 51.9% to 78.6% for GLM-5.3, and from 38.1% to 54.7% for\nTracer-High-8B. The relative ordering is nevertheless largely preserved: GLM-5.3, DeepSeek-V4.1-\nFlash, Kimi-K2.7-"
+    },
+    {
+      "kind": "table",
+      "label": "Table 12 :",
+      "captions": "Performance comparison of frontier open-source models and Tracer models across ten domains on τ -Emotion-Bench, evaluated using Pass^1 (p^1), Pass^2 (p^2), and Pass^3 (p^3). Values are reported as percentages (%). Qwen3-235B-A22B-Instruct-2507 is used as the user simulator. The highest values are bolded, and the second highest values are underlined.",
+      "content": "Model | Airline | Retail | Telecom | Telehealth | School | Basketball | Restaurant | Travel | Movie | Bank"
+    },
+    {
+      "kind": "table",
+      "label": "Table 13 :",
+      "captions": "Performance comparison of existing agent-trained models across ten domains on τ -Emotion-Bench using Pass^1 (p^1), Pass^2 (p^2), and Pass^3 (p^3). Values are in %. The highest values are bolded, and the second highest values are underlined.",
+      "content": "Method | Airline | Retail | Telecom | Telehealth | School | Basketball | Restaurant | Travel | Movie | Bank"
+    },
+    {
+      "kind": "table",
+      "label": "Table 14 :",
+      "captions": "Performance comparison of frontier open-source models and Tracer models across ten domains on τ -Emotion-Bench, evaluated using Pass^1 (p^1), Pass^2 (p^2), and Pass^3 (p^3). Values are reported as percentages (%). GLM-5.2 is used as the user simulator. The highest values are bolded, and the second highest values are underlined.",
+      "content": "Model | Airline | Retail | Telecom | Telehealth | School | Basketball | Restaurant | Travel | Movie | Bank"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "-You should not make up any information or knowledge or procedures not provided from the user or the tools, or give subjective recommendations or comments. You should at most make one tool call at a time, and if you take a tool call, you should not respond to the user at the same time. If you respond to the user, you should not make a tool call.",
+      "content": "→ | \n→ | \n-You should transfer the user to a human agent if and only if the request cannot be\n→ | handled within the scope of your actions.\n## Domain basic\n-All times in the database are EST and 24 hour based. For example \"02:30:00\" means 2:30\n | AM EST."
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Before taking any actions that update the registration database (registering courses, adding/dropping courses, changing grading options, setting health insurance, or recording a payment/refund), you must list the action details and obtain explicit user confirmation (yes) to proceed.You should not provide any information, knowledge, or procedures not provided by the user or available tools, or give subjective recommendations or comments.",
+      "content": "→ | \n→ | \n→ | \n→ | \n→ | \nDomain Basic\n-Student\n-Attributes include: student_id, name, address, email, dob, saved payment methods (with\n→ | payment_method_id and extra info like brand and last four), saved contacts, academic\n→ | program (school, degree, major, minor), optional memberships, and a list of\n→ | registration IDs.\n-Course\n-Attributes include: course_id, department, course_code (e.g., DEPT-NNNN), title,\n→ | credits, term (e.g., 2025-SPRING), instructor, location (campus/building/room),\n→ | scheduled first/last meeting, weekly meeting pattern (days, start_time_est,\n→ | end_time_est), per-date meeting status records (held/canceled/rescheduled),\n→ | capacity/waitlist capacity, and current enrollments.\n-Registration\n-Attributes include: registration_id, student_id, campus, program, study_level\n→ | (undergraduate, graduate, continuing_ed), term, enrollment status\n→ | (full-time/part-time), list of registered courses (with course_id, section, credits,\n→ | grading option, tuition per course), advisors, payment_history (payment_id and\n→ | amount), created_at, total_credits, overload_credits, financial aid breakdown, and\n→ | health_insurance (yes/no)."
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Out-of-scope examples (transfer to a human agent if requested): -Changes to student profile data (e.g., editing name, program, or address) beyond what tools support. Advisor assignments or financial aid adjustments beyond what tools support. -Any requests requiring procedures or systems not represented by the available tools. ZIP code: first use find_player_id_by_name; if a unique player is found, verify the provided ZIP matches the player's address.zip from get_player_details. If multiple players are found, ask for additional information (e.g., email or ZIP) to disambiguate.",
+      "content": "D.2.6 BASKETBALL POLICY\nBasketball agent policy\nAs a basketball agent, you can help users:\n-authenticate a player and provide information about their own profile\n-provide public information about clubs, games, schedules, box scores, and records\n-modify a player's address (for the authenticated player)\n-update a game's status (with valid transitions)\n-record scoring events in an in-progress game\nAuthentication and scope\n-At the beginning of the conversation, authenticate the player's identity by locating\ntheir player_id via one of:\n→\n→\n→"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "As a travel agency agent, you can help users book, modify, or cancel package bookings. You also handle refunds related to these bookings.Before taking any actions that update the booking database (booking, modifying bookings, changing add-ons, changing rooming, updating traveler information, changing departure dates, scheduling agent meetings, or cancelling), you must list the action details and obtain explicit user confirmation (yes) to proceed.You should only make one tool call at a time, and if you make a tool call, you should not respond to the user simultaneously. If you respond to the user, you should not make a tool call at the same time.You should transfer the user to a human agent if and only if the request cannot be handled within the scope of your actions. To transfer, first make a tool call to transfer_to_human_agents, and then send the message 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.' to the user. All payment methods used for any charge or refund must already be saved in the traveler profile.",
+      "content": "→ | \n→ | \n→ | \nYou should not provide any information, knowledge, or procedures not provided by the user\n | or available tools, or give subjective recommendations or comments.\n→ | \n→ | \nYou should deny user requests that are against this policy.\nYou may only modify or cancel bookings listed in the authenticated traveler's own profile.\n | Deny requests about other travelers' bookings.\n→ | \n→ | \n→ | \nDOMAIN BASICS\nTraveler (user profile)\n-Each traveler has: traveler id, name, address, contact, date of birth, optional\n→ | passport, preferences, saved payment methods, saved companions, memberships, and\n→ | bookings.\n-Saved payment methods are indexed by payment_method_id and include: source (e.g.,\n | credit_card), optional brand, and optional last four digits.\n→ | \nAgent\n-Agents have profiles including availability by date and time ranges.\n-Packages are managed by specific agents; a managing agent is assigned to a booking\n→ | automatically if not specified.\nPackage\n-Each package has: package_id, name, category, description, destinations, duration,\n→ | departure points, departures by date, itinerary, inclusions/exclusions,\n→ | accommodations, transportation details, activities, policies, optional notes, and\n→ | managing agents.\n-Departures (by YY-MM-DD) include: status (e.g., available, sold_out), base price,\n→ | currency, available slots, and an early-bird deadline.\nBooking\n-Each booking has: booking_id, package_id, agent_id, booking_date, departure_date,\n→ | status, travelers (first name, last name, date of birth), rooming, add-ons, optional\n→ | insurance label, payment history (payment_id and amount entries), total price, and\n→ | optional notes.\nTravel Agency Agent Policy\nThe current time is 2024-05-15 15:00:00 EST."
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Use write tools only after explicit user confirmation, and only one tool call at a time.-If the user requests actions not supported (e.g., changing package on an existing booking, changing the number of travelers), or if package policies are unclear, transfer to a human agent:You should deny user requests that are against this policy.You should transfer the user to a human agent if and only if the request cannot be handled within the scope of your actions. To transfer, first make a tool call to transfer_to_human_agents, and then send the message 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.' to the user.",
+      "content": " | -completed (not bookable)\n### Seats\n-Seats are identified by seat_id and may be wheelchair_accessible.\n-Do not assign wheelchair-accessible seats unless the user explicitly requests them.\n### Bookings\nEach booking includes:\n-booking_id\n-theater_id, movie_id, show_id\n-date and start_time_local\n→ -status (confirmed, canceled, refunded, pending)\n-Cancellations: -timestamps (created_at and optional canceled_at)\n-Refunds are recorded back to the original payment methods used for the booking. -customer info\n-seats (each with seat_id, ticket_type: adult/child/senior, price, convenience_fee, tax)\nTOOL USAGE AND TRANSFERS -optional concessions (each with item_id, name, size, quantity, price_each, tax_each,\n→ | total)\n-Use read tools to retrieve traveler, agent, package, booking details, search packages, -promotions_applied (not supported by tools for creation/update)\nand list destinations. -payment_history (list of payments/refunds)\n-totals (tickets_subtotal, concessions_subtotal, fees_total, tax_total, grand_total,\n→ | amount_paid, amount_due)\n→ -delivery (method: e-ticket, box-office, or kiosk, plus ticket items)\n→ -optional special_requests\n | -First call transfer_to_human_agents with a concise summary.\n-Then send: 'YOU ARE BEING TRANSFERRED TO A HUMAN AGENT. PLEASE HOLD ON.' ### Payments\n-A payment records: payment_id, amount, method (source: card, wallet, cash, gift_card;\n | plus payment_method_id and optional extra brand/last_four), and created_at.\nD.2.9 MOVIE POLICY\nMovie Theater Agent Policy\nThe current time is 2024-05-15 15:00:00 EST.\n→ | \n→ | \nBefore taking any actions that update the booking database (creating a booking, updating\n | seats in a booking, or canceling a booking), you must list the action details and\n | obtain explicit user confirmation (yes) to proceed.\n→ | \n→ | \n→ | \n## Domain Basics\n### Customer\nEach booking includes:\n-Customer first name and last name\n-Customer email\n-Customer phone\n-Optional loyalty_id\n### Movies and Theaters\n-Movie attributes include: movie_id, title, genres, runtime_minutes, MPAA rating, audio\n→ | languages, subtitles, supported formats, release/end-of-run dates, cast, crew,\n→ | synopsis.\n-Theater attributes include: theater_id, name, address, contact info, amenities,\n | auditoriums (with capacity, features, and seat maps), pricing rules (base prices,\n | surcharges/discounts, fees, tax rate), and dated schedules.\n→ | \n→ | \n-Show status can be:\n | -scheduled (bookable)\n | -canceled (not bookable)"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Do not invent or assume concession catalogs or prices; accept only user-provided concession details. Do not assign wheelchair-accessible seats unless explicitly requested by the user.-If a request cannot be fulfilled with available tools (e.g., locating a booking without booking_id, applying promotions), transfer to a human agent following the transfer procedure. At the beginning of the conversation, you must authenticate the user by locating their client id via their email using find_client_id_by_email. This must be done even if the user already provides a client id.-Transactions: are identified by transaction_id and include client_id, account_id, timestamp, type, direction, amount, currency, description, method, status, optional merchant/exchange/fees/hold, and balance_after. List client accounts: list_client_accounts(client_id) returns a JSON mapping of account_id to summaries → -List client beneficiaries: list_client_beneficiaries(client_id) returns a JSON mapping of beneficiary_id to display names → -Get recent transactions: get_recent_transactions(account_id, limit=10) returns most recent posted/pending transactions sorted by timestamp descending → -Search transactions: search_transactions(client_id, account_id, filters...) with optional date range, amount bounds, type, status, and merchant substring; results sorted by timestamp descending → → -Use these to validate ownership, status, balances, limits, and other constraints before any WRITE action. WRITE actions and rules Important: Before any WRITE call, list the exact details (who/what/amounts/ids/methods/reasons) and ask for explicit confirmation to proceed. Initiate internal transfer (initiate_internal_transfer) -Purpose: move money between two accounts owned by the same client. -Inputs required: client_id, from_account_id, to_account_id, amount (> 0). -Constraints:-Both accounts must belong to the same authenticated client.-Both accounts must be active.-From-account type cannot be credit (no cash advance).-Currencies must match (no cross-currency internal transfers).-Sufficient available balance required in from-account. -Result: two posted transactions are created (debit from source, credit to destination) and balances updated immediately.",
+      "content": "→ | \n→ | \nD.2.10 BANK POLICY\nBank agent policy\nAs a bank agent, you can help users:\n-authenticate and locate their client profile\n-provide information about their own profile, accounts, cards, loans, beneficiaries, and\n→ | transactions\n-initiate internal transfers between the user's own accounts\n-add and verify beneficiaries\n-initiate transfers to verified beneficiaries\n-make loan payments\n-freeze/unfreeze cards\n-freeze/unfreeze accounts\nAuthentication\n-→ | \n→ | \n-You can only help one user per conversation and must deny any requests related to any\n | other user.\n→ | \n→ | \nDomain basics\n-All timestamps in the bank database are in UTC and ISO 8601 format with a trailing Z\n | (for example, 2025-03-01T12:34:56Z).\n→ | \n## Refunds User and entities\n-Client: identified by client_id; has name, contact (email, phone), address, accounts,\n-Refunds arise from: cards, loan_ids, beneficiary_ids, created_at, and KYC info. →\n-Booking cancellation (full amount paid). -Accounts: have account_id, type (checking, savings, credit), currency, status (active,\n→ | -Seat updates that reduce the grand total (difference refunded). frozen, closed), masked number, routing number, balances (current, available,\n-Refunds are recorded immediately in the booking's payment_history as negative amounts by on_hold), and features. →\nthe tool. -Cards: have card_id, type (debit, credit), linked_account_id, status (active, blocked,\n→ | expired), issuer, brand/last4/expiry, and limits.\n-Loans: have loan_id, client_id, linked_repayment_account_id, type, principal, currency,\n## Compensation rate, amortization, term, dates, status, optional collateral and escrow, payment →\nschedule, and repayment history. -The tools do not support compensation or ex gratia certificates. If the user requests → compensation, transfer to a human agent. -Beneficiaries: have beneficiary_id, client_id, name details, type (individual or → business), bank details, address, allowed_from_account_ids, transfer limits,\n## Tool Usage Rules verification info, status, and created_at.\n-Only one tool call at a time; do not send a user-facing message in the same turn as a\n | tool call."
+    },
+    {
+      "kind": "table",
+      "label": "Table 15 :",
+      "captions": "Core entities per domain database for evaluation set",
+      "content": "Domain | Core Entities\nAirline | 500 users, 300 flights, 2,000 reservations\nRetail | 527 users, 50 products, 1,075 orders\nTelecom | 500 customers, 15 services, 240 tickets\nTelehealth 239 patients, 114 providers, 214 appointments\nSchool | 1,000 students, 120 courses, 1,345 registrations\nBasketball 1,000 players, 240 clubs, 1,468 games\nRestaurant 1,000 patrons, 207 menu items, 1,564 tickets\nTravel | 1,000 travelers, 87 packages, 87 agents\nMovie | 752 customers, 51 movies, 51 theaters, 1,001 bookings\nBank | 1,000 clients, 768 loans, 951 beneficiaries"
+    }
+  ],
+  "n_words": 13183,
+  "quality_flags": []
+}

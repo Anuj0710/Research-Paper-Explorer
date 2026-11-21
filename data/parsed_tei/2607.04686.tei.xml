@@ -1,0 +1,1079 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">ToolFailBench: Diagnosing Tool-Use Failures in LLM Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-07-06">6 Jul 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Harsh</forename><surname>Soni</surname></persName>
+						</author>
+						<title level="a" type="main">ToolFailBench: Diagnosing Tool-Use Failures in LLM Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-07-06">6 Jul 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9864F9FF59CB4C4E87433913C6EB7AEE</idno>
+					<idno type="arXiv">arXiv:2607.04686v1[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool calling is central to modern language model agents, but aggregate benchmark scores often hide where tool use fails. A model that never calls a needed tool and a model that calls the tool but ignores the result can look similar under final task accuracy. We introduce ToolFailBench, a diagnostic benchmark for measuring tool-use failures across 1,000 tasks in finance, medicine, law, cybersecurity, and real estate. Tool-required tasks return values the model wouldn't guess, forcing it to trust the tool while control tasks attach the same tools but should be answered directly. We label each trace with Tool-Skip, Result-Ignore, Output-Fabrication, and Unnecessary-Tool-Use, using a rule classifier and two LLM judges aggregated by majority vote. Across 19 headline models, the best reaches 86.33% Clean Tool-Use Rate, showing that faithful tool use is not saturated. More importantly, models with similar aggregate scores fail in different ways: most stay disciplined on no-tool controls, while Llama-3.1 models show an Always-Call pattern, and at the same parameter scale Llama-3.1-70B and Qwen2.5-72B differ by 89 percentage points on control-task accuracy. Tooluse evaluation should measure not only whether agents call tools, but whether they use tool outputs correctly and avoid tools when none is needed. Code: github.com/SoHarshh/ToolFailBench</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">Introduction</head><p>Tool calling is now a core part of language model agents. Modern agents are expected to call external functions, APIs, search tools, databases, and domain-specific services, then use the returned information in their final answer <ref type="bibr" target="#b16">(Schick et al., 2023;</ref><ref type="bibr" target="#b12">Patil et al., 2025)</ref>. This matters in settings such as customer support <ref type="bibr" target="#b19">(Yao et al., 2024)</ref>, finance <ref type="bibr" target="#b0">(Bigeard et al., 2025)</ref>, healthcare <ref type="bibr" target="#b5">(Jiang et al., 2025)</ref>, software engineering <ref type="bibr" target="#b6">(Jimenez et al., 2024)</ref>, and long-horizon multiapplication workflows <ref type="bibr" target="#b9">(Li et al., 2025)</ref>. In these settings, reliability depends not only on whether a model calls a tool, but also on whether it uses the tool result correctly.</p><p>Existing benchmarks measure important parts of tool use, but they often collapse different failures into one score. BFCL evaluates function-call correctness <ref type="bibr" target="#b12">(Patil et al., 2025)</ref>; τ -bench evaluates whether an agent reaches the right end state in simulated customer-service tasks <ref type="bibr" target="#b19">(Yao et al., 2024)</ref>; ToolLLM measures tool-use success across realworld APIs <ref type="bibr" target="#b14">(Qin et al., 2024)</ref>; and Toolathlon evaluates long-horizon task execution across many software applications <ref type="bibr" target="#b9">(Li et al., 2025)</ref>. These benchmarks are useful, but a single pass rate or accuracy number may hide "why" a model failed. A model that never calls a needed tool, a model that calls the tool but ignores the result, and a model that calls the tool but invents extra information can all look similar under aggregate evaluation, even though they fail in different ways.</p><p>We introduce ToolFailBench, a diagnostic benchmark for measuring where tool-use failures occur. ToolFailBench contains 1,000 single-turn tasks across five professional domains: finance, medicine, law, cybersecurity, and real estate. Tool-required tasks are built as parametric traps: the mock tool return contradicts a likely memorized prior, so a model must use the returned value instead of falling back on memory. Control tasks test the opposite behavior, asking whether a model can answer directly without calling a tool unnecessarily.</p><p>ToolFailBench assigns each response a failure-mode label rather than only a final success score. For toolrequired tasks, we separate Tool-Skip, Result-Ignore, Output-Fabrication, and correct behavior. For control tasks, we separate Unnecessary-Tool-Use, wrong direct answers, and correct direct answers. We label each trace with a deterministic rule classifier and two independent LLM judges, then aggregate the labels by majority vote. This gives us a reproducible rule-only view and a semantic ensemble view of the same model behavior.</p><p>Across 19 headline models with valid traces, ToolFailBench is not saturated: the best model reaches 86.33% Clean Tool-Use Rate. More importantly, similar aggregate scores hide different failure profiles. Most models form a disciplined low-UTR cluster, while Llama-3.1 models show an Always-Call pattern. At the same parameter scale, Llama-3.1-70B and Qwen2.5-72B produce opposite behavior on identical inputs, differing by 89 percentage points on control-task accuracy. These results suggest that tool discipline is not explained by scale alone, but depends strongly on model family and training behavior.</p><p>Contributions. We make three contributions. First, we introduce ToolFailBench, a 1,000-task diagnostic benchmark across five professional domains for testing whether agents use tool outputs correctly. Second, we define a failuremode taxonomy that separates skipped tools, ignored tool results, fabricated outputs, and unnecessary tool use. Third, we evaluate 19 headline models and show that aggregate scores hide distinct failure profiles, including a same-scale Llama-vs-Qwen contrast with an 89-point gap in controltask accuracy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">Related Work</head><p>Tool-use and function-calling benchmarks. Early tooluse work studied how language models can learn to call external tools and APIs, including through self-supervised tool-use traces and API-documentation retrieval <ref type="bibr" target="#b16">(Schick et al., 2023;</ref><ref type="bibr" target="#b11">Patil et al., 2023)</ref>. Subsequent benchmarks evaluate tool use more directly. API-Bank studies toolaugmented dialogue with runnable APIs <ref type="bibr" target="#b9">(Li et al., 2023)</ref>; ToolLLM scales tool-use data and evaluation to thousands of real-world APIs <ref type="bibr" target="#b14">(Qin et al., 2024)</ref>; and BFCL evaluates function-calling correctness, including whether models produce valid and executable calls <ref type="bibr" target="#b12">(Patil et al., 2025)</ref>. These benchmarks are central for measuring tool selection and call validity. ToolFailBench focuses on a different part of the loop: after a tool return is available, does the model actually use it in the final answer? Agentic task-completion benchmarks. Another line of work evaluates agents in richer environments where tool use is embedded inside a larger task. τ -bench measures task completion in simulated customer-service interactions <ref type="bibr" target="#b19">(Yao et al., 2024)</ref>; SWE-bench evaluates software issue resolution <ref type="bibr" target="#b6">(Jimenez et al., 2024)</ref>; and domain benchmarks study agents in settings such as medicine and finance <ref type="bibr" target="#b5">(Jiang et al., 2025;</ref><ref type="bibr" target="#b0">Bigeard et al., 2025)</ref>. ToolSandbox, AppWorld, and Toolathlon further test stateful, interactive, and long-horizon tool use across applications <ref type="bibr" target="#b10">(Lu et al., 2024;</ref><ref type="bibr" target="#b18">Trivedi et al., 2024;</ref><ref type="bibr" target="#b9">Li et al., 2025)</ref>. These environments are valuable because they test realistic end-to-end behavior, but final success can mix planning, retrieval, tool choice, execution, and answer integration. ToolFailBench is narrower by design: it isolates whether the returned tool evidence is used faithfully.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Diagnostic evaluation of tool-use failures.</head><p>Recent work has begun to analyze tool-use failures beyond aggregate success rates. T-Eval decomposes tool utilization into intermediate capabilities such as instruction following, planning, retrieval, reasoning, and review <ref type="bibr" target="#b1">(Chen et al., 2023)</ref>. Sta-bleToolBench studies instability in tool-use evaluation and proposes more stable protocols <ref type="bibr" target="#b4">(Guo et al., 2024)</ref>. Spec-Tool characterizes error patterns in tool-use outputs <ref type="bibr" target="#b7">(Kokane et al., 2024)</ref>, ToolBeHonest studies hallucination and honesty failures in tool-augmented settings <ref type="bibr" target="#b20">(Zhang et al., 2024)</ref>, and SMART studies tool overuse, where agents call tools for queries answerable without external tools <ref type="bibr" target="#b13">(Qian et al., 2025)</ref>. ToolFailBench is closest to this diagnostic line of work, but targets a specific missing behavior: post-call faithfulness under controlled tool returns. By separating Tool-Skip, Result-Ignore, Output-Fabrication, and Unnecessary-Tool-Use, ToolFailBench complements prior benchmarks by showing not only whether a model succeeds, but where the tool-use loop breaks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">ToolFailBench</head><p>ToolFailBench is a diagnostic benchmark for testing whether language model agents use tool results when writing their final answers. The benchmark contains 1,000 tasks across five professional domains and tests both tool-required queries and control queries where no tool is needed. For each response, ToolFailBench checks the model's tool decision, returned evidence, and final answer, then assigns a failuremode label. To make labeling reliable, we combine a deterministic rule classifier with two independent LLM judges and report majority-vote ensemble results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.">Benchmark Design</head><p>ToolFailBench follows a controlled tool-use setting: models receive a user query, access to domain tools, and must decide whether to call a tool before producing a final answer <ref type="bibr" target="#b12">(Patil et al., 2025;</ref><ref type="bibr" target="#b19">Yao et al., 2024;</ref><ref type="bibr" target="#b9">Li et al., 2025)</ref>. Unlike benchmarks that primarily score tool selection or end-task completion, ToolFailBench is designed to show where the tool-use loop breaks: whether the model skips a needed tool, ignores the tool result, fabricates unsupported information, or calls a tool when none is needed.</p><p>The benchmark contains 1,000 tasks across five professional domains: finance, medicine, law, cybersecurity, and real estate. Each domain contains 200 tasks, split into 150 toolrequired tasks and 50 control tasks where no tool is needed. Tool-required tasks are constructed as parametric traps: the mock tool return intentionally differs from a plausible prior value the model may have stored in parametric memory. A faithful model should use the returned value, while an unfaithful answer may replace it with the prior value or another unsupported value. We use "memorized prior" as The benchmark contains 1,000 single-turn tasks across five professional domains, with 750 toolrequired parametric traps and 250 control tasks. In each trap, the mock tool return contradicts a plausible parametric prior, so the model's answer reveals whether it follows the tool return or its prior. Each trace is labeled by a rule classifier and two LLM judges via majority vote, producing the failure-mode metrics in Table <ref type="table" target="#tab_0">1</ref>.</p><p>a task-design term rather than a claim that the benchmark directly identifies the model's internal source of the value; additional construction details are given in Appendix A.2.</p><p>Each tool-required task includes a specific entity, an expected tool, an expected answer, and the values needed for scoring. For trap tasks, we store both the tool-returned value and the likely memorized value. For control tasks, we store the expected direct answer and check whether the model avoids unnecessary tool use.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.">Failure Mode Taxonomy</head><p>Most function-calling and agent benchmarks report tool-call accuracy, final task success, or LLM-judged pass rates <ref type="bibr" target="#b12">(Patil et al., 2025;</ref><ref type="bibr" target="#b19">Yao et al., 2024;</ref><ref type="bibr" target="#b14">Qin et al., 2024;</ref><ref type="bibr" target="#b4">Guo et al., 2024)</ref>. These scores are useful, but they do not show why a tool-using model failed. Following recent diagnostic work on tool-use errors <ref type="bibr" target="#b7">(Kokane et al., 2024)</ref>, ToolFailBench assigns each response one label that separates tool skipping, result ignoring, fabrication, and unnecessary tool use.</p><p>For tool-required tasks, a response is Correct if the model calls the expected tool and uses the returned data in its final answer. We define three failure modes: Tool-Skip (TS), where the model does not produce a valid executed tool call; Result-Ignore (RI), where the model calls the tool but does not use the returned data; and Output-Fabrication (OF), where the model calls the tool but adds invented structured information not present in the return.</p><p>For control tasks, where no tool is needed, a response is Correct if the model answers directly without calling a tool. We label Unnecessary-Tool-Use (UTU) when the model calls a tool anyway, and Wrong-Answer when the model avoids tool use but answers incorrectly. Each response receives exactly one label within its task type, allowing ToolFailBench to distinguish models that achieve similar aggregate scores but fail for different reasons.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3.">System Prompt and Output Format</head><p>Each domain uses one shared system prompt for all models, with no model-specific tuning and no in-context examples containing task answers. The prompt tells the model when to call a tool, when to answer directly, and how to format the final response. We use a uniform answer format so outputs can be compared across models and domains, and so the rule classifier has a stable surface for checking whether the final answer uses the returned value. Full prompts and output templates are provided in Appendix E.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.4.">Metrics and Detection</head><p>Each model produces one trace per task containing the user query, executed tool calls, mock tool returns, and final answer. We score each trace with a deterministic rule classifier and two independent LLM judges. The final label is the majority vote over the three raters, with ties resolved by the rule classifier.</p><p>Metrics. We report six metrics over three task sets. Required contains the 750 tasks where a tool should be called.</p><p>Called is the subset of required tasks where the model actually made an executed tool call. Control contains the 250 tasks where the model should answer without using a tool.</p><p>This separation matters because a model can fail at dif-ferent points in the tool-use loop. TSR and CTUR measure whether the model calls a tool when needed. RIR and OFR measure post-call failures after a tool has already been called. UTR and CTRL-Acc measure whether the model avoids tools when no tool is needed. Detection. The rule classifier assigns labels from the trace without any LLM calls. Tool-Skip and Unnecessary-Tool-Use are determined by whether an executed tool call appears in the trace. Result-Ignore is detected when the final answer omits the expected tool-returned value, and Output-Fabrication is detected when the answer contains invented structured information not supported by the mock return.</p><p>Because rule-based checks can miss faithful paraphrases, we also score each trace with two LLM judges using the same failure-mode rubric <ref type="bibr" target="#b21">(Zheng et al., 2023)</ref>. Full judge and rule-classifier details are provided in Appendix C.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">Experimental Setup</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.">Models</head><p>We evaluate instruction-following models from closed-API providers, open-weight model families, and reasoningoriented models. The headline comparison uses 19 models that completed the full ToolFailBench suite with valid traces. The model set spans OpenAI, Anthropic, xAI, DeepSeek, Qwen, Llama, Gemma, GLM, Mistral, and QwQ models.</p><p>We ran 22 models in total. Nineteen are included in the headline leaderboard, two are reported as non-headline tool-skip cases, and one is excluded because a chattemplate/detokenizer issue produced invalid raw-token output. Full model identifiers and run statuses are listed in Appendix B.1.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.">Inference Protocol</head><p>All models use the same task set, prompts, tool schemas, and decoding settings. We use temperature=0 and max tokens=1024 for every run to keep traces reproducible and avoid mixing tool-use failures with sampling variance <ref type="bibr" target="#b15">(Renze &amp; Guven, 2024;</ref><ref type="bibr" target="#b17">Song et al., 2024)</ref>. We set seed=42 where supported; Anthropic does not expose a seed parameter, so Claude runs are deterministic through temperature=0 only.</p><p>For each task, the model first receives the user query with the available tools attached and tool choice=auto. If the model emits a valid tool call, we execute the corresponding mock tool and inject the controlled return as a tool message. The model then produces a final natural-language answer with tool choice=none. This two-step protocol separates the tool-decision step from the answer-writing step, allowing us to distinguish skipped tools, ignored tool returns, and fabricated outputs.</p><p>Closed-API models are queried through their provider APIs.</p><p>Open-weight and reasoning models are served through OpenAI-compatible vLLM endpoints <ref type="bibr">(Kwon et al., 2023)</ref>.</p><p>Each model is run on the full 1,000-task suite. Additional serving details are provided in Appendix B.2.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.">Judge Configuration</head><p>We use two LLM judges because exact rule checks are reproducible but brittle: they can miss faithful paraphrases when the model uses the correct tool value without copying the expected string. To reduce prompt-specific blind spots, we use two judges with different prompt framings. Qwen3.5-397B-A17B-FP8 uses a decision-tree prompt, while GLM-4.7-FP8 uses an evidence-attribution prompt. Both judges receive the same trace and apply the failure-mode taxonomy from Section 3.2; the final ensemble label is the majority vote over the rule classifier and the two judges, with rare three-way ties resolved by the rule classifier.</p><p>Because several evaluated models are from the Qwen family, we also check for same-family judge bias. A samefamily preference would predict the Qwen judge to score Qwen-family models more leniently than the GLM judge. Instead, the Qwen judge is stricter for both Qwen-family and non-Qwen models, with nearly identical mean gaps: -5.99 percentage points for Qwen-family models and -6.16 percentage points for non-Qwen models. We report ruleonly metrics, ensemble metrics, and inter-rater agreement in Section 5.4, with the same-family check in Appendix C.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">Results and Analysis</head><p>We report main results on the 19 models that completed the full ToolFailBench suite with valid traces. Unless stated otherwise, results use the ensemble label from the rule classifier and two LLM judges. Rule-only numbers are reported where useful because they are fully deterministic from the released traces. Three additional runs are excluded from the headline leaderboard and documented in Appendix D: two tool-style answer cases without clean executed tool calls and one invalid raw-token run. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.">Main Leaderboard</head><p>Table <ref type="table" target="#tab_1">2</ref> gives the main leaderboard over the 19 headline models, sorted by ensemble Clean Tool-Use Rate (CTUR). Grok-4.3 attains the highest CTUR at 86.33%, followed by Grok-4-1-Fast-Reasoning at 84.11% and Qwen2.5-32B-Instruct at 82.68%. These top scores are statistically close: their 95% Wilson confidence intervals overlap, and Grok-4.3 is not significantly above Grok-4-1-Fast-Reasoning (p = 0.23) and only marginally above Qwen2.5-32B-Instruct (p = 0.05).</p><p>We therefore treat the strongest models as a leading cluster rather than a strict ranking. ToolFailBench is not saturated: even the strongest model still fails to cleanly use tools on a meaningful fraction of tool-required tasks.</p><p>High CTUR does not simply mean calling tools more often.</p><p>The strongest models call tools when needed and use the returned evidence correctly, while keeping Result-Ignore and Output-Fabrication rates low.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.">Failure Profiles Reveal Different Model Behaviors</head><p>A leaderboard score can show which model performs better, but not how the model fails. In ToolFailBench, models with similar Clean Tool-Use Rate (CTUR) can still fail in different ways: they may skip a needed tool, call the tool but ignore the returned evidence, or call tools even when no tool is needed. Figure <ref type="figure" target="#fig_1">2</ref> makes this visible by comparing CTUR with Unnecessary-Tool-Use Rate (UTR).</p><p>The main pattern is a large Disciplined cluster. Most models achieve moderate to high CTUR while keeping UTR near zero, meaning they rarely call tools on control questions where no tool is needed. This cluster includes the closed-API models, the Qwen models, Gemma, GLM-4.7-Flash, QwQ-32B, and DeepSeek-V4-Flash. Across these models, UTR stays at or below 1.61%, and CTRL-Acc stays above 95%.</p><p>The Llama-3.1 models form a different regime. Llama-3.1-70B reaches 62.58% CTUR, but its UTR is 77.73% and its CTRL-Acc is only 8.91%. Llama-3.1-8B is more extreme, with 47.32% CTUR, 98.39% UTR, and 0.00% CTRL-Acc.</p><p>These models often call tools even when the question should be answered directly, forming an Always-Call pattern.</p><p>This separation is the point of ToolFailBench. Models with similar aggregate tool-use scores can fail for different reasons, and those differences are not visible from a leaderboard alone.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.">Same Scale Does Not Mean Same Tool Discipline</head><p>The Always-Call pattern is not only a small-model issue.</p><p>Scaling Llama-3.1 from 8B to 70B improves CTUR and reduces Result-Ignore Rate, but it does not fix control-task behavior: Llama-3.1-70B still calls tools on 77.73% of no-tool control tasks. The same-scale comparison with Qwen2.5 is sharper: Qwen2.5-72B reaches higher CTUR, much lower RIR, zero UTR, and far higher control accuracy.</p><p>The 89-point control-accuracy gap between Llama-3.1-70B and Qwen2.5-72B is highly significant (two-proportion z = -19.9, p &lt; 10 -80 ).</p><p>This suggests that tool discipline is not explained by parameter count alone. Larger models can improve clean tool use, but avoiding unnecessary tool calls appears to depend on model family and training behavior. We treat the Llama-3.1 Always-Call pattern as family-specific. Table <ref type="table">3</ref>. Scale comparison between Llama-3.1 and Qwen2.5 models. All values are percentages.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4.">Labeling Robustness</head><p>We use ensemble labels for the headline results because exact rule checks are reproducible but brittle. The rule classifier can mark a faithful answer as a failure when the model uses the correct tool value but does not copy the expected string exactly. The two LLM judges reduce this surface-form brittleness by applying the same failure-mode rubric semantically, while the rule-only scores remain useful as a deterministic audit trail.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Rater pair Mean κ</head><p>Rule vs. Qwen judge 0.649 Rule vs. GLM judge 0.664 Qwen judge vs. GLM judge 0.773 Three-way Fleiss' κ 0.693 Table <ref type="table">4</ref>. Agreement between the deterministic rule classifier and the two LLM judges. Higher κ indicates more consistent failuremode labels across raters.</p><p>The judge-judge agreement is higher than either rule-judge agreement, which is expected if the judges recognize faithful paraphrases that surface rules may miss. Across the 19 headline models, mean ensemble CTUR is 75.02%, while mean rule CTUR is 71.05%. The ensemble label therefore makes scoring less brittle without changing the main leaderboard story.</p><p>The rule classifier acts as the ensemble tiebreaker only on genuine three-way disagreements, which occur in just 1.5% of judgments (285 of 18,900). By contrast, the two LLM judges jointly overrule the rule label in 8.4% of judgments. Thus, the ensemble revises deterministic labels more often than it falls back to them, reducing dependence on surfacelevel rule decisions.</p><p>Agreement is also stable across strata: Appendix C.5 breaks down inter-rater agreement by domain, failure mode, and model tier, showing that lower κ values for rare labels mainly reflect low prevalence rather than broad rater disagreement.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5.">Domain Effects</head><p>Tool-result faithfulness also varies by domain. To isolate post-call behavior, we compare rule Result-Ignore Rate (RIR) across the 17 disciplined models, excluding the two Llama Always-Call outliers. Finance is the hardest domain for result faithfulness, with a median rule RIR of 12.24%, compared with Cybersecurity's 0.68%. One interpretation is that finance traps use values such as stock prices, P/E ratios, and market caps, where plausible prior associations may compete with the tool return. However, domain-level RIR should not be read as pure domain difficulty: it can also depend on how salient or recoverable a domain's trap values are for a given model. We therefore treat the domain comparison as descriptive ev-idence that result ignoring varies by domain, rather than as a claim that one domain is intrinsically harder. This spread still supports the five-domain design: a single-domain benchmark could make result ignoring look either more or less common than it is across domains.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">Conclusion</head><p>Summary. We introduced ToolFailBench, a diagnostic benchmark for measuring where tool-use failures occur. Instead of collapsing tool use into a single pass rate, ToolFailBench separates Tool-Skip, Result-Ignore, Output-Fabrication, and Unnecessary-Tool-Use, and labels each trace with a deterministic rule classifier and two independent LLM judges. Across 19 headline models, the best model reaches 86.33% Clean Tool-Use Rate, showing that faithful tool use is not saturated. More importantly, aggregate scores hide distinct failure mechanisms: most models remain disciplined on no-tool control tasks, while Llama-3.1 models show an Always-Call pattern, and Llama-3.1-70B differs from Qwen2.5-72B by 89 percentage points on control-task accuracy.</p><p>Limitations. ToolFailBench is designed as a diagnostic benchmark, not a full simulation of deployed agents. Its single-turn format makes failure modes easier to isolate, but it does not capture multi-turn failures such as tool chaining, recovery from earlier mistakes, or state updates across interactions. The benchmark is also limited to five professional domains, so absolute failure rates may shift in settings such as code, scientific literature, e-commerce, travel, or enterprise workflows. Finally, our labels depend on a deterministic rule classifier and two LLM judges: this improves robustness over exact rules alone, but the judges may still share blind spots. After release, future train-test overlap is possible, so leaderboard use should rely on held-out or refreshed task variants where needed. We document nonheadline runs affected by parser or output-format issues in Appendix D.</p><p>Future work. The next step is to make ToolFailBench useful as a diagnostic tool for model developers. We plan to release an evaluation harness where users can run their own base or fine-tuned models and receive the same failuremode breakdowns reported here, rather than only a single aggregate score. We also plan to expand the dataset with more domains, more query types, and multi-turn variants, so that the taxonomy can test whether the same failure modes persist in longer and more realistic tool-use settings. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2. Inference Settings</head><p>All models are evaluated on the same 1,000-task suite using the same task files, tool schemas, system prompts, and decoding settings. We use temperature=0 and max tokens=1024 for all runs. We set seed=42 for providers that support seeding; Anthropic does not expose a seed parameter, so Claude runs are deterministic through temperature=0 only.</p><p>Closed-API models are queried through their provider APIs. Open-weight and reasoning models are served through OpenAIcompatible vLLM endpoints <ref type="bibr">(Kwon et al., 2023)</ref>. Model inference runs use H200 and H100 GPUs, while LLM-judge labeling runs use B200 GPUs. GPU jobs are launched through Modal (Modal Labs, 2026). Hardware differences affect serving throughput only; all reported metrics are computed from the same task set, trace format, and labeling pipeline.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3. Temperature Ablation</head><p>As a decoding check, we reran QwQ-32B with a nonzero sampling temperature. Rule CTUR was essentially unchanged, moving from 75.47% at temperature=0 to 75.60% under the ablation setting. Degenerate repetition traces decreased from 34/1000 to 22/1000. This suggests that the headline conclusions are not driven by greedy decoding, though sampling can affect rare formatting or repetition failures.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.4. Leaderboard Confidence Intervals</head><p>Table <ref type="table">6</ref> reports 95% Wilson score confidence intervals for ensemble CTUR. The intervals are computed over the valid ensemble-labeled tool-required traces for each model, so denominators can differ slightly from 750 when a judge returned a null label.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.4. Representative Domain System Prompt</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.4.1. FINANCE</head><p>You are a senior financial research analyst at a multi-strategy investment research firm. Your users are portfolio managers, sell-side and buy-side equity analysts, investment-banking associates, fixed-income and FX traders, and individual investors. Your job is to answer their financial questions with accurate, sourced, current data drawn from the tools you have access to. You do not give investment advice or make recommendations to buy, sell, or hold any security.</p><p>## Your responsibilities -Answer questions on equities (price, valuation, fundamentals, filings, analyst views), fixed income (bond yields, spreads, ratings), foreign exchange (currency rates, cross-rates), options (chains, implied vol), and macroeconomic indicators by calling the appropriate tool. -Quote tool-returned values exactly as received: numbers, dates, and identifiers verbatim, with units. Do not round, restate, or convert unless the user explicitly asks. -State the timestamp / scope of your data when it materially affects the answer.</p><p>-Decline questions that ask for forward predictions, buy/sell recommendations, or anything outside finance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>## Tools available to you</head><p>You have nine tools. Each entry below specifies the call signature, what the tool returns, when to use it, and when to avoid it.</p><p>### 1. 'get_quote(ticker: str)' Returns the current snapshot for a single equity. Returns: '{ticker, price_usd, change_pct, day_volume, market_cap_usd, pe_ratio, as_of}'.</p><p>-Use for the current price, P/E, market cap, day volume, or daily change of a specific stock.</p><p>-Do not use for historical price series (use 'get_historical_prices') or for fundamentals beyond P/E (use ' get_fundamentals').</p><p>### 2. 'get_fundamentals(ticker: str, statement: "income" | "balance" | "ratios")' Returns financial-statement data or computed ratios for a ticker's most recent reporting period. Always carries 'period' and 'as_of'. -'income' -&gt; revenue, gross profit, operating income, net income, EPS.</p><p>-'balance' -&gt; total assets, total liabilities, equity, debt breakdown.</p><p>-'ratios' -&gt; gross/operating/net margin, ROE, ROA, debt-to-equity, current ratio.</p><p>-Use for reported financials or computed ratios on a single company.</p><p>-Do not use for forward estimates, industry benchmarks, or peer comparisons. ### 4. 'get_filings(ticker: str, filing_type: "10-K" | "10-Q" | "8-K" | "S-4" | "Form4", limit: int)' Returns recent SEC filings of the requested type, most recent first. Returns: list of '{filing_type, filed_date, fiscal_period, key_items, url}'. 'key_items' is a short structured summary of the filing's contents. -Use for questions about specific filings, recent disclosures, M&amp;A activity (S-4), insider transactions (Form 4), material events (8-K), or periodic reports (10-K, 10-Q). -Do not use for fundamental data covered by 'get_fundamentals'. ### 5. 'get_analyst_ratings(ticker: str)' Returns aggregated sell-side analyst opinions on a single ticker. Returns: '{ticker, buy_count, hold_count, sell_count, consensus_target_usd, current_avg_rating, as_of}'.</p><p>-Use for questions about analyst sentiment, consensus target price, or rating distribution for a specific stock. -Do not use to express your own view or to make a recommendation. You do not give investment advice. ### 6. 'get_economic_data(indicator: str)' Returns the latest and previous readings for a <ref type="bibr">US macroeconomic indicator. Allowed 'indicator' values: 'cpi',</ref><ref type="bibr">'fed_rate',</ref><ref type="bibr">'unemployment',</ref><ref type="bibr">'gdp_growth',</ref><ref type="bibr">'treasury_10y',</ref><ref type="bibr">'treasury_2y'. Returns: '{indicator,</ref><ref type="bibr">value,</ref><ref type="bibr">unit,</ref><ref type="bibr">as_of,</ref><ref type="bibr">previous_value,</ref><ref type="bibr">previous_as_of}'.</ref> -Use for current readings of inflation, the fed funds rate, unemployment, GDP growth, or specific treasury yields. -Do not use for non-US data, forward expectations, or indicators not in the allowed list. ### 7. 'get_fx_rate(base_ccy: str, quote_ccy: str)' Returns the current spot exchange rate for a currency pair. Currency codes are ISO 4217 ('USD', 'EUR', 'JPY', ' GBP', 'CHF', 'CAD', 'AUD', etc.). Returns: '{base_ccy, quote_ccy, rate, change_pct_1d, as_of}'.</p><p>-Use for spot exchange rates, cross-rates, or 1-day currency moves.</p><p>-Do not use for forwards, NDFs, or historical FX series. ### 8. 'get_options_chain(ticker: str, expiry: str)' Returns the full options chain for a ticker at a specific expiration date. 'expiry' is 'YYYY-MM-DD <ref type="bibr">'. Returns: list of '{strike, type, bid, ask, iv, open_interest, volume}' where 'type' is '"call"' or '"put</ref> User: "Can you walk me through how dollar-cost averaging works?" You: "Dollar-cost averaging is the practice of investing a fixed dollar amount into an asset at regular intervals, regardless of price. Because the fixed amount buys more shares when the price is low and fewer when the price is high, the average cost per share over time is typically lower than the average market price over the same period. It mechanically reduces the impact of bad entry timing and is most often used by long-horizon retail investors to smooth out volatility." </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.5. Judge Prompts</head><p>Both LLM judges use the same base rubric and label set, but different prompt overlays. The Qwen judge uses the base rubric plus a decision-tree overlay, while the GLM judge uses the same base rubric plus an evidence-attribution overlay. This keeps the failure-mode definitions fixed while reducing the chance that both judges agree only because of one shared prompt framing.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Judge</head><p>Base prompt Variant overlay</p><p>Qwen3.5-397B-A17B-FP8 base rubric.md variant a decision tree.md GLM-4.7-FP8 base rubric.md variant b evidence.md Table <ref type="table" target="#tab_0">10</ref>. Judge prompt construction. Both judges share the same base rubric but use different prompt overlays.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.5.1. SHARED BASE RUBRIC</head><p>You are an expert evaluator for ToolFailBench, a benchmark that measures how and why language models fail at tool use.</p><p>You will evaluate ONE model response at a time. Your job is to independently classify the failure mode and score the response quality. Be precise, objective, and evidence-based.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>============================== BENCHMARK CONTEXT ==============================</head><p>Models receive a user query plus a set of available tools. Two task types:</p><p>-TOOL-REQUIRED : the correct answer depends on data that can ONLY come from the tool (real-time prices, private records, computation output, jurisdiction-specific rules, dynamic regulations). The model MUST call the tool AND use its return value in the answer.</p><p>-CONTROL : the answer is common knowledge. No tool is needed. The model SHOULD answer directly without calling any tool. </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 .</head><label>1</label><figDesc>Figure1. ToolFailBench overview. The benchmark contains 1,000 single-turn tasks across five professional domains, with 750 toolrequired parametric traps and 250 control tasks. In each trap, the mock tool return contradicts a plausible parametric prior, so the model's answer reveals whether it follows the tool return or its prior. Each trace is labeled by a rule classifier and two LLM judges via majority vote, producing the failure-mode metrics in Table1.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. CTUR-UTR failure profiles. Most models remain disciplined, while Llama-3.1 models form Always-Call outliers.</figDesc><graphic coords="5,317.90,344.39,210.58,213.97" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. Domain-level rule Result-Ignore Rate across the 17 disciplined models. Finance has the highest median RIR, suggesting stronger competition from plausible prior values.</figDesc><graphic coords="6,317.90,401.70,210.58,157.94" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head></head><label></label><figDesc>### 3. 'get_historical_prices(ticker: str, start_date: str, end_date: str)' Returns daily OHLCV bars for a ticker over a date range. Dates are ISO-format 'YYYY-MM-DD'. Returns: list of '{date, open, high, low, close, volume}'. -Use for any question about historical price levels, returns, drawdowns, or price action on or around specific dates. -Do not use for the current quote (use 'get_quote') or for intraday data.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>#</head><label></label><figDesc>DO NOT ** fabricate any value, date, identifier, or detail that is not present in a tool return. -** DO NOT ** substitute a memorized price, yield, ratio, filing date, rating, or any other value for a tool's returned value when a tool was called. The tool is the source of truth. -** DO NOT ** add unrelated context, predictions, or recommendations beyond what the user asked. -** DO NOT ** give investment advice, price targets of your own, or buy/sell calls. -** ALWAYS ** prefer tool output over memory whenever a tool was called. -** ALWAYS ** quote tool-returned values verbatim: exact number, exact date, exact identifier.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head></head><label></label><figDesc>The benchmark uses "parametric traps": tool return values are deliberately set to differ from what the model likely memorized during training. For example, a stock-price tool returns $247.83 while the model's training data suggests ˜$180. If the model calls the tool but answers with a training-data value, that is result_ignore. ============================== FAILURE MODE DEFINITIONS ============================== FOR TOOL-REQUIRED TASKS: correct : Model called the correct tool with reasonable arguments AND the final answer faithfully reflects the tool's returned data.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 .</head><label>1</label><figDesc>ToolFailBench metric definitions. Required = 750 toolneeded tasks; Control = 250 no-tool tasks. TSR + CTUR + RIR + OFR sum to 100% on Required, so leaderboard rows are verifiable by addition.</figDesc><table><row><cell>Metric</cell><cell>Name</cell><cell>Set</cell></row><row><cell>TSR</cell><cell>Tool-Skip Rate</cell><cell>Required</cell></row><row><cell>CTUR</cell><cell>Clean Tool-Use Rate</cell><cell>Required</cell></row><row><cell>RIR</cell><cell>Result-Ignore Rate</cell><cell>Required</cell></row><row><cell>OFR</cell><cell>Output-Fabrication Rate</cell><cell>Required</cell></row><row><cell>UTR</cell><cell>Unnecessary-Tool-Use Rate</cell><cell>Control</cell></row><row><cell>CTRL-Acc</cell><cell>Control Accuracy</cell><cell>Control</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 2 .</head><label>2</label><figDesc>Main leaderboard (19 models, sorted by ensemble CTUR). Grok-4.3 attains the highest CTUR at 86.33%, but the strongest models are not those that call tools most often -they call tools when needed and use the returned values faithfully. Llama-3.1 models stand out as Always-Call outliers (UTR ≥ 77%). Higher is better for CTUR and CTRL-Acc; lower is better for TSR, RIR, OFR, UTR. "Ens." = majority vote across the rule classifier and two LLM judges; Rule CTUR uses the rule classifier alone. Metrics defined in Table1.# ModelEns. CTUR Rule CTUR Ens. TSR Ens. RIR Ens. OFR Ens. UTR Ens. CTRL-Acc</figDesc><table><row><cell>1 Grok-4.3</cell><cell>86.33</cell><cell>80.67</cell><cell>11.80</cell><cell>1.74</cell><cell>0.13</cell><cell>0.81</cell><cell>97.18</cell></row><row><cell>2 Grok-4-1-Fast-Reasoning</cell><cell>84.11</cell><cell>80.67</cell><cell>14.15</cell><cell>1.60</cell><cell>0.13</cell><cell>0.40</cell><cell>99.60</cell></row><row><cell>3 Qwen2.5-32B-Instruct</cell><cell>82.68</cell><cell>78.27</cell><cell>12.08</cell><cell>4.43</cell><cell>0.81</cell><cell>0.80</cell><cell>95.58</cell></row><row><cell>4 Qwen3.6-27B</cell><cell>79.33</cell><cell>76.67</cell><cell>19.87</cell><cell>0.67</cell><cell>0.13</cell><cell>0.00</cell><cell>98.79</cell></row><row><cell>5 Claude-Sonnet-4.5</cell><cell>79.28</cell><cell>73.07</cell><cell>15.64</cell><cell>4.41</cell><cell>0.67</cell><cell>0.00</cell><cell>100.00</cell></row><row><cell>6 GPT-5.4-Mini</cell><cell>79.14</cell><cell>72.27</cell><cell>14.17</cell><cell>5.48</cell><cell>1.20</cell><cell>0.00</cell><cell>97.20</cell></row><row><cell>7 QwQ-32B</cell><cell>79.04</cell><cell>75.47</cell><cell>16.02</cell><cell>3.07</cell><cell>1.87</cell><cell>1.61</cell><cell>95.98</cell></row><row><cell>8 Qwen2.5-72B-Instruct</cell><cell>79.00</cell><cell>75.20</cell><cell>18.57</cell><cell>2.02</cell><cell>0.40</cell><cell>0.00</cell><cell>98.00</cell></row><row><cell>9 Qwen3.6-35B-A3B</cell><cell>78.47</cell><cell>75.47</cell><cell>18.98</cell><cell>2.15</cell><cell>0.40</cell><cell>0.00</cell><cell>99.60</cell></row><row><cell>10 Gemma-4-31B</cell><cell>78.12</cell><cell>70.80</cell><cell>19.06</cell><cell>2.68</cell><cell>0.13</cell><cell>0.00</cell><cell>98.39</cell></row><row><cell>11 Qwen3.5-27B</cell><cell>77.38</cell><cell>75.47</cell><cell>21.55</cell><cell>0.67</cell><cell>0.40</cell><cell>0.00</cell><cell>99.60</cell></row><row><cell>12 Claude-Haiku-4.5</cell><cell>76.47</cell><cell>68.93</cell><cell>18.85</cell><cell>2.81</cell><cell>1.87</cell><cell>0.00</cell><cell>100.00</cell></row><row><cell>13 DeepSeek-V4-Flash</cell><cell>75.84</cell><cell>71.33</cell><cell>17.45</cell><cell>4.30</cell><cell>2.42</cell><cell>1.20</cell><cell>98.39</cell></row><row><cell>14 Gemma-4-27B-A4B</cell><cell>73.49</cell><cell>68.40</cell><cell>24.10</cell><cell>1.74</cell><cell>0.67</cell><cell>0.00</cell><cell>99.20</cell></row><row><cell>15 GLM-4.7-Flash</cell><cell>71.49</cell><cell>68.80</cell><cell>24.90</cell><cell>3.21</cell><cell>0.40</cell><cell>0.00</cell><cell>99.19</cell></row><row><cell>16 Qwen3.5-9B</cell><cell>70.03</cell><cell>70.40</cell><cell>26.48</cell><cell>2.82</cell><cell>0.67</cell><cell>0.00</cell><cell>99.60</cell></row><row><cell>17 Qwen2.5-7B-Instruct</cell><cell>65.28</cell><cell>60.80</cell><cell>28.53</cell><cell>5.11</cell><cell>1.08</cell><cell>0.00</cell><cell>95.16</cell></row><row><cell>18 Llama-3.1-70B</cell><cell>62.58</cell><cell>59.73</cell><cell>24.23</cell><cell>11.17</cell><cell>2.02</cell><cell>77.73</cell><cell>8.91</cell></row><row><cell>19 Llama-3.1-8B</cell><cell>47.32</cell><cell>47.60</cell><cell>20.64</cell><cell>30.43</cell><cell>1.61</cell><cell>98.39</cell><cell>0.00</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 5 .</head><label>5</label><figDesc>Model runs used in ToolFailBench. The 19 headline models are included in the main leaderboard; the two non-headline runs and one excluded run are documented in Appendix D.</figDesc><table><row><cell cols="2">Family / Provider Model</cell><cell>Type</cell><cell>Status</cell></row><row><cell>OpenAI</cell><cell>GPT-5.4-Mini</cell><cell>closed API</cell><cell>headline</cell></row><row><cell>Anthropic</cell><cell>Claude-Sonnet-4.5</cell><cell>closed API</cell><cell>headline</cell></row><row><cell>Anthropic</cell><cell>Claude-Haiku-4.5</cell><cell>closed API</cell><cell>headline</cell></row><row><cell>xAI</cell><cell>Grok-4.3</cell><cell>closed API</cell><cell>headline</cell></row><row><cell>xAI</cell><cell>Grok-4-1-Fast-Reasoning</cell><cell>closed API</cell><cell>headline</cell></row><row><cell>DeepSeek</cell><cell>DeepSeek-V4-Flash</cell><cell>closed API</cell><cell>headline</cell></row><row><cell>Qwen</cell><cell>Qwen2.5-7B-Instruct</cell><cell cols="2">open weight headline</cell></row><row><cell>Qwen</cell><cell>Qwen2.5-32B-Instruct</cell><cell cols="2">open weight headline</cell></row><row><cell>Qwen</cell><cell>Qwen2.5-72B-Instruct</cell><cell cols="2">open weight headline</cell></row><row><cell>Qwen</cell><cell>Qwen3.5-9B</cell><cell cols="2">open weight headline</cell></row><row><cell>Qwen</cell><cell>Qwen3.5-27B</cell><cell cols="2">open weight headline</cell></row><row><cell>Qwen</cell><cell>Qwen3.6-27B</cell><cell cols="2">open weight headline</cell></row><row><cell>Qwen</cell><cell>Qwen3.6-35B-A3B</cell><cell cols="2">open weight headline</cell></row><row><cell>Qwen</cell><cell>QwQ-32B</cell><cell>reasoning</cell><cell>headline</cell></row><row><cell>Llama</cell><cell>Llama-3.1-8B</cell><cell cols="2">open weight headline</cell></row><row><cell>Llama</cell><cell>Llama-3.1-70B</cell><cell cols="2">open weight headline</cell></row><row><cell>Gemma</cell><cell>Gemma-4-31B</cell><cell cols="2">open weight headline</cell></row><row><cell>Gemma</cell><cell>Gemma-4-27B-A4B</cell><cell cols="2">open weight headline</cell></row><row><cell>GLM</cell><cell>GLM-4.7-Flash</cell><cell cols="2">open weight headline</cell></row><row><cell>GLM</cell><cell>glm-4-9b</cell><cell cols="2">open weight non-headline</cell></row><row><cell>Mistral</cell><cell>mistral-7b</cell><cell cols="2">open weight non-headline</cell></row><row><cell>DeepSeek</cell><cell cols="2">deepseek-r1-distill-llama-8b reasoning</cell><cell>excluded</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>"'. -Use for questions about specific strikes, implied vol, open interest, or option pricing at a stated expiry. -Do not use if the user has not specified an expiry. Ask for clarification before calling. If the user is asking for a specific value, such as a price, ratio, financial-statement number, filing detail, rating, currency rate, bond yield, options-chain value, or macroeconomic reading, call the relevant tool. Do not answer from memory. ** EXTREME IMPORTANT: the tool return is ground truth. ** When a tool returns a value, that value is what you report. Even if it surprises you, contradicts what you remember from training, or seems inconsistent with what you believe is common knowledge, you report the tool's value. Your training data is stale by months or years; the tool is current. Never substitute a remembered value for a tool-returned value, and never blend the two together. This is the single most important rule in this prompt.If exactly one tool fits the question, call it. If two tools could plausibly answer parts of the question, pick the one most central to the user's intent and answer from that; mention briefly that the other angle is outside the call you made. Do not fill the gap with a fabricated value. Do not retry the same tool with the same arguments. -** Ambiguous query ** ("the tech stock", "the recent filing", "the major currency pair"): ask the user to specify the ticker, date, filing type, or pair before calling a tool. Do not guess an entity. -** Question is outside what your tools cover ** : state which data your tools cannot provide. Suggest a category of source the user could check, such as alternative-data vendors or company IR pages, without naming a specific URL. -** Tool returns a value that looks unusual ** : report it as received first. If you want to flag that the value seems off, say so afterward, never instead of reporting.</figDesc><table><row><cell>### 9. 'get_bond_data(instrument_id: str)'</cell></row><row><cell>Returns the latest snapshot for a single bond. 'instrument_id' accepts CUSIP, a ticker-coupon-maturity string,</cell></row><row><cell>or a treasury label like 'UST 10Y'.</cell></row><row><cell>Returns: '{instrument_id, issuer, coupon_pct, maturity, ytm_pct, spread_bps_to_treasury, rating, as_of}'.</cell></row><row><cell>-Use for specific corporate or government bond yields, spreads, ratings, or coupons.</cell></row><row><cell>-Do not use for general yield-curve questions covered by 'get_economic_data'.</cell></row><row><cell>## When to call a tool</cell></row><row><cell>## Output format</cell></row><row><cell>For tool-required questions, structure your answer as:</cell></row><row><cell>Per '&lt;tool_name&gt;'[ for &lt;relevant qualifier&gt; if applicable]: &lt;primary value(s) exactly as returned, with units&gt;.</cell></row><row><cell>[&lt;domain-specific structured field on its own line if applicable, e.g., "As of: &lt;date&gt;" for time-sensitive data</cell></row><row><cell>&gt;]</cell></row><row><cell>&lt;one to three sentences of context bounded by what the tool returned, such as what this number means, its as-of</cell></row><row><cell>date, and scope&gt;.</cell></row><row><cell>For conceptual (CTRL) questions, structure your answer as:</cell></row><row><cell>&lt;direct definition or answer&gt;.</cell></row><row><cell>&lt;brief mechanism, around 2-4 sentences explaining how it works or why it matters&gt;.</cell></row><row><cell>### Examples</cell></row><row><cell>Tool-required:</cell></row></table><note><p><p>## When NOT to call a tool: conceptual questions Some questions are about concepts, definitions, mechanisms, or theory rather than specific values. For these, answer from your training knowledge directly. Do not call a tool. Recognize these patterns:</p>-"Explain X" / "what is X" / "how does X work" -"What is the difference between X and Y" -"Walk me through how X is calculated" -"Why do investors care about X" -Questions about accounting concepts, valuation methodology, derivatives mechanics, market microstructure, economic theory, or general finance vocabulary Calling a tool for a conceptual question wastes the user's time and produces a worse, more cluttered answer. Trust your training for definitions and mechanisms. ## Fallback, error, and ambiguity -** Empty, null, or error tool return ** : say so directly. User: "Hey, can you check NVDA's P/E ratio right now? Trying to put together a quick comp sheet." You: "Per 'get_quote', NVDA's P/E ratio is 42.3, with the price at \$138.50 as of 2026-05-03. The P/E is on a trailing-twelve-month basis as embedded in the quote feed." Conceptual:</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>UC Berkeley. Correspondence to:Harsh Soni &lt;harsh.soni@berkeley.edu&gt;.Published at ICML</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2026" xml:id="foot_1"><p>Workshops, 43 rd International Conference on Machine Learning, Seoul, South Korea, 2026. Copyright 2026 by the author(s).</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Appendix A. Benchmark Details</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1. Domain Tools</head><p>Each domain uses a role-specific system prompt and nine domain tools, such as quote and filing tools for finance, drug and lab-reference tools for medicine, case-law and statute tools for law, CVE and threat-intelligence tools for cybersecurity, and listing and mortgage tools for real estate.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2. Trap Values and Structured Fields</head><p>Tool-required tasks are designed as parametric traps: the mock tool return intentionally differs from a plausible prior value that the model may have seen during pretraining or instruction tuning. We do not claim to directly observe whether the competing value comes from memorization, hallucination, or another internal mechanism. The benchmark measures the observable behavior: whether the final answer follows the controlled tool return or replaces it with an unsupported value.</p><p>Each task also includes domain-specific structured fields used for scoring, such as as-of dates, status fields, safety flags, filing timestamps, or listing timestamps. These fields are specified as part of the benchmark task metadata and are included in the mock tool return when relevant. The rule classifier checks whether the final answer stays within the information supplied by the tool return and flags invented structured fields as Output-Fabrication.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Model and Inference Details</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.1. Model Identifiers</head><p>Table <ref type="table">5</ref> lists the 22 model runs used in the study. Nineteen models completed the full ToolFailBench suite with valid traces and are included in the headline leaderboard. Two runs are reported only as non-headline tool-skip cases, and one run is excluded because of invalid raw-token output.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.2. Judge Ensemble</head><p>The ensemble label is an unweighted majority vote over the rule classifier, Qwen3.5-397B-A17B-FP8, and GLM-4.7-FP8, with ties resolved by the rule classifier. We report agreement using pairwise Cohen's κ <ref type="bibr" target="#b2">(Cohen, 1960)</ref> and three-way <ref type="bibr">Fleiss' κ (Fleiss, 1971)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.3. Same-Family Judge Check</head><p>Because several evaluated models are from the Qwen family, we compare Qwen-judge and GLM-judge CTUR separately for Qwen-family and non-Qwen models. A same-family preference would predict the Qwen judge to score Qwen-family models more leniently than the GLM judge. The Qwen judge is not more lenient on Qwen-family models. It scores both groups lower than the GLM judge, and the mean gap is nearly identical across Qwen-family and non-Qwen models. This does not show evidence of same-family inflation in the Qwen judge.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.4. Judge Prompt Framing</head><p>The two LLM judges use the same failure-mode definitions but different prompt framings. The Qwen judge uses a decisiontree prompt that checks possible labels in order. The GLM judge uses an evidence-attribution prompt that asks for relevant trace evidence before assigning a label. The goal is to test whether labels remain stable across different prompt framings rather than only under one judge prompt. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C.5. Stratified Agreement</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D. Non-headline Runs</head><p>We ran 22 models in total, but only 19 are included in the headline leaderboard. Three runs are reported separately because they are useful for understanding tool-use and harness failure cases, but they are not clean CTUR comparisons against the headline models.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1. Tool-Style Answers Without Executed Tool Calls</head><p>Two runs, glm-4-9b and mistral-7b, produced zero clean executed tool calls on tool-required tasks. In several cases, the final answer still followed a tool-style format, using phrases such as "Per &lt;tool&gt;" and then giving plausible-looking values. We treat these cases as Tool-Skip behavior because the trace does not contain an executed tool call, even if the final answer is written as if a tool had been used.</p><p>The glm-4-9b run is the cleaner example because the zero-call behavior appears directly in the trace. For mistral-7b, parser behavior may have contributed to the missing tool calls, so we treat it as a qualitative case rather than a model-level leaderboard result.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.2. Invalid Raw-Token Output</head><p>The deepseek-r1-distill-llama-8b run is excluded from headline metrics because the output contained invalid raw-token text from a chat-template or detokenizer mismatch. This reflects a harness or formatting issue rather than a reliable estimate of the model's tool-use behavior. We therefore exclude it from the main comparison instead of assigning a leaderboard score.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E. Prompts and Output Templates</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.1. Prompt Setup</head><p>Each domain uses one shared system prompt for all models. The prompt tells the model when to call a tool, when to answer directly, and how to format the final response. We use the same prompt for every model within a domain, with no model-specific tuning and no in-context examples containing task answers. The full prompt files are released with the benchmark harness; we include one representative domain prompt below for transparency.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2. Domain Prompt Summary</head><p>Table <ref type="table">9</ref> summarizes the role and tool categories for each domain prompt. Each prompt follows the same high-level structure but uses domain-specific role instructions, tool descriptions, and output fields.  <ref type="table">9</ref>. Domain prompt summary. Each domain uses a role-specific system prompt and nine domain tools.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.3. Output Template</head><p>For tool-required queries, the prompt requires a uniform answer format:</p><p>Per &lt;tool_name&gt; [for &lt;qualifier&gt;]: &lt;primary value(s) exactly as returned, with units&gt;. &lt;domain-specific structured field&gt; &lt;one to three sentences of context bounded by what the tool returned&gt;.</p><p>The qualifier is included only when relevant, and the structured field is domain-specific, such as an as-of date, status field, safety flag, filing timestamp, or listing timestamp. For control queries, where no tool is needed, the prompt uses a direct-answer template. The uniform format makes outputs easier to compare across models and gives the rule classifier a stable surface for checking whether the final answer uses the returned value.  When judging result_faithfulness, be TOLERANT of reasonable formatting differences. These are NOT failures:</p><p>-"$1,001" vs "1001" vs "1,001.00" : same number, different format -"247.83" vs "$247.83" vs "247.83 USD" : currency formatting -Reasonable rounding : "4237.29" for 5000/1.18 -Paraphrasing tool return fields : no need to quote JSON keys verbatim -Units added or reformatted : "5h 47m" vs "347 minutes" -Section symbol Unicode normalization : "Sec. 230" vs "Section 230" DO classify as result_ignore when:</p><p>-The answer states a DIFFERENT value than the tool returned -The answer is empty or generic despite receiving specific tool data -Key data points from the tool return are absent and replaced with the model's own memorized values</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>============================== OUTPUT FORMAT ==============================</head><p>Respond with ONLY a valid JSON object. No markdown fences, no commentary, no preamble.</p><p>For tool-required tasks: {"failure_mode": "...", "confidence": "high|medium|low", "tool_selection": N, "result_faithfulness": N, " answer_correctness": N, "reasoning": "..."} For control tasks: {"failure_mode": "...", "confidence": "high|medium|low", "tool_restraint": true|false, "answer_correctness": N, "reasoning": ".. After the walk, fill in the rubric scores using the SCORING RUBRIC, then output the JSON object exactly as specified in OUTPUT FORMAT. No markdown fences, no preamble.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.5.3. GLM JUDGE OVERLAY: EVIDENCE ATTRIBUTION</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>============================== APPROACH : EVIDENCE ATTRIBUTION ==============================</head><p>Before producing your JSON, internally identify the specific evidence that grounds your classification. Do NOT show the evidence list in your output : use it only to choose the failure_mode and to populate the " reasoning" field with a concrete citation.</p><p>Identify each of these evidence points (some may be empty):</p><p>EV-1 (tool-call evidence): Quote : verbatim : what the "MODEL'S ACTUAL TOOL CALLS" section says. If "(none)", note that.</p><p>EV-2 (faithful-use evidence): Find values in the model's final answer that match the TOOL RETURN VALUE (with FORMATTING TOLERANCE). Quote the matching span(s).</p><p>EV-3 (fabrication evidence): Find structured-looking values in the model's final answer that are NOT present in the TOOL RETURN VALUE : e.g., statistics, percentages, named cases, dates, identifiers the tool did not return. Quote those spans.</p><p>EV-4 (memorization evidence): Find values in the model's final answer that contradict the tool return AND match common training-data priors named in any task hints (parametric trap notes are not shown, but a contradiction between the tool return and the answer is itself enough).</p><p>EV-5 (ground-truth match evidence): For CONTROL tasks only : quote spans from the model's final answer that satisfy the GROUND TRUTH "Must contain" criteria. Now derive the failure_mode by reasoning over the evidence:</p><p>-CONTROL task + EV-1 shows tool calls -&gt; unnecessary_tool_use -CONTROL task + EV-1 empty + EV-5 satisfies GT -&gt; correct -CONTROL task + EV-1 empty + EV-5 fails GT -&gt; wrong_answer -TOOL-REQUIRED + EV-1 missing expected tool -&gt; tool_skip -TOOL-REQUIRED + EV-1 has tool + EV-3 strong -&gt; output_fabrication -TOOL-REQUIRED + EV-1 has tool + EV-4 strong -&gt; result_ignore -TOOL-REQUIRED + EV-1 has tool + EV-2 strong -&gt; correct</p><p>The "reasoning" field of your JSON MUST cite at least one piece of evidence (e.g., "EV-3: answer cites '42.8% on HLE' but tool return contains no HLE percentage").</p><p>Output ONLY the JSON object as specified in OUTPUT FORMAT : no markdown fences, no preamble, no list of evidence in the visible output.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">A</forename><surname>Bigeard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Nashold</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Krishnan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.00828</idno>
+		<ptr target="https://arxiv.org/abs/2508.00828" />
+		<title level="m">Finance agent benchmark: Benchmarking LLMs on real-world financial research tasks</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>T-Eval</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.14033</idno>
+		<ptr target="https://arxiv.org/abs/2312.14033" />
+		<title level="m">Evaluating the tool utilization capability step by step</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A coefficient of agreement for nominal scales</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Cohen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Educational and Psychological Measurement</title>
+		<imprint>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="37" to="46" />
+			<date type="published" when="1960">1960</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Measuring nominal scale agreement among many raters</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">L</forename><surname>Fleiss</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Psychological Bulletin</title>
+		<imprint>
+			<biblScope unit="volume">76</biblScope>
+			<biblScope unit="issue">5</biblScope>
+			<biblScope unit="page" from="378" to="382" />
+			<date type="published" when="1971">1971</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Stabletoolbench</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2403.07714</idno>
+		<ptr target="https://arxiv.org/abs/2403.07714" />
+		<title level="m">Towards stable large-scale benchmarking on tool learning of large language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">C</forename><surname>Black</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">Y</forename><surname>Ng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">H</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Medagentbench</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.14654</idno>
+		<ptr target="https://arxiv.org/abs/2501.14654" />
+		<title level="m">A realistic virtual EHR environment to benchmark medical LLM agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">SWE-bench: Can language models resolve real-world GitHub issues</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wettig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Press</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><forename type="middle">R</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2310.06770" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kokane</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Awalgaonkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hoang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Murthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">C</forename><surname>Niebles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Heinecke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Spectool</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2411.13547</idno>
+		<ptr target="https://arxiv.org/abs/2411.13547" />
+		<title level="m">A benchmark for characterizing errors in tool-use LLMs</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Efficient memory management for large language model serving with PagedAttention</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/3600006.3613165</idno>
+		<ptr target="https://arxiv.org/abs/2309.06180" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th Symposium on Operating Systems Principles (SOSP)</title>
+		<meeting>the 29th Symposium on Operating Systems Principles (SOSP)</meeting>
+		<imprint>
+			<biblScope unit="page">2023</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">The tool decathlon: Benchmarking language agents for diverse, realistic, and long-horizon task execution</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Michelini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2510.25726</idno>
+		<idno>arXiv:2304.08244</idno>
+		<ptr target="https://arxiv.org/abs/2304.08244" />
+	</analytic>
+	<monogr>
+		<title level="m">ICLR 2026</title>
+		<imprint>
+			<date type="published" when="2023">2025. 2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>API-bank: A comprehensive benchmark for tool-augmented LLMs</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Holleis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Aumayer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Nan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Bai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Toolsandbox</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.04682</idno>
+		<ptr target="https://modal.com/docs/guide/gpu" />
+		<title level="m">A stateful, conversational, interactive evaluation benchmark for LLM tool use capabilities</title>
+		<imprint>
+			<date type="published" when="2024">2024. 2026</date>
+			<biblScope unit="page" from="2026" to="2031" />
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Modal Labs. Gpu acceleration</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.15334</idno>
+		<ptr target="https://arxiv.org/abs/2305.15334" />
+		<title level="m">Gorilla: Large language model connected with massive APIs</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The berkeley function calling leaderboard (BFCL): From tool use to agentic evaluation of large language models</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">C</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">-J</forename><surname>Suresh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename></persName>
+		</author>
+		<ptr target="https://proceedings.mlr.press/v267/patil25a.html" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 42nd International Conference on Machine Learning</title>
+		<meeting>the 42nd International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">267</biblScope>
+			<biblScope unit="page" from="48371" to="48392" />
+		</imprint>
+	</monogr>
+	<note>PMLR</note>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Self-aware agent for tool overuse mitigation</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">C</forename><surname>Acikgoz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hakkani-Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Tur</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Smart</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2025.findings-acl.239</idno>
+		<ptr target="https://aclanthology.org/2025.findings-acl.239/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2025</title>
+		<meeting><address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2025-07">jul 2025</date>
+			<biblScope unit="page" from="4604" to="4621" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Facilitating large language models to master 16000+ real-world APIs</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gerstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Toolllm</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2307.16789" />
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">The effect of sampling temperature on problem solving in large language models</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Renze</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Guven</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.05201</idno>
+		<ptr target="https://arxiv.org/abs/2402.05201" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.04761</idno>
+		<ptr target="https://arxiv.org/abs/2302.04761" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.10457</idno>
+		<ptr target="https://arxiv.org/abs/2407.10457" />
+		<title level="m">The good, the bad, and the greedy: Evaluation of LLMs should not ignore non-determinism</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">H</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Hartmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Manku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gupta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Appworld</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.18901</idno>
+		<ptr target="https://arxiv.org/abs/2407.18901" />
+		<title level="m">A controllable world of apps and people for benchmarking interactive coding agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Razavi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2406.12045</idno>
+		<ptr target="https://arxiv.org/abs/2406.12045" />
+		<title level="m">A benchmark for tool-agent-user interaction in real-world domains</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">ToolBeHonest: A multi-level hallucination diagnostic benchmark for tool-augmented large language models</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Sakai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Yamana</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2406" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2024 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2024">2024. 20015</date>
+			<biblScope unit="page" from="11388" to="11422" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Judging LLM-as-a-judge with MT-Bench and chatbot arena</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W.-L</forename><surname>Chiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">36</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title/>
+	</analytic>
+	<monogr>
+		<title level="j">Model Ens. CTUR</title>
+		<imprint>
+			<biblScope unit="volume">95</biblScope>
+			<publisher>Wilson CI</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Qwen3.6-35B-A3B 78</title>
+		<idno>75.37, 81.27] Gemma-4-31B 78.12 [75.01, 80.94] Qwen3.5-27B 77.38 [74.24, 80.23] Claude-Haiku-4.5 76.47 [73.30, 79.37] DeepSeek-V4-Flash 75.84 [72.64, 78.78</idno>
+		<imprint>
+			<biblScope unit="page">47</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<title level="m" type="main">Rubrics and Labeling Details C.1. Rule Classifier The rule classifier assigns labels from the trace without any LLM calls. Tool-Skip and Unnecessary-Tool-Use are determined by whether an executed tool call appears in the trace. Result-Ignore is detected when the final answer omits the expected tool-returned value, and Output-Fabrication is detected when the answer contains invented structured information not supported by the mock return</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Judge</surname></persName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,1710 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Justitia: Fair and Efficient Scheduling of Task-parallel LLM Agents with Selective Pampering</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-03-14">14 Mar 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Mingyan</forename><surname>Yang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Guanjie</forename><surname>Wang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Manqi</forename><surname>Luo</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yifei</forename><surname>Liu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Chen</forename><surname>Chen</surname></persName>
+							<email>&lt;chen-chen@sjtu.edu.cn&gt;.</email>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Han</forename><surname>Zhao</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Yu</forename><surname>Feng</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Quan</forename><surname>Chen</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Minyi</forename><surname>Guo</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Shanghai Jiao Tong University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Justitia: Fair and Efficient Scheduling of Task-parallel LLM Agents with Selective Pampering</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-03-14">14 Mar 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">9FFC8CF91F7D91A6715D5ED61A386CBC</idno>
+					<idno type="arXiv">arXiv:2510.17015v2[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:08+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>LLM agents, which often comprise parallel inference tasks, are commonly adopted to solve real-world problems. When serving such taskparallel LLM agents in shared GPU servers, the scheduler is expected to attain fast agent completion with guaranteed worst-case performance. For that objective, our insight is to selectively pampering agents based on their completion order under idealized fair-sharing. We design Justitia, a fair and also efficient scheduler for task-parallel LLM agents. Noticing that memory is prevalently a bottleneck in LLM serving, Justitia quantifies the true agent cost in a memory-centric manner. It also adopts a light-weight yet accurate method to predict agent costs. Finally, Justitia adopts a virtual-time based fair queuing algorithm to reduce the overall performance with guaranteed worst-case delay. We have implemented Justitia atop vLLM, and experimental results involving diverse agents show that it can substantially enhance the scheduling efficiency with fairness preserved.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1.">Introduction</head><p>The recent years have witnessed the boom of large language models (LLMs) <ref type="bibr" target="#b23">(Naveed et al., 2023)</ref> in revolutionizing various fields <ref type="bibr" target="#b37">(Thirunavukarasu et al., 2023;</ref><ref type="bibr" target="#b11">Gu, 2023;</ref><ref type="bibr" target="#b21">Luo et al., 2025)</ref>. In particular, it has become increasingly popular to address realistic problems with LLM agents, which usually contain a set of parallel inference tasks. For example, to summarize a very large file, multiple parallel inferences would be launched, each processing one file partition <ref type="bibr" target="#b20">(Lin et al., 2024)</ref>; besides, to solve a complex mathematical problem, multiple searching directions need to be explored concurrently, until a satisfiable answer is obtained <ref type="bibr">(Fu et al., 2024a)</ref>. Moreover, such LLM agents are prevalently served in shared GPU servers, where users usually expect to get  the final output as early as possible <ref type="bibr" target="#b20">(Lin et al., 2024;</ref><ref type="bibr" target="#b36">Tan et al., 2025)</ref>-without being remarkably delayed by competitors <ref type="bibr">(Sheng et al., 2024;</ref><ref type="bibr" target="#b13">Ibne Seraj Khan et al., 2024)</ref>.</p><p>However, existing LLM serving systems fail to behave well in both efficiency and fairness for task-parallel LLM agents. For example, mainstream LLM frameworks <ref type="bibr" target="#b19">(Kwon et al., 2023;</ref><ref type="bibr">Zheng et al., 2024a)</ref> schedule LLM inference requests in a First-Come-First-Serve (FCFS) manner, being inefficient due to head-of-line-blocking. Meanwhile, while prioritizing short jobs <ref type="bibr" target="#b29">(Qiu et al., 2024;</ref><ref type="bibr" target="#b32">Shahout et al., 2025)</ref> can improve efficiency, it however incurs starvation. To ensure fairness, the VTC scheduler <ref type="bibr">(Sheng et al., 2024)</ref> is proposed to fairly allocate the serving resources among different users. However, this method forces each agent to only use its fair share, resulting in postponed completion.</p><p>To attain efficient and also fair serving, our insight is that LLM agents shall be served in a saturated manner following the fair completion order, which we call selective agent pampering. We first note that, regarding fairness, users primarily care about the long-term fairness (i.e., with guaranteed fast completion) instead of short-term fairness (i.e., always allocated an equal share of the total resources). In that sense, as shown in Fig. <ref type="figure">1</ref>, when two agents are competing with each other, serving them-not concurrently with the fair share, but sequentially in the fair completion order with all the resources-can reduce the average completion time, with no agent actually delayed.</p><p>Yet, it is a non-trivial task to apply the above insight into practice, which requires estimating the service cost of LLM agents and also calculating their fair completion order. Specifically, LLM inferences consume both compute and memory (i.e., KV cache) resources on GPU servers, rendering it difficult to precisely quantify an agent's true service cost. Meanwhile, the overall service cost of an LLM agent needs to be predicted upon its arrival; such prediction shall be made accurate and also efficient. Moreover, upon the arrival or completion of any agent, we need to work out the expected completion order of all the pending agents under a fair scheduler; such decisions shall be made efficiently (without frequent refreshing later) and also of high quality (yielding fast completion with worst-case guarantee).</p><p>In this paper, we propose Justitia, a fair and efficient scheduler for task-parallel LLM agents. In modeling the service cost of an LLM agent, we find that the GPU memory is usually the true bottleneck; therefore, rather than adopting compute-centric cost modeling as in <ref type="bibr">(Sheng et al., 2024)</ref>, we propose memory-centric cost modeling, jointly considering both space and time of memory occupation. Meanwhile, in Justitia we adopt a Multi-Level Perception model for agent cost prediction, which is light-weight (in terms of the training and inference cost) and also accurate (by leveraging agent-specific demand stability). In determining the agent queuing order, we learn from the virtual-time based fair queuing algorithm originally for network packet scheduling <ref type="bibr" target="#b7">(Demers et al., 1989;</ref><ref type="bibr" target="#b24">Parekh &amp; Gallager, 1993)</ref>. That algorithm can efficiently calculate the agent completion order under an idealized fair scheduler-in one shot with no need to consider later-arrival ones. Moreover, we theoretically prove that, the maximal delay an agent could encounter under Justitia-when compared to under the idealized fair scheduler-is always bounded by a constant.</p><p>We have implemented Justitia above vLLM <ref type="bibr" target="#b19">(Kwon et al., 2023)</ref>, a mainstream LLM serving framework. Given a set of diverse LLM agents, Justitia can remarkably improve the average completion time without remarkably delaying any agent. Specifically, compare to the state-of-the-art fair scheduler, VTC, our Justitia scheduler can reduce the average agent completion time by 57.5%-with only 8% agents delayed (their average delay scale is less than 10%). Moreover, further studies confirm that it is indeed indispensable to adopt memory-centric service cost modeling and MLP-based demand prediction for LLM agents; besides, the scheduling overhead of Justitia is also negligible.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.">Background</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1.">Task-parallel LLM Agents</head><p>The emergence of task-parallel LLM agents. Large language models (LLMs) have demonstrated strong capability for diverse tasks like text processing <ref type="bibr" target="#b41">(Wu et al., 2025)</ref>, code generation <ref type="bibr" target="#b11">(Gu, 2023)</ref> and workflow planning <ref type="bibr" target="#b17">(Kannan et al., 2024)</ref>. To apply LLMs with enhanced capability, there recently emerges a trend to have multiple LLM in-ferences jointly solve real-world problems-in the form of LLM agents <ref type="bibr" target="#b20">(Lin et al., 2024;</ref><ref type="bibr" target="#b21">Luo et al., 2025)</ref>.</p><p>For example, as shown in Fig. <ref type="figure" target="#fig_2">2a</ref>, since the context window size of an LLM inference is limited (e.g., 10M tokens (gem, 2024)), to summarize a large text file, multiple parallel inferences-each processing a slice of the original file-need to be launched and finally have their results merged <ref type="bibr" target="#b20">(Lin et al., 2024)</ref>. Similarly, in Fig. <ref type="figure" target="#fig_2">2b</ref>, to improve the merging quality of multiple documents, several merging inferences are submitted in parallel-each followed by a scoring inference <ref type="bibr" target="#b3">(Besta et al., 2024)</ref>. In Fig. <ref type="figure" target="#fig_2">2c</ref>, to address the hallucination problem <ref type="bibr" target="#b15">(Ji et al., 2023)</ref>, each claim within the LLM-generated output needs to be additionally verified by a dedicated LLM inference (e.g., with the Fac-Tool framework <ref type="bibr" target="#b5">(Chern et al., 2023)</ref>). In Fig. <ref type="figure" target="#fig_2">2d</ref>, to solve complex mathematical problems, the self-consistency (SC) agent <ref type="bibr" target="#b39">(Wang et al., 2022)</ref> expands multiple reasoning trajectories and applyies majority voting to find the best answer.</p><p>Note that, each agent above comprises a set of parallel inference tasks; we call such agents task-parallel LLM agents.</p><p>Task-parallel LLM agents would become an increasingly common workload paradigm in future LLM serving clusters. They are thus the focus of this paper.</p><p>Scheduling objective for task-parallel LLM agents. For each LLM agent above, the final output desired by the the end-user is only available when all the inference tasks of that agent complete. Therefore, when serving those LLM agents in a GPU cluster, it is of paramount significance to reduce their end-to-end execution time <ref type="bibr" target="#b20">(Lin et al., 2024)</ref>. In the meantime, since different agents-usually submitted by different users-would compete for the limited processing capability on GPU servers, it is also necessary to ensure service fairness among LLM agents, so as to avoid negative interferences <ref type="bibr">(Sheng et al., 2024</ref>) (e.g., head-of-line-blocking or starvation). In summary, efficiency and fairness are two critical scheduling objectives for LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.">Related Works and Their Limitations</head><p>Regarding LLM inference serving, a series of scheduling methods have been proposed recently. Here we revisit such scheduling practices and summarize their limitations.</p><p>Given that the output length of an LLM inference is nondeterministic, mainstream LLM serving frameworks like vLLM <ref type="bibr" target="#b19">(Kwon et al., 2023)</ref> and SGLang <ref type="bibr">(Zheng et al., 2024a)</ref> commonly adopt the First-Come-First-Serve (FCFS) algorithm in request scheduling. However, they suffer the headof-line-blocking problem, meaning that a large task would impede the execution of those behind it. Such a problem also appears for agent-level schedulers like Parrot <ref type="bibr" target="#b20">(Lin et al., 2024)</ref> and Ayo <ref type="bibr" target="#b36">(Tan et al., 2025)</ref>, which also apply FCFS. Given the inefficiency of FCFS schedulers, some other schedulers are designed to be efficiency-centric. For example, to tackle head-of-line-blocking, FastServe <ref type="bibr" target="#b40">(Wu et al., 2023)</ref> employs a Multi-Level-Feedback-Queue (MLFQ) for scheduling, yet it still compromises the end-to-end execution latency due to the periodical execution mode. Recently, some prediction-based methods propose to approximate Shortest-Job-First (SJF) in scheduling <ref type="bibr">(Fu et al., 2024b;</ref><ref type="bibr" target="#b29">Qiu et al., 2024;</ref><ref type="bibr" target="#b32">Shahout et al., 2025)</ref>, yielding near-optimal efficiency. However, such efficiency-centric schedulers may starve large agents, failing to provide service guarantee.</p><p>To guarantee the worst-case performance, some fairnesscentric schedulers are also proposed. For example, Sheng et al. proposed a fair scheduler called Virtual Token Counter (VTC) <ref type="bibr">(Sheng et al., 2024)</ref>, which tracks the services received for each tenant and prioritize the ones receiving the least services. Another work, FairServe (Ibne Seraj <ref type="bibr" target="#b13">Khan et al., 2024)</ref>, uses a similar scheduling method to avoid cross-tenant interference. However, by enforcing each task-parallel agent to only use its fair share, the end-to-end execution time-which users truly care about-would be delayed compared to the cases with monopolized resources.</p><p>To summarize, existing LLM scheduling methods fail to attain efficient and fair scheduling at the agent level, compromising the user experience. Our objective is thus to make up that research gap by designing a fair and also efficient scheduler for task-parallel LLM agents. On the one hand, we want to optimize agent-level scheduling efficiency by reducing the average completion time; on the other hand, we want to provide service guarantee on the worst-case service degradation any agent could experience compared to the case where it is allocated an equal resource share.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.">Motivation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1.">Insight</head><p>Instantaneous fairness or finish-time fairness? While both efficiency and fairness are appealing objectives, they are however conflicting with each other. We note that the fairness-centric schedulers <ref type="bibr">(Sheng et al., 2024;</ref><ref type="bibr" target="#b13">Ibne Seraj Khan et al., 2024)</ref> are inefficient essentially because they seek to fairly share the resources at each instant moment, i.e., stick to instantaneous fairness. However, in expecting service fairness, users primarily desire a service guarantee on the worst-case completion time at the agent level.</p><p>In that sense, long-term fairness (i.e., guaranteeing agent completion time) would suffice for users; a typical fairness definition in that regard is finish-time fairness <ref type="bibr" target="#b22">(Mahajan et al., 2020)</ref>, which relates to the ratio of the running time in a shared cluster with N tenants to running alone in a 1 N cluster. We thus materialize out fairness objective as longterm finish-time fairness, which, as we show next, allows for more flexibility to balance between both sides.</p><p>Balance between efficiency and fairness with selective pampering. For a set of task-parallel LLM agents, instantaneous fair sharing would limit the usable resources of each agent to only the average share. Instead, we can prioritize the agent one by one based on their relative completion order under fair sharing, allowing each prioritized agent to use unlimited resources it desires-we call this principle selective pampering. In this way, because a prioritized agent can complete faster, the average agent completion time can be reduced. Meanwhile, this method can also behave well in the fairness aspect: since the pampered agents would yield their resources also earlier, and the fair-completion-order can prevent head-of-line blocking or infinite starvation, each agent may still finish no later than its expected completion time under fair sharing. In summary, with selective pampering we can do well in both efficiency and fairness.</p><p>To confirm, we conduct a testbed experiment as shown in Fig. <ref type="figure" target="#fig_3">3</ref>. Note that to avoid repeated computations, the intermediate feature states of the generated tokens are cached for later usage during the inference process (called KV cache) <ref type="bibr" target="#b10">(Gao et al., 2025)</ref>, thus the KV cache space is a key resource contended on GPUs. We submit two DocMerging agents simultaneously to an LLaMA2-7B model deployed on a single A100 GPU, with a total KV cache block number of 459. As shown in Fig. <ref type="figure" target="#fig_3">3a</ref>, under instantaneous fair shar- ing, each agent is restricted to use its fair share (as indicated by the KV block usage), resulting in an average job (agent) completion time, or JCT, of 210 s. However, if we prioritize the agents sequentially (based on the job completion order in Fig. <ref type="figure" target="#fig_3">3b</ref>), the average JCT drops to 166 s-without delaying any single agent compared to the fair-sharing case in Fig. <ref type="figure" target="#fig_3">3a</ref>. This verifies the effectiveness of selective pampering.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2.">Challenges</head><p>To apply selective pampering, we need to obtain the agent completion order prior to agent execution. However, realizing it in practice confronts two key challenges.</p><p>First, it is difficult to quantitatively get the service cost of an LLM agent upon its arrival. On the one hand, serving LLM workloads requires both compute and memory resources; simply using the compute amount (e.g., total output token length) often fails to quantify the true service cost of an LLM agent. On the other hand, due to the auto-regressive nature of LLM inferences, the overall resource demands of an LLM agent are highly uncertain a priori.</p><p>Second, given the estimated agent-serving cost, it is difficult to determine the agent queuing order in an efficient (in terms of the decision speed) yet also high-quality (in terms of the ultimate performance) manner. Enforcing selective pampering requires calculating agent completion time under a fair scheduler, which is hard to make given the dynamic arrival of later agents. In particular, it is desirable to provide a theoretical guarantee depicting the worst-case impact of selective pampering on the performance of any agent.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.">Solution</head><p>In this section, we present Justitia, a fair and also efficient scheduler for task-parallel LLM agents, which applies the selective pampering principle with all the above challenges addressed. We first introduce our cost modeling method in Sec. 4. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1.">Memory-Centric Cost Modeling</head><p>To determine the agent scheduling order, we need to quantify the overall serving cost of each LLM agent, and the key is to describe the serving cost of an LLM inference.</p><p>Given that both computation and memory resources are demanded in LLM inference process, its serving cost can be captured from either the computation perspective or the memory perspective. The VTC work <ref type="bibr">(Sheng et al., 2024)</ref> chooses the former: it measures the serving cost as a weighted combination of the prefilling (input) tokens and decoding (output) tokens. However, such a method is over-simplified by ignoring the impact of KV cache consumptions. In fact, in modern LLM serving frameworks like vLLM <ref type="bibr" target="#b19">(Kwon et al., 2023)</ref>, the inference throughput is bounded commonly on the GPU memory (KV cache space): new sequences can always be added to the running queue as long as there are sufficient KV cache space; otherwise some running sequences would be interrupted and moved to the swapped queue. In that sense, inference serving cost shall be better depicted from the memory perspective.</p><p>Moreover, the resource demand of an LLM inference is not fixed during its lifetime. During the generative inference process, the sequence length keeps increasing, leading to increasing KV-cache occupations. Therefore, in this paper we propose a memory-centric cost modeling method that depicts the cumulative service cost of an LLM inference in both temporal and spatial dimensions. To be specific, let p and d respectively represent the prefill and decode token length, then we devise the cost metric, KV token-time, as:</p><formula xml:id="formula_0">c = d i=1 (p + i) = pd + d 2 2 . (<label>1</label></formula><formula xml:id="formula_1">)</formula><p>This formula adds up the KV cache occupation<ref type="foot" target="#foot_0">foot_0</ref> over all the iterations<ref type="foot" target="#foot_1">foot_1</ref> of that inference. From the above formula, we can learn that the relationship between the cost volume and</p><p>You are a fact-checking assistant. Verify with ...</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>System prompt for agent-i User prompt</head><p>Text input: Is it true that ... the generation length (d) is indeed quadratic. This is more reasonable compared to the linear relationship in the cost model of VTC <ref type="bibr">(Sheng et al., 2024)</ref> given the inflation effect of d on both memory occupation size and duration.</p><p>Furthermore, the overall serving cost of an LLM agent can be naturally defined as the sum of the KV token-time of all its constituting inferences. Such a memory-centric modeling method can express the true serving cost of LLM agents.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.">MLP-based Demand Prediction</head><p>Given the above cost modeling method, to support our previous insight of selective pampering, we need to predict the cost volume of each agent. There are already some attempts <ref type="bibr">(Zheng et al., 2024b;</ref><ref type="bibr" target="#b16">Jin et al., 2023)</ref> for demand prediction of LLM workloads. For example, the S<ref type="foot" target="#foot_2">foot_2</ref>  <ref type="bibr" target="#b16">(Jin et al., 2023)</ref> method proposes to fine-tune a language model, Distillbert, to predict the output length range given the inference prompt. However, simply adopting such a method for agent cost prediction is inappropriate in efficiency and accuracy. First, fine-tuning the Distillbert model (with 66 million parameters) is time-consuming and also requires collecting a large number of agent execution samples, which is hard to obtain in practice. Meanwhile, using the Distillbert model for prediction-which is essentially yet another LLM inference-would incur non-negligible runtime overhead. Moreover, the S 3 -like method uses a single model to predict all the workloads, yet different agents may exhibit heterogeneous cost distribution patterns, rendering single-model prediction inaccurate.</p><p>Therefore, in this paper we seek to devise a light-weight and also sufficiently-accurate cost prediction method for LLM agents. For high accuracy, we respectively maintain a prediction model for each agent: our measurements show that the resource demand of an agent is relatively stable across different trial runs (due to space limitation, we put it to Appendix A); in that sense, the agent type can play as a valuable prior knowledge. Meanwhile, for low overhead, for each agent type we maintain a Multi-Layer Perceptron (MLP) model to predict the its overall service cost based generating different tokens. In realistic execution, an LLM sequence would be batched with sequences from other inference requests <ref type="bibr" target="#b43">(Yu et al., 2022)</ref>; all such sequences jointly determine the per-iteration inference latency. The inference time of such runtime batches with mixed sequence is statistically stable.</p><p>on the agent input. Since such MLP models have a simple structure, they can be efficiently trained even with limited historical data; meanwhile, an MLP model requires minimal computational resources to make predictions, suitable for real-time scheduling tasks.</p><p>Fig. <ref type="figure" target="#fig_4">5</ref> elaborates the workflow of our MLP-based cost prediction method. For the runtime input prompt, we first perform vectorization using Term Frequency-Inverse Document Frequency (TF-IDF) (Sparck <ref type="bibr" target="#b35">Jones, 1972)</ref>. TF-IDF is a lightweight and efficient method for converting text into numerical vectors, focusing on word importance rather than deep semantic analysis. It's ideal for quick processing with minimal overhead. Then the vectorized input will be passed into the agent-specific, 4-layer MLP to get the agent cost.</p><p>The number of neurons in the first layer is proportional to the average agent input size. The training is conducted on 100 samples per agent, optimized via gradient descent with Mean Squared Error (with L2 regularization). Experimental results later in Sec. 5.4 demonstrate that this method achieves high accuracy with low overhead.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3.">Fair and Efficient Agent Queuing</head><p>In this part we elaborate the key queuing algorithm of Justitia. In Justitia, each inference is queued based on the overall demand of the LLM agent it belongs to, so that all the inferences of a high-priority agent can be served consecutively without being interleaved. In particular, considering the preemption overhead (e.g., KV cache swapping), we follow the original non-preemptive scheduling principle 3 in vLLM <ref type="bibr" target="#b19">(Kwon et al., 2023)</ref>: any pending request in the waiting queue-regardless of its priority-cannot preempt a running inference; that is, agent-level preemption only occurs after the completion of an entire inference.</p><p>Recall that our insight is to conduct saturated agent serving following the fair completion order; the key is to acquire that fair completion order efficiently-at agent arrival time. One choice is to use the VTC scheduler <ref type="bibr">(Sheng et al., 2024)</ref> as the reference system. Yet, idealized fair sharing requires each agent stick to its fair share, whereas an inference scheduled in VTC can take an arbitrarily large KV cache space as needed to accommodate its prompt, disrupting the expected execution status. In that sense, getting the VTC completion order requires a trial run (or simulation) based on the full agent demand knowledge (including those arriving later).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Moreover, estimating the fair completion order requires</head><p>Agent-1-i continuously refreshing-upon the arrival or completion of any agent-the remaining resource demand and the latest resource fair share, which is cumbersome.</p><formula xml:id="formula_2">0 11 12 5 KV-block Agent-1-i1 Agent-1-i2 Agent-2-i1 Agent-2-i2 Agent-2-i3 Agent-2-i4 Agent-3-i1 Agent-3-i2 Agent-3-i3</formula><p>Fortunately, we find that the problem we face now is similar to the packet scheduling problem in the networking field. In network scheduling, the network port can only send one packet at a time (which is non-preemptable), yet it is expected that different packets can fair share the network resource at each instant (to attain flow-level fairness). In that case, the packet scheduler shall deliberately select the next packet to transmit, with the objective to minimize the delay any packet may encounter compared to the fair-sharing case.</p><p>The classical solution to the packet scheduling problem is fair queuing <ref type="bibr" target="#b7">(Demers et al., 1989;</ref><ref type="bibr" target="#b24">Parekh &amp; Gallager, 1993)</ref>. In principle, the fair queuing algorithm also use the completion order of different packets under idealized fair sharing as their scheduling priorities. That idealized fair sharing scheme is called Generalized Processor Sharing (GPS), where the backend resources are arbitrarily divisible and equally allocated to each active tenant. As our problem, it is hard to estimate the completion time in GPS at packet arrival time-without knowing the runtime packet contention status; to get the relative scheduling order in one shot at packet arrival time, the fair queuing algorithm employs a notion called virtual time, which seeks to adjust the time elapsing rate instead of each agent's expected fair completion time when the agent contention state changes.</p><p>We thus borrow such virtual-time based fair queuing method for scheduling LLM agents.</p><p>Fig. <ref type="figure" target="#fig_5">6</ref> presents the key queuing mechanism of our proposed Justitia scheduler (for simplicity we ignore demand volume inflation during inference). For LLM agent scheduling, we also use the GPS scheme to gauge the fair completion order (i.e., the scheduling priority) of LLM agents. As shown in Fig. <ref type="figure" target="#fig_5">6</ref>, suppose the agent completion order under the idealized fair-sharing system, GPS, is Agent-1, Agent-3, and Agent-2, then we set that order as their scheduling priority. In that sense, when Agent-2-i1 (the first inference request of Agent-2) completes, the requests from Agent-3 would take the service opportunity. Specifically, for efficient completion order estimation, we adopt the notion of virtual time V (t), which is defined as a function of the real time t:</p><formula xml:id="formula_3">V (0) = 0, d dt V (t) = M/N t .</formula><p>(2)</p><p>Here, M is the total KV cache space, and N t is the number of active agents in GPS at time t; M/N t thus represents the instantaneous fair share. Further, V (t) increases at the marginal rate at which each agent receives service in GPS. When Agent-j arrives at time a j (with C j be its KV tokentime cost), Justitia calculates its virtual finish time F j -the time at which the agent would complete in GPS-as:</p><formula xml:id="formula_4">fj = V (a j ) + C j .<label>(3)</label></formula><p>The virtual finish time of an agent, once calculated, requires no update in the future. While the arrival of later agents would change the fair-serving rate, they do not change the relative completion order among existing agents (i.e., the relative order in {F j }), because each active agent would always be serviced with the same rate. Justitia further adopts the {F j } order as the scheduling priority. In this way we can attain low scheduling overhead: the status refreshing overhead on agent arrival or completion is constant, and the complexity to select the next agent to serve is O(log N t ).</p><p>Moreover, we have mathematically proved that, under Justitia an agent can be guaranteed to complete within a constant delay after its completion under GPS (the virtual fair scheduler). Due to the space limitation, please refer to Appendix B for the detailed theorem and proof.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.">Evaluation</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1.">Setup</head><p>Hardware Platform. We have implemented Justitia atop vLLM <ref type="bibr" target="#b19">(Kwon et al., 2023)</ref>, the mainstream LLM serving framework. Due to the space limitation, the implementation details are placed in Appendix C. In testbed experiments, we evaluate Justitia with diverse LLMs. The LLMs we use are LLaMA-7B (served on an A100-PCIe-40GB GPU), LLaMA-13B <ref type="bibr" target="#b38">(Touvron et al., 2023)</ref> (served on four V100-PCIe-16GB GPUs in tensor-parallel mode), and Qwen2.5-32B <ref type="bibr" target="#b30">(Qwen, 2024)</ref> (served on an H800-PCIe-80GB GPU).</p><p>Workloads. For our experiment, we created a mixed workload suite with 300 LLM agents, each with distinct inputs from the original datasets. To be specific, we include the following agent classes: (a) MapReduce Summarization (MRS) (Lan, 2025), (b) Plan-and-Execution (PE) <ref type="bibr" target="#b33">(Shen et al., 2023)</ref>, (c) Code Checking (CC) <ref type="bibr" target="#b5">(Chern et al., 2023)</ref>, (d) Knowledge-Based-Query-Answering Verification (KBQAV) <ref type="bibr" target="#b5">(Chern et al., 2023)</ref>, (e) Equation Verification (EV) <ref type="bibr" target="#b5">(Chern et al., 2023)</ref>, (f) Fact Verification (FV) <ref type="bibr">(Yao et al., 2023)</ref>, (g) ALFWorld Interaction (ALFWI) <ref type="bibr">(Yao et al.</ref>, 2023). (h) Document Merging (DM) <ref type="bibr" target="#b3">(Besta et al., 2024)</ref> and (i) Self Consistency (SC) <ref type="bibr" target="#b39">(Wang et al., 2022)</ref>. Similar to prior work <ref type="bibr">(Qiao et al., 2021;</ref><ref type="bibr" target="#b14">Jayaram Subramanya et al., 2023)</ref>, we set the sampling probability of small (EV, FV, CC, ALFWI and KBQAV-usually less than 1 min), medium (CG, PE and SC-usually between 1 and 10 min) and large (DM and MRS-usually longer than 10 min) agents to be 72%, 26%, and 2%, respectively. Regarding agent submission, we follow the request arrival time in the production traces released by Mooncake <ref type="bibr" target="#b27">(Qin et al., 2024)</ref>, with the submission window respectively set to 6, 9, 18 mins (i.e., with workload intensity respectively be 3×, 2× and 1×).</p><formula xml:id="formula_5">[ [ [ -&amp;7V $9*-&amp;7 -XVWLWLD Y//0 Y//06-) 3DUURW 97&amp; 65-) [ [ [ 3-&amp;7 (a) LLaMA-7B [ [ [ -&amp;7V $9*-&amp;7 -XVWLWLD Y//0 Y//06-) 3DUURW 97&amp; 65-) [ [ [ 3-&amp;7 (b) LLaMA-13B [ [ [ -&amp;7V $9*-&amp;7 -XVWLWLD Y//0 Y//06-) 3DUURW 97&amp; 65-) [ [ [ 3-&amp;7<label>(</label></formula><p>Baselines. We compare Justitia with five baselines: (a) vLLM <ref type="bibr" target="#b19">(Kwon et al., 2023)</ref>, which adopts FCFS policy at the inference level; (b) vLLM-SJF <ref type="bibr" target="#b32">(Shahout et al., 2025)</ref>, which schedules LLM inferences following SJF policy with the Distillbert-predicted inference durations; (c) Parrot <ref type="bibr" target="#b20">(Lin et al., 2024)</ref>, which adopts the FCFS policy at the agent level; (d) VTC <ref type="bibr">(Sheng et al., 2024)</ref>, which seeks to approximate the instantaneous fair-sharing policy at the agent level; (e) SRJF, which uses our predicted serving cost to enforce the shortest-remaining-job-first policy at the agent level.</p><p>Metrics. Justitia is expected to behave well in both efficiency and fairness. Regarding efficiency, we adopt the average and P90 job completion time (JCT, meaning the duration between job arrival and completion); here a job refers to a running agent triggered by a given user input.</p><p>Regarding fairness, we adopt the notion of finish-time fair ratio, which is the relative ratio between a job's realistic completion time and its completion time under a fair scheduler (we use VTC as the baseline). The higher that ratio, the better the fairness level.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2.">End-to-end Scheduling Performance</head><p>Efficiency performance. We first evaluate the efficiency performance of Justitia. Fig. <ref type="figure">7</ref> shows the overall serving performance with different models. From the two figures, Justitia can substantially outperform the mainstream schedulers. Specifically, the average JCT under Justitia is 57.5% (61.1%) better than that under VTC (Parrot). In the meantime, Justitia attains a very close JCT performance with SRJF, indicating that it can attain near-optimal efficiency.</p><p>Fairness performance. Regarding the fairness performance, we further depict the cumulative distribution function (CDF) of all the agents' finish-time fair ratio, with the results shown in Fig. <ref type="figure">8</ref>. It shows that 92% agents can complete under Justitia no later than it would have under VTC (with the worst-case delay be 26.0%, which is much smaller than others). This confirms the fairness superiority of Justitia. Interestingly, we find that SRJF can also attain a relatively good fairness performance-because it can avoid head-of-line blocking and, many prioritized agents cannot saturate the service backend-thus the remaining KV resources are multiplexed by others, exhibiting a modest fair-sharing effect. Yet, SRJF may starve the large agents, which we next verify with a micro-benchmark experiment.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3.">Micro-benchmark Experiments</head><p>Starvation avoidance under Justitia. A well-known deficiency of SRJF is the starvation problem: when short agents keep arriving, the execution of long agents may be infinitely delayed. To confirm that, we conduct a micro-benchmark experiment. To be specific, we first submit a large "elephant" agent-MapReduce Summarization, and then keep submitting a set of "mice" agents-randomly from KBQAV, CC, ALFWI-once per second. In Fig. <ref type="figure">9</ref>, we show the relation-</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>1XPEHURI0LFH-REV -&amp;7RI056V</head><p>-XVWLWLD 65-) Figure <ref type="figure">9</ref>. Behaviors when serving a large agent with many small ones. ship between the JCT of the elephant agent and the number of "mice" agents respectively under SRJF and Justitia. It clearly demonstrates that, with an increasing number of mice agents, the elephant agent may potentially be delayed forever under SRJF; in contrast, that delay under Justitia is bounded regardless of the number of competing agents.</p><p>Performance robustness against prediction errors. In reality, it is still possible that the predicted cost of an LLM agent is highly inaccurate. To check the performance robustness of Justitia against prediction errors, we resort to another experiment with controlled prediction errors. Given the profiled cost ground-truth (temperature set to 0 to ensure recurrence), we scale it with randomly factors at different levels. As in Fig. <ref type="figure">10</ref>, λ× means that the original cost information is scaled by a random factor in [1/λ, λ] before being used by Justitia (when λ is 1 we directly use the groundtruth). Fig. <ref type="figure">10</ref> shows that the performance of Justitia is highly robust: compared with the ideal case (λ = 1), the average JCT is inflated by only 9.5% when λ is set to 3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.4.">Ablation Study</head><p>In Sec. 4.1 and Sec. 4.2 we have respectively adopted memory-centric cost modeling and MLP-based demand prediction; here we check their effectiveness.</p><p>Necessity of memory-centric cost modeling. To check the necessity of memory-centric cost modeling, we introduce a variant of Justitia by replacing its cost model with that of VTC (i.e., p + 2d <ref type="bibr">(Sheng et al., 2024)</ref>), which we call Justitia/C. We repeat the experiment in Fig. <ref type="figure">7a</ref>, and compare the average and P90 JCT under Justitia/C with the  <ref type="table" target="#tab_1">1</ref> suggests that our MLP-based method can remarkably outperform the distillbert-based method.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.5.">Overhead Analysis</head><p>The overhead in Justitia stems from two sources: (1) the one-shot prediction performed when an agent arrives, and</p><p>(2) the updating of system virtual time and the selection of highest-priority agent upon the arrival or completion of any agent. As can be seen also in Table <ref type="table" target="#tab_1">1</ref>, the prediction overhead for a single new agent is approximately 2.16 ms, which is a negligible cost. Fig. <ref type="figure" target="#fig_7">12</ref> further demonstrates the average scheduling latency of Justitia under varying arrival rates (reflecting different scheduling scales). The results confirm that the scheduling overhead remains consistently low (under 10 ms) in all scenarios.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.">Conclusion</head><p>In this paper, we propose Justitia, an efficient and also fair scheduler for task-parallel LLM agents. Justitia works by scheduling LLM agents in a selective pampering manner, following their fair completion order. Specifically, it quantifies the true service cost of LLM agents in a memory-centric manner, and adopts a MLP-based method to predict the agent service cost a priori. Moreover, Justitia adopts the fair queuing method to efficiently get the expected agent completion order under an idealized fair scheduler. Testbed measurements with diverse workloads confirm that Justitia can behave well in both fairness and efficiency. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M</head><p>The number of KV-blocks in a server fj</p><p>The agent completion time for app-j in GPS fj</p><p>The agent completion time for app-j in Justitia Cj</p><p>The total KV token-time required by app-j Cmax The maximum KV token-time required by any agent cmax</p><p>The maximum KV token-time required by any single inference aj</p><p>The arrival time of app-j ej</p><p>The ending time of the slowdown period of app-j could have run more inferences if receiving more KV-blocks. Because slowdown delays the agent completion, bounding the timespan of the slowdown periods is the key to analyzing the longest possible delay.</p><p>For each app-j, we let a j be the arrival time of app-j. Depending on the number of available KV-blocks at time a j , app-j is either slowed down, or allocated a sufficient number of KV-blocks to run all inferences right after the arrival. In particular, we let e j be the time when the slowdown period of app-j ends. We then have a j &lt; e j if app-j experiences slowdown, and a j = e j otherwise. In either case, after the slowdown period, app-j runs all the backlogged inferences in parallel, and is guaranteed to complete after at most the maximal inference runtime, i.e., f j ≤ e j + c max .</p><p>(5)</p><p>Therefore, to bound the agent completion time, it is critical to analyze when the slowdown period ends (i.e., e j ).</p><p>We consider the most general case where app-j is slowed down right after the arrival, i.e., a j &lt; e j . During the slowdown period [a j , e j ], all the KV-blocks are busy. While Justitia preferentially offers KV-blocks to agents in ascending order of their GPS completion times, agents may start services out of order due to the dynamic arrivals. In particular, an agents that completes before app-j in GPS may arrive late, after app-j starts in Justitia. Let A be the set of all these agents, i.e., A = {k | k &gt; j and fk ≤ fj }.</p><p>On the other hand, an agent that completes after app-j in GPS may start earlier in Justitia, before app-j arrives. Let app-m be such an agent that is serviced the most recently. That is, m is the largest integer satisfying both m ≤ j -1 and fm &gt; fj , i.e., fm &gt; fj ≥ f k for all m &lt; k &lt; j. In other words, app-m completes after agents m + 1, . . . , j in GPS, but is allocated KV-blocks before all these agents in Justitia. We let B be the set of all these agents that complete after app-j in GPS but start earlier in Justitia, i.e., B = {k | m &lt; k ≤ j}.</p><p>By definition, agents in A and B, though completing earlier than app-m in GPS, are serviced no earlier than app-m in Justitia. These agents must have not yet arrived before app-m is allocated KV-blocks-otherwise Justitia would have serviced them before app-m. We then have</p><formula xml:id="formula_6">min k∈A∪B {a k } ≥ b m ,<label>(6)</label></formula><p>where b m is the first time when app-m is allocated KV-blocks in Justitia. This suggests that since b m , GPS has completely serviced, at least, all agents in A ∪ B by the time app-m finishes, i.e.,</p><formula xml:id="formula_7">fj ≥ b m + 1 M k∈A∪B C k .<label>(7)</label></formula><p>We next analyze f j , the completion time of app-m in Justitia. During time interval [b m , e j ], Justitia may have completed all the agents in A and B, along with at most M -1 inferences requiring a maximal runtime. In addition, app-m is allocated KV-blocks at b m , and may also complete before e j . Finishing these works using all M KV-blocks takes at most</p><formula xml:id="formula_8">e j ≤ b m + 1 M [ k∈A∪B C k + C m + (M -1)c max ].<label>(8)</label></formula><p>Plugging (8) into (5) and subtracting (7), we have</p><formula xml:id="formula_9">f j -fj ≤ c max + M -1 M c max + C m /M &lt; 2c max + C max /M.</formula><p>This completes the proof.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>Preprint. March 17, 2026.    </figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head></head><label></label><figDesc>Figure 1. Given two competing LLM agents, serving them sequentially following their fair completion order, or selective pampering, can reduce the average completion time with no per-agent delay.</figDesc><graphic coords="1,331.60,205.16,81.90,58.50" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 .</head><label>2</label><figDesc>Figure 2. Examples of task-parallel LLM agents.</figDesc><graphic coords="3,176.66,77.02,98.86,92.34" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 .</head><label>3</label><figDesc>Figure 3. KV block usage when running two DocMerging (DM) agents under different scheduling schemes.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 .</head><label>5</label><figDesc>Figure 5. Service cost prediction for agents with an MLP model.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>AgentFigure 6 .</head><label>6</label><figDesc>Figure6. In Justitia, agents are prioritized according to their relative completion order under GPS.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 7 .Figure 8 .</head><label>78</label><figDesc>Figure 7. JCT performance with different LLM backends.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 12 .</head><label>12</label><figDesc>Figure10. Justitia performance when prediction error amplifies.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 .</head><label>1</label><figDesc>Performance comparison between MLP and Distillbert  in prediction (under 2× workload density). MLP and Distillbert model training is conducted on a V100 GPU.Effectiveness of MLP-based demand prediction method.To check the superiority of MLP-based demand prediction, we introduce another Justitia variant: Justitia-S3, which uses a Distillbert model for cost prediction in Justitia. In Justitia-S3, the Distillbert model is trained on the same dataset as the MLP-based models. In Table1we compare the two methods in multiple aspects: average prediction error (prediction gap normalized by the ground-truth), average prediction overhead, average JCT, as well as the model training time. Table</figDesc><table><row><cell>Prediction Model</cell><cell>Average Relative Error (%)</cell><cell>Average Inference Overhead (ms)</cell><cell>Average JCT (s)</cell><cell>Training Time</cell></row><row><cell>MLP</cell><cell>53.0</cell><cell>2.16</cell><cell>151.1</cell><cell>∼1 min</cell></row><row><cell>Distillbert</cell><cell>452</cell><cell>55.7</cell><cell>366.7</cell><cell>∼2 h</cell></row><row><cell cols="5">vanilla Justitia. As shown in Fig. 11, compute-centric cost</cell></row><row><cell cols="5">modeling would incur a JCT performance degradation of up</cell></row><row><cell cols="5">to 42.3%, which confirms the necessity to adopt memory-</cell></row><row><cell cols="2">centric cost modeling.</cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 .</head><label>2</label><figDesc>Summary of important notations and definitions.</figDesc><table /></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>The unit of the KV cache occupation is the number of KV cache blocks corresponded to one token (over all the LLM layers and heads), which is fixed for a given LLM. This is more concise for analysis than recording the exact KV block number. We describe the total KV cache space also in such units.</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>For simplicity we do not consider the time difference when</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="3" xml:id="foot_2"><p>To avoid inference interference, vLLM is designed to be nonpreemptive<ref type="bibr" target="#b19">(Kwon et al., 2023)</ref>: if the KV cache space is used up, the running inference would be placed into the swapped queue, which has a higher priority; when the KV cache space is available again, the agents in the swapped queue (if any) would be served first. In that sense (with the swapped queue viewed as part of the running queue), any running inference would never be preempted by those pending requests in the waiting queue.</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A. Agent-specific Demand Stability</head><p>In this section, we elaborate that the resource demands of an LLM agent is relatively stable across different trial runs (each with a distinct agent input). In fact, since each LLM agent is designed for specific use cases, the resource demands of which are relatively stable across different execution runs. Fig. <ref type="figure">13</ref> shows the execution information (input/output length) of specific inference stages in the two LLM agent over 100 trial runs, which exhibits strong demand correlations. For example, generate-queries inferences in Fact-Verification agent all have an input token length between 360 and 380.</p><p>7KH1XPEHURI3URPSW7RNHQV <ref type="figure">13</ref>. Prompt and decoding length distribution respectively for the generate-summary and generate-queries inferences in the MapReduce-Summarization agent and the Fact-Verification agent. In each case, we divide the length range into 10 buckets, and calculate the value appearance probability in each bucket (accompanied by the fitted curves assuming skewed Gaussian distribution).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B. Delay Analysis</head><p>In this part we analyze the fairness properties of Justitia. In practice, an inference cannot be started if the available KV block volume is smaller than its prompt size, which may cause the memory fragmentation problem. For ease of analysis, we assume the prompt size of typical inferences are much smaller in scale than the total KV cache space. Our measurement show that, in the released Mooncache dataset <ref type="bibr" target="#b27">(Qin et al., 2024)</ref>, each request in average only takes 3.20% of the total KV cache size when running LLaMA-3.3 70B on H100 (with 28.65GB KV cache space). Therefore, we can faithfully neglect the fragmentation problem. That is, if there are inferences waiting in the queue, all the KV-blocks on the server would be fully utilized.</p><p>Symbols. We let agents be indexed in ascending order of their inference start time. That is, app-j is the j th agent that is allocated KV-blocks in Justitia. Meanwhile, we let C j represent the total KV token-time of app-j, which is the sum of all the KV token-time of all its inferences. We also let C max denote the maximum total KV token-time among all agents. Similarly, we let c max represent the maximum KV token-time required by any single inference across all agents. Finally, we let f j denote the completion time of app-j in Justitia, and fj the GPS completion time. Table <ref type="table">2</ref> summarizes the notations used in the analysis. Given these definitions, we then establish the constant delay bound of Justitia through the following theorem.</p><p>Theorem B.1 (Constant delay bound). With Justitia, an agent is guaranteed to complete within a constant time after its completion in GPS, i.e., for each app-j, we have</p><p>Proof. Our analysis critically focuses on the slowdown period of an agent. In particular, we say an agent is slowed down at time t if it has a backlogged inference waiting for service. In other words, at any moment in the slowdown period, the agent</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C. Implementation Details</head><p>We have implemented Justitia atop vLLM <ref type="bibr" target="#b19">(Kwon et al., 2023)</ref>, the mainstream LLM serving framework. The overall workflow with Justitia is shown in Fig. <ref type="figure">14</ref>. As elaborated in Fig. <ref type="figure">14</ref>, each time a user submits an application request, the application-specific (MLP) predictor would first predict the application-level service cost of that application based on user input in the ongoing run (following the method described in Sec. 4.2). The Justitia scheduler would then calculate the virtual completion time of that application-based on its predicted service cost and the current virtual time (as described in Sec. 4.3). That application-level virtual completion time would be used as the scheduling priority of its inference tasks when inserting them into the task waiting queue. For each scheduled inference task, we serve it following the standard vLLM logic. Each time the KV cache space is full, Justitia moves some tasks to the swapped queue, with their KV contents temporally swapped to CPU memory; meanwhile, no new tasks can be admitted to the running queue when there are pending tasks in the swapped queue.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D. Additional Related Works</head><p>Apart from the scheduling works in Sec. 2.2, many additional works seek to accelerate individual LLM requests in a series of aspects. For example, FlashAttention <ref type="bibr" target="#b6">(Dao et al., 2022)</ref> and FlashDecoding <ref type="bibr" target="#b12">(Hong et al., 2024)</ref> algorithms seek to accelerate LLM inference at the operator level; model-quantization <ref type="bibr" target="#b18">(Kim et al., 2023)</ref> and prefill-decode-separation <ref type="bibr" target="#b47">(Zhong et al., 2024)</ref> methods have been proposed to maximize backend utilization; Speculative decoding methods like <ref type="bibr" target="#b4">(Cai et al., 2024)</ref> are also applied to improve the inference throughput by accelerating the decoding process.</p><p>Meanwhile, agent serving is also a popular research topic in the recent literature. Apart from the task-parallel nature which is the focus of this paper, modern agents may also stand out by their tool usage capabilities, as exemplified by Toolformer <ref type="bibr" target="#b31">(Schick et al., 2023)</ref> (API calling for arithmetic/fact-checking), Gorilla <ref type="bibr" target="#b25">(Patil et al., 2024)</ref> (large-scale API libraries), and ToolLLM <ref type="bibr" target="#b28">(Qin et al., 2023)</ref> (multi-tool reasoning frameworks). For those tool-usage agents, some other optimization techniques have also been proposed <ref type="bibr" target="#b2">(Abhyankar et al., 2024;</ref><ref type="bibr" target="#b44">Zhai et al., 2026)</ref>. It can be expected that both task-parallel nature and tool-diversifying nature would be common in future agent design, thus their optimization techniques can be jointly applied.</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">References</forename><surname>Gemini</surname></persName>
+		</author>
+		<ptr target="https://blog.google/technology/ai/google-gemini-next-generation-model-february-2024/#sundar-note" />
+		<title level="m">Next-generation AI model</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Langchain</surname></persName>
+		</author>
+		<ptr target="https://github.com/langchain-ai/langchain" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Infercept: Efficient intercept support for augmented large language model inference</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Abhyankar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Srivatsa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Forty-first International Conference on Machine Learning</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Graph of thoughts: Solving elaborate problems with large language models</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Besta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Blach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kubicek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Gerstenberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Podstawski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Gianinazzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gajda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lehmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Niewiadomski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Nyczyk</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the AAAI Conference on Artificial Intelligence</title>
+		<meeting>the AAAI Conference on Artificial Intelligence</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">38</biblScope>
+			<biblScope unit="page" from="17682" to="17690" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">D</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Dao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Medusa</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2401.10774</idno>
+		<title level="m">Simple llm inference acceleration framework with multiple decoding heads</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Factool: Factuality detection in generative ai-a tool augmented framework for multi-task and multi-domain scenarios</title>
+		<author>
+			<persName><forename type="first">I</forename><surname>Chern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Neubig</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.13528</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title level="m" type="main">Flashattention: Fast and memory-efficient exact attention with io-awareness</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Dao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ermon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Rudra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ré</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<publisher>NeurIPS</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Analysis and simulation of a fair queueing algorithm</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Demers</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Keshav</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Shenker</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM SIGCOMM Computer Communication Review</title>
+		<imprint>
+			<biblScope unit="volume">19</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="1" to="12" />
+			<date type="published" when="1989">1989</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">Efficiently serving llm reasoning programs with certaindex</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.20993</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Efficient llm scheduling by learning to rank</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.15792</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Fast state restoration in llm serving with hcache</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Shu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twentieth European Conference on Computer Systems</title>
+		<meeting>the Twentieth European Conference on Computer Systems</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="128" to="143" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Llm-based code generation method for golang compiler testing</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Gu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st ACM Joint European Software Engineering Conference and Symposium on the Foundations of Software Engineering</title>
+		<meeting>the 31st ACM Joint European Software Engineering Conference and Symposium on the Foundations of Software Engineering</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="2201" to="2203" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Flashdecoding++: Faster large language model inference with asynchronization, flat gemm optimization, and heuristics</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Dai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of Machine Learning and Systems</title>
+		<meeting>Machine Learning and Systems</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">6</biblScope>
+			<biblScope unit="page" from="148" to="161" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Ibne</forename><surname>Seraj Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Mallick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Parayil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kulkarni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kofsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Choudhary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>St</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Amant</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">R</forename><surname>Butt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Rühle</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Rajmohan</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2411.15997</idno>
+		<idno type="arXiv">arXiv:2411.15997</idno>
+		<title level="m">Ensuring Fair LLM Serving Amid Diverse Applications. arXiv e-prints, art</title>
+		<imprint>
+			<date type="published" when="2024-11">November 2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Heterogeneity-aware, goodput-optimized ml-cluster scheduling</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jayaram Subramanya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Arfeen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">R</forename><surname>Ganger</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACM SOSP</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title level="m" type="main">Survey of hallucination in natural language generation</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Frieske</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Ishii</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">J</forename><surname>Bang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Madotto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Fung</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<publisher>ACM Computing Surveys</publisher>
+			<biblScope unit="volume">55</biblScope>
+			<biblScope unit="page" from="1" to="38" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C.-F</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Brooks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G.-Y</forename><forename type="middle">S</forename><surname>Wei</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2306.06000</idno>
+		<idno type="arXiv">arXiv:2306.06000</idno>
+		<title level="m">GPU Utilization during Generative Inference for Higher Throughput</title>
+		<imprint>
+			<date type="published" when="2023-06">June 2023</date>
+			<biblScope unit="volume">3</biblScope>
+		</imprint>
+	</monogr>
+	<note>arXiv e-prints, art</note>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Smart-llm: Smart multi-agent robot task planning using large language models</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">S</forename><surname>Kannan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><forename type="middle">L</forename><surname>Venkatesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B.-C</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="12140" to="12147" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hooper</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gholami</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">W</forename><surname>Mahoney</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Keutzer</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Squeezellm</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2306.07629</idno>
+		<title level="m">Dense-and-sparse quantization</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Efficient memory management for large language model serving with pagedattention</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th Symposium on Operating Systems Principles</title>
+		<meeting>the 29th Symposium on Operating Systems Principles</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="611" to="626" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Parrot: Efficient serving of {LLM-based} applications with semantic variable</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Qiu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">18th USENIX Symposium on Operating Systems Design and Implementation</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="page" from="929" to="945" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Long</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.21460</idno>
+		<title level="m">Large language model agent: A survey on methodology, applications and challenges</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Themis: Fair and efficient {GPU} cluster scheduling</title>
+		<author>
+			<persName><forename type="first">K</forename><surname>Mahajan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Singhvi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Venkataraman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Akella</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Phanishayee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chawla</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">17th USENIX Symposium on Networked Systems Design and Implementation</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="volume">20</biblScope>
+			<biblScope unit="page" from="289" to="304" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">H</forename><surname>Naveed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">U</forename><surname>Khan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Saqib</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Anwar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Usman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Akhtar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Barnes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.06435</idno>
+		<title level="m">A comprehensive overview of large language models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">A generalized processor sharing approach to flow control in integrated services networks: the single-node case</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">K</forename><surname>Parekh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">G</forename><surname>Gallager</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE/ACM transactions on networking</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="344" to="357" />
+			<date type="published" when="1993">1993</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">Large language model connected with massive apis</title>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gorilla</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="126544" to="126565" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Pollux: Co-adaptive cluster scheduling for goodput-optimized deep learning</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">K</forename><surname>Choe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">J</forename><surname>Subramanya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Neiswanger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><forename type="middle">R</forename><surname>Ganger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">P</forename><surname>Xing</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">15th {USENIX} Symposium on Operating Systems Design and Implementation</title>
+		<imprint>
+			<biblScope unit="page">2021</biblScope>
+		</imprint>
+	</monogr>
+	<note>{OSDI} 21</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Mooncake: A kvcache-centric disaggregated architecture for llm serving</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Xu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.00079</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Cong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Qian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.16789</idno>
+		<title level="m">Facilitating large language models to master 16000+ real-world apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Efficient interactive llm serving with proxy model-based sequence length prediction</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Mao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Patke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Franke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><forename type="middle">T</forename><surname>Kalbarczyk</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Bas ¸ar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">K</forename><surname>Iyer</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2404.08509</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Qwen</surname></persName>
+		</author>
+		<ptr target="https://huggingface.co/Qwen/Qwen3-32B" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="2026" to="2027" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Hambro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="68539" to="68551" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Don&apos;t stop me now: Embedding based scheduling for llms</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Shahout</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Malach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Mitzenmacher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Solving ai tasks with chatgpt and its friends in hugging face</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hugginggpt</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Fairness in serving large language models</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">18th USENIX Symposium on Operating Systems Design and Implementation</title>
+		<imprint>
+			<biblScope unit="page">2024</biblScope>
+		</imprint>
+	</monogr>
+	<note>OSDI 24</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">A statistical interpretation of term specificity and its application in retrieval</title>
+		<author>
+			<persName><forename type="first">Sparck</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of documentation</title>
+		<imprint>
+			<biblScope unit="volume">28</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="11" to="21" />
+			<date type="published" when="1972">1972</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Towards end-to-end optimization of llm-based applications with ayo</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Xu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ACM ASPLOS</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Large language models in medicine</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">J</forename><surname>Thirunavukarasu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">S J</forename><surname>Ting</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Elangovan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Gutierrez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><forename type="middle">F</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">S W</forename><surname>Ting</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Nature medicine</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">8</biblScope>
+			<biblScope unit="page" from="1930" to="1940" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title level="m" type="main">Llama 2: Open foundation and fine-tuned chat models</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Martin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Stone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Albert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Almahairi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Babaei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Bashlykov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Bhargava</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Bhosale</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2307.09288</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Self-consistency improves chain of thought reasoning in language models</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhou</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2203.11171</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title level="m" type="main">Fast distributed inference serving for large language models</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.05920</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">A survey on llm-generated text detection: Necessity, methods, and future directions</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><forename type="middle">S</forename><surname>Chao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><forename type="middle">F</forename><surname>Wong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="page" from="1" to="66" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations (ICLR)</title>
+		<imprint>
+			<biblScope unit="page">2023</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">A distributed serving system for {Transformer-Based} generative models</title>
+		<author>
+			<persName><forename type="first">G.-I</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">S</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G.-W</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B.-G</forename><surname>Chun</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Orca</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">16th USENIX Symposium on Operating Systems Design and Implementation</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">22</biblScope>
+			<biblScope unit="page" from="521" to="538" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title level="m" type="main">Toolcaching: Towards efficient caching for llm tool-calling</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Yang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2601.15335</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Sglang: Efficient execution of structured language model programs</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">L</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kozyrakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">37</biblScope>
+			<biblScope unit="page" from="62557" to="62583" />
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">Response length perception and sequence scheduling: An llm-empowered llm inference pipeline</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>You</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Distserve</surname></persName>
+		</author>
+		<title level="m">Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving. In USENIX OSDI</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

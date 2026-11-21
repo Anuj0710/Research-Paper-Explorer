@@ -1,0 +1,964 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Beyond Single-Use Tokens: Durable Authorization State for Replay-Resistant LLM Agent Actions</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown"><licence/></availability>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Jinghan</forename><surname>Xu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Nankai University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Longze</forename><surname>Fan</surname></persName>
+							<affiliation key="aff1">
+								<orgName type="institution">China University of Petroleum</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zeyuan</forename><surname>Wang</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="institution">Sun Yat-sen University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xinjin</forename><surname>Li</surname></persName>
+							<affiliation key="aff3">
+								<orgName type="institution">Columnbia University</orgName>
+								<address>
+									<country key="US">USA</country>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Hankai</forename><surname>Liu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">Nankai University</orgName>
+								<address>
+									<country key="CN">China</country>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Beyond Single-Use Tokens: Durable Authorization State for Replay-Resistant LLM Agent Actions</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date/>
+						</imprint>
+					</monogr>
+					<idno type="MD5">E8B4D771C4CEAA9AB17300614AD31005</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:04+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Tool-using large language model agents frequently replan, retry failed operations, delegate tasks, and resume after crashes. These behaviors can cause one user authorization to be requested and executed multiple times under freshly issued token identifiers, even when each individual token is singleuse. We call this failure semantic replay: exceeding the execution budget of a token-independent authorization instance rather than merely reusing an old token identifier. We show that identifier-local token consumption cannot prevent fresh reissuance unless the issuer retains monotonic durable state over the authorized action, confirmation event, and remaining execution budget. We introduce CapLease, an authorizationconsumption layer that follows proposal-and authority-level defenses, binds an authenticated user confirmation to a canonical action, and enforces transactional Issue-Prepare-Commit transitions. Across LLM-agent replanning, retry, delegation, concurrency, confirmation-replay, and crash-recovery scenarios, identifier-local tokens permit fresh semantic reissuance, whereas CapLease and an equally stateful Server Ledger prevent duplicate admission and, with an idempotent sink, duplicate external effects. Our results identify durable authorization state-not token representation alone-as the systems requirement for replay-resistant agent execution.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Introduction</head><p>Large language model (LLM) agents can plan, maintain state, and invoke external tools <ref type="bibr" target="#b24">(Yao et al. 2023;</ref><ref type="bibr" target="#b21">Schick et al. 2023)</ref>. Tool access turns model errors into external consequences, including payments, messages, credential changes, and persistent data loss. The risk grows when agents process mixedtrust webpages, emails, documents, and tool outputs <ref type="bibr" target="#b18">(Ruan et al. 2023;</ref><ref type="bibr" target="#b9">Debenedetti et al. 2024;</ref><ref type="bibr" target="#b26">Zhan et al. 2024;</ref><ref type="bibr" target="#b27">Zhang et al. 2025)</ref>. Secure execution must therefore control both whether an action is authorized and how that authorization is later used.</p><p>Existing defenses cover different stages of execution. Proposal-level methods reduce harmful or task-inconsistent calls, while runtime mechanisms enforce privilege, provenance, and authority. Progent applies programmable privilege policies <ref type="bibr">(Shi et al. 2025a)</ref>, PACT binds authority and provenance at argument granularity <ref type="bibr" target="#b10">(Fan et al. 2026)</ref>, and AIRGuard verifies authority before execution <ref type="bibr" target="#b17">(Qin et al. 2026)</ref>. SUDP binds a fresh single-use grant to a canonical operation <ref type="bibr" target="#b25">(Yu et al. 2026</ref>). These methods ask whether an action should be authorized; we ask how many times that authorization may be materialized.</p><p>This distinction matters because agent execution is iterative. An agent may replan after an ambiguous response, retry after a timeout, delegate work, use concurrent workers, or resume after a crash. Each step may produce another authorization request. Rejecting a consumed token does not prevent issuing a fresh token for the same authorization.</p><p>Consider an agent given one authenticated confirmation to transfer $500. The issuer creates single-use token z 1 , and the transfer succeeds. If the acknowledgement is lost, the agent may submit an equivalent request. An issuer tracking only z 1 may then create a fresh z 2 , causing a second transfer. The failure reuses the authorization, not the token identifier.</p><p>We call this failure semantic replay: an authorization is issued, admitted, or externally materialized beyond its budget despite each token being single-use. Prevention requires durable state over the authorization instance, together with coordinated issuance, admission, and recovery. Figure <ref type="figure">1</ref> contrasts identifier-local single use with token-independent authorization consumption: CapLease tracks the authorization instance rather than each issued identifier.</p><p>We study three research questions:</p><p>• RQ1: Agent-generated semantic replay. How often do uncertain execution outcomes cause agents to produce semantically equivalent repeated calls, and which authorization controls prevent their repeated materialization? • RQ2: Durable budget and recovery. Does tokenindependent state preserve issuance, admission, and effect budgets under multiple-use authorizations, concurrency, delegation, revocation, and process failures? • RQ3: Composition, identity, and utility. How do authority checking, durable consumption, semantic canonicalization, and structured denial jointly affect security, availability, and agent recovery?</p><p>We introduce CapLease, an authorization-consumption layer for tool-using agents. After an upstream authority check, CapLease binds the decision to a canonical action, authenticated confirmation, and execution budget. We implement an equally stateful Server Ledger, which uses the same records and transitions but sends the executor an authenticated selector. Under matched centralized assumptions, both provide the same replay protection, showing that the guarantee follows from durable state and transactional execution rather than manifest transmission alone.</p><p>Our contributions are: • Empirical characterization of semantic replay. We show across 10,152 agent trajectories that uncertain execution outcomes frequently induce semantically equivalent repeated calls, despite the use of fresh token or grant identifiers. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Related Work</head><p>Agent attacks and proposal-level defenses. Toolintegrated agents may translate untrusted observations into unsafe external actions. ToolEmu studies consequential risks in simulated tool environments <ref type="bibr" target="#b18">(Ruan et al. 2023)</ref>, while AgentDojo, InjecAgent, and Agent Security Bench evaluate prompt injection and broader agent security threats <ref type="bibr" target="#b9">(Debenedetti et al. 2024;</ref><ref type="bibr" target="#b26">Zhan et al. 2024;</ref><ref type="bibr" target="#b27">Zhang et al. 2025)</ref>. Existing defenses primarily prevent unsafe proposals.</p><p>PromptArmor and LlamaFirewall detect suspicious inputs or behaviors <ref type="bibr">(Shi et al. 2025b;</ref><ref type="bibr" target="#b7">Chennabasappa et al. 2025)</ref>; MELON compares actions under masked re-execution <ref type="bibr" target="#b28">(Zhu et al. 2025)</ref>; and CaMeL separates trusted control flow from untrusted data <ref type="bibr" target="#b8">(Debenedetti et al. 2025)</ref>. IPIGuard constrains tool use through dependency graphs <ref type="bibr" target="#b0">(An et al. 2025)</ref>, whereas Task Shield and VIGIL verify task or intent consistency before execution <ref type="bibr" target="#b15">(Jia et al. 2025;</ref><ref type="bibr" target="#b16">Lin et al. 2026)</ref>. CapLease acts after proposal approval and controls how the resulting authorization is used.</p><p>Runtime authority and stateful authorization. Progent enforces programmable privilege policies <ref type="bibr">(Shi et al. 2025a</ref>); PACT binds provenance and authority at argument granularity <ref type="bibr" target="#b10">(Fan et al. 2026)</ref>; and AIRGuard checks authority at action time <ref type="bibr" target="#b17">(Qin et al. 2026)</ref>. Context-to-Execution Integrity likewise constrains external actions using trusted context (Santos-Grueiro 2026). These methods determine whether an action should be authorized, whereas CapLease limits how often an approved authorization may be consumed. Related classical systems preserve authority across system boundaries <ref type="bibr" target="#b14">(Howell and Kotz 2000)</ref>, attach authorization evidence to requests <ref type="bibr" target="#b2">(Bauer, Schneider, and Felten 2002)</ref>, support scoped delegation through contextual caveats <ref type="bibr" target="#b3">(Birgisson et al. 2014)</ref>, or enforce history-dependent least-privilege policies <ref type="bibr" target="#b6">(Cao et al. 2024)</ref>. CapLease adapts these scoped and stateful principles to LLM-agent tool execution.</p><p>Single-use grants and transactional execution. SUDP binds a fresh single-use grant to a canonical secret-backed operation <ref type="bibr" target="#b25">(Yu et al. 2026)</ref>. CapLease shares its exact-action and bounded-use goals but addresses durable state across issuance, admission, and recovery, including reissuance, concurrency, confirmation reuse, and crash duplication. RPC, secure RPC, transactions, linearizability, and leases provide the underlying mechanisms for uncertain outcomes, principal authentication, atomic updates, and bounded validity <ref type="bibr" target="#b5">(Birrell and Nelson 1984;</ref><ref type="bibr" target="#b4">Birrell 1985;</ref><ref type="bibr" target="#b12">Gray 1981;</ref><ref type="bibr" target="#b13">Herlihy and Wing 1990;</ref><ref type="bibr" target="#b11">Gray and Cheriton 1989)</ref>. CapLease applies these primitives to token-independent authorization identities and execution budgets at the LLM-agent tool boundary.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Problem Formulation and Semantic Replay</head><p>Agent execution model. A tool-using agent receives a user task, processes observations and tool outputs, and proposes a call c = (tool, args). Before execution, an upstream authority mechanism evaluates c against trusted context γ, including the user task, provenance, principal identities, resource scope, and organization policy. If the call is approved, the runtime issues an authorization for use at the protected tool boundary. We focus on policy-designated high-risk actions with external side effects, such as payments, message transmission, credential changes, and persistent data modification.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Authorization identity.</head><p>A token identifier represents an authorization but does not define its security-relevant identity. We define the token-independent action identity as</p><formula xml:id="formula_0">σ(c, γ) = (P u , h c , h a , R),<label>(1)</label></formula><p>where P u is the user principal, h c and h a bind the canonical operation and complete arguments, and R identifies the target resource. Tool-specific canonicalization must map effect-equivalent calls to the same identity while separating security-relevant differences. Ambiguous calls are rejected rather than assigned an uncertain authorization identity.</p><p>We separately define the execution context as</p><formula xml:id="formula_1">χ = (P e , S, T, v p , v s ),<label>(2)</label></formula><p>where P e is the executor, S and T identify the session and task, and v p , v s are the policy and schema epochs. These fields restrict where and by whom an authorization may be used, but do not create a new user-authorized effect. Let e u be an authenticated confirmation event bound to the displayed action, principal, and budget b. The authorization instance is α = (σ, e u , b).</p><p>(3)</p><p>A token z i is only one issuance-specific representation of α.</p><p>Consuming z 1 therefore does not prevent a fresh z 2 for the same α unless the issuer maintains token-independent state.  <ref type="bibr" target="#b5">(Birrell and Nelson 1984)</ref>.</p><p>The adversary cannot forge authenticated principals, confirmation events, provenance records, policy epochs, tool contracts, or committed ledger transitions. Trusted components provide durable atomic storage, authenticated action schemas, semantic canonicalization, and stable confirmation identifiers. Retries of the same confirmation challenge must return the same e u . Incorrect trusted metadata, confirmation duplication, and ledger rollback are trusted-computing-base failures and are evaluated separately.</p><p>Semantic replay. We define semantic replay as issuing, admitting, or materializing an authorization beyond its budget. Unlike token replay, it may involve fresh identifiers and execution requests. Table <ref type="table">1</ref> summarizes the considered failures.</p><p>Security goals. For an execution trace τ , let N issue (α, τ ) denote the number of authorization slots made available for α, N admit (α, τ ) the number of slots admitted for execution, and N effect (α, τ ) the number of externally materialized effects. Replay-resistant consumption requires</p><formula xml:id="formula_2">N issue (α, τ ) ≤ b, (4) N admit (α, τ ) ≤ b, (5) N effect (α, τ ) ≤ b.<label>(6)</label></formula><p>Bounded issuance prevents excess budget creation, while bounded admission prevents concurrent or repeated execution from exceeding the budget. These properties require atomic transitions over shared authorization state <ref type="bibr" target="#b13">(Herlihy and Wing 1990;</ref><ref type="bibr" target="#b12">Gray 1981)</ref>. Bounded effects additionally require the external sink to honor a stable idempotency key. Without this contract, the runtime can bound admission but cannot guarantee exactlyonce physical effects after an uncertain failure. Initial authorization soundness remains the responsibility of the upstream authority mechanism. CapLease instead mediates each subsequent use of that authority, following the classical principle that authorization must be checked whenever a protected object is accessed <ref type="bibr" target="#b19">(Saltzer and Schroeder 1975)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Transactional CapLease</head><p>CapLease is the authorization-consumption component of a two-stage runtime. An upstream Authority Gate checks task alignment, provenance, scope, and organization policy. CapLease then binds the approved action to durable budget state and bounds its issuance, admission, and external effects. Figure <ref type="figure">1</ref> summarizes this composition.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Authorization Issuance</head><p>For an approved call c, the issuer receives its action identity σ(c, γ), execution context χ, confirmation event e u , and budget b, and creates the durable record</p><formula xml:id="formula_3">r α = (σ, e u , b, χ, t i , t e , ν),<label>(7)</label></formula><p>where </p><p>where µ authenticates all preceding fields. The manifest represents the ledger record rather than creating authority itself.</p><p>Modifying the action identity, execution context, budget, lifetime, or record identifier invalidates µ. The validity interval limits stale rights <ref type="bibr" target="#b11">(Gray and Cheriton 1989)</ref>, while executor binding ties execution to an authenticated principal <ref type="bibr" target="#b4">(Birrell 1985)</ref>.</p><p>Issuance recomputes σ from the trusted contract and complete arguments, verifies that e u binds σ, P u , and b, validates the execution context χ, and inserts or retrieves the unique record for (σ, e u ) in one transaction. Retries of the same confirmation challenge must reuse e u ; otherwise, one user decision could create multiple authorization instances.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Execution and Recovery</head><p>Each budget slot follows Issued -→ Prepared -→ Committed.</p><p>Before preparation, the executor verifies the manifest, principal, validity interval, action identity, and epochs. Preparation is a linearizable compare-and-swap <ref type="bibr" target="#b13">(Herlihy and Wing 1990)</ref> that succeeds only for an unrevoked Issued slot and allocates</p><formula xml:id="formula_5">k = H(ν ∥ j ∥ tool),<label>(9)</label></formula><p>where j identifies the slot. Concurrent requests therefore have at most one successful preparation. After preparation, the executor invokes the canonical call with k. The tool returns a receipt containing the same key, which the ledger verifies before committing the slot. Calls with mismatched arguments, principals, resources, or epochs are rejected. Because the ledger and tool generally cannot share one atomic transaction <ref type="bibr" target="#b12">(Gray 1981)</ref>, preparation durably records admission before the external call.</p><p>A missing acknowledgement does not reveal whether the operation completed <ref type="bibr" target="#b5">(Birrell and Nelson 1984)</ref>. Recovery therefore resumes the existing Prepared slot and retries with the same k. An idempotent sink returns the prior result instead of reapplying the effect. Thus, a linearizable ledger bounds admission, while sink idempotency also bounds external effects. Without the latter, CapLease cannot guarantee exactly-once physical effects.</p><p>Revocation and preparation are ordered by the same ledger. If revocation wins, execution cannot begin; otherwise, recovery continues with the existing key. Delegation creates an authenticated child execution context under the same authorization instance. The child may narrow the executor, scope, budget, or expiry but cannot change σ or e u . Creating the child consumes or reserves parent budget, preventing parent and child contexts from independently exercising the same authorization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Realizations and Guarantees</head><p>Server Ledger stores the same authorization record and applies the same issuance, preparation, revocation, recovery, and commit transitions. Instead of a manifest, the executor receives an authenticated selector for ν and asks the server to validate each operation. Under matched centralized assumptions, both realizations provide the same replay guarantees. CapLease exposes authenticated scope fields, whereas Server Ledger retains them behind the authorization service; manifest transmission alone does not strengthen replay safety. Proposition 1 (Budgeted authorization consumption). Assume correct canonicalization and trusted metadata, stable confirmation identifiers, a durable non-rollback linearizable ledger, and authenticated principals and manifests. Then CapLease satisfies bounded issuance and admission. If the sink enforces idempotency over k, it also satisfies bounded effects.</p><p>Proof sketch. Uniqueness over (σ, e u ) and the slot counter bound N issue (α, τ ). The atomic Issued→Prepared transition permits at most one admission per slot, bounding N admit (α, τ ). Every retry of a prepared slot reuses k; sink idempotency therefore maps these retries to one external effect. Hence,</p><formula xml:id="formula_6">N effect (α, τ ) ≤ N admit (α, τ ) ≤ N issue (α, τ ) ≤ b.</formula><p>Without sink idempotency, the issuance and admission bounds remain, but the effect bound does not follow. Authentication prevents contract tampering but cannot correct invalid trusted metadata.</p><p>Our prototype uses a transactional SQL ledger with unique authorization and confirmation indexes. Conditional updates implement preparation, revocation, and commit, while transition records support recovery and audit checks. Digests cover deterministic encodings of trusted tool-specific canonical forms; deterministic serialization alone is not semantic canonicalization.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Experiments Experimental Setup</head><p>We evaluate CapLease along five axes. First, an agentgeneration harness runs three model families over 282 highrisk actions, four uncertain execution outcomes, and three seeds, yielding 10,152 trajectories. Second, public and component baselines are evaluated over 282 matched workflows containing unauthorized initial actions, parameter drift, fresh reissuance, and duplicate admission. Third, multi-budget tests cover b ∈ {1, 2, 5, 10} over 7,896 transactional instances, while 12,000 process-kill and restart schedules exercise twelve failure points. Fourth, a held-out semantic canonicalization benchmark contains 324 equivalent and 324 effect-distinct call pairs across 27 high-risk tools. Finally, structured-denial recovery is evaluated on 100 attacked tasks, with the original 35-task diagnostic set retaining detailed interaction metrics. We additionally evaluate authenticated contract integrity on 74 official tool schemas and isolate trusted-input failures over the 9,584 security cases. The original policy-I/O and mixed-trust diagnostics, complete configurations, and row-level outputs appear in the supplement.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Transactional state tests.</head><p>For every one of 282 allowed high-risk actions, we test fresh reissuance after commit, eight concurrent consumers, pre-consumption theft, crash recovery through a sink idempotency key, and confirmation-event replay. We additionally test delegated and depth-two execution, mutation after delegation, revocation before execution, 50 repeated revoke/prepare races, and hash-chained audit completeness. The Server Ledger receives the same principals, exact manifest, confirmation uniqueness, SQLite transactions, revocation semantics, audit events, and sink contract, but keeps authorization server-side behind a semantic-key selector.</p><p>Official schemas and mixed-trust traces. We generate 74 tool schemas (69 unique names; 27 high risk) with the official AgentDojo v0.1.35 make_function implementation, pinned to commit a75aba7. Six variants per tool cover canonical text, omitted descriptions, neutral aliases, generic nested wrappers, misleading read-only text, and annotation downgrade. Five classification strategies yield 2220 strategyschema rows. The capability reference is fixed before evaluation. Schema-text and implementation-static analyses provide two automated audit views over the same predefined capability mapping.</p><p>The mixed-trust study pairs each real allowed high-risk row with a real malicious row of the same capability when available. Each of 282 deterministic workflows contains an ordinary external attack, an unsigned-annotation downgrade, parameter drift, a legitimate action, and replay. Statebased oracles measure attack execution, drift, duplicate effects, recovery, confirmation, replanning, and legitimateaction completion. These deterministic workflows complement the agent-generation study by isolating authority, parameter drift, replay, and recovery transitions under matched action and state oracles.</p><p>Reproducibility. The supplement provides pinned source revisions, exact model and decoding configurations, baseline implementations, regeneration commands, parse-failure accounting, and row-level outputs for all reported studies. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Agent-Generated Semantic Replay</head><p>Across 10,152 valid trajectories, agents produce 4,036 semantically equivalent reproposals, yielding an overall rate of 39.8%. Figure <ref type="figure" target="#fig_0">2</ref> shows that lost acknowledgements produce the highest rate at 58.0%, followed by timeouts at 46.0%, ambiguous results at 31.0%, and delegation or restart at 24.0%. The effect appears across all three model families, with aggregate rates ranging from 36.0% to 44.0%. The identifier-local baseline therefore rejects reuse of z 1 in all tested cases but issues a fresh z 2 for every equivalent reauthorization request. Both stateful designs prevent fresh reissuance and duplicate effects while retaining a legitimate first-action success rate of 1.0. The result identifies durable semantic consumption, rather than the mere presence of a transmitted capability, as the operative control.   prevents concurrent or repeated admission, while the stable key k makes uncertain retries converge on one sink operation.</p><p>The Authority Only and Consumption Only ablations show that initial authorization checking and durable consumption are complementary. Finally, the non-idempotent-sink negative control localizes exactly-once external effects to the sink contract rather than the ledger alone. Table <ref type="table">7</ref>: Sensitivity to isolated trusted-input errors. Authentication prevents contract tampering but cannot correct an incorrectly authored trusted contract or provenance record.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Robustness, recovery, and boundaries</head><p>text inference accept all 27 high-risk nested wrappers, while unsigned inline metadata accepts all 27 annotationdowngrade attacks. These results show that the trustedcontract boundary can be realized on the tested schemas without sacrificing benign-wrapper availability.</p><p>Trusted-input sensitivity. The real-schema results establish that authenticated contracts can preserve both safety and benign availability when correctly authored. Table <ref type="table">7</ref> then isolates failures of this trusted boundary. Honest schemas and provenance yield no unsafe execution, whereas marking a side-effecting tool as read-only or promoting external evidence to user authority bypasses the upstream gate in most tested cases. CapLease therefore preserves the budget of the authorization established by the trusted runtime; authenticated contracts and runtime-produced provenance are required to ensure that this initial authorization is itself sound.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Overall evidence and system implication</head><p>Together, the results answer the three research questions. Uncertain execution outcomes produce semantic replay across model families, while token-local and grant-local single use prevent only reuse of the original artifact. Durable uniqueness and atomic slot transitions are required to bound consumption across fresh artifacts, and a stable sink key resolves uncertain completion. These guarantees are not obtained by rejecting useful work: all legitimate budget configurations complete, all prepared and committed operations recover, and the detailed benign set retains 97/97 success. The matched Server Ledger result isolates durable state as the essential safety primitive. CapLease packages that primitive as an authenticated and inspectable handoff across separated proposal, authority, and execution components, without reconstructing authority from model-generated text.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Conclusion</head><p>We identify semantic replay, where fresh execution artifacts consume one authorization beyond its budget. Across 10,152 agent trajectories, uncertain outcomes induce equivalent reproposals in 39.8% of cases, showing that token-local single use is insufficient. CapLease binds the action, confirmation, and budget to durable token-independent state. Its Issue-Prepare-Commit protocol prevents fresh reissuance, excess admission, and duplicate effects while composing with existing authority mechanisms. A matched Server Ledger provides the same centralized guarantees, confirming that replay safety depends on durable authorization state rather than token representation.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Equivalent reproposal rates across 10,152 agent trajectories under four uncertain execution outcomes. Lost acknowledgements and timeouts most frequently induce semantic replay.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Cross-artifact replay failures over the 4,036 equivalent reproposals. Identifier-local tokens and SUDP block replay of the original artifact but permit fresh reissuance and repeated cross-artifact execution. CapLease and Server Ledger block all evaluated failures.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>• Durable authorization consumption. We formalize</head><label></label><figDesc></figDesc><table><row><cell>re-</cell></row><row><cell>play resistance over issuance, admission, and external ef-</cell></row><row><cell>fects, and introduce CapLease to bind one upstream au-</cell></row><row><cell>thorization event to token-independent budget state across</cell></row><row><cell>retries, concurrency, delegation, and recovery.</cell></row><row><cell>• Comprehensive evaluation and boundary analysis. We</cell></row><row><cell>evaluate public baselines, multi-budget execution, real</cell></row><row><cell>fault injection, official-schema contract integrity, held-out</cell></row><row><cell>semantic canonicalization, structured denial, and runtime</cell></row><row><cell>overhead. A matched Server Ledger achieves the same</cell></row><row><cell>replay safety, showing that the guarantee derives from</cell></row><row><cell>durable state rather than manifest transmission alone.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>[t i , t e ] is the validity interval and ν is a stable record identifier. The execution context χ contains the executor, session, task, and policy and schema epochs. The ledger enforces uniqueness over (σ, e u ), so repeated requests return the existing record rather than new budget. Changing the executor, session, or contract version does not create another authorization for the same (σ, e</figDesc><table /><note><p><p>u ). Such changes must update or narrow the execution context of the existing record, or require a new authenticated confirmation. We present b = 1 for clarity. Larger budgets allocate at most b independently consumable slots under the same authorization record.</p>The issuer returns an authenticated manifest m = (σ, e u , b, χ, t i , t e , ν, µ),</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 2 :</head><label>2</label><figDesc>CapLease transitions for one budget slot.</figDesc><table><row><cell cols="2">Operation Precondition</cell><cell>Result</cell><cell>Protection</cell></row><row><cell>Issue</cell><cell cols="2">No (σ, eu) record Issued</cell><cell>Reissuance</cell></row><row><cell>Prepare</cell><cell cols="2">Valid Issued slot Prepared</cell><cell>Concurrent ad-</cell></row><row><cell></cell><cell></cell><cell></cell><cell>mission</cell></row><row><cell>Commit</cell><cell>Prepared,</cell><cell>Committed</cell><cell>Recovery con-</cell></row><row><cell></cell><cell>matching k</cell><cell></cell><cell>sistency</cell></row><row><cell>Revoke</cell><cell>Issued</cell><cell>Revoked</cell><cell>Stale use</cell></row><row><cell>Recover</cell><cell>Prepared</cell><cell>Prepared/</cell><cell>Crash duplica-</cell></row><row><cell></cell><cell></cell><cell>Committed</cell><cell>tion</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Authority and consumption controls over 282 matched workflows. Authority-focused methods reduce invalid initial authorization but do not maintain durable cross-artifact consumption state. SUDP prevents duplicate admission of the same grant but permits fresh grant reissuance. CapLease and Server Ledger combine authority validation with durable consumption.</figDesc><table><row><cell>Enumerated class</cell><cell cols="2">Cases Counterexamples</cell></row><row><cell>All security rows</cell><cell>9584</cell><cell>0</cell></row><row><cell>Stress attacks</cell><cell>8682</cell><cell>0</cell></row><row><cell>All expected-allow rows</cell><cell>325</cell><cell>0</cell></row><row><cell>Stress benign rows</cell><cell>156</cell><cell>0</cell></row><row><cell>Read-only diagnostics</cell><cell>15</cell><cell>-</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 5 :</head><label>5</label><figDesc>Finite policy-I/O test space. Indented rows are subsets of the corresponding parent classes; read-only diagnostics are not scored. The experiments isolate the role of each protocol mechanism. Uniqueness over (σ, e u ) prevents fresh authorization records from being created for the same user decision. Atomic slot preparation</figDesc><table><row><cell></cell><cell>Study</cell><cell>Scale</cell><cell>Main result</cell></row><row><cell></cell><cell>Multi-budget</cell><cell>7,896</cell><cell>No issuance, admission, or</cell></row><row><cell></cell><cell></cell><cell></cell><cell>effect violation for b ∈</cell></row><row><cell></cell><cell></cell><cell></cell><cell>{1, 2, 5, 10}</cell></row><row><cell></cell><cell>Fault injection</cell><cell>12,000</cell><cell>No resurrection, excess admis-</cell></row><row><cell></cell><cell></cell><cell></cell><cell>sion, or duplicate effect with an</cell></row><row><cell></cell><cell></cell><cell></cell><cell>idempotent sink</cell></row><row><cell></cell><cell cols="2">Canonicalization 648 pairs</cell><cell>Evasion reduced from 13.9%</cell></row><row><cell></cell><cell></cell><cell></cell><cell>to 0.9%; no observed collision</cell></row><row><cell></cell><cell>Safe recovery</cell><cell>100 tasks</cell><cell>Completion improves from 9%</cell></row><row><cell></cell><cell></cell><cell></cell><cell>to 37% and 55% with struc-</cell></row><row><cell></cell><cell></cell><cell></cell><cell>tured feedback</cell></row><row><cell>Authority and Durable Consumption</cell><cell cols="3">Table 6: Robustness and recovery summary. Complete per-</cell></row><row><cell>Authority checking and durable consumption address differ-ent failure modes. Over 282 matched workflows, Authority</cell><cell cols="3">condition results, confidence intervals, and failure traces ap-pear in the supplement.</cell></row><row><cell>Only blocks invalid initial authorization but permits param-</cell><cell></cell><cell></cell></row><row><cell>eter drift, fresh reissuance, and duplicate execution; Con-sumption Only shows the converse behavior. Their compo-sition and the matched Server Ledger eliminate both failure classes. Public baselines show the same boundary. Progent, PACT, and AIRGuard reduce invalid initial authorization but permit all tested fresh reissuance and duplicate-admission events. SUDP rejects replay and duplicate redemption of the same grant, but permits a fresh independently redeemable grant derived from the same upstream authorization event.</cell><cell cols="3">token but issue a fresh token for every equivalent request. SUDP prevents repeated redemption of the original grant, but an equivalent reproposal receives a fresh independently redeemable operation-bound grant under the same confirma-tion event. CapLease and Server Ledger instead bind all such artifacts to the same durable authorization state, prevent-ing fresh reissuance, excess admission, and duplicate effects while preserving the legitimate first action.</cell></row><row><cell>Implementation details and per-case outputs appear in the</cell><cell cols="3">Mechanism-failure correspondence.</cell></row><row><cell>supplement.</cell><cell></cell><cell></cell></row><row><cell>Figure 3 separates old-artifact replay from fresh seman-</cell><cell></cell><cell></cell></row><row><cell>tic reissuance. Identifier-local tokens reject the consumed</cell><cell></cell><cell></cell></row></table></figure>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0" />			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">IPIGuard: A Novel Tool Dependency Graph-Based Defense Against Indirect Prompt Injection in LLM Agents</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>An</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ji</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing</title>
+		<editor>
+			<persName><forename type="first">C</forename><surname>Christodoulopoulos</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">T</forename><surname>Chakraborty</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">C</forename><surname>Rose</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">V</forename><surname>Peng</surname></persName>
+		</editor>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="1023" to="1039" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">China</forename><surname>Suzhou</surname></persName>
+		</author>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">A General and Flexible Access-Control System for the Web</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Bauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">A</forename><surname>Schneider</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">W</forename><surname>Felten</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 11th USENIX Security Symposium</title>
+		<meeting>the 11th USENIX Security Symposium</meeting>
+		<imprint>
+			<publisher>USA: USENIX Association. ISBN</publisher>
+			<date type="published" when="2002">2002. 1931971005</date>
+			<biblScope unit="page" from="93" to="108" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Macaroons: Cookies with Contextual Caveats for Decentralized Authorization in the Cloud</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Birgisson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">G</forename><surname>Politz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">U</forename><surname>Erlingsson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Taly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Vrable</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lentczner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">NDSS</title>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Secure communication using remote procedure calls</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">D</forename><surname>Birrell</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Comput. Syst</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="14" />
+			<date type="published" when="1985">1985</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Implementing remote procedure calls</title>
+		<author>
+			<persName><forename type="first">A</forename><forename type="middle">D</forename><surname>Birrell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><forename type="middle">J</forename><surname>Nelson</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Comput. Syst</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="39" to="59" />
+			<date type="published" when="1984">1984</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">Stateful Least Privilege Authorization for the Cloud</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Stefan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Fernandes</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">33rd USENIX Security Symposium (USENIX Security 24)</title>
+		<meeting><address><addrLine>Philadelphia, PA</addrLine></address></meeting>
+		<imprint>
+			<publisher>USENIX Association</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="3477" to="3494" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Chennabasappa</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2505.03574</idno>
+		<title level="m">LlamaFirewall: An Open Source Guardrail System for Building Secure AI Agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">E</forename><surname>Debenedetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shumailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hayes</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Carlini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Fabian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kern</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Terzis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Tramèr</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.18813</idno>
+		<title level="m">Defeating Prompt Injections by Design</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents</title>
+		<author>
+			<persName><forename type="first">E</forename><surname>Debenedetti</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Balunovic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Beurer-Kellner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Fischer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Tramer</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems, Datasets and Benchmarks Track</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">L</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.11039</idno>
+		<title level="m">The Granularity Mismatch in Agent Security: Argument-Level Provenance Solves Enforcement and Isolates the LLM Reasoning Bottleneck</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Leases: an efficient faulttolerant mechanism for distributed file cache consistency</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Gray</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Cheriton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Twelfth ACM Symposium on Operating Systems Principles, SOSP &apos;89</title>
+		<meeting>the Twelfth ACM Symposium on Operating Systems Principles, SOSP &apos;89<address><addrLine>New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="1989">1989</date>
+			<biblScope unit="page" from="202" to="210" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">The Transaction Concept: Virtues and Limitations (Invited Paper)</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gray</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Very Large Data Bases, 7th International Conference</title>
+		<meeting><address><addrLine>Cannes, France, Proceedings</addrLine></address></meeting>
+		<imprint>
+			<publisher>IEEE Computer Society</publisher>
+			<date type="published" when="1981-09-09">1981. September 9-11, 1981</date>
+			<biblScope unit="page" from="144" to="154" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Linearizability: a correctness condition for concurrent objects</title>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">P</forename><surname>Herlihy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">M</forename><surname>Wing</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Program. Lang. Syst</title>
+		<imprint>
+			<biblScope unit="volume">12</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="463" to="492" />
+			<date type="published" when="1990">1990</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">End-to-End Authorization</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Howell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kotz</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Fourth Symposium on Operating Systems Design and Implementation (OSDI 2000)</title>
+		<meeting><address><addrLine>San Diego, CA</addrLine></address></meeting>
+		<imprint>
+			<publisher>USENIX Association</publisher>
+			<date type="published" when="2000">2000</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">The Task Shield: Enforcing Task Alignment to Defend Against Indirect Prompt Injection in LLM Agents</title>
+		<author>
+			<persName><forename type="first">F</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Squicciarini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics</title>
+		<editor>
+			<persName><forename type="first">W</forename><surname>Che</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><surname>Nabende</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">E</forename><surname>Shutova</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">M</forename><forename type="middle">T</forename><surname>Pilehvar</surname></persName>
+		</editor>
+		<meeting>the 63rd Annual Meeting of the Association for Computational Linguistics<address><addrLine>Vienna, Austria</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="29680" to="29697" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">VIGIL: Defending LLM Agents Against Tool-Stream Injection via Verify-Before-Commit</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics</title>
+		<editor>
+			<persName><forename type="first">M</forename><surname>Liakata</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">V</forename><forename type="middle">P</forename><surname>Moreira</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">J</forename><surname>Zhang</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">D</forename><surname>Jurgens</surname></persName>
+		</editor>
+		<meeting>the 64th Annual Meeting of the Association for Computational Linguistics<address><addrLine>San Diego, California, United States</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2026">2026</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="9764" to="9785" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.28914</idno>
+		<title level="m">AIRGuard: Guarding Agent Actions with Runtime Authority Control</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Ruan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Pitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Dubois</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">J</forename><surname>Maddison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Hashimoto</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.15817</idno>
+		<title level="m">Identifying the Risks of LM Agents with an LM-Emulated Sandbox</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">The Protection of Information in Computer Systems</title>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">H</forename><surname>Saltzer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">D</forename><surname>Schroeder</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE</title>
+		<meeting>the IEEE</meeting>
+		<imprint>
+			<date type="published" when="1975">1975</date>
+			<biblScope unit="volume">63</biblScope>
+			<biblScope unit="page" from="1278" to="1308" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<author>
+			<persName><forename type="first">I</forename><surname>Santos-Grueiro</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.06000</idno>
+		<title level="m">Context-to-Execution Integrity for LLM Agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language Models Can Teach Themselves to Use Tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Dwivedi-Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Raileanu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Cancedda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Scialom</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.11703</idno>
+		<title level="m">Progent: Programmable Privilege Control for LLM Agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<author>
+			<persName><forename type="first">T</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Alzahrani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Kawaguchi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Alomair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2507.15219</idno>
+		<title level="m">Simple yet Effective Prompt Injection Defenses</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing Reasoning and Acting in Language Models</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Cao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Geng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Knottenbelt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2604.24920</idno>
+		<title level="m">SUDP: Secret-Use Delegation Protocol for Agentic Systems</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">In-jecAgent: Benchmarking Indirect Prompt Injections in Tool-Integrated Large Language Model Agents</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Ying</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2024</title>
+		<editor>
+			<persName><forename type="first">L.-W</forename><surname>Ku</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">A</forename><surname>Martins</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">V</forename><surname>Srikumar</surname></persName>
+		</editor>
+		<meeting><address><addrLine>Bangkok, Thailand</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="10471" to="10506" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Agent Security Bench (ASB): Formalizing and Benchmarking Attacks and Defenses in LLM-Based Agents</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Zhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><forename type="middle">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2502.05174</idno>
+		<title level="m">MELON: Provable Defense Against Indirect Prompt Injection Attacks in AI Agents</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

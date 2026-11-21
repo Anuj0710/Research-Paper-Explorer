@@ -1,0 +1,323 @@
+{
+  "arxiv_id": "2606.18237",
+  "title": "ReproRepo: Scaling Reproducibility Audits with GitHub Repository Issues",
+  "abstract": "Reproducing research results from papers and released code is central to scientific progress. Existing works have introduced benchmarks to evaluate whether LLM agents can assist with reproducibility, but they are difficult to scale due to their reliance on substantial manual effort for data curation and evaluation. We introduce ReproRepo, a scalable framework for reproducibility evaluation that leverages human-raised GitHub issues as naturally occurring supervision on realistic reproduction blockers. We instantiate ReproRepo on 1,149 recent machine learning papers from major conferences and evaluate four frontier model-agent configurations. Our results show that LLM agents, even without executing code, can identify many real-world reproducibility problems from paper-repository pairs: the best agent in our study, namely Codex with GPT-5.5, surfaces at least one semantically related humanreported blocker for ∼ 90% of papers in the study. Further analysis shows that agents are particularly effective for surfacing visible failures and identifying the right semantic region, but may still be insufficient in exact localization. ReproRepo can serve as a reusable, scalable framework for future evaluations of LLM agents on real-world reproducibility auditing. Our code is released at https://github.com/ LithiumDA/ReproRepo.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "Reproducing previous research is essential for scientific progress, enabling researchers to verify findings and confidently build on prior work (Pineau et al., 2021;Nüst and Eglen, 2021). As modern research increasingly involves navigating papers, code, data, and other experimental artifacts, there is growing interest in whether large language model (LLM) agents can help automate aspects of reproducibility given their strong coding and reasoning capabilities. While some recent works challenge agents to produce results from a paper alone (Starace et al., 2025;Seo et al., 2026), the practical utility of reproducibility is in settings where one reproduces results using provided code (Siegel et al., 2024;Hu et al., 2025). This more closely reflects everyday research practice, where researchers build on prior work by rerunning and extending existing codebases and experiments.\n\nA major bottleneck faced by prior work on reproducibility evaluation is that of scalability. These approaches require substantial human effort, including expert-curated questions (Siegel et al., 2024), artifact preparation (Ye et al., 2025), manually-injected errors (Shah et al., 2026), expert rubrics (Starace et al., 2025;Seo et al., 2026), reference implementation verification (Zhao et al., 2025), and manual evaluation (Bai et al., 2026;Xu and Yang, 2026). As a result, these datasets typically cover only a limited number of papersusually fewer than 100-and tend to feature only papers with high-quality artifacts. Moreover, when these benchmarks quickly become outdated, the manual work required for update makes it difficult to maintain relevance in the fast-changing research landscape.\n\nTo address this limitation, we introduce Re-proRepo, a framework for scalable, realistic, and easily updatable evaluation of reproducibility with LLM agents. Our key idea is to use real reproduction pain as supervision: instead of relying on experts to manually design tasks, inject errors, or write evaluation rubrics, ReproRepo leverages GitHub issues as evidence of reproduction blockers encountered by real users. More specifically, it first builds task instances by collecting conference papers, linked GitHub repositories, and userreported reproducibility issues. Then LLM agents are tasked with predicting potential reproducibility blockers given papers and codebases. Finally, ReproRepo validates agent findings by comparing against human-reported ones and computes match We build an issue-grounded benchmark from paper-repository pairs and human-reported GitHub issues, ask agents to statically audit the paper and fixed repository snapshots, and evaluate whether their findings recover hidden human-reported reproducibility blockers.\n\nrates as the main evaluation metric. In our study, since fully executing modern repositories often requires GPUs, large datasets, and external services such as LLM API calls, we focus on a computelight static inspection setting for experimentation: agents inspect only the paper and repository snapshot, without code execution.\n\nUsing ReproRepo, we evaluate Claude Code and Codex paired with four frontier LLMs on 1149 papers from 3 major machine learning (ML) conferences. We find that, surprisingly, static agents (i.e., agents who do not actually execute any code) recover a substantial fraction of human-reported reproduction blockers: Codex with GPT-5.5 identifies at least one semantically related hidden issue for 93.3% of NeurIPS 2024 main-conference papers and 89.7% of ICLR 2026 papers. Further analysis shows that agents have low false positive rates, are best at surfacing visible failures, and often identify the right semantic region. However, they often still struggle with exact localization of errors and identification of less visible failure types.\n\nOverall, the contributions of our work are threefold:\n\n• We introduce ReproRepo, a scalable framework for auditing research reproducibility with LLM agents. It uses GitHub issues as naturally occurring human supervision, enabling diverse and continuously updatable benchmarks with minimal manual annotation.\n\n• We instantiate ReproRepo on recent machine learning papers from major conferences, con-structing a large-scale benchmark of 1,149 papers and 7,553 human-reported reproduction blockers.\n\n• We systematically evaluate frontier LLM agents under ReproRepo. Our results show that static inspection can surface humanreported blockers for most papers, but agents still struggle with precise localization despite strong semantic coverage of visible failures.",
+      "n_words": 636
+    },
+    {
+      "heading": "Related Work",
+      "section_type": "related_word",
+      "text": "LLM agents for scientific workflows Before LLM agents, reproducibility evaluation relied on reporting checklists, submission policies, and independent execution or reanalysis (Pineau et al., 2021;Magnusson et al., 2023;Stojnic, 2020;Nüst and Eglen, 2021). These efforts clarified review standards but depended on scarce expert labor. Recent advances of LLM agents have led to a range of works exploring their potential in resolving repository issues (Jimenez et al., 2024), performing research implementations (Tian et al., 2024;Yan et al., 2025;Sun et al., 2026;Merrill et al., 2026;Li et al., 2026a,b;Lyu et al., 2026), assisting checklist review (Goldberg et al., 2024), verifying scientific manuscripts (Liu and Shah, 2023;Son et al., 2025;Xi et al., 2025), assessing research proposal soundness (Ho et al., 2026), supporting data-driven discovery (Chen et al., 2025), assessing soundness of automated research (Luo et al., 2025) and even rediscovering established findings (Wang et al., 2026). These agent capabilities made it possible and easier to automate reproducibility evaluation workflows.",
+      "n_words": 154
+    },
+    {
+      "heading": "Agentic reproducibility evaluation.",
+      "section_type": "experiments",
+      "text": "Recent works applying LLM agents to reproducibility evaluation can largely be categorized by input type: paper-only, code-only, paper-plus-code. Paper-only works ask agents to recreate results or implementations from a manuscript or paper-derived description (Starace et al., 2025;Seo et al., 2026;Zhou et al., 2025;Zhao et al., 2025;Ye et al., 2025;Kohler et al., 2026). These tasks often focus more on code generation and measure scientific understanding. Code-only and paper-plus-code works utilize the released code and ask agents to answer curated questions (Siegel et al., 2024), repair errors in social science research codebases (Shah et al., 2026), conduct reanalysis of data (Xu and Yang, 2026), detect fabrications (Chen et al., 2026), score paper-code reproducibility (Hu et al., 2025;Zhang et al., 2026), and evaluate claim replicability (Nguyen et al., 2026). Table 1 summarizes how our work compares with the prior benchmark works. In particular, our work focuses on the paper-plus-code setting and leverages GitHub issues for scalability.",
+      "n_words": 153
+    },
+    {
+      "heading": "ReproRepo",
+      "section_type": "other",
+      "text": "In this section, we describe our proposed framework, ReproRepo, for evaluating LLM agents on reproducibility auditing (Figure 1).",
+      "n_words": 18
+    },
+    {
+      "heading": "Data Construction",
+      "section_type": "experiments",
+      "text": "Our data curation strategy is motivated by how reproducibility problems arise in ordinary research practice. Researchers commonly release code on GitHub, and follow-up users often open issues when they encounter blockers while trying to reproduce the paper. We treat these issues as userreported records of reproduction experiences: even if some recent reports are drafted with AI assistance, opening an issue still reflects a user's judgment that the blocker is real and relevant. These issues therefore provide naturally occurring records of reproduction experiences and can serve as free supervision signals. Moreover, GitHub issues come with useful structure, such as timestamps, open/closed status, discussion threads, and, in some cases, linked commits or pull requests that document how a problem was resolved. Our data construction pipeline is built upon these properties.\n\nData collection & filtering. We construct evaluation data from conference papers, their associated GitHub repositories, and user-reported GitHub issues. Starting from a complete set of accepted or published conference papers, we collect paper metadata and GitHub repository URLs from Paper Copilot (Yang et al., 2026) For closed issues, we collect the issue-time codebase snapshot, i.e., the repository state immediately before the issue creation, to make sure the evaluation presents to agents a pre-fix code state that a user would have seen when reporting the problem.\n\nFor closed issues with patch evidence, we additionally recover a post-fix snapshot from the human resolution. This will be used as an additional validation set, i.e., a target problem should disappear after the human fix, to evaluate the false positive rate of predicted issues from agents.",
+      "n_words": 259
+    },
+    {
+      "heading": "Reproducibility Audit Protocol",
+      "section_type": "experiments",
+      "text": "Given the constructed paper-repository snapshots and hidden human issues, we next describe how agents perform static audits and how their outputs are assessed.\n\nAgent tasks. We task LLM agents with identifying potential reproducibility blockers given papers and codebases as input. The curated human-reported issues are hidden from the agents. Agents are expected to output a list of predicted reproduction blockers, ordered by the estimated likelihood of the blocker encountered by real users.\n\nEach finding should describe one concrete, GitHubissue-style problem that a real reproducer would plausibly report. For each run, we prepare an isolated workspace that contains the code repository snapshot and the corresponding paper file. To prevent information leakage and post hoc reasoning, we remove all git commit histories and deny the agent internet access. Our evaluation particularly considers a compute-light static inspection setting. The agent is instructed to perform a static inspection without environment setup and code execution. GPU compute is withheld from the workspace. The full prompt is provided in Section E.1.\n\nAgent output assessment. After prediction, we evaluate the agent output with a separate LLM judge. The judge receives the hidden human issues for the same paper-snapshot pair as well as the agent's blind findings. For each hidden human issue, the judge compares it against the agent findings and assigns a label among exact match (EM), semantic match (SM), and none based on the following criteria:\n\n• EM: The finding identifies substantially the same practical reproduction problem and the same trigger, even if the wording might differ.\n\n• SM: The finding identifies a semantically related blocker with concrete overlap yet incomplete specificity, e.g., the same evaluation pipeline but different failure points, the same missing/released artifact family but different files or checkpoints, etc.\n\n• None: No agent finding would be useful evidence that the agent discovered this issue.\n\nConcrete examples of the three labels, including verbatim agent-output excerpts, are provided in Section F. The full judge prompt is provided in Section E.2.",
+      "n_words": 325
+    },
+    {
+      "heading": "Evaluation Metrics",
+      "section_type": "experiments",
+      "text": "We evaluate agent predictions based on the assessment outcome described above. The main metrics are EM rate and SM rate, detailed below.\n\nTop-k reporting budget. The agent outputs an ordered list of findings for each paper/repository snapshot. To make scores comparable across agents and to avoid rewarding arbitrarily long reports, we evaluate matches under a fixed reporting budget. For a budget k, only the top k findings are eligible to match hidden issues. We write EM@k and SM@k for exact and semantic matching under this budget. We use k = 10 in the main experimental results. We also report curves over k to show how performance changes as the reviewer-facing budget increases in Section 5.2.\n\nResult aggregation level. Exact match and semantic match can be aggregated across different granularities. Let F (k)\n\np denote the top k agent findings for paper or snapshot group p. A hidden issue i associated with p is counted as matched at k only if its best-aligned finding lies in\n\nThe issue-level metric treats each hidden issue as one evaluation item. Let I be the set of hidden issues, and let y (k) i be the best label for issue i under the top-k budget. We define:\n\nIssue-level match rate measures how much of the hidden issue evidence is recovered by the agent. It is the most direct issue-retrieval metric, but it can be strict for papers with many related issues, since each issue is counted separately. The paper-level metric characterizes whether the static audit surfaces one or all human-observed reproduction blockers for a paper. Let P be the set of evaluated papers, and let I p be the set of hidden issues associated with paper p. The anyissue paper match rate counts a paper as match if at least one of its hidden issues is matched, while the all-issue paper match rate counts a paper only if all the hidden issues are matched.\n\nPaper any SM @k and Paper all SM @k are defined similarly. This paper-level coverage metric is practically relevant. For example, identifying one real blocker can already direct reviewer or author attention to a problematic artifact in paper triage.\n\nFalse positive rate. High match rates are useful only if agent findings are not dominated by generic or persistent warnings that remain even after a real problem has been fixed. We therefore evaluate false positives using closed issues with clear code patches. For each such issue, we run the agent on the post-fix repository snapshot, where the corresponding historical blocker should no longer be present. If the agent still reports a finding that matches the fixed issue, we count it as a false positive. In Section 5, we aggregate FPR at the paper level: a paper is counted as false positive if any predicted finding matches an already-fixed issue. This is a conservative criterion and provides an upper bound on issue-level false positives.",
+      "n_words": 481
+    },
+    {
+      "heading": "Data Overview",
+      "section_type": "introduction",
+      "text": "In our study, we focus on machine learning conferences because code release is common in this community and paper metadata is readily available from OpenReview. To cover artifacts from both earlier and recent venues, we include NeurIPS 2022 and NeurIPS 2024, each separated into the main conference and the datasets & benchmarks track, as well as ICLR 2026. Starting from accepted papers with public GitHub repository links, we collect candidate open and closed GitHub issues and retain papers with at least one reproducibility-related issue. This collection and filtering procedure is venue-agnostic and can be readily extended to additional conferences or journals.\n\nDataset statistics. Table 2 provides an overview of the data scale in our evaluation. 1149 papers and 7553 human-reported reproducibility issues are selected from a set of 12686 papers, making the evaluation significantly larger than all the prior studies. In particular, there are 150 closed issues with clear code patches that address the issue, which will be used to examine false positive rates of the agent prediction.\n\nDataset dissection. Figure 2 summarizes three views of the resulting benchmark. The left panel shows that the number of selected issues per paper follows a long-tail distribution: most papers contribute only a handful of reproducibility issues, while a small set of heavily-used repositories contributes many. Per-conference histograms are deferred to Figure 5. The middle panel shows that selected papers span a diverse range of primary research areas, with Vision, Audio & Language Applications (23.0%) and Foundation Models (22.7%) as the largest groups, followed by a long tail of other areas. The right panel shows that the four failure categories, namely crash immediate, crash late, silent wrong setup, and silent wrong number, detailed in Section B.2, appear in stable proportions across all five conferences/tracks, with silent wrong setup as the dominant category (52-59%). The re- 1 2 3 4 5 6 7 8 9 1 0 1 1 -1 2 1 3 -1 5 1 6 -2 0 2 1 -3 0 3 1 -4 0 > 4 EM@10 SM@10 EM@10 SM@10 EM@10 SM@10 (Anthropic, 2026), GPT-5.4-Mini (OpenAI, 2026b), and GPT-5.5 (OpenAI, 2026a). DeepSeek-V4-Pro and Claude Opus 4.7 are evaluated with Claude Code, and GPT-5.4-Mini and GPT-5.5 with Codex. We use GPT-5.5 as the LLM judge.",
+      "n_words": 373
+    },
+    {
+      "heading": "Experimental Results",
+      "section_type": "results",
+      "text": "In this section, we present our experimental results and discuss the key findings.",
+      "n_words": 13
+    },
+    {
+      "heading": "Main Evaluation Result",
+      "section_type": "results",
+      "text": "Table 3 compares the four models in our study on the ICLR 2026 paper set. Table 4 further reports the performance of Codex with GPT-5.5, the bestperforming configuration in Table 3, across five conferences/tracks. We make the following observations based on the results:\n\nSurprisingly, agents can consistently identify reproducibility blockers through static inspection. Table 3 shows that all four models recover at least one human-reported issue for a large fraction of papers without executing the code. Under semantic matching, the paper-level any-issue match rate ranges from 82.1% to 89.7%; even under the stricter exact match criterion, the state-of-the-art GPT-5.5 model achieves a rate of 59.7%. Table 4 further shows that this trend holds across all five conference/track splits. These results suggest that many real reproducibility blockers leave visible traces in the paper-repository pair. Meanwhile, we note that while DeepSeek-V4-Pro is less accurate under exact matching, it reaches a similar paperlevel semantic match rate to GPT-5.5 (89.0% vs. 89.7%) while costing only 23% as much per run. This makes it a strong cost-quality trade-off when broad triage coverage is the main goal.\n\nAgents often identify the right semantic region, but exact localization remains challenging. Across both Table 3 andTable 4, semantic match rates are substantially higher than exact match rates.",
+      "n_words": 209
+    },
+    {
+      "heading": "Conference Issue Match",
+      "section_type": "other",
+      "text": "Paper Match (Any) Paper Match (All) Token Usage Cost EM@10 SM@10 EM@10 SM@10 EM@10 SM@10 For example, in the model comparison, issue-level SM@10 ranges from 43.4% to 58.1%, while issuelevel EM@10 ranges only from 13.4% to 25.4%. A similar gap appears at the paper level. This indicates that agents can often identify the relevant workflow, artifact, or failure region, but do not always recover the precise trigger or root cause reported by users. Therefore, semantic matches should be interpreted as useful triage signals rather than confirmed localization of exact issues.\n\nThe results remain stable across venues and years. Table 4 shows no clear evidence that the agent performs better on older or later venues. The issue-level semantic match rates are close for NeurIPS 2022 main, NeurIPS 2024 main, and ICLR 2026, and the paper-level any-issue semantic match rate remains around 90%. This stability suggests that the task is unlikely to be solved mainly by memorization.foot_0 One notable trend is that Datasets and Benchmarks tracks tend to have lower issue-level and all-issue match rates than the corresponding main conferences, indicating that their reproduction blockers may be more subtle or harder to identify. They also require more tokens on average, consistent with the larger or more complex artifact structure in these papers.\n\nThe false positive rate is very low. In Table 3, the false positive rate is at most 3.50% across models, much lower compared with paper-level match rates. This is encouraging because the falsepositive evaluation is conducted on post-fix snapshots, where the matched historical issue should no longer be present. The result indicates that the agents' findings are not dominated by hallucinated blockers and that most reported issues correspond to plausible static evidence.",
+      "n_words": 282
+    },
+    {
+      "heading": "Ablation Study",
+      "section_type": "results",
+      "text": "Effect of the reporting budget. A natural concern is that the paper-level match rate may be driven mainly by allowing the agent to report many candidate findings. To address this concern, we plot the match rate under top-k reporting budget for varying k in Figure 3. The result shows that the match rates always rise quickly at small k. Across conferences, semantic paper-level match is already above 60% at k = 2 and around 80% or higher at k = 4, before plateauing at roughly 90% by k = 6 to 10. The model comparison shows the same pattern: most of the gain appears in the first few ranked findings, while later findings provide smaller incremental coverage. This suggests that the high match rate does not come from long issue lists. Our ranked static audit requirement encourages the model to place real reproduction blockers near the top of the report. The property is practically useful for reviewer or author triage when humans only have limited bandwidth to check a few potential issues.\n\nAblation on paper input. One important aspect of reproducibility is paper-code consistency. Simply inspecting codebases without access to the paper may not be sufficient for identifying all reproduction blockers, since many failures are defined only relative to the paper's claimed datasets, checkpoints, evaluation metrics, etc. We validate this hypothesis by comparing a code-only setting with the default paper-and-code setting in Table 6. Adding the paper improves performance across all metrics, with the largest gains appearing under exact matching: EM@10 increases by 8.98 percentage points at the paper-level any-issue metric. This suggests that repository inspection alone can often identify the broad failure region, as reflected by the strong codeonly semantic match rates, but access to the paper helps the agent determine whether a repository artifact, command, configuration, or released resource actually supports the paper's intended reproduction target. Therefore, paper input is most valuable for turning general repository-risk detection into more precise paper-grounded reproducibility auditing.",
+      "n_words": 325
+    },
+    {
+      "heading": "Issue Taxonomy",
+      "section_type": "results",
+      "text": "We next examine which kinds of reproducibility issues appear in the benchmark and which of them are visible to static auditing. Figure 2 (right) summarizes the distribution of the four human issue categories, and Figure 4 reports category-level match rate. The category definitions are given in Section B.2. We defer the corresponding agentprediction category distributions to Figures 7 to 9.\n\nWe make two observations:\n\nThe issue taxonomy is consistent across conferences. Figure 2 (right) shows that the 5 conferences/tracks share highly similar patterns in their failure-category composition. Specifically, Silent Wrong Setup is consistently the largest failure category. It covers more than half of the issues, including mismatch of the paper's intended configuration, inconsistency in the artifact, etc. This suggests that the benchmark is not driven by a venue-specific artifact norm; across datasets, many reproduction blockers arise before long training runs or final metric comparison.\n\nStatic auditing works better for visible repository failures. Figure 4 shows that the agent recovers silent wrong setup most reliably, followed by crash immediate. This pattern is consistent with static inspection: missing checkpoints, undocumented data preparation, broken imports, mismatched scripts, absent evaluation commands, and paper-repository scope gaps often leave evidence in READMEs, configs, file structure, or paper claims. By contrast, crash late and silent wrong number are harder to recover statically because they often require execution, downloaded artifacts, hardwarespecific paths, long-horizon training, or comparison against reported metrics. Taken together, these results suggest that no-execution auditing is useful for early triage of visible setup, artifact, and evaluation-path risks, but cannot replace execution or output comparison.",
+      "n_words": 258
+    },
+    {
+      "heading": "Additional Analyses",
+      "section_type": "results",
+      "text": "We further examine whether unmatched top-ranked findings are unsupported predictions or parallel reproducibility concerns not reported by humans. For this analysis, we focus on 89 ICLR 2026 papers with exactly one human-reported issue, where the top-ranked Codex finding does not match that issue. We manually categorize each finding using static repository evidence, including documentation, scripts, configs, dependency files, file inventory, and paper-claim alignment.\n\nManual review shows that most unmatched findings reflect parallel reproducibility risks. All 89 findings had concrete static evidence for a plausible issue in the released artifact. The type breakdown is presented in Table 5. These findings can fail to match the single collected human issue for several reasons: a user may report only the first blocker encountered, some gaps can be repaired locally without filing an issue, and paper-level reproduction gaps such as missing aggregation scripts may not appear during ordinary package use. Thus, in this low-issue-count subset, non-matching topranked agent findings more often reflect sparse human supervision and parallel reproduction risks than unsupported predictions.",
+      "n_words": 168
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "We introduce ReproRepo, a scalable framework for evaluating LLM agents on issue-grounded static reproducibility auditing. By using humanreported GitHub issues as naturally occurring supervision, ReproRepo enables large, realistic, and easily updatable evaluation over paper-repository pairs. Across 1,149 machine learning papers and 7,553 reproducibility blockers curated from recent major conferences, we find that static agents can surface many real user-facing failures without executing code, identifying at least one semantically related issue for roughly 90% of papers with the best configuration, i.e., Codex with GPT-5.5. However, currently, these agents still struggle with the exact localization of the blockers. In the future, ReproRepo can serve as a reusable pipeline for evaluating new models' and agents' capabilities to audit the reproducibility of newly released papers.",
+      "n_words": 121
+    },
+    {
+      "heading": "Limitations",
+      "section_type": "limitations",
+      "text": "ReproRepo is based on GitHub issues. While those human-reported issues provide evidence from real users and make the benchmark substantially easier to scale, they are noisier than expert-curated labels. Users may report only the first blocker they encounter, some valid reproduction risks may never be filed as issues, and a small number of issues may come from user mistakes or reflect user-specific environments or transient external states. This limitation can be mitigated through data filtering.\n\nAnother limitation is that the issues do not necessarily exhaust all reproducibility blockers, especially for repositories with few users. Besides, the study mainly focuses on repositories with at least one accepted reproducibility issue, its metrics characterize issue discovery and localization under incomplete issue supervision, rather than repository-level discrimination between problemfree and problematic repositories.\n\nOur experiments focus on static, no-execution auditing. This setting is intentionally computelight and useful for early triage. However, it does not cover all reproducibility failures, such as longrunning crashes, hardware-specific errors, etc. Future work can combine issue-grounded static auditing with execution-based validation for a more complete view of reproducibility.",
+      "n_words": 177
+    },
+    {
+      "heading": "Ethical Considerations",
+      "section_type": "other",
+      "text": "This study uses publicly available repository metadata and GitHub issue discussions as evidence of reproducibility barriers. Our analysis does not require identifying individual issue authors, and any released data should avoid unnecessary personal information such as user handles. Automated audit findings should be treated as triage signals rather than definitive judgments about a paper or repository. To reduce the risk of over-interpretation, we evaluate false positives and ground findings in repository evidence. Repository maintainers should have opportunities to correct false positives, clarify documentation, and update artifacts.",
+      "n_words": 86
+    },
+    {
+      "heading": "A Artifact Use, Licenses, & Intended Use",
+      "section_type": "other",
+      "text": "Our study builds on existing public artifacts, including conference paper metadata, public GitHub repositories, GitHub issue threads, and repository links discovered from Paper Copilot and conference metadata. We use these artifacts only for research purposes: constructing an issue-grounded benchmark for evaluating static reproducibility auditing, measuring whether LLM agents can identify human-reported reproduction blockers, and supporting aggregate analyses of reproducibility failures.\n\nPaper Copilot (Yang et al., 2026) is used as a discovery source for paper metadata and repository links, rather than as a source of benchmark labels. We cite Paper Copilot and do not claim ownership over its content. Our released artifacts will not relicense or redistribute Paper Copilot content beyond the minimal metadata needed to identify papers and repositories, subject to the applicable terms of use.\n\nGitHub repositories and issues remain governed by their original repository licenses, GitHub terms, and any other applicable upstream conditions. Our work does not relicense repository code, issue text, papers, or third-party metadata. When releasing artifacts, we will release only derived annotations, evaluation scripts, paper/repository identifiers, issue identifiers, commit hashes, and instructions for reconstructing snapshots where permitted. Users of the released artifacts are responsible for complying with the original licenses and access conditions of the corresponding papers, repositories, GitHub content, and metadata sources.\n\nThe intended use of the artifacts created by our work is research on reproducibility auditing, benchmark construction, and evaluation of LLM agents. The artifacts are not intended for ranking, shaming, or making definitive claims about individual authors, maintainers, papers, or repositories. Agentgenerated audit findings should be treated as triage signals that require human verification. Use of derived artifacts outside research contexts, or in ways that conflict with the original access conditions of the underlying sources, is not intended.",
+      "n_words": 286
+    },
+    {
+      "heading": "B.1 Per-Conference Issue Counts",
+      "section_type": "other",
+      "text": "Figure 5 breaks down the issue-count distribution from Figure 2 by conference and track. During data preprocessing, we deliberately excluded repositories with more than 100 issues, as collecting issues from such repositories would require excessive GitHub API requests. It shows that the longtailed pattern is not driven by a single split: in every venue, most selected papers have a few humanreported reproducibility issues, while a small number of repositories attract many reports.\n\nThe skew in Figure 5 motivates reporting both issue-level and paper-level metrics. Issue-level match rates measure how much human issue evidence is recovered, while paper-level match rates prevent a small number of heavily discussed repositories from dominating the interpretation.",
+      "n_words": 111
+    },
+    {
+      "heading": "B.2 Failure Taxonomy",
+      "section_type": "other",
+      "text": "Typical accepted problems include environment failures, missing artifacts, broken scripts or configs, paper-repository mismatches, training or inference blockers, evaluation failures, and result discrepancies. We categorize the human issue evidence along two axes: (1) whether the failure is visible as a crash or silent because the code runs but yields the wrong setup or result, and (2) whether it affects startup/setup or a later training/evaluation stage. This yields four categories:\n\n• Crash immediate: the code fails at startup, e.g., broken imports, missing modules, or environment errors that prevent any run.\n\n• Crash late: the code crashes mid-execution, e.g., shape mismatches, OOM, or runtime errors during training or evaluation.\n\n• Silent wrong setup: the released setup does not match the paper's intended configuration, artifact scope, checkpoint, data provenance, or evaluation path, even when individual scripts execute without error. • Silent wrong number: the code runs to completion but produces results that disagree with the paper's reported numbers.",
+      "n_words": 155
+    },
+    {
+      "heading": "C.1 All-Finding Conference Comparison",
+      "section_type": "results",
+      "text": "Table 7 repeats the conference comparison in Table 4 after removing the top-10 reporting budget.\n\nIt communicates that the main top-10 results capture nearly all of the matched issues: allowing all findings changes the reported rates only minimally.",
+      "n_words": 38
+    },
+    {
+      "heading": "C.2 Token Usage and Cost",
+      "section_type": "other",
+      "text": "Table 8 expands the token and cost columns in Table 4. The table shows that Datasets and Benchmarks tracks require more tokens and cost more per run than the corresponding main-conference splits, consistent with larger or more complex artifact structures.",
+      "n_words": 40
+    },
+    {
+      "heading": "C.3 Ablation on Output Ordering",
+      "section_type": "results",
+      "text": "We instruct the model to output potential issues in descending order of the estimated likelihood that the issue would be encountered and reported by human users. In Figure 6, we ablate this design choice by comparing the top-k paper-level any-issue match rate with and without the ordering instruction. The ordering instruction mainly improves the ranking quality under small reporting budgets. For both exact and semantic matching, the model with the ordering instruction generally achieves higher match rates when only the first few findings are considered, indicating that it places human-reported blockers earlier in the report. As k increases, the two curves become close, especially when k ≥ 8. This suggests that the instruction does not substantially change the total set of issues the agent is able to identify; rather, it helps prioritize the findings that are more likely to correspond to real user-reported reproduction blockers. This makes the ordered report more suitable for human triage under a limited inspection budget.",
+      "n_words": 160
+    },
+    {
+      "heading": "C.4 Run-to-Run Variance",
+      "section_type": "other",
+      "text": "Agent outputs are stochastic, so a natural question is whether the match rates in Table 3 are stable across repeated runs or reflect the luck of a single sample. To quantify this, we repeat the full ReproRepo pipeline three times, independently, for the two Claude Code and Codex configurations with the strongest model in each agent family, namely Claude Opus 4.7 and GPT-5.5. The first run of each configuration corresponds to the numbers reported in Table 3. Run-to-run variance is small across every metric. The standard deviation is at most 2.7 percentage points and is typically below 1.5 points. Crucially, the run-to-run spread is much smaller than the gaps between configurations and between EM and SM in Table 3. Therefore, none of the qualitative conclusions in Section 5, including the large EM-SM gap, the high paper-level any-issue coverage near 90% under semantic matching, and the ranking of configurations, depend on the particular sampled run, verifying the robustness of our claims.",
+      "n_words": 160
+    },
+    {
+      "heading": "C.5 Human Validation of Alignment Judge Labels",
+      "section_type": "other",
+      "text": "Because ReproRepo uses an LLM judge to compare agent findings against real GitHub issues, we additionally perform a human validation study to check the quality of the judge. We sample 150 finding-issue pairs where the findings are generated by Codex with GPT-5.5, with 50 examples from each automatic label: exact match, semantic match, and none. For each pair, a human annotator is shown the agent-predicted issue, the candidate GitHub issue, and the judge rationale with the automatic label hidden, and assigns one of the same three labels. Among the 50 pairs labeled EM by the judge, the human annotator labels 44 as EM, indicating high agreement under the strictest label. Among the 100 broadly matched pairs (including both EM and SM), the human annotator labels 84 as matched and 16 as none. Conversely, among the 50 pairs labeled None by the judge, the human annotator labels 44 as None and 6 as SM. For the matched-vs.-unmatched decision, the human annotation agrees with the LLM judge on 128 of 150 examples (85.3%). In addition, among the 90 examples that the human annotator labels as matched, the judge recovers 84. Thus, the match decision has 84.0% precision and 93.3% recall within the validation sample. Therefore, the human labels support the reliability of the LLM judge.",
+      "n_words": 213
+    },
+    {
+      "heading": "C.6 Analysis on Repositories without Reported Issues",
+      "section_type": "results",
+      "text": "As a complementary analysis, we audit three ICLR 2026 repositories for which our collection found no open or closed GitHub issues. Codex with GPT-5.5 produces 18 findings; manual inspection finds 14 supported concerns, 3 genuine but overstated concerns, and 1 unsupported finding. We point out that repositories without reported issues are not necessarily clean negatives due to sparse usage/reporting. This analysis also provide preliminary evidence that the agent can surface plausible and manually verifiable reproducibility concerns in repositories outside the issue-positive benchmark subset. Table 9: Run-to-run variance. Three independent runs on the ICLR 2026 set, using the same metrics as Table 3. Run 1 of each configuration is the run reported in Table 3. The small standard deviations indicate that the reported match rates are stable across runs.",
+      "n_words": 128
+    },
+    {
+      "heading": "D Agent Prediction Taxonomy",
+      "section_type": "method",
+      "text": "The following figures apply the same taxonomy breakdown applied to human issues to agent predictions. Together, they show how the breakdown of agent findings compares with that of the humanraised GitHub issues, and how this distribution changes when predictions are restricted to exact or semantic matches.\n\nFigure 7 shows the category distribution across all agent predictions: from static inspection, the agent most commonly surfaces issues related to silent wrong setup, followed by crash immediate, whereas both silent wrong number and crash late are less commonly predicted. This highlights that along the two axes, the crash vs. silent distinction is much less salient in agent predictions than the setup vs. later-stage distinction. While it consistently identifies slightly more silent failures than crash failures, it predominantly predicts setup/immediate failures compared to number/late failures.\n\nFigure 8 restricts the distribution to predictions that exactly match a hidden human issue, and Figure 9 restricts to semantically matched predictions. In general, these show a similar pattern as Figure 7.\n\nE Prompt Templates",
+      "n_words": 166
+    },
+    {
+      "heading": "E.2 Judge Prompt",
+      "section_type": "other",
+      "text": "You are an alignment judge for a reproducibility benchmark.\n\nYou will receive exactly one file: ./task. \"target\": \"open|closed_gold|closed_silver\", \"issue_number\": 0, \"best_label\": \"exact|semantic|none\", \"best_finding_id\": \"string or null\", \"best_finding_index\": 0, \"dimension_labels\": {{ \"user_facing_symptom\": \"exact|semantic|none\", \"trigger_path_or_workflow\": \"exact|semantic|none\", \"root_cause\": \"exact|semantic|none\", \"involved_artifact\": \"exact|semantic|none\", \"impact\": \"exact|semantic|none\" }}, \"rationale\": \"short explanation grounded in both the hidden issue and finding\", → \"matched_evidence\": [\"short strings\"] }} ], \"finding_alignments\": [ {{ \"finding_id\": \"string\", \"finding_index\": 0, \"best_label\": \"exact|semantic|none\", \"matched_hidden_issue_ids\": [\"zero or more hidden issue ids\"],\n\n→ \"matched_targets\": [\"open|closed_gold|closed_silver\"], \"rationale\": \"short explanation\" }} ], \"notes\": [\"optional short notes about ambiguity\"] }} Use only the three allowed labels exactly as written. If there are no hidden → issues or no findings, still write valid arrays.",
+      "n_words": 112
+    },
+    {
+      "heading": "F Agent Output Examples",
+      "section_type": "method",
+      "text": "In this section, we provide concrete examples on exact match, semantic match, and no match.",
+      "n_words": 15
+    },
+    {
+      "heading": "F.1 Exact Match Example",
+      "section_type": "other",
+      "text": "Human GitHub issue real data test human report",
+      "n_words": 8
+    },
+    {
+      "heading": "GitHub issue",
+      "section_type": "other",
+      "text": "Is the test command wrong?\n\nGitHub discussion @dongruoyu1 I believe so (\"test in 5.2 is incorrect\"). Running the README's real testing command with -template, -outf, -method, and -pretrained_model_path is rejected by argparse, and editing around that still leads to missing ./Data inputs and a hard-coded /data/lj/... checkpoint path.",
+      "n_words": 48
+    },
+    {
+      "heading": "Trigger context",
+      "section_type": "other",
+      "text": "Follow README section \"4. Real Experiement\" and run a listed command from repo/real/test_code/, for example:",
+      "n_words": 15
+    },
+    {
+      "heading": "Impact",
+      "section_type": "other",
+      "text": "The documented real-data inference path cannot be used to reproduce the paper's real reconstruction results without rewriting the script and supplying undocumented local artifacts. This is an exact match: the LLM predicts exactly the same trigger command as the one discussed in the GitHub issue, highlighted in blue above, and recovers the same user-facing workflow and practical blocker.",
+      "n_words": 58
+    },
+    {
+      "heading": "Impact",
+      "section_type": "other",
+      "text": "The paper's most prominent reproducibility target cannot be regenerated from the repository snapshot; users can only verify a released final checkpoint if the external URL is available. This is a semantic match: both sides identify the same MAE-H DAT model artifact as a reproduction-critical object, but the human issue is an inference-time model-name/import failure whereas the agent finding is about the missing finetuning recipe.",
+      "n_words": 64
+    },
+    {
+      "heading": "F.3 No Match Example",
+      "section_type": "other",
+      "text": "Agent output DANN, ADDA, and SGADA training scripts import wandb but requirements omit it.",
+      "n_words": 14
+    },
+    {
+      "heading": "User symptom",
+      "section_type": "other",
+      "text": "After installing the documented requirements for UFLD-DANN, UFLD-ADDA, or UFLD-SGADA, running train.py would fail at startup with ModuleNotFoundError: No module named 'wandb' unless wandb was installed separately.",
+      "n_words": 27
+    },
+    {
+      "heading": "Trigger context",
+      "section_type": "other",
+      "text": "Follow any of the DANN/ADDA/S-GADA READMEs: pip install -r requirements.txt, then python train.py configs/....",
+      "n_words": 14
+    },
+    {
+      "heading": "Root cause",
+      "section_type": "other",
+      "text": "The train scripts import and use Weights & Biases, but the corresponding requirements.txt files list only opencv-python, tqdm, tensorboard, addict, sklearn, and pathspec.",
+      "n_words": 23
+    },
+    {
+      "heading": "Impact",
+      "section_type": "other",
+      "text": "The installation instructions are incomplete for three reported UDA baselines, blocking reproduction before any data or model logic runs.\n\nThe agent finding is still a plausible reproducibility issue. However, this kind of missingdependency problem is often easy for users to resolve locally without opening a GitHub issue. No existing GitHub issues match this agent finding.",
+      "n_words": 55
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Table 1 :",
+      "captions": "Comparing ReproRepo with prior reproducibility evaluations. The works are ordered by input setting: paper-only, code-only, and paper-plus-code. Checkmarks indicate whether the task includes the listed input; \"∼\" indicates methods description of papers; \"⋆\" indicates task-dependent code access.",
+      "content": "Framework | Given Paper Given Code # Papers Supervision Source\nPaperBench (Starace et al., 2025) | ✓ | - | 20 | Conference papers, expert rubrics\nPaper2Code (Seo et al., 2026) | ✓ | - | 90 | Conference papers, expert eval\nAutoReproduce (Zhao et al., 2025) | ✓ | - | 13 | Papers w/ verified implementation\nReplicationBench (Ye et al., 2025) | ✓ | - | 31 | Papers, expert tasks\nRead Paper, Write Code (Kohler et al., 2026) | ∼ | - | 48 | Expert-verified reproducible papers\nCORE-Bench (Siegel et al., 2024) | - | ✓ | 90 | Papers w/ repos, expert-curated questions\nR-based social science study (Shah et al., 2026) | - | ✓ | 5 | Reproducible studies, expert-injected failures\nScaling Reproducibility (Xu and Yang, 2026) | ✓ | ✓ | 384 | Journal papers, expert review\nREPRO-Bench (Hu et al., 2025) | ✓ | ✓ | 112 | Papers w/ expert reproducibility report\nReplicatorBench (Nguyen et al., 2026) | ✓ | ⋆ | 19 | Papers w/ expert reproducibility report\nOurs (ReproRepo) | ✓ | ✓ | 1149 | Conference papers, GitHub issues"
+    },
+    {
+      "kind": "table",
+      "label": "Table 3 :",
+      "captions": "Comparing",
+      "content": "DeepSeek-V4-Pro Claude Code | 19.3% | 53.1% | 47.6% | 89.0% | 25.6% | 55.3% | 2.80% $0.29\nClaude Opus 4.7 | Claude Code | 21.7% | 54.1% | 52.0% | 86.5% | 27.8% | 57.1% | 2.10% $4.07\nGPT-5.4-Mini | Codex | 13.4% | 43.4% | 33.0% | 82.1% | 18.3% | 52.0% 1.40% $0.22\nGPT-5.5 | Codex | 25.4% | 58.1% | 59.7% | 89.7% | 34.8% | 65.6% 3.50% $1.26\nsults suggest that ReproRepo captures a general |  |  |  |  | \ndistribution of diverse real-world reproducibility |  |  |  |  | \nblockers. |  |  |  |  |  |  |  | \n4.2 Models & Agents |  |  |  |  |  |  | \nOur evaluation covers two popular coding agents, |  |  |  |  | \nClaude Code and Codex, paired with four fron- |  |  |  |  | \ntier open and closed models: DeepSeek-V4- |  |  |  |  | \nPro (DeepSeek-AI et al., 2026), Claude Opus |  |  |  |  | \n4.7 |  |  |  |  |  |  |  | "
+    },
+    {
+      "kind": "table",
+      "label": "Table 4 :",
+      "captions": "Comparing Results on Different Conferences. EM@10 and SM@10 denote exact match rate and semantic match rate among the first 10 agent findings, and the results are based on Codex with GPT-5.5. Issue match is computed over hidden issues. Paper Match (Any) counts a unique paper as match if at least one hidden issue for that paper is matched, while Paper Match (All) requires all hidden issues for that paper to be matched. Token usages refers to the average number of total tokens per run, including both input and output. Cost denotes the average cost per run.",
+      "content": "NeurIPS 2022 main | 23.8% | 57.4% | 61.2% | 89.7% | 15.2% | 41.4% | 966,794 | $1.28\nNeurIPS 2022 DB | 18.2% | 51.0% | 60.2% | 96.6% | 10.2% | 31.8% | 1,225,375 | $1.50\nNeurIPS 2024 main | 23.9% | 56.3% | 61.0% | 93.3% | 22.7% | 51.1% | 925,068 | $1.30\nNeurIPS 2024 DB | 12.2% | 47.3% | 46.7% | 87.6% | 10.5% | 33.3% | 1,159,698 | $1.53\nICLR 2026 | 25.4% | 58.1% | 59.7% | 89.7% | 34.8% | 65.6% | 943,011 | $1.26"
+    },
+    {
+      "kind": "table",
+      "label": "Table 5 :",
+      "captions": "Manual categorization of 89 top-ranked unmatched Codex findings from papers with one collected human issue.",
+      "content": "Finding type |  |  |  | Count\nDocumentation-repository mismatch | 27\nDependency or environment gap |  | 23\nMissing or under-specified artifacts | 23\nMissing evaluation/reproduction workflow | 13\nPaper-code protocol mismatch |  | 3\nAgent input | Issue Match | Paper Match (Any)\n | EM@10 SM@10 EM@10 SM@10\nCode only | 20.9% | 57.0% | 50.7% | 87.6%\nPaper & code 25.4% | 58.1% | 59.7% | 89.7%"
+    },
+    {
+      "kind": "table",
+      "label": "Table 6 :",
+      "captions": "Ablation on agent input. Experiment is conducted on ICLR 2026 paper set with GPT-5.5.",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "Table 7 :",
+      "captions": "Table9lists each of the three runs separately together with their mean and sample standard deviation. All-Finding Conference Comparison. Diagnostic all-finding conference comparison for Codex with GPT-5.5, using the same metrics as in Table4but without the top-10 cutoff.",
+      "content": "Conference | Issue Match | Paper Match (Any) Paper Match (All) Avg. Cost\n | EM | SM | EM | SM | EM | SM\nNeurIPS 2022 main 23.8% 57.4% 61.2% | 89.7% | 15.2% | 41.4% | $1.28\nNeurIPS 2022 DB | 18.2% 51.0% 60.2% | 96.6% | 10.2% | 31.8% | $1.50\nNeurIPS 2024 main 24.0% 56.4% 61.0% | 93.3% | 22.7% | 51.1% | $1.30\nNeurIPS 2024 DB | 12.2% 47.3% 46.7% | 87.6% | 10.5% | 33.3% | $1.53\nICLR 2026 | 25.4% 58.1% 59.7% | 89.7% | 34.8% | 65.6% | $1.26\nConference | Uncached Input Cached Input Output Total Tokens | Cost\nNeurIPS 2022 main | 103,922 | 851,657 11,215 | 966,794 $1.28\nNeurIPS 2022 DB |  | 118,001 | 1,095,238 12,136 | 1,225,375 $1.50\nNeurIPS 2024 main | 112,126 | 801,607 11,335 | 925,068 $1.30\nNeurIPS 2024 DB |  | 126,678 | 1,019,991 13,029 | 1,159,698 $1.53\nICLR 2026 |  | 98,834 | 832,592 11,586 | 943,011 $1.26"
+    },
+    {
+      "kind": "table",
+      "label": "Table 8 :",
+      "captions": "Token Usage and Cost. Codex with GPT-5.5 token usage and estimated cost per evaluated paper-snapshot pair, averaged within each conference. Total Tokens sums uncached input, cached input, and output",
+      "content": ""
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "We compare top-k paper-level any-issue match rates with and without instructing the agent to order findings by the estimated likelihood of being encountered and reported by human users. Left: exact match. Right: semantic match.",
+      "content": "Configuration | Run | Issue Match | Paper Match (Any) | Paper Match (All)\n |  | EM@10 | SM@10 | EM@10 | SM@10 | EM@10 | SM@10\n | Run 1 | 21.7% | 54.1% | 52.0% | 86.5% | 27.8% | 57.1%\nClaude Opus 4.7 | Run 2 | 23.3% | 55.4% | 54.6% | 88.3% | 30.0% | 56.8%\n(Claude Code) | Run 3 | 23.1% | 55.5% | 53.5% | 89.0% | 28.6% | 57.5%\n | Mean±std 22.7%±0.85% 55.0%±0.76% 53.4%±1.29% 87.9%±1.32% 28.8%±1.12% 57.1%±0.37%\n | Run 1 | 25.4% | 58.1% | 59.7% | 89.7% | 34.8% | 65.6%\nGPT-5.5 | Run 2 | 24.5% | 56.4% | 58.2% | 89.0% | 33.0% | 61.5%\n(Codex) | Run 3 | 25.2% | 59.9% | 57.1% | 90.5% | 33.3% | 66.7%\n | Mean±std 25.0%±0.50% 58.1%±1.78% 58.4%±1.29% 89.7%±0.73% 33.7%±0.97% 64.6%±2.70%"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Agent Prediction Taxonomy Analysis. The distribution of agent-predicted issue categories across conference splits.",
+      "content": " | Agent-Prediction Category Composition by Conferences\nICLR 2026 | 30% | 5% | 16% |  |  | 49%\nNeurIPS 2024 DB | 34% | 7% | 13% | 46%\nNeurIPS 2024 main | 31% | 5% | 15% |  |  | 50%\nNeurIPS 2022 DB | 36% |  | 7% | 11% | 46%\nNeurIPS 2022 main | 34% | 6% | 15% | 45%\n0 | 20 |  | 40 |  | 60 | 80 | 100\n |  | Share of Agent Predictions (%)\nCrash Immediate | Crash Late | Silent Wrong Number | Silent Wrong Setup\nNeurIPS 2022 main NeurIPS 2022 DB NeurIPS 2024 main NeurIPS 2024 DB Figure 7: 0 ICLR 2026 | 20 Exact-Match Prediction Category Composition by Conferences 40 60 80 32% 26% 31% 36% 5% 8% 3% 12% 8% 9% 12% 51% 57% 56% 49% 27% 10% 61% | 100\n | Share of Exact-Match Predictions (%)\nCrash Immediate | Late | Silent Wrong Number | Silent Wrong Setup\n |  |  | E.1 Agent Prompt\n |  |  | Generate a blind, static, no-execution reproducibility issue\n |  |  | → | discovery result\n |  |  | for the provided research paper PDF and repository snapshot.\n |  |  | Blind audit rules:\n |  |  | -Use only the provided paper PDF and the local repository\n |  |  | → | files in this\n |  |  | workspace.\n |  |  | -Do not inspect GitHub issues, pull requests, discussions,\n |  |  | → | comments, commit\n |  |  | history, remote branches/tags, internet search, external\n |  |  | → |  | websites, hidden\n |  |  | benchmark metadata, or any repository state outside this\n |  |  | → | snapshot.\n |  |  | -Do not run setup, tests, scripts, notebooks, downloads,\n |  |  | → | training, inference,\n |  |  | evaluation, or benchmark commands.\n |  |  | Goal: | \n |  |  | Identify GitHub-issue-style reproduction blockers that a real\n |  |  | → | user would be\n |  |  | likely to report when trying to reproduce the paper from this\n |  |  | → | repository\n |  |  | snapshot.\n |  |  | Focus on concrete static evidence:"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Semantic-Match Agent Prediction Taxonomy Analysis. The distribution of semantic-match agentpredicted issue categories across conference splits.",
+      "content": "-hardware_backend |  | \n-api_service |  |  | \n-result_mismatch |  | \n-documentation_gap |  | \n-paper_repo_mismatch |  | \nWrite exactly one required artifact: |  | \n-./findings.json |  | \nRequired ./findings.json schema: |  | \n{{ |  |  |  |  | \n\"reproducibility_assessment\": \"...\", |  | \n\"findings\": [ |  | \n | {{ |  |  |  | \n | \"finding_id\": \"F01\", |  | \n | \"rank_reason\": \"Why this issue is likely to be reported\n | → | by a human reproducer before lower-ranked findings.\",\n | \"severity\": \"critical|high|medium|low\", | \n | \"stage\": \"install/environment|data/model | \n | → | acquisition|training/fine-tuning|inference/demo|eva ⌋\n | → | luation/metrics|result comparison/provenance\", | \n | \"category\": \"environment_setup|dependency_version|data_ ⌋\n | → | access|model_weights|training_reproduction|evaluati ⌋\n | → | on_reproduction|runtime_error|hardware_backend|api_ ⌋\n | → | service|result_mismatch|documentation_gap|paper_rep ⌋\n | → | o_mismatch\", |  | \n | \"issue_title\": \"...\", |  | \n | \"user_symptom\": \"...\", |  | \n | \"trigger_context\": \"...\", |  | \n | \"root_cause\": \"...\", |  | \n | \"evidence\": [ |  | \n | {{ |  |  |  | \n |  | \"path\": \"...\", |  | \n |  | \"line_refs\": \"...\", |  | \n |  | \"evidence_type\": \"file|command|missing_artifact|doc ⌋\n | → | umentation|config|paper_repo_mismatch\", | \n |  | \"summary\": \"...\" |  | \n | }} |  |  |  | \n | ], |  |  |  | \n | \"impact\": \"...\", |  | \n | \"affected_claims_or_metrics\": [\"...\"], | \n | \"reproducibility_blocker\": true, |  | \n | \"confidence\": \"high|medium|low\" |  | \n | }} |  |  |  | \n], |  |  |  |  | \n\"missing_or_ambiguous_artifacts\": [\"...\"] | \n}} |  |  |  |  | \n |  |  |  | 27% | 16% | 55%\nThe JSON finding fields should contain enough information for a\n→ | separate judge | 34% | 6% | 14% | 46%\nto compare them against hidden GitHub issues by symptom, | \n | trigger, root cause, | 31% | 4% | 14% | 51%\n |  |  |  | 32% | 5% | 10% | 52%\n |  |  |  | 31% | 6% | 14% | 49%\n |  |  | Crash Immediate | Crash Late | Silent Wrong Number | Silent Wrong Setup\nFigure 9: -missing or ambiguous data/checkpoint/model artifacts |  | issues a normal reproducer would actually hit and open as a\n-broken or incomplete installation/dependency instructions | → | GitHub issue:\n-missing scripts/configs/paths referenced by the paper or |  | immediate blockers, documented workflow failures, missing\n→ | README |  |  |  | → | required artifacts,\n-paper/repository mismatches |  |  | misleading instructions, common setup/data/model paths, and\n-evaluation/training workflow gaps |  |  | → | result mismatches.\n-result/metric provenance gaps |  |  | Put broad audit observations, speculative risks, and\n-code/config patterns that would cause reproduction-time |  | → | low-actionability issues\n→ | crashes or silent |  |  | later or omit them.\nwrong numbers |  | \n |  |  |  |  |  | Use these finding categories when possible:\nPrefer atomic findings: each finding should describe one |  | -environment_setup\n→ | user-facing blocker, |  |  | -dependency_version\nits trigger, root cause, static evidence, and impact on |  | -data_access\n | reproducing the paper. |  |  | -model_weights\n |  |  |  |  |  | -training_reproduction\n |  |  |  |  |  | -evaluation_reproduction\n→ |  |  |  |  |  | -runtime_error"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "At least the script didn't work. 5.2 Real Test script looks like a direct copy of the simulation one but doesn't work on real data. e.g.But the format of real measurements is different from simulation so the real test code could not load it. When I ran the aforementioned code, I got this error: #36",
+      "content": "python test.py -template mst_s\n-outf ./exp/mst_s/ | \n-method | mst_s\n-pretrained_model_path | \n./model_zoo/mst/mst_s.pth | \nAgent output | \nDocumented real-test commands do not match\nreal/test_code/test.py and use an unreachable\nhard-coded checkpoint. | agent finding\nUser symptom | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Root causerepo/real/test_code/test.py is a standalone stale script. It defines a different argument interface, hard-codes CUDA device 0, hard-codes default data under ./Data, ignores the README model_zoo path, and loads a developer-local absolute checkpoint path.",
+      "content": "python test.py -template mst_s\n-outf ./exp/mst_s/ | \n-method | mst_s\n-pretrained_model_path | \n./model_zoo/mst/mst_s.pth | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Use the paper abstract/Table 1 or DAT README pretrained-weights table and look for the corresponding MAE-H fine-tuning command/config.",
+      "content": "Trigger context |  |  | \nRoot cause |  |  |  | \nThe | only | DAT | training | com-\nmand | in | the | README | trains\nvit_base_patch16_224 and does not\nspecify mae_vit_huge_patch14, a MAE\ninitialization checkpoint, MAE-specific\ninput size/crop settings, or fine-tuning\nhyperparameters. The MAE-H section is\nevaluation-only. |  |  | "
+    }
+  ],
+  "n_words": 5948,
+  "quality_flags": []
+}

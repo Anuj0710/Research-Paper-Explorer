@@ -1,0 +1,1548 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Does RL Expand the Capability Boundary of LLM Agents? A PASS@(k, T ) Analysis *</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-04-16">16 Apr 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Zhiyuan</forename><surname>Zhai</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Fudan University</orgName>
+								<orgName type="institution" key="instit2">Chinese University of Hong Kong</orgName>
+								<orgName type="institution" key="instit3">University of Waterloo</orgName>
+								<orgName type="institution" key="instit4">Fudan University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Wenjing</forename><surname>Yan</surname></persName>
+							<email>wenjingyan@cuhk.edu.hk</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Fudan University</orgName>
+								<orgName type="institution" key="instit2">Chinese University of Hong Kong</orgName>
+								<orgName type="institution" key="instit3">University of Waterloo</orgName>
+								<orgName type="institution" key="instit4">Fudan University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xiaodan</forename><surname>Shao</surname></persName>
+							<email>x6shao@uwaterloo.ca</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Fudan University</orgName>
+								<orgName type="institution" key="instit2">Chinese University of Hong Kong</orgName>
+								<orgName type="institution" key="instit3">University of Waterloo</orgName>
+								<orgName type="institution" key="instit4">Fudan University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xin</forename><surname>Wang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Fudan University</orgName>
+								<orgName type="institution" key="instit2">Chinese University of Hong Kong</orgName>
+								<orgName type="institution" key="instit3">University of Waterloo</orgName>
+								<orgName type="institution" key="instit4">Fudan University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Does RL Expand the Capability Boundary of LLM Agents? A PASS@(k, T ) Analysis *</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-04-16">16 Apr 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">4021DE1D0F3E0762866D1E32C45B8FE1</idno>
+					<idno type="arXiv">arXiv:2604.14877v1[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:07+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Does reinforcement learning genuinely expand what LLM agents can do, or does it merely make them more reliable at what they could already do? For static mathematical reasoning, a recent line of work answers the second: base and RL pass@k curves converge at large k, and RL only redistributes probability mass within the base model's existing capability set. We ask whether this pessimistic reading survives the move to agentic tool use, where an agent's T rounds of environment interaction enable compositional strategies that re-sampling cannot recover. We introduce PASS@(k, T ), a two-dimensional evaluation metric that jointly varies a sampling budget k and an interaction-depth budget T , cleanly separating capability expansion from efficiency improvement. Our main finding is that, contrary to the static-reasoning result, tool-use RL genuinely enlarges the agent's capability boundary: as the sampling budget grows, the RL agent's passcurve pulls above the base model's and the gap widens at the right tail rather than converging, the opposite of what the static-reasoning RLVR literature reports. The expansion is specific to tasks that require compositional, sequential information gathering; on simpler categories RL behaves as prior work predicts. Under matched training data, supervised fine-tuning produces the opposite effect: it regresses the capability boundary on the same compositional tasks, which isolates selfdirected exploration, not data exposure, as the causal factor. A mechanism analysis explains how the expansion arises: RL reweights the base model's existing strategy distribution toward the subset whose downstream reasoning more often yields a correct answer, with the improvement concentrated on how the agent integrates retrieved information rather than on what it searches for. These results reconcile the optimistic and pessimistic readings of RL for LLMs: both are correct, on different task types. In agentic settings, when the environment admits compositional solutions the base model cannot stitch together alone, RL meaningfully teaches new capabilities. * Code available at <ref type="url" target="https://github.com/zhiyuanZhai20/pass-kt-analysis">https://github.com/zhiyuanZhai20/pass-kt-analysis</ref>.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>LLM-based agents that interact with external environments through tool use represent one of the most rapidly advancing frontiers in AI <ref type="bibr" target="#b51">[Yao et al., 2023</ref><ref type="bibr" target="#b33">, Schick et al., 2023</ref><ref type="bibr" target="#b30">, Qin et al., 2024</ref><ref type="bibr" target="#b24">, Nakano et al., 2022]</ref>. Built on large-scale pre-trained models <ref type="bibr" target="#b1">[Brown et al., 2020</ref><ref type="bibr">, OpenAI, 2023</ref><ref type="bibr" target="#b41">, Touvron et al., 2023]</ref>, agents operate in a loop (observe, act, receive feedback, and act again), enabling tasks that require external knowledge or multi-step information gathering <ref type="bibr" target="#b23">[Mialon et al., 2023</ref><ref type="bibr">, Wang et al., 2024]</ref>.</p><p>Reinforcement learning has emerged as the method of choice for training such agents. Building on RLHF for instruction following <ref type="bibr" target="#b26">[Ouyang et al., 2022</ref><ref type="bibr" target="#b5">, Christiano et al., 2017]</ref> and RL-based reasoning improvements <ref type="bibr" target="#b9">[Guo et al., 2025</ref><ref type="bibr">, OpenAI, 2024]</ref>, recent systems including Agent-R1 <ref type="bibr" target="#b54">[Cheng et al., 2025]</ref>, ReTool <ref type="bibr" target="#b8">[Feng et al., 2025]</ref>, and Agent-Q <ref type="bibr" target="#b29">[Putta et al., 2024]</ref> apply RL end-to-end, achieving impressive results on benchmarks spanning web navigation, code generation, and tool-augmented reasoning.</p><p>But beneath these empirical successes lies a question that has received surprisingly little scrutiny:</p><p>Does RL expand what LLM agents can do, or merely make them more reliable at what they can already do?</p><p>When an RL-trained agent outperforms its base model on a benchmark, the improvement could stem from two fundamentally different sources. The first is capability expansion: RL teaches the agent to solve problems that the base model cannot solve at all, for instance, by discovering novel tool-use strategies that access information the base model would never seek out. The second is efficiency improvement: RL makes the agent more reliably solve problems that the base model can already solve, by increasing the probability of selecting effective strategies. These two sources of improvement have entirely different implications for the field. If RL primarily expands capabilities, then investing in better RL algorithms and exploration mechanisms is the path forward. If RL primarily improves efficiency, then the capability ceiling is determined by the base model, and effort is better spent on pre-training and data quality.</p><p>Distinguishing between these two effects requires evaluation tools that go beyond standard accuracy metrics. A model's accuracy (pass@1) conflates capability and efficiency: an improvement from 30% to 60% accuracy could mean the model learned to solve new problems, or it could mean the model became more consistent at solving problems it could already occasionally solve. Existing agentic benchmarks <ref type="bibr" target="#b21">[Liu et al., 2024</ref><ref type="bibr" target="#b13">, Jimenez et al., 2024</ref><ref type="bibr" target="#b7">, Dua et al., 2019</ref><ref type="bibr" target="#b55">, Zheng et al., 2024]</ref> report aggregate accuracy numbers and do not attempt this decomposition.</p><p>In this paper, we introduce a framework that enables this decomposition. Our key insight is that agent capability is inherently two-dimensional: it depends on both (1) how many independent attempts the agent is given, and (2) how deeply the agent can interact with the environment in each attempt. We formalize this through PASS@(k,T), a metric that evaluates whether an agent can solve a problem given k independent trajectories, each with at most T rounds of environment interaction. This two-dimensional structure naturally separates efficiency from capability: varying k reveals sampling efficiency (whether more attempts help), while varying T reveals interaction capability (whether deeper environment engagement unlocks new solutions). The interplay between k and T further reveals whether the value of RL lies in better sampling or better interaction, a question that no existing metric can address.</p><p>We make three contributions.</p><p>• The first two-dimensional agentic evaluation framework. We introduce PASS@(k, T ), the first metric that evaluates an LLM agent on a sampling budget k and an interaction-depth budget T jointly. The T axis has no analog in static pass@k analysis and is what makes the agentic capability question answerable: it disentangles, for the first time, whether an improvement from training comes from sampling reliability or from productive use of deeper environment interaction. We establish the metric's formal properties (monotonicity, reduction to static pass@k, a strict-expansion corollary) and show that it is necessary, not just convenient, to distinguish capability expansion from efficiency improvement in the agentic regime. • The first empirical demonstration that agentic RL expands the capability boundary.</p><p>Using PASS@(k, T ) with matched training data across base, SFT, and GRPO-trained agents, we establish that tool-use RL does expand an LLM agent's capability boundary on compositional tool-use tasks. The signature is not an improvement in pass@1 (at the smallest sampling budgets, π base and π RL are essentially tied) but a widening gap as the sampling budget grows: the RL agent's pass-curve pulls above π base 's as k increases and the gap reaches its maximum at the capability-boundary limit, the opposite of the convergence pattern reported for static-reasoning RLVR. This directly contradicts the pessimistic conclusion that the static-reasoning literature has been taken to imply for LLM agents in general.</p><p>Matched-data SFT produces the opposite effect on the same tasks, which identifies the learning signal, not data exposure, as the causal factor. • A mechanistic account of how the expansion arises. We give a three-pronged mechanism analysis (perplexity decomposition, cross-policy swapping, and strategy-diversity measurement) and use it to characterize the training intervention: RL reweights the base model's existing strategy distribution toward the subset whose downstream reasoning more often produces a correct answer, with the improvement concentrated on how the agent integrates retrieved information rather than on what it searches for. This is a sharper account than the standard "RL optimizes for reward" story and has direct implications for where reward design and exploration bonuses can most usefully be applied.</p><p>We discuss related work in Appendix A, covering RL for LLM agents, tool-augmented benchmarks, and the pass@k-based capability-evaluation debate.</p><p>2 The PASS@(k, T) Framework 2.1 Motivation: why agent evaluation needs two dimensions Accuracy (pass@1) conflates two different questions: (Q1) whether the agent can ever solve the problem, and (Q2) how reliably it does so among solvable problems. Pass@k resolves this ambiguity in the static setting by varying the sampling budget k: at large k, pass@k converges to the capability indicator, and <ref type="bibr" target="#b53">Yue et al. [2025]</ref>, <ref type="bibr">Wen et al. [2025]</ref> use this observation to argue that RLVR on mathematical reasoning redistributes mass within the base model's capability set but does not enlarge it. Related approaches based on repeated sampling <ref type="bibr">[Wang et al., 2023a</ref><ref type="bibr" target="#b39">, Snell et al., 2024</ref><ref type="bibr" target="#b6">, Cobbe et al., 2021]</ref> and process reward models <ref type="bibr" target="#b20">[Lightman et al., 2024]</ref> similarly focus on the k axis alone.</p><p>In the agentic setting, pass@k is insufficient because it treats each attempt as a black box with a fixed interaction budget, and cannot answer a third question unique to tool-using agents: (Q3) does deeper environment interaction unlock problems that cannot be solved at shallow interaction, no matter how many times one re-samples? An agent with T rounds of tool use can execute compositional strategies, such as chaining one retrieval's output into the next retrieval's input or verifying intermediate results <ref type="bibr" target="#b42">[Trivedi et al., 2022</ref><ref type="bibr" target="#b15">, Khot et al., 2023]</ref>, that are structurally unavailable at shallower T ; a bridge question such as "What is the nationality of the director of Film X?" cannot be answered with a single retrieval because the second query's argument is a function of the first query's result, and no amount of re-sampling at T = 1 can compensate. We therefore parametrize capability by both the sampling budget k and the interaction-depth budget T : the k-axis probes sampling reliability (Q2) and the T -axis probes interaction capability (Q3).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Definition</head><p>We formalize the agent-environment interaction as follows. A policy π interacts with an environment for up to T rounds. At round t, the agent observes a state s t (containing the task, the action history, and all previous observations), selects an action a t (either a tool call or a final answer), and receives an observation o t = env(s t , a t ). A trajectory τ = (s 0 , a 0 , o 0 , s 1 , a 1 , o 1 , . . . , s T ) records the full interaction. The trajectory succeeds iff its final action is a correct answer, i.e., EM(answer(τ ), y ⋆ (q)) = 1 for gold answer y ⋆ . For a fixed interaction budget T , let c T (q, π; n) be the number of successful trajectories among n i.i.d. rollouts of π on problem q.</p><p>PASS@(k, T ) answers the following question: if we run the agent k independent times on q, giving each run at most T rounds of environment interaction, what is the probability that at least one of the k runs produces a correct final answer? It is therefore the capability of policy π on q under a compound budget (k attempts on one axis, T interaction rounds on the other) and tells us what the agent can achieve when both its sampling and its interaction resources are bounded. Definition 1 (PASS@(k, T )). For a problem q, policy π, interaction depth T ≥ 0, and sampling budget k ≤ n,</p><formula xml:id="formula_0">PASS@(k, T )(q, π) ≜ Pr τ1,...,τ k ∼π(•|q;T ) [∃ i ∈ [k] : τ i is correct] = 1 - n-c T k n k</formula><p>.</p><p>(1)</p><p>The right-hand form is the unbiased hypergeometric estimator <ref type="bibr" target="#b3">[Chen et al., 2021</ref>] computed from n i.i.d. rollouts of π at depth T with c T successes, and is what we use throughout. When k &gt; n -c T , the binomial coefficient is taken as 0 and PASS@(k, T ) = 1.</p><p>The two axes isolate two conceptually distinct things an agent can do. The k axis asks "how reliably does π solve q?" At small k, PASS@(k, T ) tracks pass@1 accuracy and is sensitive to sampling noise; at large k, it tells us whether π can ever produce a correct answer at all, i.e., whether q lies inside π's capability set. The T axis asks "how much of q requires the environment?" At T = 0 the agent must answer from parametric knowledge alone, and increases in PASS@(k, T ) as T grows measure value that cannot be recovered by re-sampling. Two boundary cases sharpen this. When k → n, PASS@(k, T )(q, π) → 1[c T &gt; 0], the indicator of whether π is capable of solving q at depth T ; when T = 0 the metric reduces to the standard static pass@k of <ref type="bibr" target="#b3">Chen et al. [2021]</ref>. PASS@(k, T ) therefore strictly generalizes pass@k, and the two extreme slices of the (k, T ) grid recover, respectively, the capability-boundary indicator and the static-reasoning metric.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Capability boundary, expansion, and efficiency</head><p>The boundary-case k → n motivates the following structural definitions, which formalize what it means for RL to "teach" a policy something the base model does not already know.</p><p>Definition 2 (Capability boundary). The capability boundary of a policy π at interaction depth T is B T (π) = {q ∈ Q : lim k→∞ PASS@(k, T )(q, π) &gt; 0}, the set of problems π can solve at least once under unlimited re-sampling at depth T .</p><p>Definition 3 (Capability expansion). π RL achieves capability expansion over π base at depth T iff B T (π RL ) \ B T (π base ) ̸ = ∅: there exists at least one problem that the RL agent solves but the base agent cannot solve at any sampling budget.</p><p>Definition 4 (Efficiency improvement). π RL achieves efficiency improvement on q ∈ B T (π base ) ∩ B T (π RL ) at depth T iff PASS@(1, T )(q, π RL ) &gt; PASS@(1, T )(q, π base ): both models can solve q, but the RL model does so more reliably.</p><p>The two definitions are genuinely distinct: efficiency improvement moves probability mass within the intersection of capability sets, while capability expansion enlarges the union. A given training procedure may produce both, either, or neither; disentangling the two is the central measurement problem that this paper addresses.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.4">Diagnostic properties of PASS@(k, T )</head><p>The two-dimensional structure of PASS@(k, T ) enables diagnostics that no one-dimensional metric can provide.</p><p>Monotonicity. PASS@(k, T ) is non-decreasing in both k and T : for</p><formula xml:id="formula_1">k 1 ≤ k 2 and T 1 ≤ T 2 , PASS@(k 1 , T 1 ) ≤ PASS@(k 2 , T 2 ).</formula><p>Any trajectory that succeeds at depth T 1 remains successful at T 2 &gt; T 1 (unused rounds are simply not exercised), and monotonicity in k is the standard hypergeometric property; a full proof is in Appendix H.</p><p>Marginal value. The partial improvements ∆ k = PASS@(2k, T ) -PASS@(k, T ) and ∆ T = PASS@(k, T + 1) -PASS@(k, T ) quantify the marginal value of doubling the sampling budget versus deepening the interaction budget by one round. When ∆ T ≫ ∆ k , environment interaction provides value that independent re-sampling cannot replicate, and a practitioner on a fixed compute budget should prefer to deepen T ; when ∆ T ≪ ∆ k , re-sampling dominates.</p><p>Interaction saturation. We define T ⋆ (π; ϵ) = min{T : PASS@(k max , T + 1) -PASS@(k max , T ) &lt; ϵ} as the smallest interaction depth beyond which an additional round of interaction buys less than ϵ at the high-k limit. A higher T ⋆ for one model than another indicates that the former extracts productive value from deeper retrieval chains; equal T ⋆ with unequal plateau heights indicates that training has raised the ceiling at a fixed interaction horizon rather than extended the horizon itself. Reduction to static pass@k. When T = 0 the agent has no tool access and PASS@(k, 0) = pass@k, so Category A (MATH-500 with no tool) functions as a sanity check against published static pass@k numbers for the base model and, by construction, measures whether tool-use RL has any collateral effect on parametric reasoning.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Experimental Setup</head><p>Tasks and retrieval environment. We use three task categories of increasing interaction complexity, each with 100 test problems: Category A is MATH-500 <ref type="bibr" target="#b10">[Hendrycks et al., 2021]</ref> with no tool access, a negative control excluded from training; Category B is HotPotQA comparison questions <ref type="bibr" target="#b50">[Yang et al., 2018]</ref> (two independent retrievals from the question itself), and Category C is HotPotQA bridge questions (two compositionally dependent retrievals, where the second query's argument must be extracted from the first query's result). Categories B and C each provide 100 training problems from HotPotQA's training split, for a total training set of 200 shared between π SFT and π RL . The agent has a single tool, search(query), which performs deterministic BM25 <ref type="bibr" target="#b32">[Robertson &amp; Zaragoza, 2009]</ref> retrieval over the standard HotPotQA distractor corpus (10 paragraphs per question, 2 gold and 8 distractors); identical queries always return the same paragraph. The agent follows a ReAct loop <ref type="bibr" target="#b51">[Yao et al., 2023]</ref> of alternating Thought/Search/Answer actions with retrieved paragraphs appended as Observation; a trajectory is successful iff its final Answer matches the gold answer under light normalization (lowercase, strip articles and trailing punctuation).</p><p>Models under a matched-data comparison. All three trained models start from the same base: Qwen2.5-7B-Instruct <ref type="bibr">[Qwen Team, 2024]</ref> with search-tool instructions in the system prompt. π SFT is π base LoRA-fine-tuned <ref type="bibr" target="#b11">[Hu et al., 2022]</ref> on 200 expert trajectories constructed from HotPotQA's gold supporting-fact annotations, with observation tokens masked from the loss. π RL is π base trained with GRPO <ref type="bibr" target="#b36">[Shao et al., 2024]</ref> on the same 200 problems with binary exact-match reward, group size G = 8, per-token k 3 KL estimator <ref type="bibr" target="#b35">[Schulman, 2020]</ref> against the LoRA-disabled reference, T train = 5, temperature 0.7, and 10 epochs (1000 steps). We additionally train an exploration-bonus variant π RL+explore with reward R aug = R + λ • R explore , λ = 0.1, where R explore = 1 if the set of retrieved-paragraph titles in the trajectory is unseen in the current training batch (Appendix I). The critical design choice is that π SFT and π RL see the same 200 problems and differ only in the learning signal; any B T (π RL ) \ B T (π SFT ) asymmetry therefore cannot be attributed to data exposure.</p><p>Evaluation. For each model, problem, and T ∈ {0, 1, 2, 3, 5} we draw n = 64 i.i.d. trajectories at temperature 0.7 using vLLM <ref type="bibr" target="#b17">[Kwon et al., 2023]</ref> and compute PASS@(k, T ) on the grid k ∈ {1, 2, 4, 8, 16, 32, 64} via Def. 1. Each (q, T ) cell is a separate rollout, so the T sweep is not a restriction of a single long run. Full hyperparameters, expert-trajectory construction, training curves, and per-category PASS@(k, T ) tables are in Appendix D-G.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Does RL Expand Agent Capability?</head><p>We begin with the central question. PASS@(k, T)</p><p>Figure <ref type="figure">1</ref>: The full PASS@(k, T ) landscape: rows are task categories, columns are models. On Category A every row is flat in T (tool unavailable). On Category B the surface saturates at T = 2.</p><p>On Category C π RL 's panel is uniformly warmer than π base 's at T ≥ 2, while π SFT 's is cooler; the training signal shifts the entire surface.</p><p>Category A (no effect). Category B (small expansion). On comparison questions, RL expands the capability boundary modestly: 5 problems become newly solvable while only 1 is lost, yielding a net gain of 4 problems over the base agent. SFT shows a similar net gain of 3 (+5 new, -2 lost). RL still provides a clear capability-boundary gain over π base , but its advantage over π SFT is not significant: comparison questions reduce to two independent retrievals that are straightforwardly demonstrated in the expert trajectories, so supervised imitation is already a nearly sufficient learning signal and leaves little headroom for the exploration advantage of RL to show up.</p><p>Category C (substantial expansion + SFT regression). On bridge questions, which require sequential information gathering, the picture is qualitatively different. RL expands the capability boundary by 5 problems with only 1 regression (net +4), reaching |B RL | = 81, the largest of any model we evaluate. In stark contrast, SFT contracts the boundary: |B SFT | = 73, losing 7 problems the base agent could solve while gaining only 3 (net -4). The asymmetry between RL and SFT on Category C is the single sharpest quantitative finding of this study:</p><formula xml:id="formula_2">|B RL \ B SFT | = 9 versus |B SFT \ B RL | = 1.</formula><p>Given that SFT and RL share identical 200-problem training data, this 9:1 gap can be attributed to the learning signal itself (expert imitation vs. self-directed exploration under binary reward), not to data exposure.</p><p>Aggregated across all 300 problems, the RL agent's total capability boundary is |B RL | = 251 vs.</p><p>|B base | = 243 and |B SFT | = 247. At PASS@(64,5) on Category C, the RL agent reaches 0.81 compared to 0.77 for the base agent and 0.73 for SFT, a +4 percentage-point expansion at the capability-boundary limit on the category where the two-dimensional evaluation matters most.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">The PASS@(k, T ) surface and pass-curves</head><p>Figure <ref type="figure">1</ref> shows the full (k, T ) surface as a 3 × 3 grid of heatmaps (rows = categories, columns = models), and Figure <ref type="figure" target="#fig_1">2</ref> collapses the T = T max slice into pass-curves on a log-k axis. Three qualitative patterns match the three-layer Table <ref type="table" target="#tab_0">1</ref> answer.  (i) Category A is flat in T ; pass-curves cluster within ≤ 5 pp with no systematic ordering.</p><p>Tool-use RL is orthogonal to parametric MATH-500 reasoning, the expected negative control.</p><p>(ii) Category B saturates at T = 2. Every model jumps from near-zero at T = 0 to its plateau at T ∈ {1, 2} and stays flat. At k = 64, π RL is highest (0.86), π SFT follows (0.85), and π base trails by ∼ 4 pp; the two-retrieval strategy is simple enough that both training signals find it, and the RL-over-SFT gap is just 1 pp.</p><p>(iii) Category C pass-curves diverge as k grows, with π RL pulling ahead. At k = 1, π base is actually slightly ahead of π RL on Cat C (0.363 vs. 0.335): single-shot, RL is less reliable than base.</p><p>As k grows the ordering flips near k = 4 and the gap widens, reaching PASS@(64, 5) = 0.81 vs. 0.77 for π base and 0.73 for π SFT , a +4 pp gap that is largest at the right tail. This is exactly the decomposition PASS@(k, T ) is designed to expose: if RL's effect were efficiency improvement, the RL-over-base gap would be largest at small k and converge at large k, the behavior <ref type="bibr" target="#b53">Yue et al. [2025]</ref> report for RLVR on static reasoning. We see the opposite: on Cat C, RL's contribution is primarily capability expansion, not efficiency improvement. RL has effectively traded efficiency for capability: giving up a small amount of single-shot reliability in exchange for the ability to solve additional problems that lay outside the base agent's capability set at any sampling budget.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Per-problem capability analysis and interaction saturation</head><p>Averaged pass-curves hide how many individual problems changed hands. Figure <ref type="figure" target="#fig_3">3a</ref> (left) plots per-problem PASS@(64, 5) on the 100 bridge questions, with rows sorted by π RL 's value; the top half has a clear band of rows that are bright for π RL but dark for π base . Figure <ref type="figure" target="#fig_3">3a</ref> (right) collapses the scatter into four-way stacked counts against π base : {both solve, only base, only model, neither}. The π RL -vs-π base decomposition yields |only π RL | = 5 and |only π base | = 1, a 5:1 asymmetry, with 76 problems in the intersection. For π SFT the corresponding decomposition is 3:7, the opposite direction: matched-data SFT loses more bridge questions than it gains. The exploration-bonus variant π RL+explore sits in between at 4:3. In the π RL -vs-π SFT comparison, |B</p><formula xml:id="formula_3">(C) RL \ B (C) SFT | = 9 against |B (C) SFT \ B (C)</formula><p>RL | = 1: a 9:1 asymmetry under identical training data, which cannot be explained by data exposure.</p><p>Interaction saturation. At ϵ = 0.02, k max = 64, we find T ⋆ (π base ) = T ⋆ (π RL ) = 2 on Category C, while T ⋆ (π SFT ) = 3. Both the base and RL agents level off at the same interaction horizon; what differs is the plateau height (π RL at 0.81 vs. π base at 0.77). RL therefore does not teach the agent to chain more retrievals; it teaches it to convert existing two-hop chains into correct answers more often. The full saturation table is in Appendix J.</p><p>Marginal value analysis. We compute ∆ k = PASS@(2k, T ) -PASS@(k, T ) and ∆ T as the adjacent-step improvement (Figure <ref type="figure" target="#fig_3">3b</ref>). Category B concentrates below the diagonal: once the tworetrieval plateau is reached, ∆ k dominates. Category C has richer structure: points above the diagonal at small k drift below it as k grows, consistent with saturation at T ⋆ = 2-3. Both π RL and π base concentrate below the diagonal on Category C, confirming that once interaction saturates at T ⋆ = 2, broadening the sampling budget k is the dominant source of marginal gains. The marginal-return structure is similar across models; RL's advantage lies in the absolute capability-boundary height rather than in per-step marginal returns. The practical budget rule: Cat B spends on T until T = 2  5 Mechanism Analysis: How Does RL Reshape the Agent? while π RL retains roughly one in six base-like sequences. The same temperature (0.7) and prompt template are used across all three models, so the diversity collapse is not a decoding artifact.</p><p>(c) Cross-policy swapping: causal attribution. Perplexity measures novelty but not causal contribution. We extract the (query, observation) pairs from each model's first successful Category C trajectory, strip the reasoning text, and re-present the fixed retrieval context to one of {π base , π RL } for final-answer generation, giving four conditions (full table in Appendix L). Two asymmetries survive the ∼ 4 pp binomial noise band on n ≈ 80: (i) the denominator of reachable problems grows from 77 to 81 when we use π RL 's retrieval plan, attributable purely to strategy; (ii) swapping reasoning to π RL at fixed π base strategy raises EM by 1.3 pp, and the symmetric swap raises it by 1.8 pp. Both components contribute, with a mild tilt toward retrieval planning.</p><p>A single mechanism explains all three panels. The three panels are jointly consistent with reweighting: RL pushes probability mass within the base model's existing strategy distribution toward the subset whose downstream reasoning lands on the correct answer, without meaningfully enlarging the underlying strategy set. This is qualitatively different from SFT's mechanism, which replaces the base distribution with a narrow expert-like one; on Category C, the replacement costs more problems than it gains while the reweighting gains more than it costs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Discussion and Conclusion</head><p>A three-layer answer, and its relation to static reasoning. "What does RL teach agents" has a layered answer that tracks task complexity. On pure reasoning (Cat A), tool-use RL is inert, replicating <ref type="bibr" target="#b53">Yue et al. [2025]</ref>'s null for RLVR on MATH-500. On independent retrieval (Cat B), π RL and π SFT expand the boundary by similar amounts (+4 and +3 net); the two-retrieval strategy is simple enough that either signal finds it. On sequential retrieval (Cat C), the picture changes qualitatively: π RL expands the boundary by a net +4, matched-data π SFT regresses by -4, and the 9:1 asymmetry under identical training data makes the learning-signal effect unambiguous. The Cat A inertness and the Cat C expansion are mutually consistent: RL redistributes probability mass, and redistribution can enlarge the capability set only if the base distribution already sparsely contains strategies the task rewards; the compositional bridge structure of Cat C supplies such strategies while MATH-500 does not.</p><p>Practical implications and limitations. On compositional tool-use tasks, prefer GRPO with task reward over expert-trajectory SFT; the latter actively regresses the capability boundary. On simpler tool-use tasks either signal produces comparable gains. The marginal-value analysis recommends deepening T before broadening k at small k; above k ≥ 8 the two become comparable. Our main limitations are BM25 over a 10-paragraph corpus rather than web-scale retrieval, a single 7B base model, a single retrieval tool, and a 200-problem training budget. Scaling to 14B models, temperature sweeps, and T &gt; T train extrapolation are the most urgent follow-ups (Appendix J). To conclude, PASS@(k, T ) shows that agentic RL expands the capability boundary via reweighting, while SFT regresses it.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Related Work</head><p>RL for LLM agents and tool use. End-to-end RL over multi-turn tool-use trajectories is a rapidly growing family that includes Agent-R1 <ref type="bibr" target="#b54">[Cheng et al., 2025]</ref>, ReTool <ref type="bibr" target="#b8">[Feng et al., 2025]</ref>, Agent-Q <ref type="bibr" target="#b29">[Putta et al., 2024]</ref>, Search-R1 <ref type="bibr" target="#b14">[Jin et al., 2025]</ref>, and MAGRPO <ref type="bibr">[Liu et al., 2025b]</ref>. These works target higher benchmark scores under a single reward-weighted objective but do not decompose the observed improvements into capability vs. efficiency. Earlier agent frameworks such as Reflexion <ref type="bibr" target="#b38">[Shinn et al., 2023]</ref>, Voyager <ref type="bibr">[Wang et al., 2023b]</ref>, and LATS <ref type="bibr" target="#b56">[Zhou et al., 2024]</ref> employ verbal selfreflection or tree search rather than gradient-based RL, but similarly report aggregate task-completion rates. Tool-augmented LLM benchmarks such as ToolBench <ref type="bibr" target="#b30">[Qin et al., 2024]</ref>, AgentBench <ref type="bibr" target="#b21">[Liu et al., 2024]</ref>, and SWE-bench <ref type="bibr" target="#b13">[Jimenez et al., 2024]</ref> likewise report aggregate accuracy.</p><p>LLM tool use and retrieval augmentation. The ability of LLMs to call external tools has been studied through Toolformer <ref type="bibr" target="#b33">[Schick et al., 2023]</ref>, Gorilla <ref type="bibr" target="#b28">[Patil et al., 2023]</ref>, ART <ref type="bibr" target="#b27">[Paranjape et al., 2023]</ref>, and Chameleon <ref type="bibr" target="#b22">[Lu et al., 2024]</ref>. Retrieval-augmented generation (RAG) <ref type="bibr" target="#b18">[Lewis et al., 2020</ref><ref type="bibr" target="#b12">, Izacard &amp; Grave, 2021]</ref> provides a complementary paradigm where a retriever supplies relevant passages to the generator. Our experimental setup, which uses BM25 retrieval in a ReAct loop, combines elements of both tool-use and RAG.</p><p>Reasoning in LLMs. Chain-of-thought prompting <ref type="bibr" target="#b48">[Wei et al., 2022</ref><ref type="bibr" target="#b16">, Kojima et al., 2022]</ref> and selfconsistency decoding <ref type="bibr">[Wang et al., 2023a]</ref> have shown that multi-step reasoning can be elicited from pre-trained LLMs. Process reward models <ref type="bibr" target="#b20">[Lightman et al., 2024</ref><ref type="bibr" target="#b43">, Uesato et al., 2022]</ref> and outcomebased verifiers <ref type="bibr" target="#b6">[Cobbe et al., 2021]</ref> provide training signals for improving reasoning. More recently, RL-trained reasoning models such as DeepSeek-R1 <ref type="bibr" target="#b9">[Guo et al., 2025]</ref> and OpenAI o1 <ref type="bibr">[OpenAI, 2024]</ref> have demonstrated substantial reasoning improvements, with scaling test-time compute <ref type="bibr" target="#b39">[Snell et al., 2024]</ref> emerging as a complementary axis to model scaling.</p><p>Capability evaluation and RL's "limits" debate. The pass@k metric <ref type="bibr" target="#b3">[Chen et al., 2021]</ref> and its repeated-sampling analyses <ref type="bibr" target="#b2">[Brown et al., 2024]</ref> have been used to distinguish capability expansion from efficiency in static reasoning, and <ref type="bibr" target="#b53">Yue et al. [2025]</ref> use this lens to argue that RL on verifiable rewards (RLVR) for mathematical reasoning does not enlarge the base model's capability set: at large k, base and RL pass@k curves converge. Holistic evaluation frameworks <ref type="bibr" target="#b19">[Liang et al., 2023</ref><ref type="bibr" target="#b40">, Srivastava et al., 2023]</ref> and compositional benchmarks <ref type="bibr" target="#b42">[Trivedi et al., 2022</ref><ref type="bibr" target="#b15">, Khot et al., 2023]</ref> have broadened the evaluation landscape but do not offer a formal capability-expansion diagnostic. Pass@k is inherently one-dimensional, however, and cannot speak to agentic tasks where the agent's interaction depth T controls which families of compositional strategies are even representable. To analyze RL-trained LLM agents, we therefore design a new two-dimensional metric, PASS@(k, T ), that jointly varies a sampling budget k and an interaction-depth budget T . Applied in a matched-data controlled design, PASS@(k, T ) reveals a qualitatively different picture from the static-reasoning case: RL does produce capability-boundary expansion on compositional tool-use tasks, with the improvement concentrated on the reasoning, not the retrieval, component of the trajectory.</p><p>RL foundations for LLMs. The REINFORCE algorithm <ref type="bibr" target="#b49">[Williams, 1992]</ref> and its variance-reduced successors, including PPO <ref type="bibr" target="#b34">[Schulman et al., 2017]</ref>, form the backbone of RLHF <ref type="bibr" target="#b26">[Ouyang et al., 2022</ref><ref type="bibr" target="#b5">, Christiano et al., 2017]</ref>. Offline alternatives such as DPO <ref type="bibr" target="#b31">[Rafailov et al., 2023]</ref> and Constitutional AI <ref type="bibr" target="#b0">[Bai et al., 2022]</ref> avoid online rollouts but cannot straightforwardly handle multi-turn agentic trajectories with environment feedback. GRPO <ref type="bibr" target="#b36">[Shao et al., 2024]</ref> and DAPO <ref type="bibr" target="#b52">[Yu et al., 2025]</ref> are recent online RL methods tailored to LLM training; we use GRPO throughout.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B System Prompt</head><p>The following system prompt is used for all agents on HotPotQA tasks:</p><p>You are a helpful assistant that answers questions by searching for relevant information.</p><p>You have access to one tool: search(query) -Search for a relevant paragraph in the document collection. Returns the title and text of the most relevant paragraph matching your query. For Category A (MATH-500), a standard mathematical reasoning prompt is used without tool instructions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Data Splits and Sampling</head><p>We sample from HotPotQA's training split for RL/SFT training and from the development split for evaluation, since test set labels are not publicly available. Questions are filtered by type (comparison vs. bridge) using the provided annotations. We use a fixed random seed (42) for reproducibility. We verify that no test questions appear in the training set. MATH-500 problems are sampled with stratification across difficulty levels and topics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Training and Evaluation Details</head><p>Full SFT and RL hyperparameters, the expert-trajectory construction procedure, and evaluation grid details are included in the following subsections.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D.1 SFT Expert Trajectory Construction</head><p>For each training problem, we construct one expert trajectory using the gold supporting-fact annotations. HotPotQA provides a list of (paragraph title, sentence index) pairs identifying the evidence needed to answer each question.</p><p>For comparison questions, the expert searches for each of the two gold paragraph titles, reads both, then answers: For bridge questions, the expert searches for the first-hop entity, extracts the bridge entity, then searches for the second-hop: During SFT training, loss is computed only on model-generated tokens; Observation tokens are masked with label = -100.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E BM25 Retrieval Details</head><p>We use the rank_bm25 Python library with default parameters (k 1 = 1.5, b = 0.75). Each paragraph is represented as its title concatenated with its full text, tokenized by whitespace and lowercased. The search query is processed identically. The paragraph with the highest BM25 score is returned. Ties are broken by paragraph index (deterministic).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>F RL Training Curves and Implementation Notes</head><p>The π RL checkpoint is produced by 10 GRPO epochs over the 200-problem HotPotQA training set, yielding 1000 gradient steps. Average per-batch reward (fraction of the 16 trajectories per batch that achieve exact-match on the gold answer) fluctuates between 0.0 and 0.94 throughout training, with a long-run mean near 0.33-0.50. The batch-to-batch variance is substantial because each batch contains only 2 problems × 8 rollouts and the reward is binary; we see no monotonic upward trend of per-batch success rate after epoch 5, but the PASS@(64,5) of saved checkpoints does improve between step 850 (0.78 on Category C) and step 1000 (0.81), indicating that late-stage updates are still pushing the capability-boundary outward even as pass@1 appears noisy.</p><p>We compute the KL penalty using a per-token</p><formula xml:id="formula_4">k 3 estimator, KL(π new ∥π ref ) ≈ E[exp(log π ref -log π new ) -(log π ref -log π new ) -1],</formula><p>clamped at the per-token level and averaged over the model-generated tokens of each trajectory. The reference distribution is the LoRA-disabled forward pass of the same model, so no separate reference model is materialized. Across training, the estimator remains non-negative and in the single-digit nats range per trajectory, consistent with a policy that is drifting from the base distribution but not diverging catastrophically.</p><p>Training was performed on a single 48GB GPU with 8-bit Adam and LoRA rank 16 (∼ 40M trainable parameters). Total wall-clock time for the 1000-step run was approximately 55 hours.</p><p>G Full PASS@(k, T) Tables <ref type="table" target="#tab_7">Table 2 reports</ref> the complete PASS@(k,T) values averaged over the problems in each category, for all three models and all (k, T ) combinations in our evaluation grid. For Category A (MATH-500) only T = 0 is meaningful, since the tool is unavailable.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>H Formal Properties of PASS@(k, T)</head><p>Proposition 1 (Monotonicity). For any problem q and policy π:</p><formula xml:id="formula_5">PASS@(k 1 , T 1 )(q, π) ≤ PASS@(k 2 , T 2 )(q, π) whenever k 1 ≤ k 2 and T 1 ≤ T 2 .</formula><p>Proof. Write PASS@(k, T ) using the unbiased hypergeometric estimator (Def. 1):</p><formula xml:id="formula_6">1 -n-c T k / n k . Fix T . Since n-c T k / n</formula><p>k is monotone non-increasing in k for fixed c T (this is the standard pass@k monotonicity), PASS@(k, T ) is non-decreasing in k. Now fix k. Any trajectory τ that terminates with the correct answer after at most T 1 interaction rounds is a valid trajectory of length at most T 2 &gt; T 1 (the agent simply never uses the extra rounds), so c T2 ≥ c T1 pointwise on the same sample. Taking expectation over the sampling procedure and applying the same estimator gives PASS@(k, T 2 ) ≥ PASS@(k, T 1 ). Combining the two gives the joint monotonicity.</p><p>Proposition 2 (Reduction to static pass@k). For any q and π, PASS@(k, 0)(q, π) = pass@k(q, π) where pass@k is the standard single-context metric of <ref type="bibr" target="#b3">Chen et al. [2021]</ref>. Proof. When T = 0, the agent must emit a final answer without using the tool. The trajectory is therefore a single model completion conditioned on the task description, identical to the sampling procedure used by static pass@k. The unbiased hypergeometric estimator 1 -n-c k / n k with c = c 0 is the definition of pass@k.</p><p>Proposition 3 (Capability expansion implies a strict boundary increase). If π RL achieves capability expansion over π base at depth T (Definition 3), then</p><formula xml:id="formula_7">|B T (π RL )| ≥ |B T (π base ) ∩ B T (π RL )| + 1 &gt; |B T (π base ) ∩ B T (π RL )|,</formula><p>strictly enlarging the intersection cardinality. (Capability expansion may coexist with efficiency loss: π RL can newly solve some problems and also have lower PASS@(1, T ) on problems in the intersection.) Proof. Immediate from B T (π RL ) \ B T (π base ) ̸ = ∅. The parenthetical remark is important for interpreting our Category C numbers: at k = 1, π RL and π base have similar values on Cat C (0.33 vs. 0.36) but diverge at k = 64 because the expansion happens on a small set of problems at the capability-boundary limit rather than on the many-solved intersection.</p><p>Consistency with n. The unbiased hypergeometric estimator is invariant under increasing n (we computed the same value from n = 32 subsets of our n = 64 rollouts and obtained agreement within binomial noise, see Table <ref type="table">3</ref>).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>I Exploration-Bonus Ablation</head><p>Our main π RL checkpoint is trained with a pure task-completion reward: R(τ ) = 1 if the final answer exactly matches the gold answer, 0 otherwise. This signal does not explicitly encourage the agent to explore novel retrieval strategies. We therefore train a variant π RL+explore with an augmented reward R aug (τ ) = R task (τ ) + λ • R explore (τ ), λ = 0.1, where R explore (τ ) = 1 if the (normalized) set of paragraph titles retrieved in τ does not appear in any other trajectory of the current training batch, and 0 otherwise. All other hyperparameters are identical to π RL 's.</p><p>The π RL+explore run was interrupted by an external GPU memory conflict on our shared cluster at epoch 8/10 (step 700/1000). Evaluating the latest completed checkpoint yields Category C PASS@(64,5) = 0.78, with a net capability-boundary expansion of +1 over π base (4 newly solvable bridge problems, 3 regressions). This is below the π RL run's net +4 (5 new, 1 regression) at 0.81, but the two runs did not see matched compute, so we report this as indicative rather than definitive. Two observations are worth recording despite the truncated schedule. First, the exploration bonus does not appear necessary to unlock capability expansion: π RL achieves a larger expansion under a simpler reward. Second, when the training corpus is small relative to the model's base strategic diversity ( §6(b) reports 40-45 unique query sequences per problem under π base ), an explicit information-state novelty bonus has little headroom to push the policy further (the strategy-diversity measurement in §6(b) shows that π RL already inherits and slightly extends π base 's per-problem diversity). A fair rerun of π RL+explore for the full schedule is a priority for a revised version.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>J Additional Robustness Results</head><p>Intermediate-checkpoint consistency. Evaluating the RL policy at step 850 rather than at step 1000 reproduces every directional finding reported in the main text: RL &gt; base &gt; SFT on Category C PASS@(64,5), no capability-boundary change on Category A, and a modest base-surpassing effect on Category B. PASS@(64,5) values at step 850 / step 1000 are respectively: Category A 0.85/0.84, Category B 0.83/0.86, Category C 0.78/0.81. The final checkpoint therefore has a cleaner Category C story but the signs are stable across the last 150 GRPO steps.</p><p>Scale, temperature, and T &gt; T train . Within the submission window we did not repeat the full pipeline on Qwen2.5-14B-Instruct or LLaMA-3.1-8B-Instruct, did not sweep the sampling temperature away from 0.7, and did not evaluate at interaction depths beyond the training budget T train = 5. These robustness checks, particularly the temperature sweep, which controls for the possibility that RL training mechanically lowers the output entropy and thereby inflates PASS@(1,T) while deflating PASS@(64,T), are the most important next runs. The data-generation, checkpointing, and evaluation infrastructure is already in place; the extensions require only additional compute, and we will include them in a revised version.</p><p>Public-checkpoint external validity. An orthogonal robustness check is to apply PASS@(k,T) to publicly released agentic RL checkpoints such as Search-R1 <ref type="bibr" target="#b14">[Jin et al., 2025]</ref> or Agent-R1 <ref type="bibr" target="#b54">[Cheng et al., 2025]</ref>, using the same HotPotQA distractor setup, and test whether the three-layer pattern (Category A inert, Category B modest, Category C substantive) holds for well-tuned, productionquality RL pipelines. Such an external validation would trade off our clean π RL /π SFT matched-data ablation for stronger evidence that the pattern generalizes beyond our 200-problem custom recipe; we leave this to a revised version.</p><p>Per-category saturation table. Table <ref type="table">3</ref> reports interaction saturation points T ⋆ at multiple ϵ thresholds, using k max = 64. The main-text number (ϵ = 0.02) is stable to perturbations of ϵ ∈ [0.01, 0.05]: π RL never saturates later than π SFT on Category C, but the plateau height is always higher.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>K Training Curves and Reward Dynamics</head><p>We summarize selected statistics over the 1000-step GRPO training run for π RL in text form, since the full training logs are released with the code. Per-batch reward (fraction of the 16 trajectories Table <ref type="table">3</ref>: Interaction saturation T ⋆ (π; ϵ) at k max = 64 for multiple tolerance levels. "&gt; 5" indicates the gap remained above ϵ at the largest T evaluated.</p><formula xml:id="formula_8">Category ϵ T ⋆ (πbase) T ⋆ (πSFT) T ⋆ (πRL) B (Comparison) 0.01 2 2 2 B (Comparison) 0.02 1 2 1 B (Comparison) 0.05 1 1 1 C (Bridge) 0.01 3 &gt; 5 3 C (Bridge) 0.02 2 3 2 C (Bridge) 0.05 2 2 2</formula><p>per batch that exactly match the gold answer) starts near 0.20 at step 50, rises noisily to a long-run mean of 0.33-0.50 by step 300, and fluctuates in the range [0.00, 0.94] thereafter. The fluctuation is large because each batch contains only 2 problems × 8 rollouts each, and the reward is binary.</p><p>Between step 850 and step 1000 (the last 150 steps of training), the mean per-batch reward shows no systematic upward trend, yet the PASS@(64,5) on Category C of the saved checkpoints improves from 0.78 (step 850) to 0.81 (step 1000). This gap is consistent with the reweighting mechanism of §5: late-stage updates shift mass between existing strategies without changing the batch-mean success rate meaningfully, but the shift is concentrated on the high-sample capability-boundary tail.</p><p>The k 3 KL estimator stays strictly non-negative in expectation (by construction) and hovers in the single-digit-nats per trajectory range (∼ 4-15 nats, or ∼ 0.03-0.08 nats per model-generated token), indicating the policy is drifting from π base but not diverging catastrophically. An early version of our code used the k 1 estimator log(π new /π ref ) summed over trajectory tokens, which produced occasional large negative values and added the wrong sign to the loss; we corrected this to the per-token k 3 estimator before the runs reported in the main text.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>L Mechanism Protocol Details</head><p>Perplexity decomposition. For each of the 200 successful π RL Category-C trajectories we reparse the trajectory into three spans: search (the content after "Search:" on any Search line, up to end-ofline), reason (the content after "Thought:" and "Answer:"), and observation (retrieved paragraphs appended by the environment). Observation spans are excluded from the perplexity computation since they are not policy choices. For each non-observation span we compute π base 's token-level log-probability on the exact tokens emitted by π RL , conditioning on the full preceding context. We then average the negative log-probabilities over tokens in each span class and exponentiate. The estimator reduces to the standard definition of perplexity on that token class under the base model.</p><p>Cross-policy evaluation. For each Category C problem we select the first successful trajectory of the specified strategy source (either π base or π RL ) and extract the ordered list of (query i , observation i ) pairs. We then form a prompt:</p><p>You are given a question and the results of several searches. Based on the search results, answer the question concisely.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Question: {question}</head><p>Search 1 (query: "{query_1}"): {observation_1}</p><p>Search 2 (query: "{query_2}"): {observation_2}</p><p>... (more search results) ... Based on the above search results, provide a concise answer. Answer:</p><p>and have the reasoning source model generate up to 50 tokens, stopping at the first newline. The generated text is normalized (lowercase, strip articles, strip punctuation) and compared to the gold answer. Importantly, this protocol uses a different prompt format from the in-loop ReAct evaluation:</p><p>there is no Thought: cue, no turn-by-turn interleaving, and the agent is not asked to issue further searches. This is why the absolute EM rates in Table <ref type="table" target="#tab_8">4</ref> are much lower than the in-loop PASS@(1, 5) values in Table <ref type="table" target="#tab_7">2</ref>: the cross-policy prompt is deliberately stripped to isolate the reasoning-only contribution. The value of the experiment is in the relative ordering across the four conditions, not the absolute numbers. Strategy diversity normalization. When counting unique query sequences per problem, lowercase each query, strip surrounding punctuation and whitespace, collapse internal whitespace, and then form the ordered tuple of normalized queries as the sequence key. Without this normalization, cosmetic variations such as trailing periods or capitalization differences would count as distinct strategies and inflate the novelty fraction; with it, the 3× diversity collapse of π SFT vs. π base is preserved, indicating that the effect is not a tokenization artifact.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>M Qualitative Analysis of Capability Expansion</head><p>To check that the 5:1 per-problem asymmetry of π RL against π base on Category C is not an accident of a single quirky subset of bridge questions, we inspect the five problems in |only π RL | and the single problem in |only π base |. In all five π RL -only problems, the base agent's 64 samples at T = 5 generate a plausible first-hop retrieval (the correct bridge entity appears in the retrieved paragraph) but fail to chain it correctly into a second-hop query: either the agent re-asks the first question rephrased, issues an over-specific query that misses the second gold paragraph, or extracts the wrong bridge entity from the first observation. The RL agent's successful trajectories on the same five problems show a consistent pattern: the first search is nearly identical to the base model's (consistent with the perplexity decomposition's finding that RL queries are in-distribution for π base ), but the reasoning text between Search 1 and Search 2 is more compressed and extracts the bridge entity by a direct copy rather than a paraphrase. The single π base -only problem is the mirror image: the base agent's first search returns both gold paragraphs in sequence by chance, so no composition is needed; the RL agent samples a slightly longer query that retrieves a distractor on its first attempt. We take the asymmetry as evidence that π RL 's gain on Cat C is concentrated in the "how to use the first observation" step, consistent with the Section 5 mechanism findings.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>N Computational Cost</head><p>All experiments run on a shared cluster with 8× NVIDIA RTX 6000 Ada (48 GB) GPUs. Training takes roughly 55 hours on a single GPU for π RL (LoRA rank 16, 8-bit Adam, ∼ 40M trainable params), dominated by the 2 × 8 = 16 rollouts per gradient step with BM25 retrieval in the inner loop. SFT is inexpensive (∼ 12 minutes for 3 epochs over 200 expert trajectories). Evaluation is the dominant cost at inference time: for each of the four models, (100 problems) × (64 samples) × (5 depths) = 32000 trajectories, at approximately 10-30 it/s using vLLM continuous batching on a single GPU, totals ∼ 30-60 GPU-minutes per (model, category) cell. Full pipeline wall-clock for all four models across all three categories (excluding training) is about 8 GPU-hours.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>O Full Marginal-Value Data</head><p>This appendix gives the complete marginal-value data underlying §4.3, Figure <ref type="figure" target="#fig_3">3b</ref>, and the budgetallocation recommendation.</p><p>O.1 Fraction-ratio heatmap across the (k, T ) grid</p><p>Figure <ref type="figure" target="#fig_4">5</ref> shows the ratio ∆ T /(∆ T + ∆ k ) on a 2 × 3 grid of heatmaps (rows = Categories B and C, columns = models). Warm cells (ratio &gt; 0.5) mean depth is the more valuable direction at that (k, T ) operating point; cool cells (ratio &lt; 0.5) mean sampling is. Cells where both ∆ T and ∆ k fall below 0.005 are rendered gray ("sat") to avoid division-by-small-number artifacts. Category A is omitted because ∆ T = 0 throughout (no tool access).   </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>P Sampling Sufficiency</head><p>To verify that n = 64 trajectories per (q, T ) cell is sufficient for the comparisons we report, we randomly sub-sample the 64 rollouts to n ′ ∈ {32, 48} with a fixed seed and recompute category-averaged PASS@(k, T ). p ≈ 0.5, and an order of magnitude smaller than the cross-model gaps we rely on in §4. We conclude that n = 64 is more than sufficient for the conclusions of this paper.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Q Per-problem Analysis for Categories A and B</head><p>For completeness we repeat Figure <ref type="figure" target="#fig_3">3a</ref>'s per-problem format for Categories A and B, which do not feature in the main text because their capability-set asymmetries are small and symmetric between models. Figures <ref type="figure" target="#fig_6">6</ref> and<ref type="figure">7</ref> show per-problem PASS@(64, T max ) (left) and capability-set decomposition vs. π base (right). On Category A, the three models produce nearly identical columns in the sorted heatmap, and the only-model and only-base slices are balanced, consistent with the negative-control status of Category A. On Category B, π SFT , π RL+explore , and π RL each add a handful of problems over π base and lose a handful, producing the symmetric pattern reported in Table <ref type="table" target="#tab_0">1</ref> (rows B).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>R Bootstrap Confidence Intervals</head><p>We assess the sampling uncertainty in the Table 1 capability-boundary statistics via a Bernoulli bootstrap. For each test problem q and model π we treat c T (q, π)/n as π's success rate on q at depth T ; we then generate 1000 bootstrap replicates by redrawing n = 64 Bernoulli trials per problem with the observed rate, and recompute the capability boundary B T , the set-difference cardinalities, and the three-way decomposition in each replicate.     T SFT Perplexity Decomposition  side. We find PPL SFT search = 2.73 (median 2.38) and PPL SFT reason = 3.93 (median 3.56), both materially higher than the corresponding π RL values of 2.07 and 3.08. In other words, the base model finds all of SFT's trajectory components more surprising than RL's trajectory components: SFT has replaced the base distribution on both the retrieval and the reasoning side, while RL has stayed closer to base on both sides. This matches the strategy-diversity evidence in §5: SFT's mean novelty fraction is 97.7% of sequences (almost complete distribution replacement), while RL's is 83.9%.  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head></head><label></label><figDesc>On pure mathematical reasoning, |B RL | = |B base | = 84, and |B RL \B base | = |B base \ B RL | = 3. The RL-trained agent neither gains nor loses MATH-500 capability relative to the base model, confirming that tool-use RL does not transfer to pure reasoning when mathematics is excluded from the training distribution.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: PASS@(k, T max ) vs. sampling budget k on a log axis. T max = 0 for Category A and T max = 5 for B and C. On Category C, π base and π RL cross near k = 4: at k = 1 π base is slightly ahead, but as k grows π RL pulls above and the gap widens (+4 pp at k = 64), the opposite of the convergence reported by<ref type="bibr" target="#b53">Yue et al. [2025]</ref>. π SFT sits below both.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head></head><label></label><figDesc>Capability set decomposition vs.\ πbase at PASS@(64, 5) both solve only model only πbase neither (a) Left: per-problem PASS@(64, 5) on the 100 bridge questions, rows sorted by πRL's value. Right: capabilityset decomposition against πbase. The 5:1 asymmetry for πRL (5 problems only πRL solves, 1 only πbase) is the cleanest visual statement of capability expansion. πSFT's ratio inverts to 3:7. @(2k, T) -PASS@(k, T) @(k, T+1) -PASS@(k, T) (per round) Category B (Independent retrieval) @(2k, T) -PASS@(k, T) Marginal value of interaction depth (∆T ) vs. sampling breadth (∆ k ) on Categories B and C. Each point is one (k, T ) operating point. Points above the diagonal favor deepening T ; below favor broadening k. Category A omitted (∆T = 0).</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Per-problem capability analysis and marginal-value diagnostics on the (k, T ) grid. then grows k; Cat C deepens T until T = 2 then grows k, with ∆ T and ∆ k comparable at k ≤ 4 and ∆ k dominant for k ≥ 8. Full ∆ tables and the fraction-ratio heatmap are in Appendix O.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Fraction-ratio heatmap ∆ T /(∆ T + ∆ k ) per operating point. Rows are Categories B and C; columns are models (π base , π SFT , π RL ). Red cells favor interaction depth; blue cells favor sampling breadth. The warm interior of each Category C panel (especially the top-left corner, where both k and T are small) is the region where deepening T returns the most, and π RL 's warm region is larger than π base 's, matching the widening-gap behavior of Figure 2.</figDesc><graphic coords="20,162.50,268.26,86.93,77.05" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Per-problem PASS@(64, 0) on Category A (MATH-500). The three models' columns are nearly identical; the capability-set decomposition is symmetric with only-model and only-base counts both near three. S Category C per-T Pass Curves</figDesc><graphic coords="22,135.29,407.65,131.00,112.85" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 8</head><label>8</label><figDesc>Figure8is an alternative visualization of the Category C row of Figure1: instead of a heatmap, we plot PASS@(k, T ) vs. k with one curve per T value, and a separate subplot for each model. This view makes the effect of deepening interaction directly readable: the spacing between adjacent-T curves is the per-round ∆ T .</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 9 complements</head><label>9</label><figDesc>Figure 9 complements Figure 4(a) by computing the same base-model perplexity decomposition on 200 successful π SFT Category C trajectories, then plotting both π SFT and π RL distributions side-by-</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_10"><head>Figure 7 :Figure 8 :</head><label>78</label><figDesc>Figure 7: Per-problem PASS@(64, 5) on Category B (comparison questions). π SFT and π RL produce similar capability-set decompositions, each adding ∼ 5 new bridge problems over π base and losing ∼ 2.</figDesc><graphic coords="24,135.29,95.05,131.00,112.85" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>Capability boundary analysis. Number of problems (out of 100 per category) solvable at PASS@(64, 5) and the overlap between model capability sets. |B X \ B Y | denotes problems solvable by X but not Y . Bridge questions (Category C) show the largest RL expansion over the base agent. Category |B base | |B SFT | |B RL | |B RL \ B base | |B base \ B RL | |B SFT \ B base |</figDesc><table><row><cell>A (Pure Reasoning)</cell><cell>84</cell><cell>89</cell><cell>84</cell><cell>3</cell><cell>3</cell><cell>5</cell></row><row><cell>B (Independent Retr.)</cell><cell>82</cell><cell>85</cell><cell>86</cell><cell>5</cell><cell>1</cell><cell>5</cell></row><row><cell>C (Sequential Retr.)</cell><cell>77</cell><cell>73</cell><cell>81</cell><cell>5</cell><cell>1</cell><cell>-4</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Category A (Pure reasoning) πbase</head><label></label><figDesc>Table 1 reports the capability boundary of each model at full evaluation budget (k = 64, T = 5), measured as the set of problems each model can solve at least once. The critical column is |B RL \ B base |: problems that the RL agent can solve but the base agent cannot solve in any of 64 attempts with 5 search rounds. Table 1 reveals a three-layer pattern that cleanly maps onto the three task categories:</figDesc><table><row><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>πSFT</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>πRL</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell></cell><cell>T (interaction depth)</cell><cell>0 1 2 3</cell><cell>0.00 0.00 0.00 0.43</cell><cell>0.00 0.00 0.00 0.63</cell><cell>0.00 0.00 0.00 0.76</cell><cell>0.00 0.00 0.00 0.84</cell><cell>1 2 3 0</cell><cell>0.00 0.00 0.00 0.43</cell><cell>0.00 0.00 0.00 0.66</cell><cell>0.00 0.00 0.00 0.77</cell><cell>0.00 0.00 0.00 0.89</cell><cell>1 2 3 0</cell><cell>0.00 0.00 0.00 0.43</cell><cell>0.00 0.00 0.00 0.65</cell><cell>0.00 0.00 0.00 0.77</cell><cell>0.00 0.00 0.00 0.84</cell><cell>0.8 1.0</cell></row><row><cell></cell><cell></cell><cell></cell><cell>5</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>5</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>5</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell>0.00</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>1</cell><cell>4</cell><cell>16</cell><cell>64</cell><cell></cell><cell>1</cell><cell>4</cell><cell>16</cell><cell>64</cell><cell></cell><cell>1</cell><cell>4</cell><cell>16</cell><cell>64</cell><cell></cell></row><row><cell>Category B</cell><cell>(Independent retrieval)</cell><cell>T (interaction depth)</cell><cell>0 1 2 3 5</cell><cell>0.01 0.28 0.32 0.20 0.19</cell><cell>0.03 0.56 0.57 0.45 0.43</cell><cell>0.05 0.75 0.73 0.68 0.69</cell><cell>0.06 0.84 0.82 0.81 0.82</cell><cell>1 2 3 5 0</cell><cell>0.39 0.41 0.39 0.40 0.27</cell><cell>0.63 0.69 0.67 0.68 0.44</cell><cell>0.78 0.82 0.80 0.81 0.59</cell><cell>0.85 0.87 0.86 0.85 0.67</cell><cell>1 2 3 5 0</cell><cell>0.29 0.30 0.28 0.28 0.08</cell><cell>0.60 0.60 0.60 0.60 0.15</cell><cell>0.79 0.78 0.79 0.80 0.21</cell><cell>0.85 0.85 0.85 0.86 0.24</cell><cell>0.4 0.6</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>1</cell><cell>4</cell><cell>16</cell><cell>64</cell><cell></cell><cell>1</cell><cell>4</cell><cell>16</cell><cell>64</cell><cell></cell><cell>1</cell><cell>4</cell><cell>16</cell><cell>64</cell><cell></cell></row><row><cell>Category C</cell><cell>(Sequential retrieval)</cell><cell>T (interaction depth)</cell><cell>0 1 2 3</cell><cell>0.01 0.31 0.34 0.36</cell><cell>0.02 0.49 0.51 0.51</cell><cell>0.02 0.61 0.65 0.65</cell><cell>0.03 0.67 0.76 0.76</cell><cell>1 2 3 0</cell><cell>0.15 0.28 0.27 0.06</cell><cell>0.26 0.48 0.49 0.11</cell><cell>0.40 0.62 0.66 0.16</cell><cell>0.54 0.72 0.75 0.20</cell><cell>1 2 3 0</cell><cell>0.27 0.33 0.33 0.02</cell><cell>0.49 0.54 0.54 0.04</cell><cell>0.63 0.69 0.69 0.06</cell><cell>0.71 0.80 0.78 0.09</cell><cell>0.0 0.2</cell></row><row><cell></cell><cell></cell><cell></cell><cell>5</cell><cell>0.36</cell><cell>0.53</cell><cell>0.68</cell><cell>0.77</cell><cell>5</cell><cell>0.27</cell><cell>0.49</cell><cell>0.64</cell><cell>0.73</cell><cell>5</cell><cell>0.34</cell><cell>0.54</cell><cell>0.69</cell><cell>0.81</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>1</cell><cell cols="2">4 k (sampling budget) 16</cell><cell>64</cell><cell></cell><cell>1</cell><cell cols="2">4 k (sampling budget) 16</cell><cell>64</cell><cell></cell><cell>1</cell><cell cols="2">4 k (sampling budget) 16</cell><cell>64</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head></head><label></label><figDesc>RL trajectories from Category C at T = 5 we obtain PPL search = 2.07 (median 1.94) vs. PPL reason = 3.08 (median 2.79), a 50% gap. Per-token surprisals are 0.73 nats for queries and 1.12 nats for reasoning. If RL had primarily learned exotic search strings, PPL search should dominate; we see the opposite. The novelty that π base detects in π RL 's successful trajectories is concentrated on how the agent reasons over the returned paragraphs, not on what it searched for. Figure 4: Mechanism analysis on Category C. (a) Distributions of π base 's perplexity on 200 successful π RL trajectories, split into search-query tokens and reasoning tokens. The reasoning distribution (median 2.79) is shifted substantially above the query distribution (median 1.94); RL's divergence from base is not on what to search but on how to integrate the returned paragraphs. (b) Number of unique search-query sequences produced by each model from 64 samples per Category-C problem.π SFT collapses to a median of 10 unique sequences per problem (a 3× reduction vs. π base ), while π RL is slightly above π base . (c) Cross-policy exact-match accuracy for the four {π base , π RL } 2 (strategy, reasoning) conditions on Category C. Bar heights cluster inside the ∼ 4 pp binomial noise band on n ≈ 80; the ordering mildly favors π RL -as-strategy over π RL -as-reasoning.</figDesc><table><row><cell>πbase perplexity</cell><cell>2.5 5.0 7.5 10.0 12.5 15.0</cell><cell>PPLsearch (a) Base-model perplexity on πRL trajectories PPLreason</cell><cell># unique query sequences / problem</cell><cell>0 10 20 30 40 50 60</cell><cell>πbase (b) Strategy diversity on Category C πSFT πRL</cell><cell>EM accuracy</cell><cell>0.00 0.05 0.10 0.15 0.20</cell><cell>πbase strat + reas 13.0%</cell><cell>πRL strat πbase reas 14.8% (c) Cross-policy on Category C πbase strat πRL reas 14.3%</cell><cell>strat + reas πRL 14.8%</cell></row></table><note><p><p><p><p>Section 4 established what changes in agent capability; we now ask how. Three diagnostic analyses (perplexity decomposition, strategy-diversity measurement, and cross-policy swapping) each isolate a different hypothesis about where RL's improvement lives (queries, reasoning, or both). Figure</p>4</p>combines the three.</p>(a) Perplexity decomposition: novelty sits on reasoning, not queries. We isolate each side of an π RL trajectory by computing π base 's per-token negative log-likelihood restricted to tokens inside Search: lines (query formulation) versus tokens inside Thought:/Answer: lines (reasoning), with environment-generated observation tokens excluded (formulas and protocol in Appendix D). On 200 successful π (b) Strategy diversity: SFT collapses, RL preserves. For each Category C test problem we sample 64 trajectories at T = 5 and count distinct ordered tuples of (normalized) search queries. π base produces a mean of 40.1 unique sequences per problem (median 44), π RL produces 45.5 (median 51), and π SFT collapses to 14.7 (median 10), a 3× reduction. A complementary "novelty fraction" (the share of a model's sequences that do not appear in any π base trajectory for the same problem) is 97.7% for π SFT but only 83.9% for π RL : SFT has almost completely replaced the base query distribution,</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_7"><head>Table 2 :</head><label>2</label><figDesc>Complete PASS@(k,T) values for k ∈ {1, 4, 16, 64} and T ∈ {0, 1, 2, 3, 5}.</figDesc><table><row><cell cols="2">Model Category</cell><cell cols="5">T k = 1 k = 4 k = 16 k = 64</cell></row><row><cell>πbase</cell><cell>A (MATH-500)</cell><cell>0</cell><cell>0.425</cell><cell>0.635</cell><cell>0.762</cell><cell>0.840</cell></row><row><cell>πbase</cell><cell cols="2">B (Comparison) 0</cell><cell>0.015</cell><cell>0.028</cell><cell>0.049</cell><cell>0.060</cell></row><row><cell>πbase</cell><cell cols="2">B (Comparison) 1</cell><cell>0.277</cell><cell>0.556</cell><cell>0.751</cell><cell>0.840</cell></row><row><cell>πbase</cell><cell cols="2">B (Comparison) 2</cell><cell>0.316</cell><cell>0.571</cell><cell>0.730</cell><cell>0.820</cell></row><row><cell>πbase</cell><cell cols="2">B (Comparison) 3</cell><cell>0.201</cell><cell>0.447</cell><cell>0.683</cell><cell>0.810</cell></row><row><cell>πbase</cell><cell cols="2">B (Comparison) 5</cell><cell>0.186</cell><cell>0.434</cell><cell>0.690</cell><cell>0.820</cell></row><row><cell>πbase</cell><cell>C (Bridge)</cell><cell>0</cell><cell>0.011</cell><cell>0.016</cell><cell>0.022</cell><cell>0.030</cell></row><row><cell>πbase</cell><cell>C (Bridge)</cell><cell>1</cell><cell>0.307</cell><cell>0.492</cell><cell>0.609</cell><cell>0.670</cell></row><row><cell>πbase</cell><cell>C (Bridge)</cell><cell>2</cell><cell>0.341</cell><cell>0.509</cell><cell>0.654</cell><cell>0.760</cell></row><row><cell>πbase</cell><cell>C (Bridge)</cell><cell>3</cell><cell>0.359</cell><cell>0.514</cell><cell>0.651</cell><cell>0.760</cell></row><row><cell>πbase</cell><cell>C (Bridge)</cell><cell>5</cell><cell>0.363</cell><cell>0.535</cell><cell>0.675</cell><cell>0.770</cell></row><row><cell>πSFT</cell><cell>A (MATH-500)</cell><cell>0</cell><cell>0.427</cell><cell>0.655</cell><cell>0.774</cell><cell>0.890</cell></row><row><cell>πSFT</cell><cell cols="2">B (Comparison) 0</cell><cell>0.267</cell><cell>0.437</cell><cell>0.588</cell><cell>0.670</cell></row><row><cell>πSFT</cell><cell cols="2">B (Comparison) 1</cell><cell>0.392</cell><cell>0.632</cell><cell>0.781</cell><cell>0.850</cell></row><row><cell>πSFT</cell><cell cols="2">B (Comparison) 2</cell><cell>0.410</cell><cell>0.693</cell><cell>0.816</cell><cell>0.870</cell></row><row><cell>πSFT</cell><cell cols="2">B (Comparison) 3</cell><cell>0.386</cell><cell>0.666</cell><cell>0.796</cell><cell>0.860</cell></row><row><cell>πSFT</cell><cell cols="2">B (Comparison) 5</cell><cell>0.398</cell><cell>0.679</cell><cell>0.808</cell><cell>0.850</cell></row><row><cell>πSFT</cell><cell>C (Bridge)</cell><cell>0</cell><cell>0.056</cell><cell>0.106</cell><cell>0.155</cell><cell>0.200</cell></row><row><cell>πSFT</cell><cell>C (Bridge)</cell><cell>1</cell><cell>0.146</cell><cell>0.264</cell><cell>0.401</cell><cell>0.540</cell></row><row><cell>πSFT</cell><cell>C (Bridge)</cell><cell>2</cell><cell>0.278</cell><cell>0.484</cell><cell>0.625</cell><cell>0.720</cell></row><row><cell>πSFT</cell><cell>C (Bridge)</cell><cell>3</cell><cell>0.268</cell><cell>0.494</cell><cell>0.658</cell><cell>0.750</cell></row><row><cell>πSFT</cell><cell>C (Bridge)</cell><cell>5</cell><cell>0.274</cell><cell>0.489</cell><cell>0.641</cell><cell>0.730</cell></row><row><cell>πRL</cell><cell>A (MATH-500)</cell><cell>0</cell><cell>0.433</cell><cell>0.654</cell><cell>0.768</cell><cell>0.840</cell></row><row><cell>πRL</cell><cell cols="2">B (Comparison) 0</cell><cell>0.083</cell><cell>0.145</cell><cell>0.209</cell><cell>0.240</cell></row><row><cell>πRL</cell><cell cols="2">B (Comparison) 1</cell><cell>0.289</cell><cell>0.600</cell><cell>0.790</cell><cell>0.850</cell></row><row><cell>πRL</cell><cell cols="2">B (Comparison) 2</cell><cell>0.299</cell><cell>0.602</cell><cell>0.777</cell><cell>0.850</cell></row><row><cell>πRL</cell><cell cols="2">B (Comparison) 3</cell><cell>0.281</cell><cell>0.597</cell><cell>0.794</cell><cell>0.850</cell></row><row><cell>πRL</cell><cell cols="2">B (Comparison) 5</cell><cell>0.278</cell><cell>0.603</cell><cell>0.798</cell><cell>0.860</cell></row><row><cell>πRL</cell><cell>C (Bridge)</cell><cell>0</cell><cell>0.017</cell><cell>0.037</cell><cell>0.063</cell><cell>0.090</cell></row><row><cell>πRL</cell><cell>C (Bridge)</cell><cell>1</cell><cell>0.272</cell><cell>0.492</cell><cell>0.626</cell><cell>0.710</cell></row><row><cell>πRL</cell><cell>C (Bridge)</cell><cell>2</cell><cell>0.327</cell><cell>0.543</cell><cell>0.686</cell><cell>0.800</cell></row><row><cell>πRL</cell><cell>C (Bridge)</cell><cell>3</cell><cell>0.330</cell><cell>0.543</cell><cell>0.686</cell><cell>0.780</cell></row><row><cell>πRL</cell><cell>C (Bridge)</cell><cell>5</cell><cell>0.335</cell><cell>0.541</cell><cell>0.690</cell><cell>0.810</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_8"><head>Table 4 :</head><label>4</label><figDesc>Cross-policy evaluation on Category C. Denominators differ because each condition restricts to problems for which the strategy source has a successful trajectory to replay.</figDesc><table><row><cell cols="4">Strategy Source Reasoning Source EM Accuracy Correct / Attempted</cell></row><row><cell>πbase</cell><cell>πbase</cell><cell>0.130</cell><cell>10/77</cell></row><row><cell>πRL</cell><cell>πRL</cell><cell>0.148</cell><cell>12/81</cell></row><row><cell>πRL</cell><cell>πbase</cell><cell>0.148</cell><cell>12/81</cell></row><row><cell>πbase</cell><cell>πRL</cell><cell>0.143</cell><cell>11/77</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_10"><head>Table 5 :</head><label>5</label><figDesc>Budget-allocation recommendations derived from ∆ T and ∆</figDesc><table><row><cell cols="5">Category Model Rec. T Cross-over k Budget strategy</cell></row><row><cell>A</cell><cell>π base</cell><cell>0</cell><cell>-</cell><cell>tool unavailable; spend budget on k</cell></row><row><cell>A</cell><cell>πSFT</cell><cell>0</cell><cell>-</cell><cell>tool unavailable; spend budget on k</cell></row><row><cell>A</cell><cell>πRL</cell><cell>0</cell><cell>-</cell><cell>tool unavailable; spend budget on k</cell></row><row><cell>B</cell><cell>π base</cell><cell>2</cell><cell>1</cell><cell>deepen to T = 2, then grow k</cell></row><row><cell>B</cell><cell>πSFT</cell><cell>2</cell><cell>1</cell><cell>deepen to T = 2, then grow k</cell></row><row><cell>B</cell><cell>πRL</cell><cell>2</cell><cell>1</cell><cell>deepen to T = 2, then grow k</cell></row><row><cell>C</cell><cell>π base</cell><cell>2</cell><cell>1</cell><cell>deepen to T = 2, then grow k</cell></row><row><cell>C</cell><cell>πSFT</cell><cell>3</cell><cell>-</cell><cell>deepen to T = 3, then grow k</cell></row><row><cell>C</cell><cell>πRL</cell><cell>2</cell><cell>1</cell><cell>deepen to T = 2, then grow k</cell></row></table><note><p>k . 'Recommended T ' is the smallest depth beyond which ∆ T drops below ∆ k at k = 4; 'cross-over k' is the smallest k at which ∆ T &lt; ∆ k holds at T = 1. Cells marked '-' are saturated or inapplicable.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_11"><head>Table 6 :</head><label>6</label><figDesc>Category B (HotPotQA comparison): marginal improvements ∆ k and per-round ∆ T at each (k, T ) operating point. ∆ T for T = 3 is the per-round normalization (PASS@(k, 5) -PASS@(k, 3))/2; all other ∆ T entries are adjacent steps. Dashes indicate cells unavailable for this category.</figDesc><table><row><cell></cell><cell></cell><cell>π base</cell><cell></cell><cell>πSFT</cell><cell></cell><cell>πRL</cell><cell></cell></row><row><cell>k</cell><cell>T</cell><cell>∆ k</cell><cell>∆T</cell><cell>∆ k</cell><cell>∆T</cell><cell>∆ k</cell><cell>∆T</cell></row><row><cell>1</cell><cell cols="7">0 +0.005 +0.263 +0.085 +0.125 +0.030 +0.206</cell></row><row><cell>2</cell><cell cols="7">0 +0.008 +0.396 +0.085 +0.170 +0.033 +0.332</cell></row><row><cell>4</cell><cell cols="7">0 +0.010 +0.528 +0.079 +0.194 +0.034 +0.455</cell></row><row><cell>8</cell><cell cols="7">0 +0.011 +0.632 +0.071 +0.200 +0.030 +0.537</cell></row><row><cell cols="8">16 0 +0.009 +0.702 +0.055 +0.193 +0.022 +0.581</cell></row><row><cell cols="8">32 0 +0.003 +0.748 +0.027 +0.180 +0.009 +0.601</cell></row><row><cell>1</cell><cell cols="7">1 +0.139 +0.039 +0.131 +0.018 +0.156 +0.010</cell></row><row><cell>2</cell><cell cols="7">1 +0.139 +0.035 +0.109 +0.047 +0.155 +0.009</cell></row><row><cell>4</cell><cell cols="7">1 +0.114 +0.015 +0.085 +0.061 +0.116 +0.002</cell></row><row><cell>8</cell><cell cols="7">1 +0.082 -0.007 +0.064 +0.053 +0.074 -0.006</cell></row><row><cell cols="8">16 1 +0.054 -0.022 +0.042 +0.035 +0.043 -0.013</cell></row><row><cell cols="8">32 1 +0.035 -0.024 +0.027 +0.023 +0.017 -0.014</cell></row><row><cell>1</cell><cell cols="7">2 +0.135 -0.116 +0.160 -0.024 +0.155 -0.018</cell></row><row><cell>2</cell><cell cols="7">2 +0.120 -0.137 +0.123 -0.028 +0.149 -0.017</cell></row><row><cell>4</cell><cell cols="7">2 +0.092 -0.124 +0.077 -0.027 +0.108 -0.005</cell></row><row><cell>8</cell><cell cols="7">2 +0.067 -0.086 +0.046 -0.022 +0.067 +0.009</cell></row><row><cell cols="8">16 2 +0.052 -0.047 +0.030 -0.020 +0.042 +0.016</cell></row><row><cell cols="8">32 2 +0.039 -0.019 +0.024 -0.018 +0.031 +0.016</cell></row><row><cell>1</cell><cell cols="7">3 +0.114 -0.007 +0.156 +0.006 +0.155 -0.002</cell></row><row><cell>2</cell><cell cols="7">3 +0.133 -0.008 +0.125 +0.007 +0.160 +0.000</cell></row><row><cell>4</cell><cell cols="7">3 +0.129 -0.006 +0.081 +0.006 +0.122 +0.003</cell></row><row><cell>8</cell><cell cols="7">3 +0.106 -0.001 +0.048 +0.006 +0.075 +0.005</cell></row><row><cell cols="8">16 3 +0.079 +0.003 +0.032 +0.006 +0.041 +0.002</cell></row><row><cell cols="8">32 3 +0.048 +0.005 +0.032 +0.004 +0.015 -0.001</cell></row></table><note><p><p><p>Table</p>8</p>reports the mean and maximum absolute deviation between the sub-sampled average and the full-n average, taken over all (k, T ) cells in the evaluation grid. Mean deviations are under 0.006 and maxima under 0.02, well below the binomial standard error p(1-p)/n ≈ 0.06 at</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_12"><head></head><label></label><figDesc>Table 9 reports the mean and 95% percentile CIs. On Category C, |B RL \ B base | has 95% CI well above the analogous π SFT statistic, and |B base \ B SFT |'s lower bound is 7, confirming that the matched-data SFT regression and the RL expansion are both significantly different from zero under the bootstrap.</figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_13"><head>Table 7 :</head><label>7</label><figDesc>Category C (HotPotQA bridge): marginal improvements ∆ k and per-round ∆ T at each (k, T ) operating point. ∆ T for T = 3 is the per-round normalization (PASS@(k, 5) -PASS@(k, 3))/2; all other ∆ T entries are adjacent steps. Dashes indicate cells unavailable for this category. +0.036 +0.045 +0.064 +0.224 +0.043 +0.060 32 1 +0.024 +0.070 +0.075 +0.214 +0.041 +0.072 1 2 +0.088 +0.017 +0.110 -0.010 +0.118 +0.004 2 2 +0.079 +0.012 +0.097 -0.003 +0.098 +0.002 4 2 +0.075 +0.006 +0.077 +0.010 +0.079 -0.000 8 2 +0.070 +0.001 +0.063 +0.026 +0.064 -0.000 16 2 +0.062 -0.003 +0.054 +0.034 +0.056 +0.000 32 2 +0.044 -0.005 +0.041 +0.032 +0.059 -0.003 1 3 +0.083 +0.002 +0.117 +0.003 +0.116 +0.003 2 3 +0.073 +0.007 +0.110 +0.000 +0.096 +0.001 4 3 +0.070 +0.010 +0.093 -0.003 +0.079 -0.001 8 3 +0.066 +0.012 +0.071 -0.006 +0.065 -0.001 16 3 +0.059 +0.012 +0.052 -0.009 +0.052 +0.002 32 3 +0.050 +0.011 +0.040 -0.011 +0.042 +0.007</figDesc><table><row><cell></cell><cell></cell><cell>π base</cell><cell></cell><cell>πSFT</cell><cell></cell><cell>πRL</cell><cell></cell></row><row><cell>k</cell><cell>T</cell><cell>∆ k</cell><cell>∆T</cell><cell>∆ k</cell><cell>∆T</cell><cell>∆ k</cell><cell>∆T</cell></row><row><cell>1</cell><cell cols="7">0 +0.002 +0.296 +0.024 +0.090 +0.009 +0.255</cell></row><row><cell>2</cell><cell cols="7">0 +0.003 +0.393 +0.027 +0.122 +0.011 +0.361</cell></row><row><cell>4</cell><cell cols="7">0 +0.003 +0.477 +0.026 +0.157 +0.012 +0.455</cell></row><row><cell>8</cell><cell cols="7">0 +0.003 +0.540 +0.023 +0.200 +0.014 +0.521</cell></row><row><cell cols="8">16 0 +0.003 +0.587 +0.019 +0.245 +0.013 +0.563</cell></row><row><cell cols="8">32 0 +0.005 +0.621 +0.025 +0.290 +0.013 +0.593</cell></row><row><cell>1</cell><cell cols="7">1 +0.100 +0.035 +0.055 +0.131 +0.115 +0.054</cell></row><row><cell>2</cell><cell cols="7">1 +0.086 +0.023 +0.062 +0.186 +0.104 +0.057</cell></row><row><cell>4</cell><cell cols="7">1 +0.067 +0.016 +0.069 +0.221 +0.078 +0.051</cell></row><row><cell>8</cell><cell cols="7">1 +0.050 +0.024 +0.068 +0.229 +0.056 +0.052</cell></row><row><cell cols="2">16 1</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_14"><head>Table 8 :</head><label>8</label><figDesc>Sampling-sufficiency check. For each (model, category) we compare PASS@(k, T ) computed on a random sub-sample of n ′ ∈ {32, 48} trajectories against the full n = 64 estimate, averaged across k ∈ {1, 4, 16, 64} (restricted to k ≤ n ′ ) and all available T . Deviations are small relative to the binomial standard error p(1-p)/n ≈ 0.06 at p ≈ 0.5, indicating n = 64 is sufficient for the comparisons reported in the main text.</figDesc><table><row><cell cols="5">Category Model n ′ Mean |∆| Max |∆|</cell></row><row><cell>A</cell><cell>π base</cell><cell>32</cell><cell>0.0032</cell><cell>0.0049</cell></row><row><cell>A</cell><cell>π base</cell><cell>48</cell><cell>0.0019</cell><cell>0.0047</cell></row><row><cell>A</cell><cell>πSFT</cell><cell>32</cell><cell>0.0046</cell><cell>0.0075</cell></row><row><cell>A</cell><cell>πSFT</cell><cell>48</cell><cell>0.0006</cell><cell>0.0011</cell></row><row><cell>A</cell><cell>πRL</cell><cell>32</cell><cell>0.0102</cell><cell>0.0202</cell></row><row><cell>A</cell><cell>πRL</cell><cell>48</cell><cell>0.0014</cell><cell>0.0023</cell></row><row><cell>B</cell><cell>π base</cell><cell>32</cell><cell>0.0046</cell><cell>0.0194</cell></row><row><cell>B</cell><cell>π base</cell><cell>48</cell><cell>0.0027</cell><cell>0.0067</cell></row><row><cell>B</cell><cell>πSFT</cell><cell>32</cell><cell>0.0049</cell><cell>0.0147</cell></row><row><cell>B</cell><cell>πSFT</cell><cell>48</cell><cell>0.0036</cell><cell>0.0100</cell></row><row><cell>B</cell><cell>πRL</cell><cell>32</cell><cell>0.0057</cell><cell>0.0182</cell></row><row><cell>B</cell><cell>πRL</cell><cell>48</cell><cell>0.0028</cell><cell>0.0089</cell></row><row><cell>C</cell><cell>π base</cell><cell>32</cell><cell>0.0029</cell><cell>0.0114</cell></row><row><cell>C</cell><cell>π base</cell><cell>48</cell><cell>0.0018</cell><cell>0.0043</cell></row><row><cell>C</cell><cell>πSFT</cell><cell>32</cell><cell>0.0050</cell><cell>0.0138</cell></row><row><cell>C</cell><cell>πSFT</cell><cell>48</cell><cell>0.0016</cell><cell>0.0050</cell></row><row><cell>C</cell><cell>πRL</cell><cell>32</cell><cell>0.0048</cell><cell>0.0119</cell></row><row><cell>C</cell><cell>πRL</cell><cell>48</cell><cell>0.0024</cell><cell>0.0063</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_15"><head>Table 9 :</head><label>9</label><figDesc>Bootstrap 95% confidence intervals for the capability-boundary statistics reported in Table1, computed over 1000 Bernoulli bootstrap replicates per problem using the empirical c T /n as each problem's success rate. The RL vs. base and SFT vs. base asymmetries on Category C remain far from zero under the bootstrap, so the 5 vs. 1 and 3 vs. 7 splits are not artifacts of sampling noise.</figDesc><table><row><cell cols="3">Category Quantity</cell><cell>Mean</cell><cell>95% CI</cell><cell>Point est. (main text)</cell></row><row><cell>A</cell><cell>|B</cell><cell>(C) RL |</cell><cell>82.0</cell><cell>[79.0, 84.0]</cell><cell>84</cell></row><row><cell>A</cell><cell cols="2">|BRL \ B base |</cell><cell>3.1</cell><cell>[1.0, 6.0]</cell><cell>3</cell></row><row><cell>A</cell><cell cols="2">|B base \ BRL|</cell><cell>3.4</cell><cell>[1.0, 6.0]</cell><cell>3</cell></row><row><cell>A</cell><cell cols="2">|BSFT \ B base |</cell><cell>4.8</cell><cell>[2.0, 8.0]</cell><cell>5</cell></row><row><cell>A</cell><cell cols="2">|B base \ BSFT|</cell><cell>2.2</cell><cell>[0.0, 5.0]</cell><cell>0</cell></row><row><cell>B</cell><cell>|B</cell><cell>(C) RL |</cell><cell>84.3</cell><cell>[82.0, 86.0]</cell><cell>86</cell></row><row><cell>B</cell><cell cols="2">|BRL \ B base |</cell><cell>6.1</cell><cell>[3.0, 10.0]</cell><cell>5</cell></row><row><cell>B</cell><cell cols="2">|B base \ BRL|</cell><cell>1.0</cell><cell>[0.0, 2.0]</cell><cell>1</cell></row><row><cell>B</cell><cell cols="2">|BSFT \ B base |</cell><cell>7.4</cell><cell>[5.0, 11.0]</cell><cell>5</cell></row><row><cell>B</cell><cell cols="2">|B base \ BSFT|</cell><cell>2.3</cell><cell>[1.0, 4.0]</cell><cell>2</cell></row><row><cell>C</cell><cell>|B</cell><cell>(C) RL |</cell><cell>77.2</cell><cell>[74.0, 80.0]</cell><cell>81</cell></row><row><cell>C</cell><cell cols="2">|BRL \ B base |</cell><cell>5.0</cell><cell>[2.0, 8.0]</cell><cell>5</cell></row><row><cell>C</cell><cell cols="2">|B base \ BRL|</cell><cell>2.7</cell><cell>[1.0, 5.0]</cell><cell>1</cell></row><row><cell>C</cell><cell cols="2">|BSFT \ B base |</cell><cell>4.2</cell><cell>[2.0, 7.0]</cell><cell>3</cell></row><row><cell>C</cell><cell cols="2">|B base \ BSFT|</cell><cell>8.7</cell><cell>[7.0, 11.0]</cell><cell>7</cell></row></table></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bai</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2212.08073</idno>
+		<title level="m">Constitutional AI: Harmlessness from AI feedback</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Language models are few-shot learners</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Mann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Ryder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Subbiah</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Large language monkeys: Scaling inference compute with repeated sampling</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Brown</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2407.21787</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2107.03374</idno>
+		<title level="m">Evaluating large language models trained on code</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">LLM collaboration with multi-agent reinforcement learning</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2508.04652</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Deep reinforcement learning from human preferences</title>
+		<author>
+			<persName><forename type="first">P</forename><forename type="middle">F</forename><surname>Christiano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Brown</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Martic</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Legg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Amodei</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<publisher>NeurIPS</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nakano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2110.14168</idno>
+		<title level="m">Training verifiers to solve math word problems</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">DROP: A reading comprehension benchmark requiring discrete reasoning over paragraphs</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Dua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dasigi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Stanovsky</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Gardner</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NAACL</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title level="m" type="main">ReTool: Reinforcement learning for strategic tool use in LLMs</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Feng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2504.11536</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">DeepSeek-R1: Incentivizing reasoning capability in LLMs via reinforcement learning</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Song</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2501.12948</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Measuring mathematical problem solving with the MATH dataset</title>
+		<author>
+			<persName><forename type="first">D</forename><surname>Hendrycks</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<monogr>
+		<author>
+			<persName><forename type="first">E</forename><forename type="middle">J</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Wallis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Allen-Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lora</surname></persName>
+		</author>
+		<title level="m">Low-rank adaptation of large language models. ICLR</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">Leveraging passage retrieval with generative models for open domain question answering</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Grave</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">EACL</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">SWE-bench: Can language models resolve real-world GitHub issues?</title>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">E</forename><surname>Jimenez</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Search-R1: Training LLMs to reason and leverage search engines with reinforcement learning</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Jin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.09516</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Decomposed prompting: A modular approach for solving complex tasks</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Finlayson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Richardson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Clark</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sabharwal</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Large language models are zero-shot reasoners</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Kojima</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">S</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Reid</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Matsuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Iwasawa</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<publisher>NeurIPS</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Efficient memory management for large language model serving with PagedAttention</title>
+		<author>
+			<persName><forename type="first">W</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">H</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">SOSP</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title level="m" type="main">Retrieval-augmented generation for knowledge-intensive NLP tasks</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Perez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Piktus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Petroni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Karpukhin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Küttler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Rocktäschel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Kiela</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<publisher>NeurIPS</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Holistic evaluation of language models</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Bommasani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Tsipras</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Annals of the New York Academy of Sciences</title>
+		<imprint>
+			<biblScope unit="volume">1525</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="140" to="146" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Let&apos;s verify step by step</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Lightman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Burda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Baker</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Leike</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Cobbe</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<publisher>ICLR</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">AgentBench: Evaluating LLMs as agents</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICLR</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Chameleon: Plug-and-play compositional reasoning with large language models</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K.-W</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><forename type="middle">N</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S.-C</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Gao</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<publisher>NeurIPS</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Augmented language models: A survey</title>
+		<author>
+			<persName><forename type="first">G</forename><surname>Mialon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Dessì</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Lomeli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Nalmpantis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">TMLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<monogr>
+		<author>
+			<persName><forename type="first">R</forename><surname>Nakano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Balaji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Hesse</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Saunders</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2112.09332</idno>
+		<title level="m">Browser-assisted question-answering with human feedback</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<idno type="arXiv">arXiv:2303.08774</idno>
+	</analytic>
+	<monogr>
+		<title level="m">OpenAI. GPT-4 technical report</title>
+		<imprint>
+			<date type="published" when="2023">2023. 2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">Training language models to follow instructions with human feedback</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Ouyang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Almeida</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Automatic multi-step reasoning and tool-use for large language models</title>
+		<author>
+			<persName><forename type="first">B</forename><surname>Paranjape</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Lundberg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Singh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Hajishirzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><forename type="middle">T</forename><surname>Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Art</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.09014</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">S</forename><forename type="middle">G</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><forename type="middle">E</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gorilla</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.15334</idno>
+		<title level="m">Large language model connected with massive APIs</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<monogr>
+		<title level="m" type="main">Agent Q: Advanced reasoning and learning for autonomous AI agents</title>
+		<author>
+			<persName><forename type="first">P</forename><surname>Putta</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.07199</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">ToolLLM: Facilitating large language models to master 16000+ real-world APIs. ICLR, 2024. Qwen Team. Qwen2.5: A party of foundation models</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Qin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">Technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Direct preference optimization: Your language model is secretly a reward model</title>
+		<author>
+			<persName><forename type="first">R</forename><surname>Rafailov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sharma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ermon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Finn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">The probabilistic relevance framework: BM25 and beyond</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Zaragoza</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Foundations and Trends in Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="333" to="389" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Toolformer: Language models can teach themselves to use tools</title>
+		<author>
+			<persName><forename type="first">T</forename><surname>Schick</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Wolski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">O</forename><surname>Klimov</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1707.06347</idno>
+		<title level="m">Proximal policy optimization algorithms</title>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Schulman</surname></persName>
+		</author>
+		<ptr target="http://joschu.net/blog/kl-approx.html" />
+		<title level="m">Approximating KL divergence</title>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<monogr>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Shao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2402.03300</idno>
+		<title level="m">Pushing the limits of mathematical reasoning in open language models</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Hugginggpt</surname></persName>
+		</author>
+		<title level="m">Solving AI tasks with ChatGPT and its friends in HuggingFace</title>
+		<imprint>
+			<publisher>NeurIPS</publisher>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">Reflexion: Language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">N</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Scaling LLM test-time compute optimally can be more effective than scaling model parameters</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>Snell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Kumar</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.03314</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Beyond the imitation game: Quantifying and extrapolating the capabilities of language models</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Srivastava</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">TMLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">LLaMA: Open and efficient foundation language models</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Touvron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Lavril</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Martinet</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.13971</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Multihop questions via single hop question composition</title>
+		<author>
+			<persName><forename type="first">H</forename><surname>Trivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Balasubramanian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">T</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Sabharwal</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Musique</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">TACL</title>
+		<imprint>
+			<biblScope unit="volume">10</biblScope>
+			<biblScope unit="page" from="539" to="554" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">Solving math word problems with process-and outcome-based feedback</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Uesato</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Kushman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">N</forename><surname>Siegel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Creswell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Irving</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Higgins</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2211.14275</idno>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Self-consistency improves chain of thought reasoning in language models</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Chowdhery</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhou</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">L</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">A</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Voyager</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2305.16291</idno>
+		<title level="m">An open-ended embodied agent with large language models</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<analytic>
+		<title level="a" type="main">A survey on large language model based autonomous agents</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Frontiers of Computer Science</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">6</biblScope>
+			<biblScope unit="page">186345</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Reinforcement learning with verifiable rewards implicitly incentivizes correct reasoning in base LLMs</title>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Miao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Bian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICLR</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">X</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">B</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">F</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">E</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">D</forename><surname>Zhou</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<publisher>NeurIPS</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Simple statistical gradient-following algorithms for connectionist reinforcement learning</title>
+		<author>
+			<persName><forename type="first">R</forename><forename type="middle">J</forename><surname>Williams</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Machine Learning</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">3-4</biblScope>
+			<biblScope unit="page" from="229" to="256" />
+			<date type="published" when="1992">1992</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">HotpotQA: A dataset for diverse, explainable multi-hop question answering</title>
+		<author>
+			<persName><forename type="first">Z</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">S</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Bengio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">W</forename><surname>Cohen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">R</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">C</forename><forename type="middle">D</forename><surname>Manning</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">EMNLP</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">ReAct: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">S</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<title level="m" type="main">DAPO: An open-source LLM reinforcement learning system</title>
+		<author>
+			<persName><forename type="first">Q</forename><surname>Yu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<title level="m" type="main">Does reinforcement learning really incentivize reasoning capacity in LLMs beyond the base model?</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Yue</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<publisher>NeurIPS</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title level="m" type="main">Agent-R1: Training powerful LLM agents with end-to-end reinforcement learning</title>
+		<author>
+			<persName><forename type="first">M</forename><surname>Cheng</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">GPT-Fathom: Benchmarking large language models to decipher the evolutionary path towards GPT-4 and beyond</title>
+		<author>
+			<persName><forename type="first">L</forename><surname>Zheng</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.16583</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Language agent tree search unifies reasoning, acting, and planning in language models</title>
+		<author>
+			<persName><forename type="first">A</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">K</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">M</forename><surname>Shlapentokh-Rothman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">H</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Y.-X</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ICML</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

@@ -1,0 +1,803 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Agentic Transaction: Towards ACID-Compliant Agent Systems</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-08-14">14 Aug 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Zhaoyan</forename><surname>Sun</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Tsinghua University</orgName>
+								<orgName type="institution" key="instit2">Tsinghua University</orgName>
+								<orgName type="institution" key="instit3">Tsinghua University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xiaoxiao</forename><surname>Wang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Tsinghua University</orgName>
+								<orgName type="institution" key="instit2">Tsinghua University</orgName>
+								<orgName type="institution" key="instit3">Tsinghua University</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+							<email>liguoliang@tsinghua.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="institution" key="instit1">Tsinghua University</orgName>
+								<orgName type="institution" key="instit2">Tsinghua University</orgName>
+								<orgName type="institution" key="instit3">Tsinghua University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Agentic Transaction: Towards ACID-Compliant Agent Systems</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-08-14">14 Aug 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">07350A6574EFD37E151528C48BCDD622</idno>
+					<idno type="arXiv">arXiv:2608.13900v1[cs.DB]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language model (LLM) agents are evolving from conversational assistants into autonomous systems that execute longhorizon tasks through reasoning, tool use, code generation, and workspace manipulation. As agents increasingly operate over persistent environments and multi-step workflows, they face challenges analogous to those addressed by transactional database systems: reliable execution, consistent outcomes, safe concurrency, and durable state management. We introduce the concept of an agentic transaction and propose an ACID-compliant agent system framework that reinterprets the classical ACID properties for agent execution through four semantic guarantees: Semantic Atomicity, Semantic Consistency, Semantic Isolation, and Semantic Durability. Together, these properties provide a principled foundation for building reliable agent systems despite model uncertainty and dynamic execution environments. To instantiate this framework, we develop an ACID-compliant data agent that realizes these guarantees through transactional exploration-execution-validation cycles, transactional skill hubs, confidence divergence-based validation, semantic dependency-aware isolation, and transaction-aware semantic state management. Experimental results on widely used benchmarks show that our system achieves a 10.6% improvement over state-of-the-art agents, including Claude Code. This work opens a broader research agenda on extending transactional principles and system architectures toward building trustworthy, scalable, and self-evolving AI agent systems.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">INTRODUCTION</head><p>Recent advances in large language models (LLMs) have demonstrated strong capabilities in instruction following, planning, reasoning, coding, tool use, and data processing <ref type="bibr">[12, 18-22, 24, 25]</ref>. As a result, LLM usage is shifting from single-round conversational interactions toward long-horizon production tasks, where agents operate over repository-level workspaces and autonomously coordinate iterative reasoning, code execution, and feedback-driven refinement over extended periods. We refer to such a multi-round task-centered interactions between LLMs and execution environments as an agentic transaction (see Figure <ref type="figure" target="#fig_1">1</ref>), where execution operates over semantic task states rather than structured database states. Although agent systems differ fundamentally from databases, they face analogous challenges in ensuring reliable execution, consistent outcomes, safe concurrency, and persistent state management. Motivated by these parallels, we envision an ACID-Compliant Agent System that reinterprets the classical ACID properties <ref type="bibr" target="#b8">[10]</ref> for agentic transactions: Semantic Atomicity. Similar to how database systems encapsulate recurring application logic into reusable procedures and transaction abstractions, agent systems increasingly rely on reusable skills that package tools, workflows, and domain knowledge into coherent operational units <ref type="bibr" target="#b0">[1]</ref>. We define semantic atomicity as the property that</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>User Question</head><p>For Boston Harbor beaches located in communities with more than 90% EJ populations, what is the Pearson correlation, rounded to 3 decimal places, between rainfall in the past 3 days and Enterococcus levels?  an agent transaction treats a dependency-aware sequence of model invocations, tool calls, document mutations, and external actions as a single semantic unit of execution: its effects become visible only after required operations and validations succeed; otherwise, recoverable effects are rolled back or compensated. The challenge is that agent workflows are long-running, dynamically generated, and often involve non-transactional external resources, where partial execution may leave inconsistent workspaces or unsupported results <ref type="bibr" target="#b6">[8,</ref><ref type="bibr" target="#b15">17]</ref>. For example, as shown in Figure <ref type="figure" target="#fig_1">1</ref>, conventional coding agents such as Claude Code may propagate intermediate decisions directly. In contrast, ACID-Agent treats each explorationexecution-validation cycle as a semantic transaction, and only validated updates are committed and propagated to subsequent steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Atomic Semantic Transaction Unit</head><note type="other">Data</note><p>Semantic Consistency. Similar to consistency guarantees in databases, agent systems must ensure that committed results remain aligned with intended semantics despite potentially non-deterministic execution <ref type="bibr" target="#b9">[11]</ref>. We define semantic consistency as the property that an agent transaction produces outcomes that satisfy task objectives, execution constraints, and available evidence, even when intermediate reasoning traces vary across executions. This property is challenging because LLM-driven agents may generate syntactically executable plans that are semantically invalid due to incorrect tool selection, unsupported claims, stale observations, or divergence between user intent and execution results. For example, as shown in Figure <ref type="figure" target="#fig_1">1</ref>, our ACID-Agent employs a confidence-based validation mechanism that integrates multiple reliability signals, including execution errors, divergences in decision and code confidence, and feedback from LLM-based reflection. The mechanism grounds its assessments in evidence gathered during exploration and triggers refinement whenever confidence falls below a threshold. Semantic Isolation. Similar to concurrency control in database systems, modern agent systems increasingly execute multiple subagents in parallel to solve complex tasks <ref type="bibr" target="#b20">[22]</ref>. We define semantic isolation as the property that concurrent agent transactions do not observe or produce semantically invalid interference: their committed effects should be equivalent to an execution permitted by a declared isolation policy, while still allowing safe information sharing and collaboration. For example, as shown in Figure <ref type="figure" target="#fig_1">1</ref>, ACID-Agent isolates intermediate workspace states and interaction histories from failed retries, ensuring that unsuccessful attempts do not propagate to subsequent executions or agent memory. The challenge is that agent conflicts extend beyond traditional data accesses to prompts, memories, intermediate artifacts, tool budgets, external side effects, and derived semantic states, while resource dependencies are often discovered dynamically during execution. Semantic Durability. Similar to how database systems preserve transactional state and AI-native databases leverage historical transactions to improve future execution <ref type="bibr" target="#b14">[16,</ref><ref type="bibr" target="#b16">18,</ref><ref type="bibr" target="#b21">23]</ref>, agent systems must preserve semantic state beyond individual executions. We define semantic durability as the ability to maintain committed execution states, supporting evidence, and recovery metadata beyond the lifetime of a transaction, enabling future executions to reconstruct and interpret prior results independently of transient LLM contexts. For example, as shown in Figure <ref type="figure" target="#fig_1">1</ref>, ACID-Agent maintains an append-only workspace that records committed transaction states, updating memory only with validated execution units while discarding failed attempts. This property is challenging because agent state is distributed across conversations, model outputs, tool interactions, files, databases, and external services, while evolving models and prompts complicate reliable replay and long-term interpretation.</p><p>Contributions. In summary, we make the following contributions:</p><p>(1) We introduce a novel concept of agentic transactions and an ACID-compliant agent system framework, which extends the classical ACID properties to agent execution and provides a principled foundation for designing reliable agent systems.</p><p>(2) We propose an ACID-compliant data agent system: (A) introduces semantic atomicity by modeling exploration-executionvalidation cycles as transaction units with commit-or-retry semantics, supported by transactional skill hubs and staged execution;</p><p>(C) ensures semantic consistency through confidence divergencebased validation of critical decisions and generated code, integrating execution signals and LLM feedback to detect unsupported behaviors and trigger evidence-guided retries; (I) enables semantic isolation by regulating dependencies among agents, contexts, and operations through adaptive coordination strategies, isolated execution environments, and versioned workspaces; (D) achieves semantic durability through transaction-aware memory, appendonly workspace management, and persistent execution traces for recovery and long-horizon reasoning (see Section 2).</p><p>(3) Our preliminary experimental results demonstrate the potential advantages of transactionally designed agent systems (see Sections 3). We also provide open research problems for extending agentic transactions to the full lifecycle of agent systems (see Section 4). The source code is available at <ref type="url" target="https://github.com/TsinghuaDatabaseGroup/ACID-Agent">https://github.com/TsinghuaDatabaseGroup/ ACID-Agent</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>User Input</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">AGENTIC TRANSACTION 2.1 Preliminaries</head><p>LLM-based agents can solve tasks through long-horizon cycles of LLM reasoning, tool/skill invocation, and execution feedback. We refer to such multi-round task-centric interactions between LLMs and environments as agentic transactions. Definition 2.1 (Agentic Transaction). An agentic transaction, 𝜏, is a bounded unit of agent execution comprising a finite sequence of LLM-driven interactions between an agent and its execution environment, undertaken to accomplish a task. Formally, given a tool set 𝑇 and a skill set 𝑆, an agentic transaction 𝜏 = ⟨𝑟 1 , . . . , 𝑟 𝑛 ⟩ comprises 𝑛 steps. Each step 𝑟 𝑖 = (𝑐 𝑖 , 𝑎 𝑖 , 𝑓 𝑖 ) consists of an LLM context 𝑐 𝑖 (including the tools in 𝑇 and skills in 𝑆 available at that step), an agent action 𝑎 𝑖 that invokes a tool or skill, and the resulting feedback 𝑓 𝑖 from the environment. The transaction 𝜏 commits only if its execution satisfies the required task conditions and preserves all semantic invariants. Otherwise, its intermediate effects are rolled back or compensated for to ensure that no invalid side effects remain.</p><p>For example, Figure <ref type="figure" target="#fig_1">1</ref> presents a data-agent transaction. It begins with LLM-driven exploration of datasets and schemas, followed by iterative analysis steps that invoke tools, update the workspace, and refine decisions based on feedback. Each exploration-executionvalidation cycle forms a semantic transaction unit whose effects are propagated only after validation. Failed units are discarded or recovered without affecting the committed state.</p><p>Table <ref type="table" target="#tab_0">1</ref> summarizes representative challenges and techniques for achieving the ACID properties of agentic transactions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">An ACID-Compliant Data Agent System</head><p>Data agents aim to automate data science workflows, derive insights from heterogeneous data, and manage data systems. Based on agentic transaction principles, we propose an ACID-compliant data agent system, as shown in Figure <ref type="figure" target="#fig_2">2</ref>, providing reliability guarantees for exploration, execution, and transactional state evolution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.1">Semantic Atomicity.</head><p>We propose two mechanisms for semantic atomicity: an offline skill hub that embeds transactional safeguards into reusable skills, and an online staged-execution framework that enforces commit-or-retry semantics via validation gates. Offline Skill Hub Creation. Under semantic atomicity, tools and skills become first-class transactional objects with lifecycle interfaces, and only validated effects are committed. We envision targeted skill hubs that automatically enforce transactional semantics, including rollback and commit, without requiring agents to perform manual transaction management. First, for workspacemodifying skills, this requires preventing invalid partial updates and side effects through idempotency keys, write-ahead action logs, checkpointing, and automatic compensation. Second, for system optimization skills, it further requires avoiding regressions caused by conflicting skill interactions. Realizing such skill hubs requires distilling existing data management expertise into deployable agent skills with adaptive routing and built-in transactional guarantees. We address this by packaging existing repositories as agent skills with standardized CLIs and validating their behavior through LLMgenerated test suites derived from established benchmarks. We further develop a workload-and data-aware skill router that periodically analyzes historical system logs, uses LLM to summarize  evolving workload characteristics, and dynamically adjusts feature importance for both skill retrieval and LLM-based skill selection.</p><p>Online Semantic Transaction Execution. When existing skills with built-in safeguards are unavailable, we enforce semantic atomicity through an online semantic transaction framework. Specifically, we model the agent trajectory as a sequence of explorationexecution-validation cycles, with each cycle treated as a semantic transaction unit governed by commit-or-retry semantics. First, confidence-guided data exploration enables agents to iteratively collect and consolidate evidence while avoiding redundant exploration. Second, confidence-based consistency validation verifies the reliability of agent decisions and generated code by integrating execution errors, confidence divergence, and LLM-based reflection signals.</p><p>Violations beyond predefined thresholds trigger retry. The failed execution steps are discarded by isolating their intermediate contexts from memory and excluding their workspace updates, ensuring atomic state evolution through an append-only workspace. We first describe confidence-guided data exploration and defer the second component to Section 2.2.2. Specifically, given a task, the exploration sub-agent iteratively generates read-only exploration code using the task description and recent exploration summaries as context. After execution, the observations are summarized into exploration memory. To avoid redundant exploration, we use LLM confidence-based validation to compare the current exploration observation with and without previous observations as context (detailed in Section 2.2.2). A large confidence divergence indicates that the current exploration is heavily dependent on prior observations and provides limited new information. We terminate exploration when redundant exploration exceeds a predefined threshold. Exploration summaries are further consolidated to resolve potential conflicts and maintain a consistent evidence base.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.2">Semantic Consistency. Data agents exhibit execution inconsistency under workflow and model uncertainties, with repeated</head><p>runs showing substantial variance and occasional intent violations (see Figure <ref type="figure" target="#fig_3">3</ref>). Thus, we develop complementary offline and online mechanisms. Offline, we reuse validated workflows and enhance model-level behavioral stability. Online, we detect and correct execution deviations through trajectory-level consistency validation. Offline Consistency Enhancement. (𝑖) Workflow-Level Materialization. Similar to materialized views in databases, successful execution workflows can be materialized into reusable agent skills with semantic validation logic. These skills are retrieved based on task semantics and execution context, with details discussed in Section 2.2.1. (𝑖𝑖) Model-Level Stability. Consistency also depends on model reliability. Existing benchmarks focus on single-run correctness or best-of-N performance while overlooking execution stability. We envision consistency-oriented benchmarks to measure stability and guide targeted fine-tuning. Online Consistency Validation. To maintain execution consistency with task requirements and supporting evidence, we propose a confidence-based validation mechanism that integrates multiple reliability signals, including execution errors, decision/code confidence divergence, and LLM-based reflection feedback. A retry is triggered when any signal exceeds its predefined threshold, with the validation feedback incorporated into the agent context to guide subsequent exploration-execution attempts. The process terminates upon successful validation or reaching the retry limit.</p><p>To operationalize confidence-based validation, we quantify LLM confidence as the exponential of the average token-level log probability over the target output. Confidence divergence between two contexts is then measured by comparing their corresponding confidence scores. We instantiate this measure for different agent outputs as follows. (𝑖) Decision Confidence Divergence. For critical decisions (e.g., filter predicates), we use LLMs to extract explored decisions from exploration summary and executed decisions from code. Given the task and recent exploration summaries as context, we measure their confidence divergence; a low divergence indicates that the executed decision does not gain stronger evidence support than alternative explored decisions. (𝑖𝑖) Code Confidence Divergence. For code generation, we identify decision-relevant code spans through static code analysis (e.g., control flows), and evaluate their confidence with and without exploration evidence. A low confidence divergence indicates that the generated code is insufficiently grounded in supporting evidence and warrants inspection.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.3">Semantic Isolation.</head><p>Unlike traditional transactions that mainly isolate conflicting data accesses, agentic transactions require isolation over semantic dependencies among agents, contexts, workspaces, and operations. We consider two levels of isolation: agent-agent isolation and operation-operation isolation. Agent-Level Isolation. Different dependency structures among sub-agents introduce distinct coordination requirements, motivating adaptive isolation strategies supported by agent spawning tools. We formulate isolation selection as a semantic parameter tuning problem, where isolation policies (e.g., access constraints, branching strategies, communication intervals, and termination conditions) are determined based on sub-task semantics and dependencies. This enables learning-based optimization of isolation policies, where a dedicated LLM can be fine-tuned to predict suitable configurations for different tasks, analogous to LLM-based database knob tuning <ref type="bibr" target="#b10">[12]</ref>. Specifically, (𝑖) Independent sub-agents address semantically disjoint sub-tasks (e.g., summarizing large collections of independent documents), where each sub-agent operates on an exclusive subset of resources with isolated permissions and fully parallel execution. (𝑖𝑖) Collaborative sub-agents jointly construct a shared artifact (e.g., soft engineering involving coordinated code evolution and integration over a shared codebase), where agents maintain independent workspace branches, periodically synchronize intermediate results through structured context exchange, and merge changes using a Git-like workflow. (𝑖𝑖𝑖) Competitive subagents explore alternative hypotheses or solution strategies (e.g., conducting in-depth research by analyzing related literature, validating claims, and synthesizing evidence), where each agent executes in an isolated virtual environment (e.g., Docker) and the final result is selected from the most promising trajectory. Efficiency can be further improved through copy-on-write initialization and early termination of under-performing branches. Operation-Level Isolation. At the operation level, the skill hub enforces execution isolation through effect annotations and inference, versioned workspaces, snapshot-based execution, and optimistic validation, preventing failed or conflicting operations from contaminating shared states.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2.4">Semantic Durability.</head><p>We provide semantic durability through (𝑖) transaction-aware semantic state management during execution, and (𝑖𝑖) persistent execution tracing and recovery. Transaction-Aware Semantic State Management. Unlike traditional databases that maintain explicit structured states, AI systems operate over evolving semantic states generated from interactions, workspace updates, tool executions, and intermediate artifacts. Preserving these states is critical for downstream reasoning, but growing interaction histories quickly exceed finite context windows. Existing approaches typically rely on step-wise LLM summarization to compress interaction histories. However, this process often fails to preserve transaction-level semantic structure, either overcompressing critical information or retaining irrelevant step-level details that are not useful for downstream reasoning. To address this challenge, we propose a transaction-aware evolving memory that maintains semantic states throughout the transaction lifecycle. The memory evolves as a knowledge graph, with insertion, merging, splitting, and deletion operations performed by a specialized LLM. Training supervision can be automatically derived from agent trajectories, where information referenced by future execution steps serves as a signal of long-horizon relevance. Execution Tracing and Recovery. Beyond maintaining semantic states during execution, we preserve durable execution histories to support auditing and recovery. Our append-only workspace records provenance information, LLM interactions, tool invocations, and versioned artifacts throughout the transaction lifecycle. These traces enable faithful reconstruction of execution environments, diagnosis of failures, and version-aware failure recovery <ref type="bibr" target="#b7">[9]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">EXPERIMENTS 3.1 Experimental Setup</head><p>All experiments are conducted on a Linux server with 256GB RAM, Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz CPU, and NVIDIA GeForce RTX 2080 Ti. Although agentic transactions represent a broader concept, we first validate our ACID-compliant data agent system as an initial proof of effectiveness.</p><p>Dataset. We use KramaBench <ref type="bibr" target="#b13">[15]</ref>, a representative benchmark for data agents. It contains 104 natural language tasks over 1,700 realworld data files collected from 24 data sources across 6 domains. Each task specifies a data science objective, requires reasoning over heterogeneous datasets, and involves multi-step workflows. Evaluated Methods. We evaluate state-of-the-art LLMs, including Qwen3.5-397B-A17B <ref type="bibr" target="#b5">[6]</ref> and GLM-5.2 [7], provided by the Bailian platform <ref type="bibr" target="#b1">[2]</ref>. We use default temperatures. We evaluate three representative data-agent harnesses: (𝑖) Claude Code <ref type="bibr" target="#b3">[4]</ref>, a generalpurpose ReAct-style harness with long-horizon planning, environment interaction, and context management; (𝑖𝑖) ACID-Agent, using a local Qwen3-0.6B <ref type="bibr" target="#b4">[5]</ref> for confidence estimation since API-based LLMs lack token probabilities. We set the maximum number of semantic units to 20, retain up to 15 historical units, and allow 2 retries per unit. Exploration uses an adaptive budget of 1-4 rounds, decreasing by one round every two units, and terminates early when confidence divergence exceeds 0.45. Retries are triggered when decision confidence divergence is below 0.25 or the maximum codespan confidence divergence is below 0.50; (𝑖𝑖𝑖) DA-Agent <ref type="bibr" target="#b11">[13]</ref>, a data science agent with Bash, Python, and SQL tools for reactive execution with feedback, serving as an ablation variant of ACID-Agent that removes ACID designs. Evaluation Metrics. We evaluate agents from three perspectives: task quality, execution efficiency, and result consistency. Task quality is measured by the benchmark score, while efficiency is evaluated by trajectory-level statistics, including coding steps, token consumption, and execution cost. Consistency is measured by the square root of the average per-task variance across multiple runs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Main Results</head><p>We evaluate ACID-Agent on KramaBench from two perspectives: overall performance and execution consistency. We measure task scores and quantify consistency using the average per-task variance across three independent runs. Overall Evaluation. As shown in Table <ref type="table" target="#tab_3">2</ref>, ACID-Agent consistently achieves higher overall scores than Claude Code across different LLM backbones, with improvements observed in most domains. Powered by Qwen3.5-197B-A17B, ACID-Agent outperforms Claude Code by 10.6% in overall score. Moreover, ACID-Agent with Qwen3.5-397B-A17B even surpasses Claude Code with the larger GLM-5.2 backbone, demonstrating the effectiveness of our harness design beyond model scaling. This improvement comes at the cost of additional code steps and token consumption, mainly due to exploration and retry mechanisms. The results demonstrate that leveraging a lightweight local model (Qwen3-0.6B) for consistency validation effectively complements much stronger backbone LLMs. Consistency Evaluation. As shown in Table <ref type="table" target="#tab_4">3</ref>, ACID-Agent achieves lower task-level score variation than Claude Code, indicating that confidence-guided exploration and validation can mitigate the nondeterministic deviations from transactional semantics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Ablation Study</head><p>The ablation results are shown in Table <ref type="table" target="#tab_5">4</ref>. (𝑖) Semantic Transaction Unit. ACID-Agent outperforms DA-Agent, demonstrating the effectiveness of exploration-execution-validation cycles compared with </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">OPEN PROBLEMS</head><p>Beyond ACID-compliant data agents, building ACID-compliant general-purpose agentic systems raises several open research questions. For atomicity, how can we build scalable skill ecosystems with executable semantics, quality assurance, and safety guarantees that support reliable skill composition and evolution? For consistency, how can we ensure reliable reasoning and stable execution across runs through new architectures, benchmarks, model alignment techniques, execution harnesses, machine-checkable contracts, and typed tool interfaces? For isolation, how can multiagent systems safely coordinate access to shared contexts, tools, artifacts, and semantic states? Addressing this challenge requires transactional abstractions and integrated database-LLM serving mechanisms for managing context, ownership, and conflicts <ref type="bibr" target="#b2">[3,</ref><ref type="bibr" target="#b12">14]</ref>.</p><p>For durability, how can we turn agent memory into systematic infrastructure that supports transactional state management, failure recovery, and persistent evolution for lifelong agents?</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>•Durability•Isolation•</head><label></label><figDesc>Add validated steps to context memory. Commit to append-only workspace. (7.7k → 0.7k tokens) No failed steps in workspace &amp; memory.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: An Example of ACID-Compliant Data Agent.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Overview of ACID-Compliant Data Agent System.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Consistency of Agent Performance Across Three Runs on 10 AgenticDataBench [19] Tasks. Bars show mean performance; error bars show the square root of the average per-task variance across runs. SA=Smolagents, DA=DA-Agent, CC=Claude Code, CX=CodeX. ➀=Qwen3.5-397B-A17B, ➁=Kimi-K2.5, ➂=Claude Sonnet 4.6.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>Table 1 :</head><label>1</label><figDesc>ACID properties for agentic transactions. Unlike conventional database transactions, agent transactions combine non-deterministic reasoning with heterogeneous, potentially non-transactional effects. The proposed semantics constrain committed effects rather than requiring deterministic execution traces.</figDesc><table><row><cell>Property</cell><cell>Agent-Transaction Semantics</cell><cell>Systems Challenge</cell><cell>Techniques</cell></row><row><cell>Atomicity</cell><cell>A dependency-aware set of model invoca-</cell><cell>Agent workflows are long-running, dynami-</cell><cell>Treating each exploration-execution-</cell></row><row><cell></cell><cell>tions, tool calls, document mutations, and</cell><cell>cally generated, and may invoke external tools.</cell><cell>validation cycle as a semantic transac-</cell></row><row><cell></cell><cell>external actions. Its effects become visible</cell><cell>Failures can therefore leave partially updated</cell><cell>tion unit with commit-or-retry seman-</cell></row><row><cell></cell><cell>only if all required operations and postcon-</cell><cell>workspaces, duplicated external actions, or out-</cell><cell>tics, validated effect-only commits, and</cell></row><row><cell></cell><cell>ditions succeed; otherwise, all recoverable</cell><cell>puts unsupported by completed execution.</cell><cell>test-driven transactional skill hubs.</cell></row><row><cell></cell><cell>effects are rolled back or compensated.</cell><cell></cell><cell></cell></row><row><cell cols="2">Consistency The execution trace may be non-</cell><cell>LLM-generated plans can be syntactically exe-</cell><cell>A confidence-based validation mecha-</cell></row><row><cell></cell><cell>deterministic, but its committed outcome</cell><cell>cutable yet semantically invalid because of incor-</cell><cell>nism that integrates multiple reliability</cell></row><row><cell></cell><cell>must satisfy the transaction's precon-</cell><cell>rect tool selection, unsupported claims, schema</cell><cell>signals, including execution errors, de-</cell></row><row><cell></cell><cell>ditions, postconditions, and evidence</cell><cell>or policy violations, stale observations, and diver-</cell><cell>cision/code confidence divergence, and</cell></row><row><cell></cell><cell>obligations.</cell><cell>gence between the user's intent and the commit-</cell><cell>LLM-based reflection feedback, with</cell></row><row><cell></cell><cell></cell><cell>ted outcome.</cell><cell>materialized skill reuse.</cell></row><row><cell>Isolation</cell><cell>Concurrent agent transactions must not</cell><cell>Conflicts extend beyond reads and writes to en-</cell><cell>Isolating agent and operation con-</cell></row><row><cell></cell><cell>observe or produce semantically invalid in-</cell><cell>compass prompts, memory, intermediate artifacts,</cell><cell>texts through dependency-aware iso-</cell></row><row><cell></cell><cell>terference. Their committed effects should</cell><cell>tool budgets, external side effects, and derived se-</cell><cell>lation policies, isolated environments,</cell></row><row><cell></cell><cell>be equivalent to an execution permitted by</cell><cell>mantic state. Moreover, conflicts often cannot be</cell><cell>versioned workspaces, and validation-</cell></row><row><cell></cell><cell>a declared isolation level, while allowing</cell><cell>identified in advance because agents discover re-</cell><cell>based state control.</cell></row><row><cell></cell><cell>safe information sharing and collaboration.</cell><cell>sources dynamically during execution.</cell><cell></cell></row><row><cell>Durability</cell><cell>Once committed, a transaction's effects,</cell><cell>Agent state is distributed across conversation</cell><cell>Maintaining transaction-aware mem-</cell></row><row><cell></cell><cell>evidence, and recovery metadata persist</cell><cell>context, model outputs, tool responses, files,</cell><cell>ory and append-only workspaces</cell></row><row><cell></cell><cell>across failures, enabling its state to be re-</cell><cell>databases, and external services. Model and</cell><cell>through LLM-managed knowledge-</cell></row><row><cell></cell><cell>constructed and audited independently of</cell><cell>prompt evolution complicate deterministic replay</cell><cell>graph evolution, provenance tracing,</cell></row><row><cell></cell><cell>the transient LLM context.</cell><cell>and long-term interpretation of prior executions.</cell><cell>and version-aware recovery.</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Safeguard Agent Spawn Tool with Dependency-Aware Isolation Tuner</head><label></label><figDesc></figDesc><table><row><cell></cell><cell>Task</cell><cell>Dataset</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell>Generate Code</cell><cell>Execute (Append-Only)</cell></row><row><cell>Context Memory (Graph)</cell><cell cols="2">Durable Transaction State Maintenance</cell><cell></cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">Confidence-Guided</cell><cell>Confidence-based</cell></row><row><cell>Memory Evolution Op.</cell><cell cols="2">Append-Only Workspace</cell><cell cols="2">Data Exploration</cell><cell>Consistency Validation</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">Generate Code</cell><cell>Extract Structured Decisions (Explored / Executed)</cell></row><row><cell cols="5">Execute (Read-Only) Observation → Evidences Low Independent Continue PLLM(Executed | Evidences) / PLLM(Explored | Evidences) Collaborative Competitive</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">PLLM(Explore | Evidences)</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">High → Redundant !</cell></row><row><cell></cell><cell></cell><cell></cell><cell>Stop</cell></row><row><cell></cell><cell></cell><cell></cell><cell cols="2">Consolidate Evidences</cell></row></table><note><p>→ Poorly Grounded ! Extract Executed Code Snippets PLLM(Code | Evidences) Low → Poorly Grounded ! Retry Judge Evidences Retry with Feedback Atomic Semantic Transaction Unit Commit Results Results Safe Skill Hub: Collect Repo./Paper/Workflows Benchmarks → Test Suites Test-Driven Skill Creation Workload-&amp; Data-Aware Skill Router Workflows Failed Cases Consistent Skill Invocation with Atomicity &amp; Isolation</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Scores (%) and Trajectory-level Metrics on KramaBench. ➀=Qwen3.5-397B-A17B, ➁=GLM-5.2.</figDesc><table><row><cell>Harness</cell><cell>LLM</cell><cell>Score</cell><cell cols="6">Domain Scores Archaeology Astronomy Biomedical Environment Legal Wildfire</cell><cell cols="3">#Code Steps #Tokens (K) Cost ($)</cell></row><row><cell>Claude Code</cell><cell>➀ Qwen ➁ GLM</cell><cell>64.0 74.2</cell><cell>41.7 50.0</cell><cell>54.2 54.2</cell><cell>44.4 55.6</cell><cell>70.2 90.0</cell><cell>73.3 80.0</cell><cell>71.7 84.2</cell><cell>9.4 8.8</cell><cell>405 289</cell><cell>0.08 0.12</cell></row><row><cell>ACID-Agent</cell><cell>➀ Qwen ➁ GLM</cell><cell>74.6 77.4</cell><cell>41.7 50.0</cell><cell>58.3 58.3</cell><cell>55.6 77.8</cell><cell>90.0 95.0</cell><cell>83.3 80.0</cell><cell>83.7 83.1</cell><cell>22.8 22.5</cell><cell>348 367</cell><cell>0.10 0.61</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Consistency of Agent Performance Across Three Runs on the Environment Domain of KramaBench (mean ± √︁ avg(Var)). All agents are based on Qwen3.5-397B-A17B.</figDesc><table><row><cell>Data Agent</cell><cell>Score</cell><cell cols="2">#Code Steps #Tokens (K)</cell><cell>Cost ($)</cell></row><row><cell cols="2">Claude Code 63.9 ± 30.9</cell><cell>8.5 ± 2.9</cell><cell>372 ± 161</cell><cell>0.07 ± 0.03</cell></row><row><cell cols="2">ACID-Agent 88.9 ± 18.6</cell><cell>25.1 ± 9.8</cell><cell>421 ± 200</cell><cell>0.13 ± 0.06</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Table 4 :</head><label>4</label><figDesc>Ablation Study on the Environment Domain of Kram-aBench. All agents are based on Qwen3.5-397B-A17B. We remove the isolation mechanism for failed steps, allowing intermediate failures to directly update the workspace and context memory. This variant reduces the score by 11.7%, demonstrating that propagating failed states can contaminate subsequent execution. (𝑖𝑖𝑖) Effect of More Tokens. ACID-Agent outperforms majority-voting Claude Code across three runs with fewer tokens. This indicates that the improvement does not come from increased inference budgets, but from the ACID-inspired harness design.</figDesc><table><row><cell cols="5">Data Agent Score #Code Steps #Tokens (K) Cost ($)</cell></row><row><cell>DA-Agent</cell><cell>65.2</cell><cell>8.5</cell><cell>62</cell><cell>0.01</cell></row><row><cell>Claude Code (3-Majority)</cell><cell>75.2</cell><cell>25.6</cell><cell>1121</cell><cell>0.21</cell></row><row><cell>ACID-Agent (No-Isolation)</cell><cell>78.3</cell><cell>20.1</cell><cell>333</cell><cell>0.10</cell></row><row><cell>ACID-Agent</cell><cell>90.0</cell><cell>25.5</cell><cell>444</cell><cell>0.13</cell></row></table><note><p>conventional ReAct-style execution. (𝑖𝑖) Failed Step Isolation.</p></note></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Agent Skills -Claude API Docs</title>
+		<ptr target="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview" />
+		<imprint>
+			<date type="published" when="2026-07-11">2026. July 11. 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Bailian Console of the Large Model Service Platform</title>
+		<ptr target="https://bailian.console.alibabacloud.com/" />
+		<imprint>
+			<date type="published" when="2026-07-11">2026. July 11. 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Best for agent storage, it unifies vector, text, structured, and semi-structured data into a single engine. This all-in-one database makes agents smarter, easier to run, and more stable</title>
+		<ptr target="https://github.com/oceanbase/seekdb" />
+	</analytic>
+	<monogr>
+		<title level="m">oceanbase/seekdb: The AI-Native Search Database</title>
+		<imprint>
+			<date type="published" when="2026-07-14">2026. July 14</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Overview -Claude Code Docs</title>
+		<ptr target="https://code.claude.com/docs/en/overview" />
+		<imprint>
+			<date type="published" when="2026-07-11">2026. July 11</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Qwen/Qwen3-0.6B • Hugging Face</title>
+		<ptr target="https://huggingface.co/Qwen/Qwen3-0.6B" />
+		<imprint>
+			<date type="published" when="2026-07-14">2026. July 14</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Qwen/Qwen3.5-397B-A17B • Hugging Face</title>
+		<ptr target="https://huggingface.co/Qwen/Qwen3.5-397B-A17B" />
+		<imprint>
+			<date type="published" when="2026-07-11">2026. July 11. 2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">SagaLLM: Context Management, Validation, and Transaction Guarantees for Multi-Agent LLM Planning</title>
+		<author>
+			<persName><forename type="first">Y</forename><surname>Edward</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Longling</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Geng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">VLDB</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="4874" to="4886" />
+			<date type="published" when="2025">2025. 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yunpeng</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingkai</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiqi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuze</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhonghu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Si</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baochuan</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yubin</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haibo</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2605.22781</idno>
+		<title level="m">DeltaBox: Scaling Stateful AI Agents with Millisecond-Level Sandbox Checkpoint/Rollback</title>
+		<imprint>
+			<date type="published" when="2026">2026. 2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Principles of Transaction-Oriented Database Recovery</title>
+		<author>
+			<persName><forename type="first">Theo</forename><surname>Härder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Reuter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Comput. Surv</title>
+		<imprint>
+			<biblScope unit="volume">15</biblScope>
+			<biblScope unit="page" from="287" to="317" />
+			<date type="published" when="1983">1983. 1983</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">A Survey on Hallucination in Large Language Models: Principles, Taxonomy, Challenges, and Open Questions</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weijiang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weitao</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihong</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyin</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianglong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihua</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaocheng</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ting</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Trans. Inf. Syst</title>
+		<imprint>
+			<biblScope unit="volume">43</biblScope>
+			<biblScope unit="page">55</biblScope>
+			<date type="published" when="2025">2025. 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<author>
+			<persName><forename type="first">Xinmei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinxin</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiming</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiyan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tieying</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianjun</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cuiping</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">E2ETune: Endto-End Knob Tuning via Fine-tuned Generative Language Model</title>
+		<imprint>
+			<date type="published" when="2025">2025. 2025</date>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="5540" to="5554" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">DA-Code: Agent Data Science Code Generation Benchmark for Large Language Models</title>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwen</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yan</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yitong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fangyu</forename><surname>Lei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shizhu</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lifu</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Zhao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">EMNLP</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="13487" to="13521" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">ThunderAgent: A Fast, Simple, and Program-Aware Agentic Inference System</title>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weili</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinfang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junxiong</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beidi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Krishna</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenfeng</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simran</forename><surname>Arora</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Eugenie</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gerardo</forename><surname>Vitagliano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ziyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Om</forename><surname>Chabra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sivaprasad</forename><surname>Sudhir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anton</forename><forename type="middle">A</forename><surname>Zabreyko</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenning</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ferdi</forename><surname>Kossmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialin</forename><surname>Ding</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2506.06541</idno>
+		<title level="m">Kramabench: A benchmark for ai systems on data-to-insight pipelines over data lakes</title>
+		<imprint>
+			<date type="published" when="2025">2025. 2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">MemOS: An Operating System for Memory-Augmented Generation (MAG) in Large Language Models</title>
+		<author>
+			<persName><forename type="first">Zhiyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shichao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simin</forename><surname>Niu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ding</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenyang</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huayi</forename><surname>Lai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jihao</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yezhaohui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junpeng</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zehao</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Huo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kehang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiqiang</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qingchen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongkang</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Zhi-Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feiyu</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Xiong</surname></persName>
+		</author>
+		<idno>CoRR abs/2505.22101</idno>
+		<imprint>
+			<date type="published" when="2025">2025. 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Bardia</forename><surname>Mohammadi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nearchos</forename><surname>Potamitis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lars</forename><surname>Klein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akhil</forename><surname>Arora</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Bindschaedler</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.14849</idno>
+		<title level="m">Atomix: Timely, transactional tool use for reliable agentic workflows</title>
+		<imprint>
+			<date type="published" when="2026">2026. 2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title level="m" type="main">Data Agent: A Holistic Architecture for Orchestrating Data+AI Ecosystems</title>
+		<author>
+			<persName><forename type="first">Zhaoyan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiayi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyang</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiachi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+		</author>
+		<idno>CoRR abs/2507.01599</idno>
+		<imprint>
+			<date type="published" when="2025">2025. 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhaoyan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shan</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daizhou</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxing</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baolin</forename><surname>Sun</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2607.01647</idno>
+		<title level="m">AgenticDataBench: A Comprehensive Benchmark for Data Agents</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">R-Bot: An LLM-Based Query Rewrite System</title>
+		<author>
+			<persName><forename type="first">Zhaoyan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanhe</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianhua</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">VLDB</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="page" from="5031" to="5044" />
+			<date type="published" when="2025">2025. 2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">D-Bot: An LLM-Powered DBA Copilot</title>
+		<author>
+			<persName><forename type="first">Zhaoyan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanhe</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianming</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">SIGMOD Companion</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="235" to="238" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Kimi K2.5: Visual Agentic Intelligence</title>
+		<author>
+			<persName><forename type="first">Kimi</forename><surname>Team</surname></persName>
+		</author>
+		<idno>CoRR abs/2602.02276</idno>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Database Meets Artificial Intelligence: A Survey</title>
+		<author>
+			<persName><forename type="first">Xuanhe</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengliang</forename><surname>Chai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ji</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">TKDE</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="1096" to="1116" />
+			<date type="published" when="2022">2022. 2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">D-Bot: Database Diagnosis System using Large Language Models</title>
+		<author>
+			<persName><forename type="first">Xuanhe</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaoyan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weize</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianming</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiesi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruohang</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoyang</forename><surname>Zeng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">VLDB</title>
+		<imprint>
+			<biblScope unit="volume">17</biblScope>
+			<biblScope unit="page" from="2514" to="2527" />
+			<date type="published" when="2024">2024. 2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Db-gpt: Large language model meets database</title>
+		<author>
+			<persName><forename type="first">Xuanhe</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaoyan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guoliang</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Data Science and Engineering</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="102" to="111" />
+			<date type="published" when="2024">2024. 2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

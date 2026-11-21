@@ -1,0 +1,1773 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Building LLM Agent Systems the Deep Learning Way: From Modular Design to Architecture Search</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-10-04">4 Oct 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Tao</forename><surname>Feng</surname></persName>
+							<email>taofeng2@illinois.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Illinois</orgName>
+								<address>
+									<settlement>Urbana-Champaign</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Pengrui</forename><surname>Han</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Illinois</orgName>
+								<address>
+									<settlement>Urbana-Champaign</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Zhongjie</forename><surname>Dai</surname></persName>
+							<email>zhongjie@illinois.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Illinois</orgName>
+								<address>
+									<settlement>Urbana-Champaign</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jiaxuan</forename><surname>You</surname></persName>
+							<email>jiaxuan@illinois.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">University of Illinois</orgName>
+								<address>
+									<settlement>Urbana-Champaign</settlement>
+								</address>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Building LLM Agent Systems the Deep Learning Way: From Modular Design to Architecture Search</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-10-04">4 Oct 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">DE6372F350B1D9D791446B0E10C2E711</idno>
+					<idno type="arXiv">arXiv:2610.04961v1[cs.CL]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large Language Models (LLMs) have revolutionized AI research and enabled exciting agent systems. To build a complex LLM agent system, most existing research relies on insights from other domains or heuristics to manually build the agent system. However, this approach often requires heavy hand-engineering and fails to fully optimize for the downstream task of interest. Inspired by the tremendous success of deep learning, we propose to construct LLM agent systems in a modular manner, similar to building a deep neural network. Our key insight is to make analogies between LLM building blocks, such as retrievals, memories, and prompting strategies, and the successful deep learning modules, such as MLPs, attention, and recurrent modules. We further design forward inference and feedback mechanisms for LLMs, where prompts in LLMs are considered as the weights in deep models, and the prompt optimization from feedback is analogous to the back-propagation algorithm. We additionally leverage a search algorithm to search for the best configuration of LLM agent systems, similar to the neural architecture search (NAS) in deep learning research. Comprehensive experimental results demonstrate that the proposed deep learning recipe for LLM agent systems is highly effective, in particular: (1) Organizing LLM modules into deep-learning-style architectures yields noticeable performance gain; (2) Automatic prompt optimization, equivalent to backpropagation, is efficient in incorporating feedback from the task of interest and achieves at least 5% performance improvement; (3) NAS equivalent algorithm works well for further optimizing the LLM agent system architecture with 11% performance gain compared with randomly designed architectures. Overall, our research demonstrates the exciting opportunity of transferring the success of deep learning to building LLM agent systems.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>Large Language Models (LLMs) have demonstrated remarkable potential in achieving Artificial General Intelligence (AGI) due to their impressive planning and reasoning abilities <ref type="bibr">(Wu et al., 2023b;</ref><ref type="bibr" target="#b6">Ge et al., 2023)</ref>, which has sparked an upsurge in studies investigating sophisticated LLM agent systems <ref type="bibr" target="#b56">(Zhao et al., 2023;</ref><ref type="bibr" target="#b46">Wang et al., 2023;</ref><ref type="bibr" target="#b28">Peng et al., 2023)</ref>. LLM agent systems usually involve various LLM building blocks <ref type="bibr" target="#b26">(Packer et al., 2023;</ref><ref type="bibr" target="#b51">Yao et al., 2023;</ref><ref type="bibr" target="#b40">Topsakal &amp; Akinci, 2023;</ref><ref type="bibr" target="#b27">Pandya &amp; Holia, 2023;</ref><ref type="bibr" target="#b13">Jeong, 2023)</ref>, such as retrieval <ref type="bibr" target="#b34">(Robertson et al., 2009;</ref><ref type="bibr" target="#b12">Izacard et al., 2022;</ref><ref type="bibr" target="#b21">Lin et al., 2023)</ref>, memory modules <ref type="bibr" target="#b56">(Zhao et al., 2023;</ref><ref type="bibr" target="#b46">Wang et al., 2023)</ref>, and prompting strategies <ref type="bibr" target="#b52">(Yao et al., 2024)</ref>. We argue that the success of LLM agent systems relies on the integration of multiple LLM modules <ref type="bibr" target="#b56">(Zhao et al., 2023;</ref><ref type="bibr" target="#b39">Talebirad &amp; Nadiri, 2023;</ref><ref type="bibr">Wu et al., 2023a)</ref>, which still receives limited attention from the community. Therefore, our paper aims to raise attention to the pressing research question: how to effectively and automatically construct LLM agent systems based on basic building blocks.</p><p>Constructing effective LLM agent systems often involves leveraging insights from various disciplines, such as neuroscience <ref type="bibr" target="#b50">(Yao et al., 2022;</ref><ref type="bibr" target="#b37">Shinn et al., 2023;</ref><ref type="bibr" target="#b19">Kwon et al., 2023)</ref> and computer architecture Preprint <ref type="bibr" target="#b26">(Packer et al., 2023;</ref><ref type="bibr" target="#b39">Talebirad &amp; Nadiri, 2023)</ref>. For example, MEMGPT <ref type="bibr" target="#b26">(Packer et al., 2023)</ref> draws inspiration from hierarchical memory systems in traditional operating systems to construct an LLM agent system with several manually designed LLM building blocks. However, applying such interdisciplinary insights to LLM agent system construction has the following shortcomings: (1) The approach is often domain-specific and not generic, requiring heavy manual designs; (2) Designing the LLM agent system necessitates extensive trial and error, making the process both costly and inflexible.</p><p>The tremendous success of Deep Learning (DL) has brought us a new perspective on solving the above problems. In the area of DL, researchers have proposed various basic modules such as Recurrent Neural Network (RNN) <ref type="bibr" target="#b20">(Li et al., 2019;</ref><ref type="bibr" target="#b35">Selvin et al., 2017;</ref><ref type="bibr" target="#b15">Jordan, 1997)</ref> and Attention Network <ref type="bibr" target="#b44">(Wang et al., 2017;</ref><ref type="bibr" target="#b5">Fu et al., 2019;</ref><ref type="bibr" target="#b10">Hou et al., 2019)</ref> to process various tasks. Constructing the basic modules into complicated architectures like Transformer <ref type="bibr">(Vaswani et al., 2017b;</ref><ref type="bibr" target="#b9">Han et al., 2021)</ref> and further leveraging the forward and back propagation <ref type="bibr" target="#b14">(Johansson et al., 1991;</ref><ref type="bibr" target="#b2">Buscema, 1998)</ref> to train such architectures have further contributed to the success of DL in tackling complex real-world applications.</p><p>Inspired by the success of DL, we propose to design LLM agent systems with a Deep Learning recipe. Our approach involves defining building blocks of LLMs analogous to the DL modules, constructing LLM agent systems similar to defining NN architectures, and developing the prompt optimization algorithm of LLMs similar to the backpropagation algorithm. Specifically, we explore LLM modules including: (1) vanilla LLM as a single layer MultiLayer Perceptron (MLP) <ref type="bibr" target="#b30">(Popescu et al., 2009)</ref>; (2) Memory processer <ref type="bibr" target="#b54">(Zhang et al., 2023;</ref><ref type="bibr" target="#b26">Packer et al., 2023)</ref> as an RNN; (3) Retrieval <ref type="bibr" target="#b34">(Robertson et al., 2009;</ref><ref type="bibr" target="#b12">Izacard et al., 2022;</ref><ref type="bibr" target="#b21">Lin et al., 2023)</ref> as an attention network <ref type="bibr" target="#b44">(Wang et al., 2017;</ref><ref type="bibr" target="#b5">Fu et al., 2019;</ref><ref type="bibr" target="#b10">Hou et al., 2019)</ref>; (4) prompting strategies <ref type="bibr" target="#b1">(Besta et al., 2023;</ref><ref type="bibr" target="#b52">Yao et al., 2024)</ref> as Graph Neural Networks (GNNs) <ref type="bibr" target="#b55">(Zhang et al., 2021;</ref><ref type="bibr" target="#b36">Shi et al., 2019;</ref><ref type="bibr" target="#b16">Kenning et al., 2022)</ref>. Based on the defined LLM modules, we could construct more complex LLM agent systems by referencing successful DL architectures, notably, Transformer <ref type="bibr">(Vaswani et al., 2017a)</ref>. Furthermore, we design a meta prompt module similar to the training parameters in DL to guide the forward inference, and a feedback-propagation module that incorporates the external feedback and iteratively updates the meta prompt similar to the backpropagation algorithm. We additionally leverage a search algorithm to search for the best configuration of LLM agent systems, similar to the neural architecture search (NAS) <ref type="bibr" target="#b22">(Liu et al., 2018)</ref> in DL research. In summary, our main contributions are as follows:</p><p>• The first work to investigate constructing LLM agent systems from the DL perspective and recipe, extending the science and engineering of LLM agent systems.</p><p>• Proposing DL-style building blocks for LLMs and constructing a "Transformer" architecture for LLM agent systems. Observing at least 5% performance gain by "backpropagating" through the LLM agent system via a novel feedback-propagation algorithm.</p><p>• An automatic search algorithm for the best configuration of LLM agent systems, similar to NAS in DL, brings an 11% performance gain compared to prior practice.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Works</head><p>In this section, we first revisit the basic DL modules and how they are used to build complex NN architectures.</p><p>We then review the current approaches in building LLM agent systems and discuss how we can bring insights from the success of DL applications to LLM agent systems.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Modules of Deep Learning.</head><p>In the area of DL, researchers have designed various basic modules to tackle different tasks. In the early period of DL design, researchers proposed MLP <ref type="bibr" target="#b30">(Popescu et al., 2009)</ref> to solve tasks such as classification, prediction, and regression. However, this basic architecture is less effective for complex input data. Consequently, researchers have developed specialized modules with various functionalities. RNNs <ref type="bibr" target="#b20">(Li et al., 2019;</ref><ref type="bibr" target="#b35">Selvin et al., 2017;</ref><ref type="bibr" target="#b15">Jordan, 1997)</ref> are tailored for sequential data, maintaining a hidden state to capture information across time steps. CNNs <ref type="bibr" target="#b17">(Kiranyaz et al., 2015;</ref><ref type="bibr" target="#b25">2019)</ref> excel at capturing local patterns within images. Additionally, Attention mechanism <ref type="bibr" target="#b44">(Wang et al., 2017;</ref><ref type="bibr" target="#b5">Fu et al., 2019;</ref><ref type="bibr" target="#b10">Hou et al., 2019)</ref> further refines model focus by emphasizing the most salient segments within the data. By combining and arranging these specialized modules, researchers have developed numerous powerful architectures. For instance, the Transformer <ref type="bibr">(Vaswani et al., 2017b;</ref><ref type="bibr" target="#b9">Han et al., 2021)</ref>, one of the most popular architectures today, relies on the attention mechanism and simple feed-forward layers. It has demonstrated surprising results in generative AI. Additionally, some researchers have integrated the attention mechanism into RNNs, yielding very promising outcomes <ref type="bibr" target="#b45">(Wang &amp; Tax, 2016;</ref><ref type="bibr" target="#b25">Merity, 2019)</ref>. Researchers have further developed automated architecture engineering, such as Neural Architecture Search (NAS) <ref type="bibr" target="#b22">(Liu et al., 2018;</ref><ref type="bibr" target="#b57">Zoph &amp; Le, 2016;</ref><ref type="bibr" target="#b29">Pham et al., 2018)</ref>, aiming to find the optimized design of our machine learning model.</p><p>Construction of LLM Agent Systems. Much of the current research on LLM agent systems relies on the insights and observations from other domains <ref type="bibr" target="#b50">(Yao et al., 2022;</ref><ref type="bibr" target="#b37">Shinn et al., 2023;</ref><ref type="bibr" target="#b19">Kwon et al., 2023;</ref><ref type="bibr" target="#b3">Chen et al., 2023)</ref>. However, these designs are often problem-specific and do not offer a systematic approach to defining a good LLM agent system architecture. Recent efforts, like Langchain<ref type="foot" target="#foot_0">foot_0</ref> and LlamaIndex<ref type="foot" target="#foot_1">foot_1</ref> , aim to offer standardized building blocks and modules for LLM agent systems. However, they still lack a systematic approach to designing different LLM agent systems for various tasks, providing limited guidance on their integration for sophisticated and meaningful architectural compositions. In response, we propose the development of standardized modules for LLM agent system design, inspired by the proven methodologies within the DL domain. In this work, we show that these basic building blocks can be synthesized into a coherent framework, offering a novel, modular approach to architectures in LLMs that builds a bridge between LLMs and DL.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">The Deep Learning Recipe for LLM Agent Systems</head><p>To explore the deep learning recipe for LLM agent systems, we first introduce the basic building blocks of LLMs in Sec 3.1, which demonstrates the relationships between DL and LLM building blocks. Inspired by the success of DL's training process, we then illustrate the forward inference and feedback propagation of LLMs in Sec 3.2. Finally, we introduce the instantiations of: building a "Transformer" with LLM building blocks in Sec 3.3.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Deep-Learning-Style Building Blocks of LLM Agent Systems</head><p>To introduce the basic building blocks of LLMs and the relationship between DL and LLMs, we "translate" the modules of LLMs into modules of DL as shown in Figure <ref type="figure" target="#fig_0">1</ref>.</p><p>Vanilla LLM as Single Layer MLP. As a basic component when constructing an LLM agent system, an LLM receives a query q and outputs a response r. It can be translated as a single layer MLP, as shown in Figure <ref type="figure" target="#fig_0">1</ref>(a), which also plays a fundamental role in DL <ref type="bibr" target="#b30">(Popescu et al., 2009)</ref>.</p><p>Memory Processor as Recurrent Neural Network. During the interaction process of the LLM, it will store the knowledge obtained by the interaction as memories {m 0 , m 1 , ...m n , q} and utilize these memories for future responses <ref type="bibr" target="#b37">(Shinn et al., 2023;</ref><ref type="bibr" target="#b19">Kwon et al., 2023)</ref> as shown in Figure <ref type="figure" target="#fig_0">1</ref>(b). Similarly, Recurrent Neural Network (RNN) excels at processing sequential data due to its inherent structure that allows for the storage and utilization of previous information <ref type="bibr" target="#b20">(Li et al., 2019;</ref><ref type="bibr" target="#b35">Selvin et al., 2017;</ref><ref type="bibr" target="#b15">Jordan, 1997)</ref>. It achieves this by maintaining hidden states h t that are updated at each time step t, effectively encoding the history of the sequence {m 0 , m 1 , ...m n , q} up to that point. Therefore, we regard the memory processor as RNN.</p><p>Retrieval as Attention Network. When LLMs interact with factual knowledge stored in the corpus context C, they utilize retrieval <ref type="bibr" target="#b34">(Robertson et al., 2009;</ref><ref type="bibr" target="#b12">Izacard et al., 2022;</ref><ref type="bibr" target="#b21">Lin et al., 2023)</ref> to efficiently retrieve accurate context for future responses. As shown in the left part of Figure <ref type="figure" target="#fig_0">1</ref>(c), to retrieve the accurate context, retrieval exploits the embedding similarity between query q and corpus context C and obtains the retrieved context C r of the top K similarity ranking. This process is similar to the attention network shown in the right part of Figure <ref type="figure" target="#fig_0">1</ref>(c). They both utilize the embedding similarity between query q and corpus context C to obtain an importance score f , which determines the importance weights of each context. From this perspective, we translate the retrieval as an attention network. To be specific, single-query retrieval can  be interpreted as single-head attention and multi-query retrieval can be regarded as multi-head attention <ref type="bibr" target="#b44">(Wang et al., 2017;</ref><ref type="bibr" target="#b5">Fu et al., 2019;</ref><ref type="bibr" target="#b10">Hou et al., 2019)</ref>.</p><p>Prompting Strategies as Graph Neural Network. As shown in Figure <ref type="figure" target="#fig_0">1</ref>(d), common prompting strategies, such as Tree of Thoughts (ToT) <ref type="bibr" target="#b52">(Yao et al., 2024)</ref> and Graph of Thoughts (GoT) <ref type="bibr" target="#b1">(Besta et al., 2023)</ref> both decompose query q into interconnected thoughts, which are connected and related to each other. These query and thought nodes and their relationships can be abstracted into nodes and edges of Graph Neural Networks, respectively. Since a tree is a special case of a graph, we treat both ToT and GoT as instances of the GNN analogy in the subsequent introduction, denoting the corresponding architectures as Tree and GNN, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Forward Inference and Feedback Propagation for LLM Agent Systems</head><p>The success of DL not only lies in the design of fundamental modules discussed in Sec 3.1, but also in the training process containing forward and back propagation <ref type="bibr" target="#b2">(Buscema, 1998)</ref> that brings external signals and feedback to the DL system. Inspired by this, we design the forward inference and feedback propagation of LLMs as shown in Figure <ref type="figure" target="#fig_1">2</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Composition of LLM Blocks Previous Responses:</head><p>Climate change is primarily caused by human activities.</p><p>Climate change is mainly due to natural factors.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Reflection:</head><p>This response overlooks the significant impact of human activities. In this process, meta prompt is regarded as trainable parameters in DL. For the forward inference, the input query goes through the composition of LLM building blocks to obtain the response, which is guided through the meta prompt. For the feedback propagation, the feedback from the self-reflection updates the parameters (meta prompt) of LLM.</p><p>Parameters of the LLM agent system. The parameters can be divided into two categories: training parameters and hyperparameters. Here, the meta prompt in Figure <ref type="figure" target="#fig_1">2</ref> is equivalent to training parameters in deep learning, since it guides forward inference and can be updated through feedback propagation. Moreover, hyperparameters in LLM agent systems include max tokens of each LLM (size of MLP); number of retrievals (head number of attention network); retrieve number of each retrieval (mask); node number or depth of tree/graph of thoughts (node number or layer number of GNN); etc. These are predefined before using the LLM agent systems.</p><p>Forward Inference. In the forward inference process of DL, the input data passes through each block of the neural network to obtain the final output <ref type="bibr" target="#b2">(Buscema, 1998;</ref><ref type="bibr" target="#b31">Prabhushankar &amp; AlRegib, 2022)</ref>. Similar to this, in the forward inference process of LLM, the input query goes through the composition of LLM building blocks to obtain the response as shown in Figure <ref type="figure" target="#fig_1">2</ref>. Here we set up a meta prompt to guide the forward inference of LLM, which contains the input query, previous responses, and reflection returned by the self-reflection module.</p><p>Feedback Propagation. Many researchers attribute the success of DL to the feedback propagation process of DL <ref type="bibr" target="#b2">(Buscema, 1998;</ref><ref type="bibr" target="#b24">Luft, 2014)</ref>, which updates the parameters of DL through feedback of losses between outputs and ground truths. Inspired by this, as illustrated in Figure <ref type="figure" target="#fig_1">2</ref>, we regard the meta prompt as parameters of LLM and design a self-reflection module as the loss function to evaluate the effect of response on input query and update the parameters of LLM. Specifically, the self-reflection contains LLM Evaluation and Metric Calculation. For some queries whose response quality has clear metrics, we will choose Metric Calculation. Otherwise, we utilize LLM Evaluation to make LLM judge the quality of the response. The generated reflections and responses will be used to update the meta prompt to guide the LLM response in the next round.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Case study: Building a "Transformer" with LLM Building Blocks</head><p>In this section, we introduce how to build a (cross-attention) Transformer with LLM building blocks. As illustrated in Figure <ref type="figure" target="#fig_2">3</ref>, we show the correspondence between the main modules of the cross-attention transformer and LLM building blocks to illustrate how to utilize LLM building blocks to build a transformer. For the cross-attention transformer, the two different features of data will first go through a cross-attention network, and the output will be obtained through an MLP layer. To avoid the vanishing gradient problem or gradient explosion, researchers will also add the residual module to improve the training performance The multi-query retrieval is equivalent to the cross-attention network, and the LLM is translated to MLP in DL. Additionally, the process of appending the raw query to the generated multiple queries is equivalent to the residual.</p><p>of the transformer <ref type="bibr">(Vaswani et al., 2017b;</ref><ref type="bibr" target="#b9">Han et al., 2021)</ref>. The success of the transformer in integrating and processing information from different features has inspired the design of LLM. As shown in the right part of Figure <ref type="figure" target="#fig_2">3</ref>, we analogize the raw query and the corpus context into two different features of data, like F eature 1 and F eature 2 . On this basis, we first design a meta prompt containing raw queries to guide the LLM to generate multiple queries. Then we propose a multi-query retrieval based on multiple queries to retrieve relevant context from corpus context, which is equivalent to the multi-head cross-attention network. Additionally, we add the raw query to the generated multiple queries to ensure the effectiveness of our LLM, which is similar to the design of the residual module. Finally, an LLM will output the response like an MLP based on the retrieved context and input query. We summarize the DL recipe for LLM agent systems as a user instruction manual in Table <ref type="table">4</ref> and please refer to Appendix A for details.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Experimental Setup</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Datasets and Tasks</head><p>We evaluate LLM agent systems on two major categories of tasks. They differ in whether the LLMs interact with external knowledge <ref type="bibr" target="#b38">(Sun et al., 2023)</ref>, such as external factual knowledge. Table <ref type="table">6</ref> in Appendix A summarizes the datasets and the number of cases used for evaluation.</p><p>LLM without External Knowledge. We evaluate non-retrieval-based methods using two datasets:</p><p>(1)Traveling Salesman Problem (TSP) <ref type="bibr" target="#b8">(Hahsler &amp; Hornik, 2007)</ref>, where we create instances by randomly generating n nodes with x and y coordinates in the <ref type="bibr">[-10, 10]</ref> range. As a classic combinatorial optimization problem, performance is evaluated by the length of the best solution within the fixed exploration step. (2) GSM8k <ref type="bibr" target="#b4">(Cobbe et al., 2021)</ref>, which contains high-quality, linguistically diverse grade-school math word problems necessitating multi-step reasoning, crafted by expert problem writers. Each problem includes a detailed reasoning process and the correct final answer, with performance evaluated based on final answer accuracy.</p><p>LLM with External Knowledge. Our evaluation of retrieval-based frameworks utilizes two datasets: (1) StrategyQA <ref type="bibr" target="#b7">(Geva et al., 2021)</ref>, a benchmark for open-domain commonsense reasoning question-answering that highlights the importance of implicit reasoning. It involves retrieving pertinent evidence paragraphs from a corpus to correctly answer questions. We compare the retrieved paragraphs with the ground truth and</p><p>Given a simple mathematical question along with any previous attempts to solve it, please directly provide the final answer. Be aware that the details about past explorations may contain inaccuracies.</p><p>Question: {question}; Previous Responses: Here are the previous responses, which may not be accurate: {pre_res}; Evaluation for the Past Response: {eval} Your response should follow the structure outlined below: R: &lt;Replace Here With Your Reasonings&gt;; A: Place your Final Answer here as a clear numeric value. Ensure there are no additional words, signs, or explanations! Enclose the numeric value in angle brackets.</p><p>An example of the desired output is: R: First find the total number of starfish arms: 7 starfish * 5 arms/starfish = &lt;&lt;7*5=35&gt;&gt; arms \n Then add the number of seastar arms to find the total number of arms: 35 arms + 14 arms = &lt;&lt;35+14 = 49&gt;&gt; arms\n A: &lt;49&gt; obtain Precision, Recall, and F1 as evaluation metrics.</p><p>(2) Related-multi (will be released after review), designed to assess a language model's capability to effectively use extensive context from real-world academic papers for answering queries. Specifically, the task is to write a related work section based on the title and abstract of a target paper. LLM needs to use the title and abstract as the query to retrieve text chunks to complete this task. Text chunks depict the abstracts of several papers (each text chunk corresponds to the abstract of a paper), where some papers are cited in the related work section of the target paper, while others are randomly sampled from the same broader field. The retrieved text chunks are compared with the ground truth to obtain Precision, Recall, and F1 as evaluation metrics.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Models: Various Architectures for LLM Agent Systems</head><p>We delve into the detailed descriptions of the architectures we explored, with a particular emphasis on their implementations and the methods employed for backward propagation across various modules. For the two LLM datasets without external knowledge, we design the following four basic architectures: (1) MLP: a single LLM;</p><p>(2) RNN-MLP: previous responses are appended to the meta prompt to guide the generation of response; (3) Tree-MLP: utilizes ToT to generate multiple thoughts for response generation;</p><p>(4) GNN-MLP: GoT is exploited to develop various thoughts for response generation.</p><p>We also develop four basic architectures for LLM agent systems with external knowledge. In order to interact with external knowledge, the four architectures are supplemented with the attention to retrieve relevant information based on the above architectures: (1) Att-MLP: a single retrieval to retrieve relevant information for LLM; (2) RNN-Att-MLP: previous responses are appended into the meta prompt to change the query for retrieval; (3) Tree-Att-MLP: utilize ToT to generate new query for retrieval; (4) GNN-Att-MLP:</p><p>GoT is exploited to develop new query to retrieve. More details about the basic architectures of LLM agent systems are introduced in Appendix C. Additionally, we have shown an example of the meta prompt used for RNN-MLP on the GSM8K dataset in Figure <ref type="figure" target="#fig_3">4</ref>. Other meta prompts are also summarized in Appendix B.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Performance of Different Architectures of LLM Agent Systems</head><p>Different Tasks Call for Different LLM Architectures. Our results across two distinct types of datasets are illustrated in Tables <ref type="table">1</ref> and<ref type="table" target="#tab_3">2</ref>, demonstrating that the integration of RNN, Tree, and GNN generally enhances the MLP's performance across various tasks. Specifically, in reasoning (GSM8K) and optimization (TSP) problems that do not require external knowledge, GNN and Tree excel due to their strong logical capabilities. For tasks involving reasoning (StrategyQA) and long-context summary (Related-multi) that necessitate external knowledge, RNNs proved most effective, in line with our expectations. This effectiveness  Through our experiments, we discover that our automatic prompt optimization technique, akin to backward propagation, consistently improves the performance of the LLM agent systems in most scenarios. This verifies that LLM agent systems benefit from integrating past experiences and self-evaluations. Figure <ref type="figure">6</ref> presents the results at different steps on the TSP datasets, illustrating that feedback propagation can bring at least 5% performance gain for LLM agent systems. Moreover, we can also observe that GNN-MLP and Tree-MLP iterate faster than other architectures and obtain better results. This is because they explore more solutions at each step and improve the efficiency of optimization.  We utilize variants of the transformer as an example to show the role of different LLM building blocks when building complex architectures. To be specific, we set up the following variants. (1) Transformer: It denotes transformer illustrated in Sec 3.3. (2) RNN-Transformer: We add previous responses to the meta prompt of the transformer to utilize its memory, which is commonly used in DL <ref type="bibr" target="#b49">(Xia et al., 2019;</ref><ref type="bibr" target="#b23">Liu et al., 2019)</ref> when processing historical data.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Case</head><p>(3) Tree-Transformer/GNN-Transformer: ToT/GoT is added to transformer to guide multi-query generation, which is similar to GraphTransformer <ref type="bibr" target="#b53">(Yun et al., 2019;</ref><ref type="bibr" target="#b11">Hu et al., 2020;</ref><ref type="bibr" target="#b32">Rampášek et al., 2022)</ref> in DL. We compare their performance on two datasets with the same hyperparameters and report all the results in Figure <ref type="figure" target="#fig_5">7</ref>. It can be observed that the Transformer performs best in StrategyQA. This is because StrategyQA's tasks are relatively simple, and Transformer is already relatively complex, therefore other variants do not perform well. We can also observe that Tree-Transformer and GNN-Transformer perform relatively better than other variants on Related-multi. It is because writing related work requires more thinking and divergence of thoughts <ref type="bibr" target="#b33">(Randolph, 2019;</ref><ref type="bibr" target="#b41">Torraco, 2005)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Automatic Architecture Search of LLM Agent Systems</head><p>To automatically optimize the LLM agent system architecture like NAS, we propose an optimization framework based on Optuna <ref type="bibr" target="#b0">(Akiba et al., 2019)</ref>, which is an efficient and lightweight hyperparameter optimization software. To better illustrate our framework, we take the optimization of the transformer introduced in Sec 3.3 on Related-multi as an example. As shown in Figure <ref type="figure" target="#fig_4">5</ref>, we optimize the hyperparameters of each module using Optuna. To be specific, we first conclude the hyperparameters and define their optimization range in Table <ref type="table">5</ref> of Appendix D: Output size m 1 (max tokens) for LLM prompting, head num h and retrieve num n of each head for multi-retrieval, output size m 2 for output LLM, and output size m 3 for self-reflection. We utilize 30% of the dataset (training set) for searching for an optimization architecture and 70% for testing (testing set) and further define F1 as the optimization goal. For each set of hyperparameters pr i = (m 1 , m 2 , m 3 , h, n), we calculate its F1 performance on training set. As illustrated in Figure <ref type="figure" target="#fig_0">16</ref> of Appendix D, we can obtain {pr i , F 1 i } k via k trials (120 trials in our experiment) and optimize the architecture by maximizing F1. In addition, as shown in Table <ref type="table" target="#tab_6">3</ref>, we select some points to illustrate that the LLM agent system becomes better as the number of trials increases. Through the experiment, we obtain the optimized hyperparameters pr = (m 1 = 192, m 2 = 192, m 3 = 320, h = 2, n = 4) with F 1 = 0.712 on the testing set, which has 11% better performance than randomly designed architectures (obtained by conducting experiments in which m groups of hyperparameters were randomly selected and averaging the corresponding F1 scores). </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion and Discussion</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Conclusion.</head><p>In conclusion, our work introduces a pioneering modular approach to the construction of LLM agent systems, establishing parallels with DL. We provide comprehensive methods and insights into viewing and assembling LLM building blocks in a manner analogous to DL architectures. Through extensive experimentation, we demonstrate that specific classic LLM modules are optimized for distinct tasks, similar to those in DL, and can be integrated in a manner reminiscent of DL configurations. Moreover, our feedback system enhances the performance of LLMs, paralleling the training mechanisms in DL. Finally, we propose an automatic optimization method for identifying the most effective LLM architectures, presenting a promising avenue for future research.</p><p>Discussion. This work represents a pioneering effort in the development of systematic and scientifically grounded LLM agent systems, drawing upon DL insights to inaugurate a new era of efficiency and standardization in the research and application of LLMs. By establishing fundamental LLM agent systems, our objective is to reconcile the existing diversity of paradigms within LLM research and, akin to DL, introduce classic and standardized modules that enhance scientific rigor, effectiveness, and innovation within the academic community. In the industrial context, the adoption of foundational and systematic architectures enables the creation of more efficient LLM building blocks, thus establishing a solid basis for the field of LLM agent systems. These advanced LLM building blocks possess the potential to streamline the deployment of LLM products, thereby enabling significant real-world impact and facilitating transformative changes across various sectors. Inspired by the progression of DL, this work introduces a suite of standardized modules within the LLM agent system, setting a foundation for future research to explore multi-LLM settings, integrate more established DL modules and architectures like CNN, and adopt self-exploration algorithms akin to NAS to revolutionize the optimization of LLM agent systems, potentially accelerating the discovery of innovative solutions.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure1: Basic Building Blocks of LLM agent systems. (a) A vanilla LLM can be translated into a single layer MLP, which receives a query q and outputs a response r; (b) Memory processor can be regarded as RNN since they both utilize historical data for future planning; (c) Retrieval is analogous to the attention network of DL because they both extract the importance information of the corpus context; (d) Prompting strategies, such as Tree/Graph of thoughts, are translated to GNNs since they decompose query q into interconnected thoughts, which are connected and related to each other.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 2 :</head><label>2</label><figDesc>Figure2: Forward and Back Propagation Algorithms for Large Language Model. In this process, meta prompt is regarded as trainable parameters in DL. For the forward inference, the input query goes through the composition of LLM building blocks to obtain the response, which is guided through the meta prompt. For the feedback propagation, the feedback from the self-reflection updates the parameters (meta prompt) of LLM.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head>Figure 3 :</head><label>3</label><figDesc>Figure3: Build a Cross-attention Transformer with LLM Building Blocks. The multi-query retrieval is equivalent to the cross-attention network, and the LLM is translated to MLP in DL. Additionally, the process of appending the raw query to the generated multiple queries is equivalent to the residual.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: An example of the meta prompt used for RNN-MLP on the GSM8K dataset. The blue text contains input questions and previous responses/evaluations. The purple text describes the output format instructions.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Optimization on transformer to maximize F1.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 7 :</head><label>7</label><figDesc>Figure 6: The performance of LLM agent systems on the TSP dataset will get better as the feedback propagation progresses.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="20,72.00,271.98,468.00,174.20" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_0"><head>as Recurrent Neural Network Retrieval as Attention Network c</head><label></label><figDesc></figDesc><table><row><cell cols="6">a Memory Processer Response LLM as Single Layer MLP b</cell><cell></cell><cell></cell><cell></cell></row><row><cell>LLM</cell><cell>Translate</cell><cell cols="2">Memory</cell><cell>+ LLM</cell><cell>Translate</cell><cell>RNN Cell</cell><cell>RNN Cell</cell><cell>...</cell><cell>RNN Cell</cell></row><row><cell></cell><cell></cell><cell></cell><cell></cell><cell>...</cell><cell></cell><cell></cell><cell></cell><cell>...</cell></row><row><cell>Query</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>Corpus Context Copy</cell><cell></cell><cell>Retrieved Context</cell><cell></cell><cell cols="2">Corpus Context</cell><cell>V</cell><cell></cell><cell cols="2">Weighted Context</cell></row><row><cell></cell><cell>Embed</cell><cell>Top</cell><cell cols="2">Translate</cell><cell></cell><cell>K</cell><cell></cell><cell></cell></row><row><cell>Query</cell><cell></cell><cell>Softmax</cell><cell></cell><cell>Query</cell><cell></cell><cell cols="2">Softmax</cell><cell></cell></row><row><cell></cell><cell>Embed</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Q</cell><cell></cell><cell></cell></row><row><cell></cell><cell>Retrieval</cell><cell>Score</cell><cell></cell><cell></cell><cell cols="2">Attention Network</cell><cell>Score</cell><cell></cell></row><row><cell></cell><cell cols="2">Prompting Strategies,</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell cols="2">Query</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Query</cell><cell></cell></row><row><cell></cell><cell></cell><cell>Translate</cell><cell></cell><cell></cell><cell>Translate</cell><cell></cell><cell></cell><cell></cell></row><row><cell></cell><cell cols="2">Response</cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell></cell><cell>Response</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>such as ToT/GoT, as Graph Neural Network d Tree of Thoughts Graph of Thoughts LLM MLP Memory Processer Recurrent Neural Network Graph Neural Network</head><label></label><figDesc></figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Preprint Table 1 : Performance of Different LLM agent systems on TSP and GSM8k.</head><label>Preprint1</label><figDesc></figDesc><table><row><cell>Type</cell><cell cols="2">Without External Knowledge</cell></row><row><cell>Dataset</cell><cell>TSP</cell><cell>GSM8k</cell></row><row><cell>Method</cell><cell>Length</cell><cell>Accuracy</cell></row><row><cell>MLP</cell><cell>79.2</cell><cell>53.3%</cell></row><row><cell>RNN-MLP</cell><cell>76.6</cell><cell>60.0%</cell></row><row><cell>Tree-MLP</cell><cell>73.2</cell><cell>66.7%</cell></row><row><cell>GNN-MLP</cell><cell>73.9</cell><cell>64.3%</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 : Performance of Different LLM agent systems on StrategeyQA and Related-multi.</head><label>2</label><figDesc>their capability to process and retain long sequences of information. Consistent with findings in DL, combining RNNs with attention mechanisms has been shown to yield promising results.</figDesc><table><row><cell>Type</cell><cell></cell><cell cols="4">With External Knowledge</cell><cell></cell></row><row><cell>Dataset</cell><cell cols="2">StrategeyQA</cell><cell></cell><cell cols="2">Related-multi</cell><cell></cell></row><row><cell>Method</cell><cell cols="2">Precision Recall</cell><cell>F1</cell><cell cols="2">Precision Recall</cell><cell>F1</cell></row><row><cell>Att-MLP</cell><cell>0.45</cell><cell>0.40</cell><cell>0.42</cell><cell>0.31</cell><cell>0.17</cell><cell>0.22</cell></row><row><cell>RNN-Att-MLP</cell><cell>0.72</cell><cell>0.62</cell><cell>0.66</cell><cell>0.33</cell><cell>0.19</cell><cell>0.24</cell></row><row><cell>Tree-Att-MLP</cell><cell>0.53</cell><cell>0.47</cell><cell>0.50</cell><cell>0.34</cell><cell>0.20</cell><cell>0.25</cell></row><row><cell>GNN-Att-MLP</cell><cell>0.58</cell><cell>0.51</cell><cell>0.54</cell><cell>0.29</cell><cell>0.16</cell><cell>0.21</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Propagation Effectively Optimizes LLM Agent System Performance without Human Intervention.</head><label></label><figDesc></figDesc><table /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head>Study: Results of "Transformer-style" LLM Agent Systems</head><label></label><figDesc></figDesc><table><row><cell cols="2">Self-reflection</cell><cell>Output Size</cell><cell></cell></row><row><cell>Response</cell><cell></cell><cell></cell><cell></cell></row><row><cell>LLM</cell><cell></cell><cell>Output Size</cell><cell></cell></row><row><cell>Update</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Multi-Dense Retriever Multi-Query Multi-Dense Retriever Retriever</cell><cell>Corpus Context</cell><cell>Head Num Retrieve</cell><cell>Opt</cell></row><row><cell></cell><cell>Retrieve</cell><cell>Num</cell><cell></cell></row><row><cell>LLM</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Prompting</cell><cell>Append</cell><cell></cell><cell></cell></row><row><cell>Meta</cell><cell>Query</cell><cell>Output Size</cell><cell></cell></row><row><cell>Prompt</cell><cell></cell><cell></cell><cell></cell></row><row><cell>Raw Query</cell><cell>Residual</cell><cell></cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_6"><head>Table 3 : As the number of LLM architecture searches increases, the LLM agent system is getting better.</head><label>3</label><figDesc></figDesc><table><row><cell></cell><cell>0</cell><cell>7</cell><cell>43</cell><cell>78</cell></row><row><cell>F1 Score</cell><cell cols="4">0.541 0.685 0.694 0.712</cell></row></table></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>https://www.langchain.com</p></note>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="2" xml:id="foot_1"><p>https://www.llamaindex.ai</p></note>
+		</body>
+		<back>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A User Instruction Manual</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Prompts</head><p>You are given a list of points with coordinates below: {question}. Below are the previous traces and their lengths. Lower length is better. Previous Solutions: {pre_res};</p><p>Give me a new trace that is different from all traces above, and has a length lower than any of the above. The trace should traverse all points exactly once. The trace should start with &lt;trace&gt; and end with &lt;/trace&gt;.</p><p>Here is an example of the output format: '&lt;trace&gt; 0,3,2,5,4,7,8,1,9,6 &lt;/trace&gt; length: 2254'. Please don't include any extra words, don't tell me your reasoning process. Here is an example of the output format: '&lt;trace&gt; 0,3,2,5,4,7,8,1,9,6 &lt;/trace&gt; length: 2254'.</p><p>ToT/GoT Vote:</p><p>Given a TSP question and 5 proposed strategies, please determine the most promising strategy as your output without additional words.  Given a simple mathematical question along with any previous attempts to solve it, please directly provide the final answer. Be aware that the details about past explorations may contain inaccuracies. An example of the desired output is: R: First find the total number of starfish arms: 7 starfish * 5 arms/starfish = &lt;&lt;7*5=35&gt;&gt; arms \n Then add the number of seastar arms to find the total number of arms: 35 arms + 14 arms = &lt;&lt;35+14 = 49&gt;&gt; arms\n A: &lt;49&gt; Here is an example: Original Question: Every tree that Bart cuts down gives him 75 pieces of firewood. If he burns 5 logs a day from November 1 through February 28, how many trees will he need to cut down? Strategy: November has 30 days, December has 31 days, January has 31 days and February has 28 days for a total of 30+31+31+28 = &lt;&lt;30+31+31+28=120&gt;&gt;120 days\nHe burns 5 pieces of wood every day so 120*5 = &lt;&lt;120*5=600&gt;&gt;600 pieces of wood\nEvery tree he cuts down supplies 75 pieces of firewood and he will burn 600 pieces so he needs 600/75 = &lt;&lt;600/75=8&gt;&gt;8 trees ToT/GoT Vote:</p><p>Given a question and 5 proposed strategies, please determine the most promising strategy as your output.  Given an original question and the past responses, your task is to enhance the original question for better retrieval outcomes.</p><p>Question: {question}; Previous Resposnes for references: {past_stra}; Evaluation on the Last Response: {past_eval};</p><p>Here is an example: Original Question: Is Christmas celebrated during winter? Response: What is the date of Christmas, and does it occur in winter? </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head><p>ToT/GoT Strategy:</p><p>Given a question and past strategy with evaluations, your task is to provide 5 different potential strategies to solve it: Question: {question}; Previous Solutions: {past_stra}; Evaluation for the Past Strategy: {eval} Please format your response by listing the strategies separately.</p><p>Here is an example: Original Question: Are more people today related to Genghis Khan than Julius Caesar? Identified Questions: 1. 'Firstly, we need to investigate the number of kids Julius Caesar have, then we need to investigate the number of kids of Genghis Khan, then we do comparison to determine which number is greater.', ...</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>ToT/GoT Vote:</head><p>Given a TSP question and 5 proposed strategies, please determine the most promising strategy as your output without additional words. Question:{question}; Strategies: {strategies}; Please output use the following format: &lt;trace&gt; PONTS &lt;/trace&gt;. Replace PONTS with points 1 to 9. Your task is to analyze a given question, a previous answer, and the evaluation of that answer, which includes suggested perspectives. Based on this information, decompose the original query into new separate question. Each of these questions should target a critical perspective or element that is necessary for fully answering the original question, taking into account the provided evaluation. Aim to cover various aspects and considerations vital for crafting a comprehensive response.</p><p>Here are the details you will work with: Question: {question}; Previous Resposnes for references: {past_stra}; Evaluation on the Last Response: {past_eval};</p><p>Please list the five decomposed questions separately, ensuring that each one addresses a unique and significant perspective related to the original question. Format your response by numbering each decomposed question, as shown in the example.</p><p>Here is an example: Original Question: Will Ronda Rousey hypothetically defeat X-Men's Colossus in a fight? Response: What is Ronda Rousey's background in combat sports? The blue text contains input questions and previous responses/evaluations. The purple text describes the output format instructions.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Preprint</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Details of Architectures for LLM Agent Systems</head><p>MLP. For the single-layer MLP setup, as previously defined, the LLM processes an input query q and generates a corresponding output response r. Subsequently, through a process of backpropagation, the LLM undertakes a self-evaluation mechanism. The outcomes of this self-evaluation e and response r are then integrated into the original q, facilitating an updated r.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>RNN-MLP.</head><p>In this RNN+MLP framework, the model processes a query q and a sequence of past experiences m 0 , m 1 , . . . , m n with evaluations e 0 , e 1 , . . . , e n . At each step, the latest three experiences m n-2 , m n-1 , m n and evaluations e n-2 , e n-1 , e n are integrated into the query q. This enriched query is then utilized to generate the next response m n+1 . After that, we evaluate it to get e n+1 . m n+1 and e n+1 are then fed back through backward propagation for subsequent iterations. Figure <ref type="figure">4</ref> shows the example meta prompt for how RNN+MLP works on GSM8K.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Tree-MLP.</head><p>In this setting, we use zero-shot ToT. Specifically, a query q and a meta prompt q m for decomposing q into interconnected thoughts are used to construct a comprehensive prompt p. This prompt serves as input for an LLM, yielding a response r. During backward propagation, a self-evaluation is performed, and the resulting evaluation e is utilized to refine q m into an updated version q ′ m , leading to the formation of an updated prompt p ′ . GNN-MLP. This is similar to the Tree-MLP architecture, with the key difference that we allow for deeper graph-based thoughts.</p><p>Att-MLP. In our single retrieval Att-MLP model, an initial input query q and a meta query q m are used to generate an enhanced query p. Information Cr is retrieved from context C based on p, and both q and Cr are inputted into an LLM (MLP) to generate a response r. A feedback system evaluates this response, producing an evaluation e. Both r and e are then fed to q m which is then utilized to update p.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>RNN-Att-MLP.</head><p>In single retrieval with RNN, the model processes an input query q, a meta query q m , and a sequence of past experiences m 0 , m 1 , . . . , m n alongside their evaluations e 0 , e 1 , . . . , e n . At each step, the latest three experiences m n-2 , m n-1 , m n and their evaluations e n-2 , e n-1 , e n , combined with the input query q, are integrated into the meta query q m to generate an enhanced query p. Information Cr is then retrieved from context C based on p, and both q and Cr are fed into an LLM (MLP) to produce a response m n+1 . This response is evaluated by a feedback system, generating an evaluation e n+1 . Both m n+1 and e n+1 are stored for future use.</p><p>Tree-Att-MLP. The Tree-Att-MLP configuration implements zero-shot ToT before the attention module. A query q, a meta prompt q m , and a meta query q n are provided. Initially, q is processed through q m to decompose into interconnected thoughts T 1 , . . . , T n . Then we vote for the best thought as our strategy s. This strategy s along with q are inputted into q n to produce an enhanced query p. Based on p, information Cr is retrieved from the context C, and both q and Cr are fed into an LLM (MLP) to generate a response r. A feedback system then evaluates r, yielding an evaluation e. This evaluation e is subsequently fed to q m for updated strategy in the next iteration.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>GNN-Att-MLP.</head><p>The GNN-Att-MLP setup is similar to the Tree-Att-MLP configuration but introduces the capability to develop deeper graph-based strategies based on previous ones. Initially, for a given query q, we generate a series of thoughts T 1 , . . . , T n and identify the best one among them, denoted as T b . Subsequently, we construct a second layer of thoughts T ′ 1 , . . . , T ′ n based on the initial set T 1 , . . . , T n . The most effective strategy s is then selected from among T b and T ′ 1 , . . . , T ′ n . This chosen strategy s undergoes the same procedure as described in the Tree-Att-MLP setting.  <ref type="bibr">64,</ref><ref type="bibr">128,</ref><ref type="bibr">192,</ref><ref type="bibr">256,</ref><ref type="bibr">320]</ref> Output Size m 2 <ref type="bibr">[64,</ref><ref type="bibr">128,</ref><ref type="bibr">192,</ref><ref type="bibr">256,</ref><ref type="bibr">320]</ref> Output Size m 3 <ref type="bibr">[64,</ref><ref type="bibr">128,</ref><ref type="bibr">192,</ref><ref type="bibr">256,</ref><ref type="bibr">320]</ref> Head Num h <ref type="bibr">[1,</ref><ref type="bibr">2,</ref><ref type="bibr">3,</ref><ref type="bibr">4,</ref><ref type="bibr">5]</ref> Retrieve Num n [1, 2, 3, 4, 5]</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D Automatic Optimization</head><p>Figure <ref type="figure">16</ref>: The optimization process on transformer. The x-axis represents the number of trials. For each trial, we will get a set of pr, F 1; the y-axis represents the F 1 value. </p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Optuna: A nextgeneration hyperparameter optimization framework</title>
+		<author>
+			<persName><forename type="first">Takuya</forename><surname>Akiba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shotaro</forename><surname>Sano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Toshihiko</forename><surname>Yanase</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Takeru</forename><surname>Ohta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Masanori</forename><surname>Koyama</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 25th ACM SIGKDD international conference on knowledge discovery &amp; data mining</title>
+		<meeting>the 25th ACM SIGKDD international conference on knowledge discovery &amp; data mining</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2623" to="2631" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Graph of thoughts: Solving elaborate problems with large language models</title>
+		<author>
+			<persName><forename type="first">Maciej</forename><surname>Besta</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nils</forename><surname>Blach</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ales</forename><surname>Kubicek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><surname>Gerstenberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukas</forename><surname>Gianinazzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joanna</forename><surname>Gajda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomasz</forename><surname>Lehmann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michal</forename><surname>Podstawski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hubert</forename><surname>Niewiadomski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Nyczyk</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.09687</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">Back propagation neural networks</title>
+		<author>
+			<persName><forename type="first">Massimo</forename><surname>Buscema</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Substance use &amp; misuse</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="233" to="270" />
+			<date type="published" when="1998">1998</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<author>
+			<persName><forename type="first">Weize</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yusheng</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingwei</forename><surname>Zuo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenfei</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi-Min</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaxi</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruobing</forename><surname>Xie</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.10848</idno>
+		<title level="m">Facilitating multi-agent collaboration and exploring emergent behaviors in agents</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title level="m" type="main">Training verifiers to solve math word problems</title>
+		<author>
+			<persName><forename type="first">Karl</forename><surname>Cobbe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vineet</forename><surname>Kosaraju</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mohammad</forename><surname>Bavarian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heewoo</forename><surname>Jun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthias</forename><surname>Plappert</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jerry</forename><surname>Tworek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jacob</forename><surname>Hilton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Reiichiro</forename><surname>Nakano</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2110.14168" />
+		<imprint>
+			<date type="published" when="2021">2021. 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Dual attention network for scene segmentation</title>
+		<author>
+			<persName><forename type="first">Jun</forename><surname>Fu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haijie</forename><surname>Tian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongjun</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanqing</forename><surname>Lu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE/CVF conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="3146" to="3154" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yingqiang</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujie</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyue</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuyuan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongfeng</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2312.03815</idno>
+		<title level="m">Llm as os (llmao), agents as apps: Envisioning aios, agents and the aios-agent ecosystem</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">Did aristotle use a laptop? a question answering benchmark with implicit reasoning strategies</title>
+		<author>
+			<persName><forename type="first">Mor</forename><surname>Geva</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Khashabi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elad</forename><surname>Segal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tushar</forename><surname>Khot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Berant</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions of the Association for Computational Linguistics</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="346" to="361" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Tsp-infrastructure for the traveling salesperson problem</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Hahsler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kurt</forename><surname>Hornik</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Statistical Software</title>
+		<imprint>
+			<biblScope unit="volume">23</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="1" to="21" />
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Transformer in transformer</title>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">An</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enhua</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianyuan</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chunjing</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunhe</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="15908" to="15919" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<analytic>
+		<title level="a" type="main">Cross attention network for few-shot classification</title>
+		<author>
+			<persName><forename type="first">Ruibing</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hong</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bingpeng</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiguang</forename><surname>Shan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xilin</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Heterogeneous graph transformer</title>
+		<author>
+			<persName><forename type="first">Ziniu</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxiao</forename><surname>Dong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuansan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yizhou</forename><surname>Sun</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the web conference 2020</title>
+		<meeting>the web conference 2020</meeting>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="2704" to="2710" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Unsupervised dense information retrieval with contrastive learning</title>
+		<author>
+			<persName><forename type="first">Gautier</forename><surname>Izacard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mathilde</forename><surname>Caron</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Hosseini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sebastian</forename><surname>Riedel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Bojanowski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Armand</forename><surname>Joulin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edouard</forename><surname>Grave</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Generative ai service implementation using llm application architecture: based on rag model and langchain framework</title>
+		<author>
+			<persName><forename type="first">Cheonsu</forename><surname>Jeong</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Intelligence and Information Systems</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="129" to="164" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<analytic>
+		<title level="a" type="main">Backpropagation learning for multilayer feedforward neural networks using the conjugate gradient method</title>
+		<author>
+			<persName><forename type="first">Farid</forename><forename type="middle">U</forename><surname>Erik M Johansson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dennis</forename><forename type="middle">M</forename><surname>Dowla</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Goodman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">International Journal of Neural Systems</title>
+		<imprint>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="issue">04</biblScope>
+			<biblScope unit="page" from="291" to="301" />
+			<date type="published" when="1991">1991</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Serial order: A parallel distributed processing approach</title>
+		<author>
+			<persName><forename type="first">Preprint</forename><surname>Michael</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">I</forename><surname>Jordan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in psychology</title>
+		<imprint>
+			<publisher>Elsevier</publisher>
+			<date type="published" when="1997">1997</date>
+			<biblScope unit="volume">121</biblScope>
+			<biblScope unit="page" from="471" to="495" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">A directed graph convolutional neural network for edge-structured signals in link-fault detection</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Kenning</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingjing</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Edwards</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xianghua</forename><surname>Xie</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Pattern Recognition Letters</title>
+		<imprint>
+			<biblScope unit="volume">153</biblScope>
+			<biblScope unit="page" from="100" to="106" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Real-time patient-specific ecg classification by 1-d convolutional neural networks</title>
+		<author>
+			<persName><forename type="first">Serkan</forename><surname>Kiranyaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Turker</forename><surname>Ince</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Moncef</forename><surname>Gabbouj</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE transactions on biomedical engineering</title>
+		<imprint>
+			<biblScope unit="volume">63</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="664" to="675" />
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Onur Avci, and Moncef Gabbouj. 1-d convolutional neural networks for signal processing applications</title>
+		<author>
+			<persName><forename type="first">Serkan</forename><surname>Kiranyaz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Turker</forename><surname>Ince</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Osama</forename><surname>Abdeljaber</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="8360" to="8364" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Efficient memory management for large language model serving with pagedattention</title>
+		<author>
+			<persName><forename type="first">Woosuk</forename><surname>Kwon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhuohan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyuan</forename><surname>Zhuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ying</forename><surname>Sheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianmin</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cody</forename><forename type="middle">Hao</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ion</forename><surname>Stoica</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th Symposium on Operating Systems Principles</title>
+		<meeting>the 29th Symposium on Operating Systems Principles</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="611" to="626" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">Deep learning for well data history analysis</title>
+		<author>
+			<persName><forename type="first">Yuanjun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruixiao</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Roland</forename><surname>Horne</surname></persName>
+		</author>
+		<idno>pp. D011S008R002. SPE</idno>
+	</analytic>
+	<monogr>
+		<title level="m">SPE Annual Technical Conference and Exhibition?</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<author>
+			<persName><forename type="first">Sheng-Chieh</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akari</forename><surname>Asai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minghan</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barlas</forename><surname>Oguz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jimmy</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yashar</forename><surname>Mehdad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wen-Tau</forename><surname>Yih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xilun</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.07452</idno>
+		<title level="m">How to train your dragon: Diverse augmentation towards generalizable dense retrieval</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">Progressive neural architecture search</title>
+		<author>
+			<persName><forename type="first">Chenxi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maxim</forename><surname>Neumann</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathon</forename><surname>Shlens</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li-Jia</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Fei-Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alan</forename><surname>Yuille</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Murphy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European conference on computer vision (ECCV)</title>
+		<meeting>the European conference on computer vision (ECCV)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="19" to="34" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">R-trans: Rnn transformer network for chinese machine reading comprehension</title>
+		<author>
+			<persName><forename type="first">Shanshan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Wang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="27736" to="27745" />
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Learning from feedback: The neural mechanisms of feedback processing facilitating better performance</title>
+		<author>
+			<persName><forename type="first">Caroline</forename><surname>Di</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernardi</forename><surname>Luft</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Behavioural brain research</title>
+		<imprint>
+			<biblScope unit="volume">261</biblScope>
+			<biblScope unit="page" from="356" to="368" />
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Single headed attention rnn: Stop thinking with your head</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Merity</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1911.11423</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<author>
+			<persName><forename type="first">Charles</forename><surname>Packer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vivian</forename><surname>Fang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kevin</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sarah</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Wooders</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Memgpt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.08560</idno>
+		<title level="m">Towards llms as operating systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title level="m" type="main">Automating customer service using langchain: Building custom open-source gpt chatbot for organizations</title>
+		<author>
+			<persName><forename type="first">Keivalya</forename><surname>Pandya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehfuza</forename><surname>Holia</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.05421</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<title level="m" type="main">Check your facts and try again: Improving large language models with external knowledge and automated feedback</title>
+		<author>
+			<persName><forename type="first">Baolin</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michel</forename><surname>Galley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pengcheng</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yujia</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiuyuan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lars</forename><surname>Liden</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhou</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weizhu</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2302.12813</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Efficient neural architecture search via parameters sharing</title>
+		<author>
+			<persName><forename type="first">Hieu</forename><surname>Pham</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Melody</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeff</forename><surname>Dean</surname></persName>
+		</author>
+		<idno>PMLR</idno>
+	</analytic>
+	<monogr>
+		<title level="m">International conference on machine learning</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="4095" to="4104" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Multilayer perceptron and neural networks</title>
+		<author>
+			<persName><forename type="first">Marius-Constantin</forename><surname>Popescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Valentina</forename><forename type="middle">E</forename><surname>Balas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Liliana</forename><surname>Perescu-Popescu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikos</forename><surname>Mastorakis</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">WSEAS Transactions on Circuits and Systems</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">7</biblScope>
+			<biblScope unit="page" from="579" to="588" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">Introspective learning: A two-stage approach for inference in neural networks</title>
+		<author>
+			<persName><forename type="first">Mohit</forename><surname>Prabhushankar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ghassan</forename><surname>Alregib</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="12126" to="12140" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Recipe for a general, powerful, scalable graph transformer</title>
+		<author>
+			<persName><forename type="first">Ladislav</forename><surname>Rampášek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Galkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vijay</forename><forename type="middle">Prakash</forename><surname>Dwivedi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anh</forename><forename type="middle">Tuan</forename><surname>Luu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dominique</forename><surname>Beaini</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">35</biblScope>
+			<biblScope unit="page" from="14501" to="14515" />
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Preprint</forename><surname>Justus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Randolph</forename></persName>
+		</author>
+		<title level="m">A guide to writing the dissertation literature review. Practical assessment, research, and evaluation</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">14</biblScope>
+			<biblScope unit="page">13</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">The probabilistic relevance framework: Bm25 and beyond</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Zaragoza</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Foundations and Trends® in Information Retrieval</title>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="333" to="389" />
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Stock price prediction using lstm, rnn and cnn-sliding window model</title>
+		<author>
+			<persName><forename type="first">Sreelekshmy</forename><surname>Selvin</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Vinayakumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vijay</forename><surname>Ea Gopalakrishnan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Krishna Menon</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Soman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2017 international conference on advances in computing, communications and informatics (icacci)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="1643" to="1647" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Skeleton-based action recognition with directed graph neural networks</title>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Shi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yifan</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanqing</forename><surname>Lu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE/CVF conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="7912" to="7921" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<title level="m" type="main">Reflexion: an autonomous agent with dynamic memory and self-reflection</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beck</forename><surname>Labash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.11366</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ethan</forename><surname>Yifan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanwen</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Zha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dong</forename><surname>Luna</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.10168</idno>
+		<title level="m">Head-to-tail: How knowledgeable are large language models (llm)? aka will llms replace knowledge graphs? arXiv preprint</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">Multi-agent collaboration: Harnessing the power of intelligent llm agents</title>
+		<author>
+			<persName><forename type="first">Yashar</forename><surname>Talebirad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amirhossein</forename><surname>Nadiri</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2306.03314</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<analytic>
+		<title level="a" type="main">Creating large language model applications utilizing langchain: A primer on developing llm apps fast</title>
+		<author>
+			<persName><forename type="first">Oguzhan</forename><surname>Topsakal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akinci</forename><surname>Tahir Cetin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Applied Engineering and Natural Sciences</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="1050" to="1056" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<analytic>
+		<title level="a" type="main">Writing integrative literature reviews: Guidelines and examples</title>
+		<author>
+			<persName><forename type="first">J</forename><surname>Richard</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Torraco</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Human resource development review</title>
+		<imprint>
+			<biblScope unit="volume">4</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="356" to="367" />
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ł Ukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+		<ptr target="https://proceedings.neurips.cc/paper_files/paper/2017/file/3" />
+	</analytic>
+	<monogr>
+		<title level="m">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<publisher>Curran Associates, Inc</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="volume">30</biblScope>
+		</imprint>
+	</monogr>
+	<note>f5ee243547dee91fbd053c1c4a845aa-Paper.pdf</note>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Attention is all you need</title>
+		<author>
+			<persName><forename type="first">Ashish</forename><surname>Vaswani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niki</forename><surname>Parmar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jakob</forename><surname>Uszkoreit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Llion</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aidan</forename><forename type="middle">N</forename><surname>Gomez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Łukasz</forename><surname>Kaiser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Illia</forename><surname>Polosukhin</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Residual attention network for image classification</title>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengqing</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Qian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuo</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Honggang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaogang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoou</forename><surname>Tang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE conference on computer vision and pattern recognition</title>
+		<meeting>the IEEE conference on computer vision and pattern recognition</meeting>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="3156" to="3164" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David Mj Tax</forename></persName>
+		</author>
+		<idno type="arXiv">arXiv:1601.06823</idno>
+		<title level="m">Survey on the attention based rnn model and its applications in computer vision</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chen</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xueyang</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingsen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiakai</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yankai</forename><surname>Lin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.11432</idno>
+		<title level="m">A survey on large language model based autonomous agents</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Autogen: Enabling next-gen llm applications via multi-agent conversation framework</title>
+		<author>
+			<persName><forename type="first">Qingyun</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagan</forename><surname>Bansal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jieyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaokun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Erkang</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beibin</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoyun</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chi</forename><surname>Wang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.08155</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuan</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><forename type="middle">M</forename><surname>Mitchell</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuanzhi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Smartplay</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.01557</idno>
+		<title level="m">A benchmark for llms as intelligent agents</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<monogr>
+		<title level="m" type="main">Rthn: A rnn-transformer hierarchical network for emotion cause extraction</title>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengran</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zixiang</forename><surname>Ding</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1906.01236</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Preprint</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<title level="m">React: Synergizing reasoning and acting in language models</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2210.03629</idno>
+		<imprint>
+			<date type="published" when="2023">2023. 2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Tree of thoughts: Deliberate problem solving with large language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">Graph transformer networks</title>
+		<author>
+			<persName><forename type="first">Seongjun</forename><surname>Yun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Minbyul</forename><surname>Jeong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raehyun</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jaewoo</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hyunwoo J</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Advances in neural information processing systems</title>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="volume">32</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title level="m" type="main">Memory-augmented llm personalization with short-and long-term memory coordination</title>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fubang</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yangyang</forename><surname>Kang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaozhong</forename><surname>Liu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2309.11696</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Magnet: A neural network for directed graphs</title>
+		<author>
+			<persName><forename type="first">Xitong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixuan</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nathan</forename><surname>Brugnone</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Perlmutter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Hirn</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="27003" to="27015" />
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<title level="m" type="main">Expel: Llm agents are experiential learners</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong-Jin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gao</forename><surname>Huang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2308.10144</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<monogr>
+		<author>
+			<persName><forename type="first">Barret</forename><surname>Zoph</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Quoc</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Le</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1611.01578</idno>
+		<title level="m">Neural architecture search with reinforcement learning</title>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

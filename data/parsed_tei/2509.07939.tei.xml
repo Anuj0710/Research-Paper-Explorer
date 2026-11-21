@@ -1,0 +1,1234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Guided Reasoning in LLM-Driven Penetration Testing Using Structured Attack Trees</title>
+				<funder ref="#_Eb4dpA8">
+					<orgName type="full">U.S. National Science Foundation</orgName>
+				</funder>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2025-11-18">18 Nov 2025</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Katsuaki</forename><surname>Nakano</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Electrical and Computer Engineering</orgName>
+								<orgName type="institution">Rochester Institute of Technology</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Reza</forename><surname>Fayyazi</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Electrical and Computer Engineering</orgName>
+								<orgName type="institution">Rochester Institute of Technology</orgName>
+							</affiliation>
+						</author>
+						<author role="corresp">
+							<persName><forename type="first">Shanchieh</forename><forename type="middle">Jay</forename><surname>Yang</surname></persName>
+							<email>yangj@gonzaga.edu</email>
+							<affiliation key="aff1">
+								<orgName type="department">Institute for Informatics and Applied Technology</orgName>
+								<orgName type="institution">Gonzaga University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Michael</forename><surname>Zuzak</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">Department of Electrical and Computer Engineering</orgName>
+								<orgName type="institution">Rochester Institute of Technology</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Guided Reasoning in LLM-Driven Penetration Testing Using Structured Attack Trees</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2025-11-18">18 Nov 2025</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">199E7DED4F1BBAC20AD4332DF2A8D42D</idno>
+					<idno type="arXiv">arXiv:2509.07939v2[cs.CR]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Recent advances in Large Language Models (LLMs) have driven interest in automating cybersecurity penetration testing workflows, offering the promise of faster and more consistent vulnerability assessment for enterprise systems. Existing LLM agents for penetration testing primarily rely on self-guided reasoning, which can produce inaccurate or hallucinated procedural steps. As a result, the LLM agent may undertake unproductive actions, such as exploiting unused software libraries or generating cyclical responses that repeat prior tactics. In this work, we propose a guided reasoning pipeline for penetration testing LLM agents that incorporates a deterministic task tree built from the MITRE ATT&amp;CK Matrix, a proven penetration testing kill chain, to constrain the LLM's reasoning process to explicitly defined tactics, techniques, and procedures. This anchors reasoning in proven penetration testing methodologies and filters out ineffective actions by guiding the agent towards more productive attack procedures. To evaluate our approach, we built an automated penetration testing LLM agent using three LLMs (Llama-3-8B, Gemini-1.5, and GPT-4) and applied it to navigate 10 HackTheBox cybersecurity exercises with 103 discrete subtasks representing real-world cyberattack scenarios. Our proposed reasoning pipeline guided the LLM agent through 71.8%, 72.8%, and 78.6% of subtasks using Llama-3-8B, Gemini-1.5, and GPT-4, respectively. Comparatively, the state-of-the-art LLM penetration testing tool using self-guided reasoning completed only 13.5%, 16.5%, and 75.7% of subtasks and required 86.2%, 118.7%, and 205.9% more model queries. This suggests that incorporating a deterministic task tree into LLM reasoning pipelines can enhance the accuracy and efficiency of automated cybersecurity assessments 1 .</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>The rapid advancement of Large Language Models (LLMs), such as OpenAI's GPT (Ope-nAI), Meta's Llama (Meta), and Google's Gemini (DeepMind), highlights their expanding influence across diverse natural language processing tasks. These models have demonstrated exceptional performance in text generation <ref type="bibr" target="#b31">(Zhang et al., 2023)</ref>, translation <ref type="bibr" target="#b21">(Raffel et al., 2020)</ref>, and summarization <ref type="bibr" target="#b12">(Lewis et al., 2020)</ref>, while also showcasing their potential to drive innovation across multiple domains. More recently, LLMs have been explored for complex tasks requiring multi-step reasoning and adherence to domain-specific knowledge <ref type="bibr" target="#b6">(Ge et al., 2023;</ref><ref type="bibr">Song et al., 2023;</ref><ref type="bibr" target="#b8">Guo et al., 2024)</ref>.</p><p>One such domain where LLMs have received attention is cybersecurity, specifically in the context of penetration testing. Prior work has widely explored the use of LLM agents for automating penetration testing tasks <ref type="bibr" target="#b32">(Zhang et al., 2025;</ref><ref type="bibr">Chen et al., 2024b;</ref><ref type="bibr" target="#b20">Pratama et al., 2024;</ref><ref type="bibr" target="#b24">Saha et al., 2024;</ref><ref type="bibr" target="#b18">Patsakis et al., 2024;</ref><ref type="bibr" target="#b0">Alabbad et al., 2024)</ref>. Penetration testing involves simulating attacks on systems to identify vulnerabilities before malicious actors can exploit them. Capture The Flag (CTF) is a set of penetration testing challenges where learners perform penetration testing on sand-boxed enterprise systems with realistic and known vulnerabilities. This process is complex, requiring an understanding of system architectures, security vulnerabilities, and attack methodologies. As cybersecurity threats become more sophisticated, leveraging LLMs to automate penetration testing is seen as a potential breakthrough, which enables faster, more efficient, and consistent assessments <ref type="bibr">(Huang &amp; Zhu, 2024;</ref><ref type="bibr" target="#b34">Deng et al., 2024)</ref>. However, the complexity of these tasks poses significant challenges, particularly when LLMs are tasked with adhering to structured methodologies and providing reliable, accurate insights. Current LLM agents designed for complex tasks, including structured ones, generally reason autonomously about their next steps and navigate tasks through self-guidance <ref type="bibr">(Song et al., 2023;</ref><ref type="bibr" target="#b6">Ge et al., 2023;</ref><ref type="bibr">Huang &amp; Zhu, 2024;</ref><ref type="bibr" target="#b34">Deng et al., 2024)</ref>. However, their reasoning can be prone to hallucinations, particularly when generating procedural steps, leading to inconsistencies or actions that deviate from established methodologies <ref type="bibr" target="#b11">(Kambhampati et al., 2024;</ref><ref type="bibr" target="#b27">Valmeekam et al., 2024;</ref><ref type="bibr" target="#b10">Huang et al., 2023;</ref><ref type="bibr" target="#b22">Rawte et al., 2023)</ref>. This limits the performance of LLM agents in handling complex, structured tasks.</p><p>Therefore, we propose a guided reasoning pipeline for penetration testing LLM agents using a deterministic task tree to constrain the LLM's reasoning process to explicitly defined tactics, techniques, and procedures. Cybersecurity penetration testing tasks are highly complex and have been heavily explored as a target application area for LLMs <ref type="bibr">(Huang &amp; Zhu, 2024;</ref><ref type="bibr" target="#b34">Deng et al., 2024;</ref><ref type="bibr" target="#b9">Happe &amp; Cito, 2023)</ref> and have exhibited these identified challenges in reasoning <ref type="bibr" target="#b11">(Kambhampati et al., 2024)</ref>. We observe that while such tasks are inherently complex, they follow established, structured, and well-documented frameworks (e.g., MITRE ATT&amp;CK). A kill chain is a framework that describes the sequential stages of a cyberattack, and the MITRE ATT&amp;CK Matrix (MITRE, c) is a proven penetration testing kill chain. In this work, we aim to leverage these well-documented structures developed through decades of research in cybersecurity penetration testing to alleviate the inconsistencies in self-guided reasoning identified in prior work <ref type="bibr" target="#b11">(Kambhampati et al., 2024;</ref><ref type="bibr" target="#b27">Valmeekam et al., 2024)</ref>. Specifically, we explore the use of a deterministic and highly-structured task tree (STT) that constrains the next action taken by the LLM agent to a predefined set of actions determined by the established penetration testing flows. Compared to allowing the model to generate subsequent tasks independently with autonomous reasoning, as is done by prior work <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>, this approach ensures that every decision corresponds to welldocumented tactics and techniques in established sequences for cyberattack progression (i.e., kill chains). Our evaluation shows that this STT-based pipeline reduces hallucinations and inconsistencies in reasoning observed in prior work, particularly in smaller models (e.g., , leading to 77.4% successful cyberattack subtasks across all evaluated models (i.e., performance) and requiring 55.9% fewer prompts to the LLM agent for successful subtasks (i.e., efficiency). The contributions are summarized as follows:</p><p>• We propose a novel reasoning pipeline for penetration testing LLM agents that uses a deterministic and structured task tree, built upon domain knowledge, to guide LLM agents through cybersecurity penetration testing tasks.</p><p>• We design a structured task tree from the MITRE ATT&amp;CK Matrix to ground the reasoning process in established attack procedures.</p><p>• We develop and release as open-source an automated penetration testing LLM agent built on the proposed reasoning pipeline.</p><p>• We demonstrate the accuracy of the proposed method in navigating CTF challenges, with the LLM agent completing 71.8%, 72.8%, and 78.6% of subtasks using Llama-3-8B, Gemini-1.5, and GPT-4, respectively. Comparatively, the state-of-the-art LLM agent using self-guided reasoning <ref type="bibr" target="#b34">(Deng et al., 2024)</ref> completed only 13.5%, 16.5%, and 75.7% of subtasks and required 86.2%, 118.7%, and 205.9% more model queries.</p><p>While the proposed approach is inherently specific to penetration testing tasks, it is not inherently limited to this domain. It offers a transferable framework that can be adapted to similarly complex and well-studied tasks in other domains where well-structured reasoning flows are available, such as medical diagnosis to improve LLM reasoning and performance.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Preliminaries</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Cybersecurity Penetration Testing</head><p>Penetration testing helps ensure the security of an organization's information technology infrastructure. This process involves the controlled simulation of cyber-attacks to identify vulnerabilities in systems, networks, and applications. By safely exploiting these weaknesses, penetration tests provide actionable insights into the security posture of an organization, enabling it to resolve vulnerabilities before they can be exploited by attackers. To achieve this, penetration testers leverage tools, such as NMap (Nmap), Metasploit <ref type="bibr" target="#b14">(Maynor &amp; Wilhelm, 2007)</ref>, and Nessus <ref type="bibr">(Tenable)</ref>, to automate various stages of the testing process, from network scanning and vulnerability detection to the exploitation of weaknesses.</p><p>Driven </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">LLMs for Complex Tasks</head><p>LLMs have exhibited strong capabilities in solving complex and multi-step tasks across various domains, leveraging their ability to autonomously reason and plan their decisionmaking processes <ref type="bibr" target="#b8">(Guo et al., 2024;</ref><ref type="bibr" target="#b28">Xi et al., 2023)</ref>. Recent advancements have explored LLMs' potential to act as planners for embodied agents, enabling them to follow natural language instructions in interactive environments <ref type="bibr">(Song et al., 2023;</ref><ref type="bibr" target="#b34">Zhu et al., 2024;</ref><ref type="bibr">Chen et al., 2024a)</ref>. The LLM-Planner framework <ref type="bibr">(Song et al., 2023)</ref> has shown that LLMs can perform few-shot planning for embodied agents in complex scenarios, achieving competitive performance with minimal data. Additionally, <ref type="bibr" target="#b34">(Zhu et al., 2024)</ref> and <ref type="bibr">(Chen et al., 2024a)</ref> proposed frameworks for LLM agents that emphasize mitigating planning hallucinations, refining action knowledge, and enhancing adaptive planning to improve complex environment interactions and task success.</p><p>However, despite the promising applications of LLMs in planning tasks, recent research challenges the notion that LLMs can independently handle complex planning scenarios. In particular, <ref type="bibr" target="#b11">(Kambhampati et al., 2024)</ref> shows that while LLMs can generate plausible plans, they are not capable of verifying or executing these plans successfully on their own. This limitation stems from their inherent nature as large-scale language models, which lack the reasoning depth necessary for robust autonomous planning. Similar findings have been replicated in <ref type="bibr" target="#b27">(Valmeekam et al., 2024)</ref> for the latest LLMs.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.3">Related Work</head><p>In the context of automating the penetration testing process, several works have been proposed to harness the potential of LLMs <ref type="bibr" target="#b32">(Zhang et al., 2025;</ref><ref type="bibr">Chen et al., 2024b;</ref><ref type="bibr" target="#b20">Pratama et al., 2024;</ref><ref type="bibr" target="#b24">Saha et al., 2024;</ref><ref type="bibr" target="#b18">Patsakis et al., 2024;</ref><ref type="bibr" target="#b0">Alabbad et al., 2024;</ref><ref type="bibr" target="#b16">Min et al., 2023;</ref><ref type="bibr">Zhao et al., 2023;</ref><ref type="bibr" target="#b30">Zhang et al., 2024;</ref><ref type="bibr" target="#b29">Yang et al., 2023)</ref>. Recent advancements demonstrate that LLMs can aid in vulnerability detection, exploitation simulation, and the overall security assessment process <ref type="bibr" target="#b9">(Happe &amp; Cito, 2023;</ref><ref type="bibr" target="#b34">Deng et al., 2024;</ref><ref type="bibr">Huang &amp; Zhu, 2024)</ref>. The work by <ref type="bibr" target="#b9">(Happe &amp; Cito, 2023)</ref> considers the application of LLMs for both high-level task planning and low-level vulnerability hunting. Their integration of GPT-3.5 with a vulnerable virtual machine for real-time attack execution highlights the potential of LLMs to autonomously identify and exploit vulnerabilities, while also providing a closed-feedback loop to enhance penetration testing effectiveness. <ref type="bibr">(Huang &amp; Zhu, 2024</ref>) introduces a two-stage LLM-based framework that autonomously identifies vulnerabilities and recommends optimal remediation strategies. One limitation of these models is that LLMs cause hallucinations and lead to the generation of incorrect commands (i.e., generation of non-existent modules or functions).</p><p>Similarly, <ref type="bibr" target="#b34">(Deng et al., 2024)</ref> takes a comprehensive approach by creating an LLM-powered framework specifically designed for penetration testing. Through a detailed evaluation using real-world penetration targets and a robust benchmark, PentestGPT exhibits enhanced performance, outdoing traditional LLM models and excelling in tasks such as interpreting output from testing tools, proposing attack strategies, and maintaining an attack context.</p><p>The baseline system is composed of two main components: the Generation module and the Reasoning module. The Reasoning module maintains a high-level view of the entire test through an attributed structure called the Pentesting Task Tree (PTT). It is generated by the LLM after the tester inputs the target machine information. The PTT structure offers a textual and hierarchical representation of any progress made, including discovered vulnerabilities and open services. However, it has no implemented function for step verification to ensure that new findings update only the relevant leaf-level nodes and do not overwrite established knowledge. On the other hand, the Generation module implements fine-grained command production, creating commands for a specific subtask identified by the reasoning module. This isolates the immediate context needed for command or exploit generation from the broader tree, reducing the chance of duplications or contradictory suggestions. However, this model can also produce inaccurate or hallucinated procedural steps.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Guided Reasoning Pipeline Using Structured Attack Trees</head><p>In this section, we propose a reasoning pipeline for LLM agents for penetration testing leveraging structured attack trees to choose tasks from the predefined list of next possible tasks. Prior work, such as <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>, relies on self-guided reasoning, where the LLM autonomously both generates and maintains tasks in a Penetration Task Tree (PTT). Figure <ref type="figure">1</ref> illustrates these two pipelines: our proposed method (red labels 1-4) and the baseline (blue labels A-C). Each label corresponds to a key process in the overall workflow.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Penetration Testing Methodology Using Proposed Reasoning Pipeline</head><p>Our proposed method shown in Figure <ref type="figure">1</ref> (red labels 1-4) incorporates a Structured Task Tree (STT) to maintain task completion status and navigate the LLM through tasks. We describe each major component of the proposed reasoning pipeline as follows. In Task Initialization 1 , the process begins when the tester inputs the target IP information into the LLM system. At this stage, the system loads the initial task based on the predefined STT. The LLM then generates the initial set of commands required for this task using the provided prompt 4 . The tester executes these commands on the target system. Once the commands are executed, the system receives the output from the tester. In Output Summarization 2 , the LLM summarizes key findings from the results, focusing on relevant vulnerabilities, network configurations, or potential attack vectors that were identified. Based on this summary, the LLM provides a recommendation on whether the task status should be updated, indicating whether the task can be considered complete or if further actions are required. This step ensures critical findings are not overlooked and ensures adherence to the established penetration testing process. After reviewing the findings, the LLM agent (or the tester) updates the status of the current task and adds the discoveries to the STT, which serves as a dynamic record of the testing progress. If the current task is marked as complete, the system proceeds to Task Selection 3 . This retrieves the key findings and identifies potential follow-up tasks from a predefined set of next steps from the STT. The LLM then selects the most relevant and favorable next task based on the findings and the overarching objectives of the penetration test. This task must be a valid task from the STT based on the current state of the penetration test. After the task selection process, or if the current task status remains "in-progress", the system moves onto Command Generation Figure <ref type="figure">1</ref>: Pipeline of the proposed STT-based reasoning method (red labels 1-4) and prior self-guided reasoning method (blue labels A-C) by <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>. Note that arrows indicate a transition between processes, and dotted arrows represent an interaction between the LLM and the STT.</p><p>4 . This generates executable penetration testing commands based on a given task and then sends them back to the tester for execution. When invalid commands were generated by the agent and applied to the HTB machine, an error is usually generated. When this error is given to the agent, the agent recognizes this and instead of marking success/failure, marks the task as "in-progress" and generates another command to run. Upon five invalid commands, the STT would mark the task as failed. We note that this is similar to the approach used by prior work, such as <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>.</p><p>The baseline method, developed in <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>, begins by instructing the LLM to construct an initial task tree, referred to as the "Penetration Testing Tree (PTT)," which includes both its configuration and a predefined template A . From the initial task in the PTT, the system generates executable commands, which the tester then runs within the simulated environment. Following execution, the LLM analyzes the output and autonomously generates a list of follow-up tasks, selecting one deemed most favorable C . Based on the selected task, the baseline method proceeds to generate new executable commands for the tester. Although the task selection strategy differs between our approach and the baseline, the prompt structure used for command generation is largely identical. The specific prompts used by the LLM agent throughout the process in Figure <ref type="figure">1</ref> are provided in Appendix A.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Task Navigation Based on MITRE ATT&amp;CK Matrix</head><p>The proposed STT consists of 30 techniques taken from MITRE ATT&amp;CK Matrix (MITRE, c). Since we aim to discover and exploit vulnerabilities in enterprise systems rather than remediate them, we exclude techniques related to blue teaming and post-exploitation that occur after privilege escalation. Therefore, we exclude tactics including an "Impact" and techniques related to social engineering (i.e., phishing), cloud, and hardware. All other tactics are included. We utilized framework proposed by <ref type="bibr" target="#b7">(Goohs et al., 2024)</ref> to to create the ordering of different TTPs in our STT, however, there are a number of other examples that are functionally equivalent (e.g., <ref type="bibr">(Sadlek et al., 2022</ref>)) In the STT, each task has 4  <ref type="figure">,</ref><ref type="figure">c</ref>). The completion status takes four possible values: "to-do", "in-progress", "completed", and "failed". The LLM agent generates executable commands for a task with the status "in-progress". Findings include key insights summarized by the LLM based on a command execution output. Next possible tasks represents the set of subsequent tasks. The next possible tasks and their descriptions are fed into the LLM to choose the next task to execute. For each task, the next possible tasks are determined by the related tasks mentioned on the technique page of the MITRE ATT&amp;CK Matrix.</p><p>Figure <ref type="figure" target="#fig_0">2</ref> displays an example of the task selection process depending on the current task completion status. If the LLM agent (or the tester) adds findings and marks the first task "Active Scanning" as "completed" after the task execution, the list of possible next tasks is fed into the LLM to select one favorable task marked as "in-progress". In this case, "Search Victim-Owned Websites" is chosen as the next favorable task by the LLM. Therefore, in the next step, if a task is marked as "completed", the LLM selects the next favorable task based on the next task list. If the task is marked as "failed", the LLM goes back to the task selection in the previous step, excluding tasks that have already failed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Evaluation of STT-based Reasoning Pipeline</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Experimental Setup</head><p>To evaluate the proposed STT-based reasoning pipeline for penetration testing LLM agents, we conducted experiments on HackTheBox (HTB) (Box), a widely used platform for CTF challenges. A HTB machine is a virtualized environment, typically implemented as a standalone Linux/Windows virtual machine with common services exposed. A successful penetration test on a HTB machine means that the tester gains user access to the system and escalates privilege to retrieve user and root flag files containing unique text strings. Our experimental design follows methodologies similar to those employed in prior research, including <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>. PentestGPT <ref type="bibr" target="#b34">(Deng et al., 2024)</ref> was selected for comparative analysis because the implementation provided by the authors met two criteria: 1) model agnostic; and 2) open-source. Alternative related works either are not open-source <ref type="bibr" target="#b9">(Happe &amp; Cito, 2023;</ref><ref type="bibr">Huang &amp; Zhu, 2024)</ref> or fine-tune a new model for penetration testing tasks, which would prohibit any direct comparison <ref type="bibr" target="#b20">(Pratama et al., 2024)</ref>. The evaluation was carried out on a set of 10 HTB machines, selected to ensure a balanced distribution of difficulty levels and operating systems, such as Windows and Linux. The set of HTB machines consists of four easy, four medium, and two hard machines. The ratio of Windows to Linux machines is 5:5, spread equally across each difficulty level. Each machine contains a series of predefined subtasks, which represent critical steps in penetration testing, such as reconnaissance, vulnerability exploitation, and privilege escalation. These machines are designed to simulate realistic penetration testing scenarios for workforce development, requiring testers to exploit actual system vulnerabilities. In total, the evaluation encompassed 103 subtasks across 10 separate end-to-end attack pipelines. The evaluation was conducted using three LLMs with varying architectures, sizes, and capabilities: Llama3-8B, Gemini-1.5, and GPT-4. Llama3-8B, an open-source model developed by Meta with 8 billion parameters, represents a lightweight LLM. It was chosen for its accessibility and ease of local deployment. Gemini-1.5, developed by Google DeepMind, and GPT-4, developed by OpenAI, are proprietary, closed-source models accessible only via API. While Llama3-8B was deployed locally, Gemini-1.5 and GPT-4 were accessed through their respective cloud APIs. This setup enabled us to assess the adaptability of our method across both open-source and commercial LLMs, and to understand how model scaling and access modality influence performance on penetration testing tasks.</p><p>The performance of each framework was evaluated using two primary metrics. The first is the number of subtasks completed, reflecting how effectively the pipeline guided the tester in progressing through each machine. The second is the number of queries issued, which quantifies the total interactions with the LLM required to complete a penetration testing scenario. If the LLM produced repetitive or unhelpful responses for three consecutive prompts, the attempt was deemed a failure, and the query count was recorded only up to the deepest subtask completed.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Experimental Results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.1">Experiment 1: STT-Based Reasoning Pipeline Accuracy</head><p>Table <ref type="table" target="#tab_1">1</ref> presents a comparison of subtask completion performance across the 10 HTB machines. Our guided reasoning pipeline achieved substantial improvements in subtask completion rates particularly in smaller models, Llama-3-8B and Gemini-1.5. Specifically, it successfully guided Llama-3-8B, Gemini-1.5, and GPT-4 to complete 71.8%, 72.8%, and 78.6% of subtasks, respectively. In contrast, the baseline method completed only 13.5%, 16.5%, and 75.7% of subtasks using the same models. Notably, for models with limited capabilities or smaller sizes such as Llama-3-8B and Gemini-1.5, our proposed method significantly enhanced performance, enabling completion of 4 machines each, whereas the baseline failed to fully solve any machine with those models. With GPT-4, our proposed method maintained parity with the baseline in terms of completed machines (5 out of 10) but achieved better subtask coverage compared to state-of-the-art penetration testing LLM agent <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>.</p><p>These results suggest that the STT-based reasoning pipeline compensates for the limited planning and context retention capabilities of smaller models by providing explicit task structure and state tracking. Larger models like GPT-4 appear to possess sufficient inherent reasoning ability to perform well even without explicit task guidance. However, our guided reasoning pipeline still offered measurable gains in subtask coverage and overall efficiency, highlighting its value even for state-of-the-art models. In summary, our pipeline appears to enable smaller models to perform more complex, multi-step reasoning, while still benefiting larger models through improved consistency, efficiency, and task progression tracking.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.2">Experiment 2: Navigation Efficiency</head><p>We also evaluated the agent's ability to efficiently navigate the task space, as measured by the number of queries issued during machine solving. Efficient navigation reflects the LLM agent's capacity for focused reasoning, minimizing redundant actions while maintaining task coverage. Our method significantly outperformed the baseline in this aspect. For instance, on machines such as Cap, Access, and Blurry, where the baseline with GPT-4 issued between 112 and 165 queries per machine, our proposed pipeline reduced the query count by 50-70% while still achieving full subtask completion. We note that the average prompt length, in tokens, for our proposed approach is 324 tokens compared to 321.1 tokens for the baseline. These values are close because similar information is provided to the LLM in either case. The primary difference is whether the task information is provided by the STT or the LLM-generated PTT.</p><p>A key factor contributing to this improvement lies in how the task structure is managed. The baseline system relies on the LLM itself to continuously revise and regenerate the Penetration Testing Tree (PTT), which requires frequent prompting and reevaluation. In contrast, our guided reasoning pipeline maintains the STT externally through code, decoupling tree updates from the LLM. Additionally, our method promotes more strategic task selection. In typical CTF scenarios such as HTB, the initial step involves gathering system information which often begins with port scanning to identify services, such as SSH, HTTP, or FTP. When SSH is detected, the baseline model often overcommits to SSH-related subtasks, such as brute-forcing the password or key-based login attempts, which may not lead to immediate progress. Our proposed method, however, leverages broader context cues to prioritize alternative high-value services, such as exploring HTTP interfaces or SMB shares for vulnerabilities. This leads to a more informed traversal of the task space.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.3">Experiment 3: Generalization to Other LLMs</head><p>We tested our method on Llama-3-8B, Gemini-1.5, and GPT-4. The results show that our proposed pipeline consistently enables all three models to solve several machines with comparable competence, particularly in the easy to medium difficulty range. Specifically, our method enabled all three models to successfully complete the same four machines: Cap, Active, Access, and Blurry. This consistency is notable because it suggests that the framework imposes a structured workflow that reduces performance disparities, even for smaller or less aligned models such as Llama-3-8B and Gemini-1.5. When used with the baseline method, these models failed to fully solve any machine. This contrast highlights the role of STT-based guidance and task management over raw model capability alone.</p><p>A core reason for the baseline's failure lies in its inability to maintain a coherent and adaptive Penetration Testing Tree (PTT). In multiple cases, the baseline method repeatedly regenerated the PTT from scratch without tracking progress or adjusting to newly acquired information. This often led to redundant and circular behavior. One example is shown in the case study below, where Gemini was tasked with solving the Active machine. Despite receiving valid nmap results in the beginning, it repeatedly instructed the user to perform the same reconnaissance steps, including reissuing the same nmap scan, without maintaining and progressing the task tree. This circular reasoning was commonly observed in the baseline, self-guided reasoning pipeline adopted by the state-of-the-art PentestGPT LLM agent <ref type="bibr" target="#b34">(Deng et al., 2024)</ref> </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2.4">Discussion and Limitations</head><p>We observed a tradeoff between the structure provided by our approach compared to the freedom of the baseline <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>. Our structured reasoning approach currently produces the highest success rates because it constrains the search space and grounds each step in MITRE ATT&amp;CK. This not only guides the agent, but also provides a shared vocabulary that allows LLMs to better associate their internal knowledge with concrete penetration testing tasks and actions. However, this constrained search space is not comprehensive. Techniques outside of MITRE ATT&amp;CK cannot be used by our structured approach. As LLM planning capabilities improve, agents with more freedom can exploit novel techniques (e.g., zero-days), allowing them to achieve a higher success rate in the long term. However, we foresee two scenarios where our proposed structured reasoning approach remains advantageous: 1) when using smaller language models, to avoid the circular reasoning we observed; and 2) in an audit of a specific threat model or for safety-critical testing, to bound attacker actions.</p><p>In addition, while our proposed method outperforms the baseline in both accuracy and efficiency, we identify two key limitations that warrant further investigation: 1) a lack of web search capabilities for discovering relevant Common Vulnerabilities and Exposures (CVEs) (MITRE, a), and 2) a limited understanding and application of advanced features in exploitation tools.</p><p>The proposed method struggles to identify and exploit more complex CVEs and other documented vulnerabilities, especially in harder machines. For example, in the Blurry machine, both our method and the baseline successfully exploited a known vulnerability (CVE-2024-24590), which is relatively easy to recognize and apply given sufficient enumeration. However, in the Mantis machine, a harder scenario, exploitation hinges on MS14-068, a critical Kerberos vulnerability that requires not only recognizing an obscure privilege escalation vector but also understanding the domain-specific conditions under which it applies.</p><p>This level of reasoning is difficult without deep prior knowledge or access to external threat intelligence resources. Our proposed pipeline, operating in a static knowledge environment, is currently not equipped to infer or retrieve such high-complexity CVEs without explicit cues and keywords. As a result, the agent may overlook key vulnerabilities or fail to escalate privileges even after successful initial access.</p><p>Another limitation lies in the agent's limited understanding and application of advanced functionalities in exploitation tools such as Burp Suite (PortSwigger). While our method performs well in basic tasks such as identifying injection points or manipulating simple requests, more complex machines, such as Drive, demand deeper tool usage, including automation modules. These require the agent not only to understand tool syntax but also to interpret dynamic feedback (e.g., subtle behavioral differences in server responses) and iteratively adapt its strategy. At present, our system lacks the perceptual granularity and interactivity required to handle such cases effectively.</p><p>To address these challenges, future work could explore the integration of web-enabled LLM agents for CVE retrieval, enabling contextual linking of known vulnerabilities to observed behaviors. Moreover, adopting multimodal models capable of interacting with visual interfaces or tool GUIs could substantially enhance the agent's ability to operate complex tools like Burp Suite. By processing visual cues (e.g., response timelines, request parameters, and interface elements), such systems could facilitate more sophisticated tool interaction and reasoning, especially in environments where traditional CLI-based exploitation falls short.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Conclusion</head><p>In this work, we proposed a guided reasoning pipeline for LLM-driven penetration testing that leverages a Structured Task Tree (STT) grounded in the MITRE ATT&amp;CK Matrix. Unlike existing approaches that rely on self-guided reasoning and dynamically generated task trees, our method constrains the LLM's reasoning process to a deterministic attack tree. This ensures consistency, reduces redundant or hallucinated actions, and enhances both accuracy and efficiency in automated penetration testing workflows. Through extensive evaluation on 10 HackTheBox machines across three different language models, Llama-3-8B, Gemini-1.5, and GPT-4, our method demonstrated clear performance advantages. It guided the LLM through 71.8%, 72.8%, and 78.6% of subtasks, respectively, while reducing the number of model queries by 55.9% compared to the baseline. Furthermore, our proposed pipeline enabled smaller models like Llama-3-8B and Gemini-1.5 to complete four full machines, a result that the prior state-of-the-art failed to achieve. This indicates that structured reasoning can compensate for limited model capacity and make LLM-based agents more accessible and reliable in practical settings. Future work will explore augmenting the framework with retrieval-augmented generation for CVEs and multimodal reasoning capabilities for better understanding of advanced tool usages.</p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: The task selection flow of proposed STT-based reasoning pipeline.</figDesc><graphic coords="6,121.75,81.86,368.50,117.11" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head></head><label></label><figDesc></figDesc><graphic coords="5,108.00,82.86,396.86,260.93" type="bitmap" /></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Comparison of reasoning pipeline performance across HTB machines and models.</figDesc><table><row><cell>Baseline</cell><cell>Ours</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Example for Baseline Self-Guided Reasoning using Gemini-1.5 on "Active" HTB</head><label></label><figDesc>. Conversely, this circular reasoning was not observed in our STT-based reasoning pipeline, highlighting the improved reasoning capabilities. Using the Published as a conference paper at COLM 2025 STT-based reasoning pipeline, the same LLM agent was able to achieve 74.4% attack subtask completion (vs. 35.2% by the SOTA) and required 55.9% fewer queries on average.</figDesc><table><row><cell>[user]: I want to pentest 10.10.10.100</cell></row><row><cell>[user]: next</cell></row><row><cell>[user]: Source: tool</cell></row><row><cell>$ nmap -sT -A 10.10.10.100</cell></row><row><cell>&lt; Snip: Source tool output &gt;</cell></row><row><cell>[Gemini]:</cell></row><row><cell>Based on the analysis, the following tasks are recommended:**Penetration Testing Plan (PTP)**</cell></row><row><cell>**Phase 1: Reconnaissance**</cell></row><row><cell>**Task 1: Information Gathering**</cell></row></table><note><p>A Failure</p></note></figure>
+			<note xmlns="http://www.tei-c.org/ns/1.0" place="foot" n="1" xml:id="foot_0"><p>All code is available at: https://github.com/KatsuNK/stt-reasoning</p></note>
+		</body>
+		<back>
+
+			<div type="acknowledgement">
+<div><head>Acknowledgments</head><p>This material is based upon work supported by the <rs type="funder">U.S. National Science Foundation</rs> under award No. <rs type="grantNumber">2344237</rs>.</p></div>
+			</div>
+			<listOrg type="funding">
+				<org type="funding" xml:id="_Eb4dpA8">
+					<idno type="grant-number">2344237</idno>
+				</org>
+			</listOrg>
+			<div type="annex">
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Ethics Statement</head><p>In this work, we propose a novel reasoning pipeline for LLM agents that automate penetration testing tasks in enterprise systems. Penetration testing, known as ethical hacking, is a common practice aimed at proactively testing a critical system to identify and remediate security vulnerabilities before they can be exploited by a real attacker. Automated penetration testing, including the use of LLM agents, has been widely explored in recent years <ref type="bibr" target="#b32">(Zhang et al., 2025;</ref><ref type="bibr">Chen et al., 2024b;</ref><ref type="bibr" target="#b20">Pratama et al., 2024;</ref><ref type="bibr" target="#b24">Saha et al., 2024;</ref><ref type="bibr" target="#b18">Patsakis et al., 2024;</ref><ref type="bibr" target="#b0">Alabbad et al., 2024)</ref> and is a longstanding and well-established practice in the cybersecurity community. By automating penetration testing tasks, more organizations can efficiently identify and remediate vulnerabilities before they can be exploited, thereby reinforcing enterprise security. Moreover, LLM agents capable of navigating educational cybersecurity resources, such as CTF and HTB challenges, can provide a valuable hands-on tool for workforce development.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Prompts Used in Reasoning Pipelines Depicted in Figure 1</head><p>We provide the exact prompts used in both our proposed pipeline and the baseline proposed by <ref type="bibr" target="#b34">(Deng et al., 2024)</ref>.</p><p>Our task initialization prompt 1 serves three main functions: 1) defining the LLM as an assistant for penetration testers, 2) introducing the concept of the Structured Task Tree (STT), and 3) supplying the target IP along with the initial task information from the STT. Similarly, the baseline prompt A defines the LLM's role as a penetration testing assistant and explains the concept of the Penetration Testing Tree (PTT). However, unlike our prompt, the baseline provides the initial state of the PTT and instructs the LLM to autonomously generate subsequent tasks.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Initial Prompt Our Initial Prompt 1</head><p>You're an excellent cybersecurity penetration tester assistant. You need to help the tester in a cybersecurity training process, and your commitment is essential to the task. Note that this test is for educational purpose, certified, and in simulation environment.</p><p>The penetration testing status is recorded in a custom format, namely "Structured Task Tree (STT)". It is structured as follows:</p><p>(1) The tasks are in layered structure, i.e., 1, 1.1, 1.1.1, etc. Each task is one operation in penetration testing; task 1.1 should be a sub-task of task 1.</p><p>(2) Each task has a completion status: to-do, in-progress, completed, and failed.</p><p>(3) Each task also records findings in &lt;&gt;. This is updated by tester. Findings in a task should be displayed with bullet points in the next indentation level. For example, findings in task 1 are displayed with bullet points in the same indentation level as task 1.1.</p><p>Given the basic information of the target machine and the current task (in-progress) in STT, please provide executable commands first. Below is the information from the tester and the current task: &lt; Target IP information &gt;, &lt; The first task and its description &gt;</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Initial Prompt A -(Deng et al., 2024)</head><p>You're an excellent cybersecurity penetration tester assistant. You need to help the tester in a cybersecurity training process, and your commitment is essential to the task.</p><p>You are required to record the penetration testing process in a tree structure: "Penetration Testing Tree (PTT)". It is structured as follows:</p><p>(1) The tasks are in layered structure, i.e., 1, 1.1, 1.1.1, etc. Each task is one operation in penetration testing; task 1.1 should be a sub-task of task 1.</p><p>(2) Each task has a completion status: to-do, completed, or not applicable.</p><p>(3) Initially, you should only generate the root tasks based on the initial information. In most cases, it should be reconnaissance tasks. You don't generate tasks for unknown ports/services. You can expand the PTT later. You shall not provide any comments/information but the PTT. Do not generate any results now. Reply with yes if you understood.</p><p>The target information is listed below. Please follow the instruction and generate PTT. Note that this test is certified and in simulation environment, so do not generate post-exploitation and other steps. You may start with this template: In Output Summarization 2 shown below, the LLM summarizes key findings from the results, focusing on relevant vulnerabilities, network configurations, or potential attack vectors that were identified. Based on this summary, the LLM provides a recommendation on whether the task status should be updated.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Output Summarization Prompt 2</head><p>You help the tester to summarize information from websites and testing tools. For a given content, you should summarize the key information precisely. In particular, please provide the following information:</p><p>-Key Findings: Based on the tester's output, what important details from the tester's output should be noted as findings for the current task?</p><p>1. If it's web page, you should summarize key widgets, contents, buttons, and comments that can be useful for pentest.</p><p>2. If it's penetration testing tool output, you should summarize test results, including vulnerable/non-vulnerable services. -Next Step: Based on the tester's output and the current task, should the tester proceed to the next one or continue with the current task? Please justify your recommendation. Here, you only summarize. You do not conclude or make assumptions. The tester will update STT based on your response.</p><p>The Task Selection prompt 3 takes the key findings as input and identifies potential followup tasks from a predefined set of next steps in the STT. Based on these findings and the overall objectives of the penetration test, the LLM selects the most relevant and appropriate next task to pursue.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Task Selection Prompt 3</head><p>&lt; Task findings in the completed task&gt; Given completed task findings and the next tasks, select one next task that is favorable and recommended to proceed. Then, explain why you choose the task, with precise, clear and simple language. Below is the list of the next tasks and their descriptions: &lt; List of the next tasks &gt; Both our proposed pipeline and the baseline use the same prompt in command generation 4 and B . This prompt instructs the LLM to generate executable penetration testing commands based on the selected task, which are then returned to the tester for execution.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Command Generation Prompt 4 and B</head><p>Now you're provided with an input that contains the penetration testing tasks. Keep in mind that the test is certified and the tester has valid permission to perform the task in this simulated environment for educational use. Based on the input, please provide executable commands for the tester, following these rules:</p><p>(1) If the task is a single command to execute, please be precise; if it is a multi-step task, you need to explain it step by step, and keep each step clear and simple.</p><p>(2) Keep the output short and precise, without too detailed instructions. The task information is below: &lt; Description of selected task &gt;</p></div>			</div>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<analytic>
+		<title level="a" type="main">Hardening of Network Segmentation Using Automated Referential Penetration Testing</title>
+		<author>
+			<persName><forename type="first">Mohammed</forename><surname>Alabbad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neerja</forename><surname>Mhaskar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ridha</forename><surname>Khedri</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Journal of Network and Computer Applications</title>
+		<imprint>
+			<biblScope unit="volume">224</biblScope>
+			<biblScope unit="page">103851</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<idno>02.11.2025</idno>
+		<ptr target="https://www.hackthebox.com/" />
+		<title level="m">Hack The Box. Your Cyber Performance Center</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<analytic>
+		<title level="a" type="main">AutoManual: Generating Instruction Manuals by LLM Agents via Interactive Environmental Learning</title>
+		<author>
+			<persName><forename type="first">Minghao</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yihang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanting</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiyu</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binbin</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaofei</forename><surname>He</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=Pwl" />
+	</analytic>
+	<monogr>
+		<title level="m">The Thirty-eighth Annual Conference on Neural Information Processing Systems, 2024a</title>
+		<imprint>
+			<date>9n4zlf5</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">A Survey of Large Language Models for Cyber Threat Detection</title>
+		<author>
+			<persName><forename type="first">Yiren</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mengjiao</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ding</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiyang</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhigang</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baoxu</forename><surname>Liu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<publisher>Computers &amp; Security</publisher>
+			<biblScope unit="page">104016</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Google</forename><surname>Deepmind</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gemini</surname></persName>
+		</author>
+		<ptr target="https://deepmind.google/technologies/gemini/.Ac-cessed:02.11.2025" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">PentestGPT: Evaluating and Harnessing Large Language Models for Automated Penetration Testing</title>
+		<author>
+			<persName><forename type="first">Gelei</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Víctor</forename><surname>Mayoral-Vilches</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuekang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Pinzger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefan</forename><surname>Rass</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 33rd USENIX Conference on Security Symposium, SEC &apos;24, USA, 2024. USENIX Association</title>
+		<meeting>the 33rd USENIX Conference on Security Symposium, SEC &apos;24, USA, 2024. USENIX Association</meeting>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<analytic>
+		<title level="a" type="main">OpenAGI: When LLM Meets Domain Experts</title>
+		<author>
+			<persName><forename type="first">Yingqiang</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenyue</forename><surname>Hua</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Mei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juntao</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuyuan</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zelong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongfeng</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in Neural Information Processing Systems</title>
+		<imprint>
+			<biblScope unit="volume">36</biblScope>
+			<biblScope unit="page" from="5539" to="5568" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<analytic>
+		<title level="a" type="main">A game theory for resource-constrained tactical cyber operations</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Goohs</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Josiah</forename><surname>Dykstra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anthony</forename><surname>Melaragno</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><surname>Casey</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">MILCOM 2024-2024 IEEE Military Communications Conference (MILCOM)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="page" from="1052" to="1057" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<analytic>
+		<title level="a" type="main">Large Language Model Based Multi-Agents: A Survey of Progress and Challenges</title>
+		<author>
+			<persName><forename type="first">Taicheng</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiuying</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaqi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruidi</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shichao</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Nitesh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Olaf</forename><surname>Chawla</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangliang</forename><surname>Wiest</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+		<idno type="DOI">10.24963/ijcai.2024/890</idno>
+		<ptr target="https://doi.org/10.24963/ijcai.2024/890" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the Thirty-Third International Joint Conference on Artificial Intelligence, IJCAI &apos;24</title>
+		<meeting>the Thirty-Third International Joint Conference on Artificial Intelligence, IJCAI &apos;24</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">PenHeal: A Two-Stage LLM Framework for Automated Pentesting and Optimal Remediation</title>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Happe</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J</forename><surname>Ürgen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Cito</forename></persName>
+		</author>
+		<idno type="DOI">10.1145/3689933.3690831</idno>
+		<idno>doi: 10.1145/3689933.3690831</idno>
+		<ptr target="https://doi.org/10.1145/3689933.3690831" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 31st ACM Joint European Software Engineering Conference and Symposium on the Foundations of Software Engineering, ESEC/FSE 2023</title>
+		<meeting>the 31st ACM Joint European Software Engineering Conference and Symposium on the Foundations of Software Engineering, ESEC/FSE 2023<address><addrLine>New York, NY, USA; New York, NY, USA</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computing Machinery</publisher>
+			<date type="published" when="2023">2023. 2024</date>
+			<biblScope unit="volume">9798400703270</biblScope>
+			<biblScope unit="page" from="11" to="22" />
+		</imprint>
+	</monogr>
+	<note>Proceedings of the Workshop on Autonomous Cybersecurity, AutonomousCyber &apos;24</note>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weijiang</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weitao</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihong</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyin</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haotian</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qianglong</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weihua</forename><surname>Peng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaocheng</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Qin</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2311.05232</idno>
+		<title level="m">Survey on Hallucination in Large Language Models: Principles, Taxonomy, Challenges, and Open Questions</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Position: LLMs Can&apos;t Plan, But Can Help Planning in LLM-Modulo Frameworks</title>
+		<author>
+			<persName><forename type="first">Subbarao</forename><surname>Kambhampati</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Valmeekam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lin</forename><surname>Guan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mudit</forename><surname>Verma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaya</forename><surname>Stechly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siddhant</forename><surname>Bhambri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucas</forename><surname>Saldyt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anil</forename><surname>Murthy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 41st International Conference on Machine Learning</title>
+		<meeting>the 41st International Conference on Machine Learning</meeting>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>ICML&apos;24. JMLR.org</note>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<analytic>
+		<title level="a" type="main">BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension</title>
+		<author>
+			<persName><forename type="first">Mike</forename><surname>Lewis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinhan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naman</forename><surname>Goyal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marjan</forename><surname>Ghazvininejad</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdelrahman</forename><surname>Mohamed</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Omer</forename><surname>Levy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veselin</forename><surname>Stoyanov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Luke</forename><surname>Zettlemoyer</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2020.acl-main.703</idno>
+		<ptr target="https://aclanthology.org/2020.acl-main.703/" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 58th Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<date type="published" when="2020-07">July 2020</date>
+			<biblScope unit="page" from="7871" to="7880" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<author>
+			<persName><forename type="first">Lockheed</forename><surname>Martin</surname></persName>
+		</author>
+		<idno>02.11.2025</idno>
+		<ptr target="https://www.lockheedmartin.com/en-us/capabilities/cyber/cyber-kill-chain.html" />
+		<title level="m">Cyber Kill Chain</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<author>
+			<persName><forename type="first">David</forename><surname>Maynor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Wilhelm</surname></persName>
+		</author>
+		<title level="m">Metasploit Toolkit for Penetration Testing, Exploit Development, and Vulnerability Research</title>
+		<imprint>
+			<publisher>Syngress Publishing</publisher>
+			<date type="published" when="2007">2007</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Meta</forename><surname>Llama</surname></persName>
+		</author>
+		<idno>02.11.2025</idno>
+		<ptr target="https://www.llama.com/" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Recent Advances in Natural Language Processing via Large Pre-trained Language Models: A Survey</title>
+		<author>
+			<persName><forename type="first">Bonan</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hayley</forename><surname>Ross</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Elior</forename><surname>Sulem</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amir</forename><surname>Pouran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Veyseh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thien</forename><surname>Huu Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oscar</forename><surname>Sainz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eneko</forename><surname>Agirre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilana</forename><surname>Heintz</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Roth</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Computing Surveys</title>
+		<imprint>
+			<biblScope unit="volume">56</biblScope>
+			<biblScope unit="issue">2</biblScope>
+			<biblScope unit="page" from="1" to="40" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><surname>Mitre</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Cve</surname></persName>
+		</author>
+		<idno>02.11.2025</idno>
+		<ptr target="https://openai.com/index/hello-gpt-4o/" />
+		<title level="m">02.11.2025. MITRE. CWE, b</title>
+		<imprint/>
+	</monogr>
+	<note>Nmap. Nmap Documentation</note>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">Assessing LLMs in Malicious Code Deobfuscation of Real-World Malware Campaigns</title>
+		<author>
+			<persName><forename type="first">Constantinos</forename><surname>Patsakis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fran</forename><surname>Casino</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolaos</forename><surname>Lykousas</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Expert Systems with Applications</title>
+		<imprint>
+			<biblScope unit="volume">256</biblScope>
+			<biblScope unit="page">124912</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Burp Suite -Application Security Testing Software</title>
+		<author>
+			<persName><surname>Portswigger</surname></persName>
+		</author>
+		<ptr target="https://portswigger.net/burp" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<analytic>
+		<title level="a" type="main">CIPHER: Cybersecurity Intelligent Penetration-Testing Helper for Ethical Researcher</title>
+		<author>
+			<persName><forename type="first">Derry</forename><surname>Pratama</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Naufal</forename><surname>Suryanto</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andro</forename><surname>Aprila Adiputra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thi-Thu-Huong</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ahmada</forename><surname>Yusril Kadiptya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Muhammad</forename><surname>Iqbal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Howon</forename><surname>Kim</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Sensors</title>
+		<imprint>
+			<biblScope unit="volume">24</biblScope>
+			<biblScope unit="issue">21</biblScope>
+			<biblScope unit="page">6878</biblScope>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Exploring The Limits of Transfer Learning with a Unified Text-to-Text Transformer</title>
+		<author>
+			<persName><forename type="first">Colin</forename><surname>Raffel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Noam</forename><surname>Shazeer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adam</forename><surname>Roberts</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katherine</forename><surname>Lee</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sharan</forename><surname>Narang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Matena</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanqi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><forename type="middle">J</forename><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">J. Mach. Learn. Res</title>
+		<idno type="ISSN">1532-4435</idno>
+		<imprint>
+			<biblScope unit="volume">21</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<date type="published" when="2020-01">January 2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<analytic>
+		<title level="a" type="main">The Troubling Emergence of Hallucination in Large Language Models-An Extensive Definition</title>
+		<author>
+			<persName><forename type="first">Swagata</forename><surname>Vipula Rawte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Agnibh</forename><surname>Chakraborty</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anubhav</forename><surname>Pathak</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sarkar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aman</forename><surname>Tonmoy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amit</forename><forename type="middle">P</forename><surname>Chadha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amitava</forename><surname>Sheth</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Das</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2310.04988</idno>
+	</analytic>
+	<monogr>
+		<title level="m">Quantification, and Prescriptive Remediations</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<analytic>
+		<title level="a" type="main">Identification of attack paths using kill chain and attack graphs</title>
+		<author>
+			<persName><forename type="first">Lukáš</forename><surname>Sadlek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pavel</forename><surname>Čeleda</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Tovar Ňák</surname></persName>
+		</author>
+		<idno type="DOI">10.1109/NOMS54207.2022.9789803</idno>
+		<ptr target="https://doi.org/10.1109/NOMS54207.2022.9789803" />
+	</analytic>
+	<monogr>
+		<title level="m">NOMS 2022-2022 IEEE/IFIP Network Operations and Management Symposium</title>
+		<imprint>
+			<publisher>IEEE Press</publisher>
+			<biblScope unit="page">2022</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">Dipayan</forename><surname>Saha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shams</forename><surname>Tarek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Katayoon</forename><surname>Yahyaei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sujan</forename><forename type="middle">Kumar</forename><surname>Saha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mark</forename><surname>Tehranipoor</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Farimah</forename><surname>Farahmandi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">LLM for SoC Security: A Paradigm Shift. IEEE Access</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<analytic>
+		<title level="a" type="main">LLM-Planner: Few-Shot Grounded Planning for Embodied Agents with Large Language Models</title>
+		<author>
+			<persName><forename type="first">Hee</forename><surname>Chan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaman</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Clayton</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><forename type="middle">M</forename><surname>Washington</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Lun</forename><surname>Sadler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Chao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Su</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)</title>
+		<meeting>the IEEE/CVF International Conference on Computer Vision (ICCV)</meeting>
+		<imprint>
+			<date type="published" when="2023-10">October 2023</date>
+			<biblScope unit="page" from="2998" to="3009" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Tenable Nessus Documentation</title>
+		<author>
+			<persName><surname>Tenable</surname></persName>
+		</author>
+		<idno>02.11.2025</idno>
+		<ptr target="https://docs.tenable.com/Nessus.htm" />
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">LLMs Still Can&apos;t Plan; Can LRMs? A Preliminary Evaluation of OpenAI&apos;s o1 on PlanBench</title>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Valmeekam</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaya</forename><surname>Stechly</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subbarao</forename><surname>Kambhampati</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=Gcr1Lx4Koz" />
+	</analytic>
+	<monogr>
+		<title level="m">NeurIPS 2024 Workshop on Open-World Agents</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhiheng</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenxiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>He</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiwen</forename><surname>Ding</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Boyang</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junzhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Senjie</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Enyu</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaoran</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Limao</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuhao</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changhao</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yicheng</forename><surname>Zou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiangyang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhangyue</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shihan</forename><surname>Dou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rongxiang</forename><surname>Weng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wensen</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenjuan</forename><surname>Qin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongyan</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xipeng</forename><surname>Qiu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuanjing</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tao</forename><surname>Gui</surname></persName>
+		</author>
+		<title level="m">The Rise and Potential of Large Language Model Based Agents: A Survey</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Language agents as hackers: Evaluating cybersecurity skills with capture the flag</title>
+		<author>
+			<persName><forename type="first">John</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akshara</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Pei</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Karthik R Narasimhan</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Multi-Agent Security Workshop@ NeurIPS&apos;23</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title level="m" type="main">Cybench: A framework for evaluating cybersecurity capabilities and risks of language models</title>
+		<author>
+			<persName><forename type="first">Andy</forename><forename type="middle">K</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Neil</forename><surname>Perry</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Riya</forename><surname>Dulepet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joey</forename><surname>Ji</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Celeste</forename><surname>Menders</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Justin</forename><forename type="middle">W</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eliot</forename><surname>Jones</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gashon</forename><surname>Hussein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samantha</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Donovan</forename><surname>Jasper</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2408.08926</idno>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<analytic>
+		<title level="a" type="main">A Survey of Controllable Text Generation Using Transformer-Based Pre-Trained Language Models</title>
+		<author>
+			<persName><forename type="first">Hanqing</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haolin</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shaoyu</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dawei</forename><surname>Song</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">ACM Computing Surveys</title>
+		<imprint>
+			<biblScope unit="volume">56</biblScope>
+			<biblScope unit="issue">3</biblScope>
+			<biblScope unit="page" from="1" to="37" />
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title/>
+		<author>
+			<persName><forename type="first">Jie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoyu</forename><surname>Bu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hui</forename><surname>Wen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongji</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haiqiang</forename><surname>Fei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rongrong</forename><surname>Xi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lun</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yun</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongsong</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dan</forename><surname>Meng</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">When LLMs Meet Cybersecurity: A Systematic Literature Review. Cybersecurity</title>
+		<imprint>
+			<biblScope unit="volume">8</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="41" />
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Kun</forename><surname>Wayne Xin Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyi</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiaolei</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yupeng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yingqian</forename><surname>Hou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Min</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junjie</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zican</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Dong</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2303.18223</idno>
+		<ptr target="https://arxiv.org/abs/2303" />
+		<title level="m">A Survey of Large Language Models</title>
+		<imprint>
+			<date>18223v10</date>
+			<biblScope unit="page" from="3" to="2023" />
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title level="m" type="main">Reasoning prompt C below is used for the baseline to generate possible tasks by the LLM, maintaining Penetration Testing Tree (PTT) format. Reasoning Prompt C You shall revise PTT with the test results provided. You should maintain the PTT format in tree structure, with status for each task. This is essential for the completion of the task. Note that you only add in to-do tasks when necessary. You should not include additional tasks that are not yet discovered. Given the PTT, list down all the possible todo tasks. Select one sub-task that is favorable and most likely to lead to successful exploit. Then, explain how to perform the task in two sentences</title>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuofei</forename><surname>Qiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixin</forename><surname>Ou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shumin</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ningyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shiwei</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yue</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Liang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jinjie</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huajun</forename><surname>Chen</surname></persName>
+		</author>
+		<idno type="DOI">10.48550/arXiv.2403.03101</idno>
+		<idno>CoRR, abs/2403.03101</idno>
+		<ptr target="https://doi.org/10.48550/arXiv.2403.03101" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note>KnowAgent: Knowledge-Augmented Planning for LLM-Based Agents. with precise, clear and simple language. Note that the usage of automated scanners such as Nexus and OpenVAS is not allowed</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>

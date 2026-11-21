@@ -1,0 +1,185 @@
+{
+  "arxiv_id": "2605.11169",
+  "title": "OLIVIA: Online Learning via Inference-time Action Adaptation for Decision Making in LLM ReAct Agents",
+  "abstract": "Large language model agents interleave reasoning, action selection, and observation to solve sequential decision-making tasks. In deployed settings where agents repeatedly handle related multi-step tasks, small actionselection errors can accumulate into wasted tool calls, latency, and reduced reliability. Despite this need for deployment-time improvement, however, existing inference-time adaptation methods for LLM agents mainly rely on prompting or retrieval, which influence behavior indirectly through context manipulation. For ReAct-style agents, such approaches do not expose an explicit decision layer that can score candidate actions, represent uncertainty, or be updated online from action-level feedback. As a result, they provide limited support for trackable, fine-grained, and uncertainty-aware adaptation during deployment. We propose OLIVIA, an inference-time action adaptation framework for ReAct-style agents. OLIVIA models the LLM's final action-selection layer as a contextual linear bandit over candidate actions, with frozen hidden states as decision contexts. This choice is particularly suitable for deployment because it adapts behavior directly at the action-selection interface, preserves the underlying reasoning process, and provides explicit uncertainty estimates and lightweight online updates from action-level feedback. With upper-confidence-bound exploration, OLIVIA improves the policy sample-efficiently with minimal computational overhead. We instantiate OLIVIA on four benchmarks and show that it consistently improves task performance over static ReAct and prompt-based inference-time baselines. Our results suggest that explicit online decision layers provide an effective alternative to purely prompt or retrieval-based adaptation for LLM agents during deployment.",
+  "sections": [
+    {
+      "heading": "Introduction",
+      "section_type": "introduction",
+      "text": "LLM agents increasingly operate as sequential decision makers in deployed settings such as tool-using assistants, API orchestration systems, and enterprise workflow agents. In these applications, the agent must interleave natural-language reasoning, action selection, and environment feedback through a sequence of thoughts, actions, and observations in order to complete multi-step tasks. ReAct-style prompting has emerged as a practical template for such agents because it exposes intermediate decisions, supports multi-step interaction, and can be deployed without parameter updates (Wu et al., 2025b;Nguyen et al., 2025;Xia et al., 2025). However, despite this sequential structure, agent behavior is typically static at inference time: the model follows a fixed prompt-guided policy, while feedback gathered during deployment is not used to systematically improve future decisions. In repeated or streaming deployments, this limitation can be costly. Agents may revisit similar decision states, repeat the same local mistakes, and waste interaction budget when an early error leads to an unproductive trajectory. A growing body of work seeks to improve inferencetime behavior through prompt engineering (Yao et al., 2023b), reflection (Shinn et al., 2023), or memory augmentation (Majumder et al., 2023;Wang et al., 2025a;b). These approaches can change what the model generates, but they typically do not provide an explicit online optimization mechanism for sequential decision making (Huang et al., 2025a). In particular, they offer limited support for adapting action-selection behavior from observed feedback over a stream of related tasks. As a result, improvements often remain indirect, heuristic, or tied to prompt design rather than to an explicit decision layer that can learn during deployment.\n\nWe study this problem through the lens of online adaptation for inference-time decision making. At each decision step, an agent must choose an action based on the current task state and its evolving reasoning history, while feedback from previous interactions may be informative for future decisions in similar contexts (Wu et al., 2022). This setting naturally calls for a lightweight online learner that can sit on top of a frozen LLM, use the model's internal state as context, and update from observed interaction feedback without requiring model fine-tuning.\n\nTo this end, we propose OLIVIA, an online adaptation framework for ReAct-style agents. OLIVIA adds a lightweight contextual decision layer on top of a frozen language model: at each step, it uses the model's hidden-state representation of the current task and reasoning history as context, selects the next action from a candidate set, and updates from step-level feedback to improve future decisions across a stream of tasks. This design is well matched to our setting: the agent repeatedly chooses from a discrete action set and observes feedback only for the selected action, making contextual bandits a natural model of partial-feedback online adaptation (Wu et al., 2021;Hu et al., 2025). Compared with policy-gradient or purely episodic updates, this yields a more direct and lower-variance learning signal, while unlike retrieval-augmented memory, it adapts behavior through an explicit decision layer rather than indirect context modification. In this paper, we instantiate OLIVIA on tooluse benchmarks, where decision context is trajectory-dependent: each action changes the subsequent reasoning history, so later hidden states, rewards, and updates are coupled across the interaction even though the backbone model remains fixed.\n\nOur approach is lightweight and modular. It does not require retraining the base model, modifying the prompting interface, or storing large retrieval memories. Instead, it augments the frozen LLM with an online controller that adapts action preferences from experience, enabling the agent to improve over time as it encounters related tasks. We summarize our contributions as follows:\n\n• We formulate online adaptation for language model agents as an inference-time sequential decision-making problem, in which a lightweight decision layer uses LLM hidden-state representations to adapt action selection from step-level feedback. • We develop OLIVIA, a contextual-bandit-based online decision layer that operates on top of a frozen LLM and supports efficient action scoring, uncertainty-aware exploration, and incremental updates during deployment. • We instantiate OLIVIA on four tool-use benchmarks and show that it improves task performance and online adaptation behavior over static prompting baselines and a prompt-based inference-time adaptation baseline, while preserving the underlying language model.",
+      "n_words": 679
+    },
+    {
+      "heading": "Inference-time adaptation.",
+      "section_type": "introduction",
+      "text": "Recent work shows that LLM agents need not remain fixed after deployment. ReAct already casts inference as a closed-loop process of reasoning, acting, and observing, creating a natural interface for adaptation from interaction feedback (Yao et al., 2023b;Wu et al., 2025b;Nguyen et al., 2025;Lu et al., 2024). Most inference-time adaptation methods, however, operate indirectly through memory, prompting, or lightweight control variables: verbal reflection and episodic memory (Majumder et al., 2023;Shinn et al., 2023;Zhong et al., 2023), dynamic in-context example selection (Wang et al., 2025a), in-context preference adaptation",
+      "n_words": 87
+    },
+    {
+      "heading": "Task",
+      "section_type": "other",
+      "text": "Transformer Layer",
+      "n_words": 2
+    },
+    {
+      "heading": "Hidden States",
+      "section_type": "other",
+      "text": "..",
+      "n_words": 1
+    },
+    {
+      "heading": "… Tool Selected",
+      "section_type": "other",
+      "text": "The user want to stay in Glendale for 9 night...\n\nGT list",
+      "n_words": 12
+    },
+    {
+      "heading": "Candidate Tools",
+      "section_type": "other",
+      "text": "Figure 1: Overview of OLIVIA. Left: A frozen LLM backbone processes the task and trajectory prefix through its transformer layers, producing hidden states and a reasoning trace (Thought). Right: At each action-selection step, OLIVIA extracts the last-layer hidden state as the decision context and scores candidate tools using per-action UCB estimates. (Wu et al., a), and parameter-internalized context (Wang et al., 2025b), reusable naturallanguage experience or skill libraries (Zhao et al., 2024;Wang et al., 2023;Xia et al., 2025), retrospective prompt optimization (Yao et al., 2024), CoT debiasing and offline alignment (Wu et al., 2024b;2025a), and information-theoretic prompt tuning (Wu et al., 2023), and lightweight test-time adaptation under environment shift (Chen et al., 2026), latent-state reasoning analysis (Wu et al., b;Yu et al., 2025). Surveys also document the rapid expansion of inference-time adaptation across personalized, multimodal, and federated LLMs (Zhang et al., 2024;Wu et al., 2024a;c;Surana et al., 2026). These works establish deploymenttime adaptation as a viable paradigm, but they generally do not expose an explicit online decision layer for sequential action selection. Our work shares the same deployment-time perspective, but focuses on updating a lightweight action-selection module online from step-level feedback.",
+      "n_words": 191
+    },
+    {
+      "heading": "Online optimization of sequential decisions.",
+      "section_type": "introduction",
+      "text": "A complementary line of work treats inference itself as an online optimization problem over a sequence of intermediate decisions. In reasoning, this appears as explicit search or planning over thought states (Yao et al., 2023a;Hao et al., 2023); in agent settings, as treesearch-based interaction and planning with environment feedback (Zhou et al., 2024;Koh et al., 2026;Mundada et al., 2026); and in test-time compute scaling, as adaptive allocation of inference resources such as branching depth or search breadth (Inoue et al., 2025;Liu et al., 2024;Kveton et al., 2025). Related uncertainty-aware methods also use posterior sampling or contextual Thompson sampling to guide sequential choice under partial feedback (Cai et al., 2025;Zhang et al., 2025;Xia et al., 2023). Together, these works motivate viewing inference as online optimization over reasoning, acting, and compute allocation. Our method is closest to this perspective: we study online adaptation for sequential LLM decision making using frozen-model contextual representations and lightweight online updates from observed step-level feedback. Closely related online-RL formulations adapt action policies under simulator-to-deployment dynamics shift (Wu et al., 2022), while pluralistic off-policy evaluation extends this view to multi-stakeholder alignment (Huang et al., 2025b;Xie et al., 2025).",
+      "n_words": 190
+    },
+    {
+      "heading": "Contextual Bandits",
+      "section_type": "introduction",
+      "text": "A contextual bandit models repeated decision making under partial feedback (Li et al., 2010;Ban et al., 2023). At round n = 1, 2, . . . , N, the learner observes a context x n ∈ X , chooses an action a n ∈ A(x n ), and receives a scalar reward r n for that action alone; the rewards of unchosen actions are not observed. An optimal action satisfies a * n ∈ arg max\n\nThe learner's goal is to find an action-selection rule that achieves high cumulative reward across rounds while balancing exploration of uncertain actions against exploitation of actions that already appear promising. When the expected reward is modeled as a parametric function of contextual features, the learner can generalize across related decision states and employ principled exploration strategies such as upper confidence bounds (Ban et al., 2023).",
+      "n_words": 141
+    },
+    {
+      "heading": "ReAct-Style Sequential Agents",
+      "section_type": "method",
+      "text": "We consider an LLM agent that interacts with an environment over multiple decision steps following the ReAct paradigm (Yao et al., 2023b;Zhou et al., 2024;Koh et al., 2026). In episode e, the agent receives a task input q e and a candidate action set A e . Let h e,t-1 denote the interaction history before step t, comprising prior reasoning traces, selected actions, and environment observations. At step t the agent selects an action a e,t ∈ A e,t , receives an observation o e,t , and updates the history: h e,t = h e,t-1 ⊕ (a e,t , o e,t ), where ⊕ denotes concatenation. The episode terminates when the agent issues a stop action or reaches a step budget. Because the history grows with each step, every action decision is conditioned on a distinct, trajectory-dependent context x e,t = (q e , h e,t-1 ).",
+      "n_words": 147
+    },
+    {
+      "heading": "Problem Formulation",
+      "section_type": "other",
+      "text": "We study online inference-time action adaptation for sequential LLM agents. Our goal is to enable a frozen language model to improve its action choices over a stream of related episodes by updating only a lightweight decision layer from interaction feedback, without fine-tuning the backbone. This section develops the conceptual foundation in three steps: we first show that ReAct-style action selection naturally maps to a contextual bandit problem, then identify a linear decision interface inside the frozen LLM that can serve as the bandit's scoring mechanism, and finally argue that this structure enables principled online adaptation with exploration.",
+      "n_words": 97
+    },
+    {
+      "heading": "ReAct Action Selection as a Contextual Bandit",
+      "section_type": "method",
+      "text": "Consider a stream of ReAct-style episodes e = 1, 2, . . . , N. Using the notation from Section 3.2, at step t of episode e the agent faces a decision context x e,t = (q e , h e,t-1 ) and must choose the next action from A valid e,t ⊆ A e , the subset of actions still available at that step. After acting, the agent observes feedback only for the selected action-the rewards of alternative actions remain unknown. This per-step structure directly mirrors the contextual bandit setting of Section 3.1: a contextdependent choice from a discrete action set under partial feedback. The key additional observation is that, although full trajectories differ across tasks, similar local decision states recur across a stream of related episodes. When the same or a closely related action-selection problem appears again, feedback collected from earlier decisions becomes informative. This recurrence creates an opportunity for deployment-time learning that purely static prompting cannot exploit. We therefore cast each action-selection step in the ReAct loop as a round of an online contextual decision problem. The remainder of this section develops the representation and adaptation mechanism that make this casting concrete.",
+      "n_words": 195
+    },
+    {
+      "heading": "The LLM's Action-Selection Interface as a Linear Bandit",
+      "section_type": "method",
+      "text": "The bandit perspective above requires a contextual representation of each decision state and a scoring rule over candidate actions. We now show that the frozen LLM already provides both.\n\nAt the token position immediately preceding the next action decision, the model's last-layer hidden state u e,t = h LLM (q e , h e,t-1\n\nencodes the task semantics and the full trajectory so far. Intuitively, this vector is the model's internal answer to the local question: what action should come next?\n\nTo produce a next-token distribution, the frozen model scores each vocabulary token through its output projection layer. When the output vocabulary is restricted to the candidate action set A valid e,t , this projection reduces to a per-action linear score\n\nwhere w a ∈ R d is the frozen parameter row associated with action a-concretely, the corresponding row of the language-model head or an embedding derived from the same model.\n\nThis decomposition reveals that the frozen LLM's action-selection mechanism is already a contextual linear scorer: the hidden state serves as the context vector and the per-action parameters serve as arm-specific weights, exactly the structure assumed by linear contextual bandits. We emphasize that we are not claiming the full LLM is a bandit; rather, we isolate its action-selection interface as a linear scoring layer that can be separated from the underlying reasoning dynamics.\n\nThis observation is the conceptual basis of our method. Because the frozen scoring layer {w a } is fixed, it cannot adapt to deployment feedback. But the same linear structure admits a learnable replacement: a per-action parameter θ a that starts from the LLM's prior and is updated online as the agent accumulates interaction experience. The next subsection describes the adaptation mechanism that this structure enables.",
+      "n_words": 289
+    },
+    {
+      "heading": "Online Adaptation and Exploration",
+      "section_type": "method",
+      "text": "Replacing the frozen scoring weights with learnable parameters creates an online learning problem: the agent must estimate which actions yield high reward in each context from a growing stream of partial-feedback interactions. A critical challenge is that feedback is observed only for the selected action. If the learner always picks the action that currently looks best, it may never discover that an under-explored action is superior in a given context.\n\nExisting inference-time adaptation methods do not address this challenge directly. Promptbased approaches such as reflection (Shinn et al., 2023) and memory augmentation (Majumder et al., 2023) influence behavior indirectly through context manipulation, but they have no mechanism to systematically explore uncertain actions or to quantify how confident the agent is about each candidate.\n\nThe linear bandit structure identified in Section 4.2 provides a principled solution. Because the learner maintains an explicit parametric model of action quality, it can estimate not only the expected reward of each action but also the uncertainty of that estimate. An optimistic selection rule can then add an exploration bonus proportional to the current uncertainty, favoring actions whose reward is still poorly characterized. As more feedback is collected, the uncertainty shrinks and the learner concentrates on high-reward actions-balancing exploration and exploitation automatically.",
+      "n_words": 206
+    },
+    {
+      "heading": "Methodology",
+      "section_type": "method",
+      "text": "This section presents OLIVIA, the concrete instantiation of the framework outlined in Section 4. OLIVIA operates entirely at the action-selection interface of a frozen LLM: the model's reasoning process generates a trajectory-dependent hidden state, and a lightweight online decision layer selects the next action from the valid candidate set based on that hidden state. All backbone parameters, prompts, and reasoning generation remain fixed throughout deployment; only the decision layer is updated from online feedback.",
+      "n_words": 74
+    },
+    {
+      "heading": "Hidden-State Decision Layer",
+      "section_type": "method",
+      "text": "At each decision step t of episode e, the frozen LLM processes the current task q e and trajectory prefix h e,t-1 . We extract the last-layer hidden state at the token position immediately preceding the next action token:\n\nThis vector serves as the contextual input to the online controller. It encodes both the original task semantics and the evolving reasoning history, so two decision points that share similar task structure and trajectory prefixes produce similar context vectors, enabling generalization across episodes.\n\nFor each candidate action a, OLIVIA maintains per-action sufficient statistics\n\nwhere θa is the current estimate of the action's reward parameter. The base predicted reward for action a in context u e,t is s e,t (a) = θ⊤ a u e,t .\n\nLLM-aligned initialization. Rather than starting from a random policy, we warm-start the controller from the frozen model's own prior. We initialize\n\nwhere embed(a) ∈ R d is the mean input embedding of the action's name tokens under the same LLM. Because A (0) a = I, the initial parameter satisfies θ(0) a = embed(a), so the controller's starting scores are aligned with the frozen model's representation of each action. This initialization is especially valuable early in the stream before substantial feedback has been collected, as it ensures the controller inherits the semantic priors already encoded in the language model.",
+      "n_words": 223
+    },
+    {
+      "heading": "UCB-Based Exploration",
+      "section_type": "method",
+      "text": "The partial-feedback nature of the problem (Section 4.3) demands a selection rule that actively explores uncertain actions. We adopt the LinUCB strategy (Li et al., 2010), which augments the predicted reward with an exploration bonus that reflects the learner's uncertainty about each action in the current context.\n\nGiven context u e,t , each valid action a ∈ A valid e,t is scored by\n\nwhere α > 0 is the exploration coefficient. The first term is the current reward estimate; the second term is the exploration bonus, proportional to the width of the confidence interval for action a in the direction of the current context. The selected action is a e,t ∈ arg max\n\nUCB e,t (a).\n\nThe exploration bonus has two desirable properties. First, it is context-dependent: the bonus for a given action varies with the decision state, so the controller explores actions that are uncertain in the current context rather than exploring uniformly at random. Second, it shrinks automatically as data accumulates: each observation tightens the confidence ellipsoid, reducing the bonus for well-characterized actions and concentrating selection on those that remain uncertain. These properties distinguish UCB from simpler alternatives. ε-greedy exploration selects randomly and ignores the structure of the context space; Thompson sampling introduces stochastic noise that can be harder to diagnose in deployment; promptbased adaptation methods have no explicit exploration mechanism at all.\n\nThe valid action set A valid e,t\n\n⊆ A e may shrink during an episode: once an action has been selected the maximum allowed number of times, it is removed from the candidate set. This constraint prevents degenerate repetition while still allowing the controller to select the same tool more than once when warranted by the ground-truth trajectory.\n\nThe coefficient α controls exploration aggressiveness. Smaller values place more weight on the current reward estimate and the LLM-aligned prior; larger values encourage broader exploration early in the stream. We study the sensitivity to α empirically in Section 6.3. Reward signal. In our tool-use instantiation, each episode e is associated with a groundtruth tool multiset G e . Let G rem e,t denote the unmatched portion of that multiset before step t. After selecting action a e,t , the agent receives immediate binary feedback: r e,t = 1[a e,t ∈ G rem e,t ].",
+      "n_words": 377
+    },
+    {
+      "heading": "Step-Level Feedback and Online Update",
+      "section_type": "method",
+      "text": "(9) If r e,t = 1, one occurrence of a e,t is removed from G rem e,t so that each ground-truth tool can be matched at most once. This provides a step-level learning signal that directly reflects action-selection quality, in contrast to episode-level feedback that conflates all decisions within a trajectory.\n\nOnline update. After observing reward r e,t , only the statistics of the selected action are updated via a rank-one rule:\n\nA a e,t ← A a e,t + u e,t u ⊤ e,t , b a e,t ← b a e,t + r e,t u e,t . ( 10)\n\nThe parameter estimate is then θa e,t = A -1 a e,t b a e,t . In practice, we maintain the inverse A -1 a incrementally using the Sherman-Morrison formula, so each update requires O(d 2 ) time and avoids re-inverting the full covariance matrix.\n\nThe episode terminates when the agent emits a stop action, no valid action remains, or the per-episode step budget is exhausted. Across the full episode stream, the cumulative reward is the objective we seek to maximize through online adaptation.\n\nDesign summary.",
+      "n_words": 187
+    },
+    {
+      "heading": "Experimental Setup",
+      "section_type": "experiments",
+      "text": "Benchmarks. We evaluate on four tool-use benchmarks: TOOLBENCH (Xu et al., 2023), TASKBENCH, TASKBENCH-MM (Shen et al., 2024), andBFCL (Patil et al., 2023). These benchmarks span complementary tool-use settings, varying in task domain, modality, and candidate-set size. Each instance provides a natural-language task, a candidate tool set, and one or more reference tool-call trajectories. Following our formulation, we convert each reference completion into a ground-truth tool multiset and evaluate all methods as sequential tool-selection policies under the same candidate tool set.",
+      "n_words": 81
+    },
+    {
+      "heading": "Backbone models.",
+      "section_type": "other",
+      "text": "We use Qwen/Qwen3-4B (Yang et al., 2025) and mistralai/Mistral-7B-v0.1 (Jiang et al., 2023) as base language models, chosen as representative open-weight backbones that support ReAct-style tool use while remaining practical for repeated online evaluation. We keep the backbone, system prompt, and few-shot demonstrations fixed across all methods so that performance differences can be attributed to the decision policy alone.\n\nBaselines. We compare against both non-learning and inference-time adaptation baselines. CoT (Wei et al., 2023) uses chain-of-thought prompting for free-form reasoning and tool selection without online adaptation. BM25 (Robertson & Zaragoza, 2009) ranks candidate tools by lexical similarity to the task description. ReAct (Yao et al., 2023b) performs iterative reasoning and tool selection but does not adapt across episodes. CLIN (Majumder et al., 2023) is a memory-based continual-adaptation method that updates a persistent textual memory after each episode to improve future decisions.\n\nOnline protocol. Each dataset is treated as a stream of episodes. For every seed, we randomly shuffle the episode order and run each method sequentially over that stream, reporting mean and standard deviation over three random seeds. All methods use the same per-episode step budget B = |G| + s, where |G| is the ground-truth tool-multiset size and s is a small fixed allowance for recovery from early mistakes, and each tool is capped at m selections per episode to prevent degenerate repetition.\n\nEvaluation Metrics. We evaluate tool-selection quality using multiset-matching precision, recall, and F1 (Patil et al., 2023), reporting macro-averaged scores over episodes with F1 as the primary metric. For the synthetic experiments described in Section 6.3, we additionally report cumulative regret and parameter estimation error ∥ θtθ ⋆ ∥ 2 2 . OLIVIA converges faster and recovers the true reward parameter more accurately.",
+      "n_words": 286
+    },
+    {
+      "heading": "Results",
+      "section_type": "results",
+      "text": "Learning curves. Figure 2 plots running-average F1 over the episode stream. Static baselines (CoT, BM25, ReAct) produce flat reference lines since their policies are fixed. Among the online methods, CLIN improves gradually through episodic memory updates, but OLIVIA improves faster and converges to a higher F1 across all four benchmarks. This demonstrates the core deployment-time claim: the lightweight decision layer converts sparse step-level feedback into steadily better action selection, without modifying the backbone model.",
+      "n_words": 74
+    },
+    {
+      "heading": "Ablation Studies",
+      "section_type": "results",
+      "text": "Synthetic validation. To validate the online controller in a setting where the groundtruth reward structure is known, we construct synthetic contextual decision streams with linear rewards governed by an unknown θ ⋆ and partial feedback. Figure 3 shows that OLIVIA achieves lower cumulative regret and parameter estimation error than weaker online baselines, confirming that the controller recovers the true decision structure rather than improving by chance.\n\nEffect of the exploration coefficient. We vary the LinUCB exploration coefficient α while keeping the rest of the method fixed. Table 2 shows that OLIVIA is robust across a reasonable range of α values but performs best in a moderate regime. When α is too small, the controller under-explores and is slower to correct early mistakes; when α is too large, excessive optimism leads to unnecessary exploration and weaker final performance.",
+      "n_words": 137
+    },
+    {
+      "heading": "Conclusion",
+      "section_type": "conclusion",
+      "text": "We presented OLIVIA, an inference-time action adaptation framework for ReAct-style agents. By placing an explicit online decision layer at the action-selection interface of a frozen language model, OLIVIA adapts behavior directly from action-level feedback while preserving the underlying reasoning process. Instantiated as a contextual linear bandit over hidden decision states, the method provides lightweight online updates, explicit uncertainty estimates, and sample-efficient exploration through UCB. Across four benchmarks, OLIVIA consistently improves task performance over static ReAct and prompt-based inference-time baselines, showing that deployment-time adaptation can be achieved without model finetuning. More broadly, our results suggest that explicit online decision layers are a promising alternative to purely prompt-or retrieval-based adaptation for sequential decision making in LLM agents.\n\nLLM usage: AI writing tools were used to assist with drafting and the icons in Figure1 are generated by AI drawing tool.",
+      "n_words": 137
+    },
+    {
+      "heading": "A.1 Implementation Algorithm",
+      "section_type": "experiments",
+      "text": "Algorithm 1 summarizes the complete OLIVIA procedure. Each episode begins by receiving a task and initializing the valid action set. At every decision step, the frozen LLM generates a reasoning trace and produces the hidden-state context (line 6), the controller scores all valid actions via LinUCB (line 8) and selects the maximizer (line 10). After observing the step-level binary reward, the selected action's sufficient statistics are updated in place using the Sherman-Morrison rank-one formula (lines 16-17), requiring no gradient computation or backward pass. The per-action inverse covariance and reward accumulator persist across episodes, enabling the controller to improve over the full deployment stream. Generate thought z e,t via LLM conditioned on (q e , z e,<t , a e,<t ) 7:\n\nExtract context x e,t ← h LLM q e , z e,1:t , a e,<t {last hidden state at action position} 8:\n\nfor all a ∈ V do 9: Compute episode metrics: recall e , precision e , F1 e 25: end for",
+      "n_words": 164
+    },
+    {
+      "heading": "A.2 Case Study",
+      "section_type": "other",
+      "text": "We present qualitative examples from the ToolBench2 benchmark (Qwen3-4B, α=0.1) to illustrate how OLIVIA's online controller improves tool selection over the episode stream.",
+      "n_words": 23
+    },
+    {
+      "heading": "Learning progression.",
+      "section_type": "other",
+      "text": "The following two boxes show the same task encountered early (episode 3) and late (episode 935) in the stream. Early on, the controller has not yet accumulated feedback and selects entirely unrelated tools (F1 = 0.00). By episode 935, online updates have shifted the per-action estimates so that all three ground-truth tools are recovered (recall = 1.00), despite the first three actions still being misses-demonstrating that the UCB exploration bonus eventually directs selection toward the correct tools.",
+      "n_words": 77
+    }
+  ],
+  "captions": [
+    {
+      "kind": "table",
+      "label": "Table 1 :",
+      "captions": "Main results (F1) across four benchmarks and two backbone models. First three baselines with fixed policies; following methods below are online learning methods that adapt from deployment feedback.",
+      "content": "Dataset"
+    },
+    {
+      "kind": "table",
+      "label": "Table 2 :",
+      "captions": "Reward-design ablation on synthetic streams.",
+      "content": "Reward | Performance | Convergence\n | Avg | Opt. Rate | Regret | ∥θ-θ * ∥ 2\n | F1 (↑) | (%) (↑) | @100 (↓) | (↓)\nFinal | 0.323 | 36.2 | 56.3 | 16.48\nStep | 0.536 | 98.0 | 8.2 | 0.00\nBoth | 0.536 | 98.2 | 8.3 | 3.04"
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Algorithm 1 OLIVIA: Online Contextual Bandit for ReAct Tool Selection 1: Inputs: exploration parameter α > 0, extra steps s, max selections per arm m 2: Initialize: For each arm a ∈ A: A -1 a ← I d , b a ← emb LLM (a), n a ← 0 3: for episode e = 1 to T do Receive task q e with ground-truth tool multiset G e ; set V ← A, L e ← |G e | + s",
+      "content": "4: | \n5: | for t = 1 to L e do\n6: | "
+    },
+    {
+      "kind": "table",
+      "label": "",
+      "captions": "Update selection count n a e,t += 1; if n a e,t ≥ m remove a e,t from V",
+      "content": " |  | a) ← θ ⊤ a x e,t + α x ⊤ e,t A -1 a x e,t\n10: | end for |  |  | \n11: |  |  |  | \n14: 15: | Decrement remaining count G rem e (a e,t ) end if\n16: |  |  |  | \n17: | Policy update (Sherman-Morrison):\n18: | k ← A -1 a e,t x e,t |  |  | \n19: 20: | A -1 a e,t ← A -1 a e,t -if V = ∅ then | k k ⊤ 1 + x ⊤ e,t k | , | b a e,t ← b a e,t + r e,t x e,t\n21: | break {all arms exhausted} | \n22: | end if |  |  | \n23: | end for |  |  | \n24: |  |  |  | "
+    }
+  ],
+  "n_words": 4077,
+  "quality_flags": []
+}

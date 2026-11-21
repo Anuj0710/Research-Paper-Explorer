@@ -1,0 +1,2373 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0" 
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">OLIVIA: Online Learning via Inference-time Action Adaptation for Decision Making in LLM ReAct Agents</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability  status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2026-05-11">11 May 2026</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Sheldon</forename><surname>Yu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Nikki</forename><forename type="middle">Lijing</forename><surname>Kuang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="institution">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Sizhe</forename><surname>Zhou</surname></persName>
+							<email>sizhez@illinois.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Illinois at Urbana-Champaign</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+							<affiliation key="aff2">
+								<orgName type="department">Adobe Research</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+							<email>hanj@illinois.edu</email>
+							<affiliation key="aff1">
+								<orgName type="institution">University of Illinois at Urbana-Champaign</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+							<email>jshang@ucsd.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+							<email>jmcauley@ucsd.edu</email>
+							<affiliation key="aff0">
+								<orgName type="institution">UC San Diego</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">OLIVIA: Online Learning via Inference-time Action Adaptation for Decision Making in LLM ReAct Agents</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2026-05-11">11 May 2026</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">3A1C9815D2FF259A70049D931A1CAFE0</idno>
+					<idno type="arXiv">arXiv:2605.11169v1[cs.AI]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.1" ident="GROBID" when="2026-11-21T18:05+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Large language model agents interleave reasoning, action selection, and observation to solve sequential decision-making tasks. In deployed settings where agents repeatedly handle related multi-step tasks, small actionselection errors can accumulate into wasted tool calls, latency, and reduced reliability. Despite this need for deployment-time improvement, however, existing inference-time adaptation methods for LLM agents mainly rely on prompting or retrieval, which influence behavior indirectly through context manipulation. For ReAct-style agents, such approaches do not expose an explicit decision layer that can score candidate actions, represent uncertainty, or be updated online from action-level feedback. As a result, they provide limited support for trackable, fine-grained, and uncertainty-aware adaptation during deployment. We propose OLIVIA, an inference-time action adaptation framework for ReAct-style agents. OLIVIA models the LLM's final action-selection layer as a contextual linear bandit over candidate actions, with frozen hidden states as decision contexts. This choice is particularly suitable for deployment because it adapts behavior directly at the action-selection interface, preserves the underlying reasoning process, and provides explicit uncertainty estimates and lightweight online updates from action-level feedback. With upper-confidence-bound exploration, OLIVIA improves the policy sample-efficiently with minimal computational overhead. We instantiate OLIVIA on four benchmarks and show that it consistently improves task performance over static ReAct and prompt-based inference-time baselines. Our results suggest that explicit online decision layers provide an effective alternative to purely prompt or retrieval-based adaptation for LLM agents during deployment.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introduction</head><p>LLM agents increasingly operate as sequential decision makers in deployed settings such as tool-using assistants, API orchestration systems, and enterprise workflow agents. In these applications, the agent must interleave natural-language reasoning, action selection, and environment feedback through a sequence of thoughts, actions, and observations in order to complete multi-step tasks. ReAct-style prompting has emerged as a practical template for such agents because it exposes intermediate decisions, supports multi-step interaction, and can be deployed without parameter updates <ref type="bibr">(Wu et al., 2025b;</ref><ref type="bibr" target="#b16">Nguyen et al., 2025;</ref><ref type="bibr" target="#b37">Xia et al., 2025)</ref>. However, despite this sequential structure, agent behavior is typically static at inference time: the model follows a fixed prompt-guided policy, while feedback gathered during deployment is not used to systematically improve future decisions. In repeated or streaming deployments, this limitation can be costly. Agents may revisit similar decision states, repeat the same local mistakes, and waste interaction budget when an early error leads to an unproductive trajectory. A growing body of work seeks to improve inferencetime behavior through prompt engineering <ref type="bibr">(Yao et al., 2023b)</ref>, reflection <ref type="bibr" target="#b20">(Shinn et al., 2023)</ref>, or memory augmentation <ref type="bibr" target="#b14">(Majumder et al., 2023;</ref><ref type="bibr">Wang et al., 2025a;</ref><ref type="bibr">b)</ref>. These approaches can change what the model generates, but they typically do not provide an explicit online optimization mechanism for sequential decision making <ref type="bibr">(Huang et al., 2025a)</ref>. In particular, they offer limited support for adapting action-selection behavior from observed feedback over a stream of related tasks. As a result, improvements often remain indirect, heuristic, or tied to prompt design rather than to an explicit decision layer that can learn during deployment.</p><p>We study this problem through the lens of online adaptation for inference-time decision making. At each decision step, an agent must choose an action based on the current task state and its evolving reasoning history, while feedback from previous interactions may be informative for future decisions in similar contexts <ref type="bibr" target="#b29">(Wu et al., 2022)</ref>. This setting naturally calls for a lightweight online learner that can sit on top of a frozen LLM, use the model's internal state as context, and update from observed interaction feedback without requiring model fine-tuning.</p><p>To this end, we propose OLIVIA, an online adaptation framework for ReAct-style agents. OLIVIA adds a lightweight contextual decision layer on top of a frozen language model: at each step, it uses the model's hidden-state representation of the current task and reasoning history as context, selects the next action from a candidate set, and updates from step-level feedback to improve future decisions across a stream of tasks. This design is well matched to our setting: the agent repeatedly chooses from a discrete action set and observes feedback only for the selected action, making contextual bandits a natural model of partial-feedback online adaptation <ref type="bibr" target="#b28">(Wu et al., 2021;</ref><ref type="bibr" target="#b4">Hu et al., 2025)</ref>. Compared with policy-gradient or purely episodic updates, this yields a more direct and lower-variance learning signal, while unlike retrieval-augmented memory, it adapts behavior through an explicit decision layer rather than indirect context modification. In this paper, we instantiate OLIVIA on tooluse benchmarks, where decision context is trajectory-dependent: each action changes the subsequent reasoning history, so later hidden states, rewards, and updates are coupled across the interaction even though the backbone model remains fixed.</p><p>Our approach is lightweight and modular. It does not require retraining the base model, modifying the prompting interface, or storing large retrieval memories. Instead, it augments the frozen LLM with an online controller that adapts action preferences from experience, enabling the agent to improve over time as it encounters related tasks. We summarize our contributions as follows:</p><p>• We formulate online adaptation for language model agents as an inference-time sequential decision-making problem, in which a lightweight decision layer uses LLM hidden-state representations to adapt action selection from step-level feedback. • We develop OLIVIA, a contextual-bandit-based online decision layer that operates on top of a frozen LLM and supports efficient action scoring, uncertainty-aware exploration, and incremental updates during deployment. • We instantiate OLIVIA on four tool-use benchmarks and show that it improves task performance and online adaptation behavior over static prompting baselines and a prompt-based inference-time adaptation baseline, while preserving the underlying language model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related work</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.1">Inference-time adaptation.</head><p>Recent work shows that LLM agents need not remain fixed after deployment. ReAct already casts inference as a closed-loop process of reasoning, acting, and observing, creating a natural interface for adaptation from interaction feedback <ref type="bibr">(Yao et al., 2023b;</ref><ref type="bibr">Wu et al., 2025b;</ref><ref type="bibr" target="#b16">Nguyen et al., 2025;</ref><ref type="bibr" target="#b13">Lu et al., 2024)</ref>. Most inference-time adaptation methods, however, operate indirectly through memory, prompting, or lightweight control variables: verbal reflection and episodic memory <ref type="bibr" target="#b14">(Majumder et al., 2023;</ref><ref type="bibr" target="#b20">Shinn et al., 2023;</ref><ref type="bibr" target="#b48">Zhong et al., 2023)</ref>, dynamic in-context example selection <ref type="bibr">(Wang et al., 2025a)</ref>, in-context preference adaptation </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Task</head><p>Transformer Layer</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Hidden States</head><p>..</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Linear Layer</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>… Tool Selected</head><p>The user want to stay in Glendale for 9 night...</p><formula xml:id="formula_0">Thought score 𝑎 = 𝜃 ! " 𝑥 # 𝜃 ! " 𝜙 𝑥 $,# + 𝛼 𝜙 𝑥 $,# " 𝐴 ! &amp;' 𝜙 𝑥 $,#</formula><p>GT list</p><formula xml:id="formula_1">𝑟 # = 𝕀 𝑎 # ∈ 𝒢 𝓉 Update Action Preferences Compute ! 𝜃! = 𝐴! &amp;' 𝑏!</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Candidate Tools</head><p>Figure <ref type="figure">1</ref>: Overview of OLIVIA. Left: A frozen LLM backbone processes the task and trajectory prefix through its transformer layers, producing hidden states and a reasoning trace (Thought). Right: At each action-selection step, OLIVIA extracts the last-layer hidden state as the decision context and scores candidate tools using per-action UCB estimates. <ref type="bibr">(Wu et al., a)</ref>, and parameter-internalized context <ref type="bibr">(Wang et al., 2025b)</ref>, reusable naturallanguage experience or skill libraries <ref type="bibr" target="#b47">(Zhao et al., 2024;</ref><ref type="bibr" target="#b22">Wang et al., 2023;</ref><ref type="bibr" target="#b37">Xia et al., 2025)</ref>, retrospective prompt optimization <ref type="bibr" target="#b43">(Yao et al., 2024)</ref>, CoT debiasing and offline alignment <ref type="bibr">(Wu et al., 2024b;</ref><ref type="bibr">2025a)</ref>, and information-theoretic prompt tuning <ref type="bibr" target="#b30">(Wu et al., 2023)</ref>, and lightweight test-time adaptation under environment shift <ref type="bibr" target="#b2">(Chen et al., 2026)</ref>, latent-state reasoning analysis <ref type="bibr">(Wu et al., b;</ref><ref type="bibr">Yu et al., 2025)</ref>. Surveys also document the rapid expansion of inference-time adaptation across personalized, multimodal, and federated LLMs <ref type="bibr" target="#b46">(Zhang et al., 2024;</ref><ref type="bibr">Wu et al., 2024a;</ref><ref type="bibr">c;</ref><ref type="bibr" target="#b21">Surana et al., 2026)</ref>. These works establish deploymenttime adaptation as a viable paradigm, but they generally do not expose an explicit online decision layer for sequential action selection. Our work shares the same deployment-time perspective, but focuses on updating a lightweight action-selection module online from step-level feedback.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2.2">Online optimization of sequential decisions.</head><p>A complementary line of work treats inference itself as an online optimization problem over a sequence of intermediate decisions. In reasoning, this appears as explicit search or planning over thought states <ref type="bibr">(Yao et al., 2023a;</ref><ref type="bibr" target="#b3">Hao et al., 2023)</ref>; in agent settings, as treesearch-based interaction and planning with environment feedback <ref type="bibr" target="#b49">(Zhou et al., 2024;</ref><ref type="bibr" target="#b9">Koh et al., 2026;</ref><ref type="bibr">Mundada et al., 2026)</ref>; and in test-time compute scaling, as adaptive allocation of inference resources such as branching depth or search breadth <ref type="bibr" target="#b7">(Inoue et al., 2025;</ref><ref type="bibr" target="#b12">Liu et al., 2024;</ref><ref type="bibr">Kveton et al., 2025)</ref>. Related uncertainty-aware methods also use posterior sampling or contextual Thompson sampling to guide sequential choice under partial feedback <ref type="bibr" target="#b1">(Cai et al., 2025;</ref><ref type="bibr" target="#b45">Zhang et al., 2025;</ref><ref type="bibr" target="#b36">Xia et al., 2023)</ref>. Together, these works motivate viewing inference as online optimization over reasoning, acting, and compute allocation. Our method is closest to this perspective: we study online adaptation for sequential LLM decision making using frozen-model contextual representations and lightweight online updates from observed step-level feedback. Closely related online-RL formulations adapt action policies under simulator-to-deployment dynamics shift <ref type="bibr" target="#b29">(Wu et al., 2022)</ref>, while pluralistic off-policy evaluation extends this view to multi-stakeholder alignment <ref type="bibr">(Huang et al., 2025b;</ref><ref type="bibr" target="#b38">Xie et al., 2025)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Preliminaries</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Contextual Bandits</head><p>A contextual bandit models repeated decision making under partial feedback <ref type="bibr" target="#b11">(Li et al., 2010;</ref><ref type="bibr" target="#b0">Ban et al., 2023)</ref>. At round n = 1, 2, . . . , N, the learner observes a context x n ∈ X , chooses an action a n ∈ A(x n ), and receives a scalar reward r n for that action alone; the rewards of unchosen actions are not observed. An optimal action satisfies a * n ∈ arg max</p><formula xml:id="formula_2">a∈A(x n ) E[r n | x n , a].</formula><p>The learner's goal is to find an action-selection rule that achieves high cumulative reward across rounds while balancing exploration of uncertain actions against exploitation of actions that already appear promising. When the expected reward is modeled as a parametric function of contextual features, the learner can generalize across related decision states and employ principled exploration strategies such as upper confidence bounds <ref type="bibr" target="#b0">(Ban et al., 2023)</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">ReAct-Style Sequential Agents</head><p>We consider an LLM agent that interacts with an environment over multiple decision steps following the ReAct paradigm <ref type="bibr">(Yao et al., 2023b;</ref><ref type="bibr" target="#b49">Zhou et al., 2024;</ref><ref type="bibr" target="#b9">Koh et al., 2026)</ref>. In episode e, the agent receives a task input q e and a candidate action set A e . Let h e,t-1 denote the interaction history before step t, comprising prior reasoning traces, selected actions, and environment observations. At step t the agent selects an action a e,t ∈ A e,t , receives an observation o e,t , and updates the history: h e,t = h e,t-1 ⊕ (a e,t , o e,t ), where ⊕ denotes concatenation. The episode terminates when the agent issues a stop action or reaches a step budget. Because the history grows with each step, every action decision is conditioned on a distinct, trajectory-dependent context x e,t = (q e , h e,t-1 ).</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Problem Formulation</head><p>We study online inference-time action adaptation for sequential LLM agents. Our goal is to enable a frozen language model to improve its action choices over a stream of related episodes by updating only a lightweight decision layer from interaction feedback, without fine-tuning the backbone. This section develops the conceptual foundation in three steps: we first show that ReAct-style action selection naturally maps to a contextual bandit problem, then identify a linear decision interface inside the frozen LLM that can serve as the bandit's scoring mechanism, and finally argue that this structure enables principled online adaptation with exploration.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">ReAct Action Selection as a Contextual Bandit</head><p>Consider a stream of ReAct-style episodes e = 1, 2, . . . , N. Using the notation from Section 3.2, at step t of episode e the agent faces a decision context x e,t = (q e , h e,t-1 ) and must choose the next action from A valid e,t ⊆ A e , the subset of actions still available at that step. After acting, the agent observes feedback only for the selected action-the rewards of alternative actions remain unknown. This per-step structure directly mirrors the contextual bandit setting of Section 3.1: a contextdependent choice from a discrete action set under partial feedback. The key additional observation is that, although full trajectories differ across tasks, similar local decision states recur across a stream of related episodes. When the same or a closely related action-selection problem appears again, feedback collected from earlier decisions becomes informative. This recurrence creates an opportunity for deployment-time learning that purely static prompting cannot exploit. We therefore cast each action-selection step in the ReAct loop as a round of an online contextual decision problem. The remainder of this section develops the representation and adaptation mechanism that make this casting concrete.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">The LLM's Action-Selection Interface as a Linear Bandit</head><p>The bandit perspective above requires a contextual representation of each decision state and a scoring rule over candidate actions. We now show that the frozen LLM already provides both.</p><p>At the token position immediately preceding the next action decision, the model's last-layer hidden state u e,t = h LLM (q e , h e,t-1</p><formula xml:id="formula_3">) ∈ R d (1)</formula><p>encodes the task semantics and the full trajectory so far. Intuitively, this vector is the model's internal answer to the local question: what action should come next?</p><p>To produce a next-token distribution, the frozen model scores each vocabulary token through its output projection layer. When the output vocabulary is restricted to the candidate action set A valid e,t , this projection reduces to a per-action linear score</p><formula xml:id="formula_4">s 0 (u e,t , a) = w ⊤ a u e,t ,<label>(2)</label></formula><p>where w a ∈ R d is the frozen parameter row associated with action a-concretely, the corresponding row of the language-model head or an embedding derived from the same model.</p><p>This decomposition reveals that the frozen LLM's action-selection mechanism is already a contextual linear scorer: the hidden state serves as the context vector and the per-action parameters serve as arm-specific weights, exactly the structure assumed by linear contextual bandits. We emphasize that we are not claiming the full LLM is a bandit; rather, we isolate its action-selection interface as a linear scoring layer that can be separated from the underlying reasoning dynamics.</p><p>This observation is the conceptual basis of our method. Because the frozen scoring layer {w a } is fixed, it cannot adapt to deployment feedback. But the same linear structure admits a learnable replacement: a per-action parameter θ a that starts from the LLM's prior and is updated online as the agent accumulates interaction experience. The next subsection describes the adaptation mechanism that this structure enables.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Online Adaptation and Exploration</head><p>Replacing the frozen scoring weights with learnable parameters creates an online learning problem: the agent must estimate which actions yield high reward in each context from a growing stream of partial-feedback interactions. A critical challenge is that feedback is observed only for the selected action. If the learner always picks the action that currently looks best, it may never discover that an under-explored action is superior in a given context.</p><p>Existing inference-time adaptation methods do not address this challenge directly. Promptbased approaches such as reflection <ref type="bibr" target="#b20">(Shinn et al., 2023)</ref> and memory augmentation <ref type="bibr" target="#b14">(Majumder et al., 2023)</ref> influence behavior indirectly through context manipulation, but they have no mechanism to systematically explore uncertain actions or to quantify how confident the agent is about each candidate.</p><p>The linear bandit structure identified in Section 4.2 provides a principled solution. Because the learner maintains an explicit parametric model of action quality, it can estimate not only the expected reward of each action but also the uncertainty of that estimate. An optimistic selection rule can then add an exploration bonus proportional to the current uncertainty, favoring actions whose reward is still poorly characterized. As more feedback is collected, the uncertainty shrinks and the learner concentrates on high-reward actions-balancing exploration and exploitation automatically.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Methodology</head><p>This section presents OLIVIA, the concrete instantiation of the framework outlined in Section 4. OLIVIA operates entirely at the action-selection interface of a frozen LLM: the model's reasoning process generates a trajectory-dependent hidden state, and a lightweight online decision layer selects the next action from the valid candidate set based on that hidden state. All backbone parameters, prompts, and reasoning generation remain fixed throughout deployment; only the decision layer is updated from online feedback.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">Hidden-State Decision Layer</head><p>At each decision step t of episode e, the frozen LLM processes the current task q e and trajectory prefix h e,t-1 . We extract the last-layer hidden state at the token position immediately preceding the next action token:</p><formula xml:id="formula_5">u e,t = h LLM (q e , h e,t-1 ) ∈ R d . (<label>3</label></formula><formula xml:id="formula_6">)</formula><p>This vector serves as the contextual input to the online controller. It encodes both the original task semantics and the evolving reasoning history, so two decision points that share similar task structure and trajectory prefixes produce similar context vectors, enabling generalization across episodes.</p><p>For each candidate action a, OLIVIA maintains per-action sufficient statistics</p><formula xml:id="formula_7">A a ∈ R d×d , b a ∈ R d , θa = A -1 a b a , (<label>4</label></formula><formula xml:id="formula_8">)</formula><p>where θa is the current estimate of the action's reward parameter. The base predicted reward for action a in context u e,t is s e,t (a) = θ⊤ a u e,t .</p><p>LLM-aligned initialization. Rather than starting from a random policy, we warm-start the controller from the frozen model's own prior. We initialize</p><formula xml:id="formula_10">A (0) a = I, b<label>(0)</label></formula><formula xml:id="formula_11">a = embed(a),<label>(6)</label></formula><p>where embed(a) ∈ R d is the mean input embedding of the action's name tokens under the same LLM. Because A (0) a = I, the initial parameter satisfies θ(0) a = embed(a), so the controller's starting scores are aligned with the frozen model's representation of each action. This initialization is especially valuable early in the stream before substantial feedback has been collected, as it ensures the controller inherits the semantic priors already encoded in the language model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">UCB-Based Exploration</head><p>The partial-feedback nature of the problem (Section 4.3) demands a selection rule that actively explores uncertain actions. We adopt the LinUCB strategy <ref type="bibr" target="#b11">(Li et al., 2010)</ref>, which augments the predicted reward with an exploration bonus that reflects the learner's uncertainty about each action in the current context.</p><p>Given context u e,t , each valid action a ∈ A valid e,t is scored by</p><formula xml:id="formula_12">UCB e,t (a) = θ⊤ a u e,t + α u ⊤ e,t A -1 a u e,t ,<label>(7)</label></formula><p>where α &gt; 0 is the exploration coefficient. The first term is the current reward estimate; the second term is the exploration bonus, proportional to the width of the confidence interval for action a in the direction of the current context. The selected action is a e,t ∈ arg max</p><formula xml:id="formula_13">a∈A valid e,t</formula><p>UCB e,t (a).</p><p>The exploration bonus has two desirable properties. First, it is context-dependent: the bonus for a given action varies with the decision state, so the controller explores actions that are uncertain in the current context rather than exploring uniformly at random. Second, it shrinks automatically as data accumulates: each observation tightens the confidence ellipsoid, reducing the bonus for well-characterized actions and concentrating selection on those that remain uncertain. These properties distinguish UCB from simpler alternatives. ε-greedy exploration selects randomly and ignores the structure of the context space; Thompson sampling introduces stochastic noise that can be harder to diagnose in deployment; promptbased adaptation methods have no explicit exploration mechanism at all.</p><p>The valid action set A valid e,t</p><p>⊆ A e may shrink during an episode: once an action has been selected the maximum allowed number of times, it is removed from the candidate set. This constraint prevents degenerate repetition while still allowing the controller to select the same tool more than once when warranted by the ground-truth trajectory.</p><p>The coefficient α controls exploration aggressiveness. Smaller values place more weight on the current reward estimate and the LLM-aligned prior; larger values encourage broader exploration early in the stream. We study the sensitivity to α empirically in Section 6.3.  Reward signal. In our tool-use instantiation, each episode e is associated with a groundtruth tool multiset G e . Let G rem e,t denote the unmatched portion of that multiset before step t. After selecting action a e,t , the agent receives immediate binary feedback: r e,t = 1[a e,t ∈ G rem e,t ].</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.3">Step-Level Feedback and Online Update</head><p>(9) If r e,t = 1, one occurrence of a e,t is removed from G rem e,t so that each ground-truth tool can be matched at most once. This provides a step-level learning signal that directly reflects action-selection quality, in contrast to episode-level feedback that conflates all decisions within a trajectory.</p><p>Online update. After observing reward r e,t , only the statistics of the selected action are updated via a rank-one rule:</p><p>A a e,t ← A a e,t + u e,t u ⊤ e,t , b a e,t ← b a e,t + r e,t u e,t . ( <ref type="formula">10</ref>)</p><p>The parameter estimate is then θa e,t = A -1 a e,t b a e,t . In practice, we maintain the inverse A -1 a incrementally using the Sherman-Morrison formula, so each update requires O(d 2 ) time and avoids re-inverting the full covariance matrix.</p><p>The episode terminates when the agent emits a stop action, no valid action remains, or the per-episode step budget is exhausted. Across the full episode stream, the cumulative reward is the objective we seek to maximize through online adaptation.</p><p>Design summary. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Experiments</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.1">Experimental Setup</head><p>Benchmarks. We evaluate on four tool-use benchmarks: TOOLBENCH <ref type="bibr" target="#b39">(Xu et al., 2023)</ref>, TASKBENCH, TASKBENCH-MM <ref type="bibr" target="#b19">(Shen et al., 2024), and</ref><ref type="bibr">BFCL (Patil et al., 2023)</ref>. These benchmarks span complementary tool-use settings, varying in task domain, modality, and candidate-set size. Each instance provides a natural-language task, a candidate tool set, and one or more reference tool-call trajectories. Following our formulation, we convert each reference completion into a ground-truth tool multiset and evaluate all methods as sequential tool-selection policies under the same candidate tool set.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Backbone models.</head><p>We use Qwen/Qwen3-4B <ref type="bibr" target="#b40">(Yang et al., 2025)</ref> and mistralai/Mistral-7B-v0.1 <ref type="bibr" target="#b8">(Jiang et al., 2023)</ref> as base language models, chosen as representative open-weight backbones that support ReAct-style tool use while remaining practical for repeated online evaluation. We keep the backbone, system prompt, and few-shot demonstrations fixed across all methods so that performance differences can be attributed to the decision policy alone.</p><p>Baselines. We compare against both non-learning and inference-time adaptation baselines. CoT <ref type="bibr" target="#b25">(Wei et al., 2023)</ref> uses chain-of-thought prompting for free-form reasoning and tool selection without online adaptation. BM25 <ref type="bibr" target="#b18">(Robertson &amp; Zaragoza, 2009)</ref> ranks candidate tools by lexical similarity to the task description. ReAct <ref type="bibr">(Yao et al., 2023b)</ref> performs iterative reasoning and tool selection but does not adapt across episodes. CLIN <ref type="bibr" target="#b14">(Majumder et al., 2023</ref>) is a memory-based continual-adaptation method that updates a persistent textual memory after each episode to improve future decisions.</p><p>Online protocol. Each dataset is treated as a stream of episodes. For every seed, we randomly shuffle the episode order and run each method sequentially over that stream, reporting mean and standard deviation over three random seeds. All methods use the same per-episode step budget B = |G| + s, where |G| is the ground-truth tool-multiset size and s is a small fixed allowance for recovery from early mistakes, and each tool is capped at m selections per episode to prevent degenerate repetition.</p><p>Evaluation Metrics. We evaluate tool-selection quality using multiset-matching precision, recall, and F1 <ref type="bibr" target="#b17">(Patil et al., 2023)</ref>, reporting macro-averaged scores over episodes with F1 as the primary metric. For the synthetic experiments described in Section 6.3, we additionally report cumulative regret and parameter estimation error ∥ θtθ ⋆ ∥ 2 2 . OLIVIA converges faster and recovers the true reward parameter more accurately.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.2">Results</head><p>Learning curves. Figure <ref type="figure" target="#fig_0">2</ref> plots running-average F1 over the episode stream. Static baselines (CoT, BM25, ReAct) produce flat reference lines since their policies are fixed. Among the online methods, CLIN improves gradually through episodic memory updates, but OLIVIA improves faster and converges to a higher F1 across all four benchmarks. This demonstrates the core deployment-time claim: the lightweight decision layer converts sparse step-level feedback into steadily better action selection, without modifying the backbone model.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6.3">Ablation Studies</head><p>Synthetic validation. To validate the online controller in a setting where the groundtruth reward structure is known, we construct synthetic contextual decision streams with linear rewards governed by an unknown θ ⋆ and partial feedback. Figure <ref type="figure" target="#fig_1">3</ref> shows that OLIVIA achieves lower cumulative regret and parameter estimation error than weaker online baselines, confirming that the controller recovers the true decision structure rather than improving by chance.</p><p>Effect of the exploration coefficient. We vary the LinUCB exploration coefficient α while keeping the rest of the method fixed. Table <ref type="table" target="#tab_3">2</ref> shows that OLIVIA is robust across a reasonable range of α values but performs best in a moderate regime. When α is too small, the controller under-explores and is slower to correct early mistakes; when α is too large, excessive optimism leads to unnecessary exploration and weaker final performance. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="7">Conclusion</head><p>We presented OLIVIA, an inference-time action adaptation framework for ReAct-style agents. By placing an explicit online decision layer at the action-selection interface of a frozen language model, OLIVIA adapts behavior directly from action-level feedback while preserving the underlying reasoning process. Instantiated as a contextual linear bandit over hidden decision states, the method provides lightweight online updates, explicit uncertainty estimates, and sample-efficient exploration through UCB. Across four benchmarks, OLIVIA consistently improves task performance over static ReAct and prompt-based inference-time baselines, showing that deployment-time adaptation can be achieved without model finetuning. More broadly, our results suggest that explicit online decision layers are a promising alternative to purely prompt-or retrieval-based adaptation for sequential decision making in LLM agents.</p><p>LLM usage: AI writing tools were used to assist with drafting and the icons in Figure1 are generated by AI drawing tool.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Appendix</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.1 Implementation Algorithm</head><p>Algorithm 1 summarizes the complete OLIVIA procedure. Each episode begins by receiving a task and initializing the valid action set. At every decision step, the frozen LLM generates a reasoning trace and produces the hidden-state context (line 6), the controller scores all valid actions via LinUCB (line 8) and selects the maximizer (line 10). After observing the step-level binary reward, the selected action's sufficient statistics are updated in place using the Sherman-Morrison rank-one formula (lines 16-17), requiring no gradient computation or backward pass. The per-action inverse covariance and reward accumulator persist across episodes, enabling the controller to improve over the full deployment stream. Generate thought z e,t via LLM conditioned on (q e , z e,&lt;t , a e,&lt;t ) 7:</p><p>Extract context x e,t ← h LLM q e , z e,1:t , a e,&lt;t {last hidden state at action position} 8:</p><p>for all a ∈ V do 9: Compute episode metrics: recall e , precision e , F1 e 25: end for</p><formula xml:id="formula_15">θ a ← A -1 a b a , ucb e,t<label>(</label></formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A.2 Case Study</head><p>We present qualitative examples from the ToolBench2 benchmark (Qwen3-4B, α=0.1) to illustrate how OLIVIA's online controller improves tool selection over the episode stream.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Learning progression.</head><p>The following two boxes show the same task encountered early (episode 3) and late (episode 935) in the stream. Early on, the controller has not yet accumulated feedback and selects entirely unrelated tools (F1 = 0.00). By episode 935, online updates have shifted the per-action estimates so that all three ground-truth tools are recovered (recall = 1.00), despite the first three actions still being misses-demonstrating that the UCB exploration bonus eventually directs selection toward the correct tools.            </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 2 :</head><label>2</label><figDesc>Figure 2: Running-average F1 over the episode stream on the four benchmarks. Static baselines (CoT, BM25, ReAct) remain flat; online methods improve over time. OLIVIA converges faster and reaches higher final F1 than CLIN.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Figure 3 :</head><label>3</label><figDesc>Figure 3: Synthetic experiments. Left: cumulative regret over rounds. Right: parameter estimation error ∥ θtθ ⋆ ∥ 2 2 . OLIVIA converges faster and recovers the true reward parameter more accurately.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 4 :</head><label>4</label><figDesc>Figure 4: Qwen3-4B on ToolBench.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: Qwen3-4B on TaskBench.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head>Figure 6 :</head><label>6</label><figDesc>Figure 6: Qwen3-4B on TaskBench-MM.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 7 :</head><label>7</label><figDesc>Figure 7: Qwen3-4B on BFCL.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_9"><head>Figure 8 :</head><label>8</label><figDesc>Figure 8: Mistral-7B on ToolBench.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_11"><head>Figure 9 :Figure 10 :</head><label>910</label><figDesc>Figure 9: Mistral-7B on TaskBench.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_12"><head>Figure 11 :</head><label>11</label><figDesc>Figure 11: Mistral-7B on BFCL.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_13"><head>Figure 12 :</head><label>12</label><figDesc>Figure 12: Reward Studies.</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 1 :</head><label>1</label><figDesc>Main results (F1) across four benchmarks and two backbone models. First three baselines with fixed policies; following methods below are online learning methods that adapt from deployment feedback.</figDesc><table><row><cell>Dataset</cell></row></table><note><p>The three components above-hidden-state context extraction, UCBbased exploration, and rank-one online updates-together constitute the OLIVIA decision layer. All backbone LLM parameters, the prompt template, and the reasoning generator remain frozen throughout deployment. The only learned quantities are the per-action statistics {A a , b a }, which are lightweight and updated incrementally from step-level feedback.</p></note></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head>Table 2 :</head><label>2</label><figDesc>Reward-design ablation on synthetic streams.</figDesc><table><row><cell>Reward</cell><cell cols="2">Performance</cell><cell cols="2">Convergence</cell></row><row><cell></cell><cell>Avg</cell><cell>Opt. Rate</cell><cell>Regret</cell><cell>∥θ-θ  *  ∥ 2</cell></row><row><cell></cell><cell>F1 (↑)</cell><cell>(%) (↑)</cell><cell>@100 (↓)</cell><cell>(↓)</cell></row><row><cell>Final</cell><cell>0.323</cell><cell>36.2</cell><cell>56.3</cell><cell>16.48</cell></row><row><cell>Step</cell><cell>0.536</cell><cell>98.0</cell><cell>8.2</cell><cell>0.00</cell></row><row><cell>Both</cell><cell>0.536</cell><cell>98.2</cell><cell>8.3</cell><cell>3.04</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head></head><label></label><figDesc>Algorithm 1 OLIVIA: Online Contextual Bandit for ReAct Tool Selection 1: Inputs: exploration parameter α &gt; 0, extra steps s, max selections per arm m 2: Initialize: For each arm a ∈ A: A -1 a ← I d , b a ← emb LLM (a), n a ← 0 3: for episode e = 1 to T do Receive task q e with ground-truth tool multiset G e ; set V ← A, L e ← |G e | + s</figDesc><table><row><cell>4:</cell><cell></cell></row><row><cell>5:</cell><cell>for t = 1 to L e do</cell></row><row><cell>6:</cell><cell></cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_5"><head></head><label></label><figDesc>Update selection count n a e,t += 1; if n a e,t ≥ m remove a e,t from V</figDesc><table><row><cell></cell><cell></cell><cell cols="3">a) ← θ ⊤ a x e,t + α x ⊤ e,t A -1 a x e,t</cell></row><row><cell>10:</cell><cell>end for</cell><cell></cell><cell></cell><cell></cell></row><row><cell>11:</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>14: 15:</cell><cell cols="4">Decrement remaining count G rem e (a e,t ) end if</cell></row><row><cell>16:</cell><cell></cell><cell></cell><cell></cell><cell></cell></row><row><cell>17:</cell><cell cols="4">Policy update (Sherman-Morrison):</cell></row><row><cell>18:</cell><cell>k ← A -1 a e,t x e,t</cell><cell></cell><cell></cell><cell></cell></row><row><cell>19: 20:</cell><cell>A -1 a e,t ← A -1 a e,t -if V = ∅ then</cell><cell>k k ⊤ 1 + x ⊤ e,t k</cell><cell>,</cell><cell>b a e,t ← b a e,t + r e,t x e,t</cell></row><row><cell>21:</cell><cell cols="3">break {all arms exhausted}</cell><cell></cell></row><row><cell>22:</cell><cell>end if</cell><cell></cell><cell></cell><cell></cell></row><row><cell>23:</cell><cell>end for</cell><cell></cell><cell></cell><cell></cell></row><row><cell>24:</cell><cell></cell><cell></cell><cell></cell><cell></cell></row></table><note><p><p><p><p>Select a e,t ← arg max a∈V ucb e,t (a)</p>12:</p>Execute a e,t ; observe per-step reward r e,t = 1 a e,t ∈ G rem e 13:</p>if r e,t = 1 then</p></note></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title level="m" type="main">Neural contextual bandits for personalized recommendation</title>
+		<author>
+			<persName><forename type="first">Yikun</forename><surname>Ban</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunzhe</forename><surname>Qi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingrui</forename><surname>He</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2312.14037" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<monogr>
+		<title level="m" type="main">Active exploration via autoregressive generation of missing data</title>
+		<author>
+			<persName><forename type="first">Tiffany Tianhui</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongseok</forename><surname>Namkoong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Russo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kelly</forename><forename type="middle">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2405" />
+		<imprint>
+			<date type="published" when="2025">2025. 19466</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title level="m" type="main">Test-time adaptation for llm agents via environment interaction</title>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zuxin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Akshara</forename><surname>Prabhakar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shelby</forename><surname>Heinecke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silvio</forename><surname>Savarese</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2511.04847" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<monogr>
+		<title level="m" type="main">Reasoning with language model is planning with world model</title>
+		<author>
+			<persName><forename type="first">Shibo</forename><surname>Hao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yi</forename><surname>Gu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haodi</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joshua</forename><forename type="middle">Jiahua</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhen</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daisy</forename><forename type="middle">Zhe</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiting</forename><surname>Hu</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.14992" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<analytic>
+		<title level="a" type="main">Interactive visualization recommendation with hier-SUCB</title>
+		<author>
+			<persName><forename type="first">Songwen</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Handong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungchul</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Li</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=Hkh2umURYm" />
+	</analytic>
+	<monogr>
+		<title level="m">THE WEB CONFERENCE 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<monogr>
+		<title level="m" type="main">Towards agentic recommender systems in the era of multimodal large language models</title>
+		<author>
+			<persName><forename type="first">Chengkai</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zixu</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruhan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Branislav</forename><surname>Kveton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongruo</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lina</forename><surname>Yao</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2503.16734" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<author>
+			<persName><forename type="first">Chengkai</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhouhang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Subrata</forename><surname>Mitra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lina</forename><surname>Yao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2509.19333</idno>
+		<title level="m">Pluralistic off-policy evaluation and alignment</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Wider or deeper? scaling llm inference-time compute with adaptive branching tree search</title>
+		<author>
+			<persName><forename type="first">Yuichi</forename><surname>Inoue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kou</forename><surname>Misaki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuki</forename><surname>Imajuku</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">So</forename><surname>Kuroki</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Taishi</forename><surname>Nakamura</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Takuya</forename><surname>Akiba</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2503.04412" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<author>
+			<persName><forename type="first">Albert</forename><forename type="middle">Q</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexandre</forename><surname>Sablayrolles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Mensch</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Bamford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devendra</forename><surname>Singh Chaplot</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diego</forename><surname>De Las Casas</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Florian</forename><surname>Bressand</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gianna</forename><surname>Lengyel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Lample</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lucile</forename><surname>Saulnier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Renard</forename><surname>Lélio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marie-Anne</forename><surname>Lavaud</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pierre</forename><surname>Lachaux</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Teven</forename><surname>Stock</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibaut</forename><surname>Le Scao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Lavril</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Timothée</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">William</forename><forename type="middle">El</forename><surname>Lacroix</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Sayed</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2310.06825" />
+		<title level="m">Mistral 7b</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<monogr>
+		<title level="m" type="main">Tree search for language model agents</title>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Yu Koh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Mcaleer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Fried</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruslan</forename><surname>Salakhutdinov</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2407.01476" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title level="m" type="main">Active learning for direct preference optimization</title>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Branislav Kveton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Yu</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2503.01076</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">A contextual-bandit approach to personalized news article recommendation</title>
+		<author>
+			<persName><forename type="first">Lihong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">John</forename><surname>Langford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Robert</forename><forename type="middle">E</forename><surname>Schapire</surname></persName>
+		</author>
+		<idno type="DOI">10.1145/1772690.1772758</idno>
+		<ptr target="http://dx.doi.org/10.1145/1772690.1772758" />
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 19th international conference on World wide web, WWW &apos;10</title>
+		<meeting>the 19th international conference on World wide web, WWW &apos;10</meeting>
+		<imprint>
+			<publisher>ACM</publisher>
+			<date type="published" when="2010-04">April 2010</date>
+			<biblScope unit="page" from="661" to="670" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title level="m" type="main">Speculative decoding via earlyexiting for faster llm inference with thompson sampling control mechanism</title>
+		<author>
+			<persName><forename type="first">Jiahao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qifan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xunliang</forename><surname>Cai</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2406.03853" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<monogr>
+		<title level="m" type="main">Improving multicandidate speculative decoding</title>
+		<author>
+			<persName><forename type="first">Xiaofan</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yixiao</forename><surname>Zeng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feiyang</forename><surname>Ma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zixu</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Levorato</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2409.10644" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title level="m" type="main">Clin: A continually learning language agent for rapid task adaptation and generalization</title>
+		<author>
+			<persName><forename type="first">Prasad</forename><surname>Bodhisattwa</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bhavana</forename><surname>Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Dalvi Mishra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Oyvind</forename><surname>Jansen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Niket</forename><surname>Tafjord</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Li</forename><surname>Tandon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Callison-Burch</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Clark</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2310.10134" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Gagan Mundada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rohan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheldon</forename><surname>Surana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jennifer</forename><forename type="middle">Yuntong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lina</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mcauley</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2602.17025</idno>
+		<title level="m">Ws-grpo: Weaklysupervised group-relative policy optimization for rollout-efficient reasoning</title>
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<analytic>
+		<title level="a" type="main">Gui agents: A survey</title>
+		<author>
+			<persName><forename type="first">Dang</forename><surname>Nguyen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gang</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Namyong</forename><surname>Park</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengmian</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanjia</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Aponte</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: ACL 2025</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="22522" to="22538" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<monogr>
+		<author>
+			<persName><forename type="first">G</forename><surname>Shishir</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianjun</forename><surname>Patil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xin</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joseph</forename><forename type="middle">E</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Gonzalez</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.15334" />
+		<title level="m">Gorilla: Large language model connected with massive apis</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<analytic>
+		<title level="a" type="main">The probabilistic relevance framework: Bm25 and beyond</title>
+		<author>
+			<persName><forename type="first">Stephen</forename><surname>Robertson</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hugo</forename><surname>Zaragoza</surname></persName>
+		</author>
+		<idno type="DOI">10.1561/1500000019</idno>
+		<ptr target="https://doi.org/10.1561/1500000019" />
+	</analytic>
+	<monogr>
+		<title level="j">Found. Trends Inf. Retr</title>
+		<idno type="ISSN">1554-0669</idno>
+		<imprint>
+			<biblScope unit="volume">3</biblScope>
+			<biblScope unit="issue">4</biblScope>
+			<biblScope unit="page" from="333" to="389" />
+			<date type="published" when="2009-04">April 2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<monogr>
+		<title level="m" type="main">Taskbench: Benchmarking large language models for task automation</title>
+		<author>
+			<persName><forename type="first">Yongliang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kaitao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xu</forename><surname>Tan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenqi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kan</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Siyu</forename><surname>Yuan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Weiming</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dongsheng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yueting</forename><surname>Zhuang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2311.18760" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title level="m" type="main">Reflexion: Language agents with verbal reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Noah</forename><surname>Shinn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Federico</forename><surname>Cassano</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Edward</forename><surname>Berman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ashwin</forename><surname>Gopinath</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2303.11366" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<monogr>
+		<title level="m" type="main">Generate, filter, control, replay: A comprehensive survey of rollout strategies for llm reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Rohan</forename><surname>Surana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gagan</forename><surname>Mundada</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xunyi</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chuhan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenwei</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Difan</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zihan</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheldon</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raghav</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikki</forename><surname>Kuang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sizhe</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Jin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhendong</forename><surname>Chu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kuan-Hao</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiawei</forename><surname>Han</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2605.02913" />
+		<imprint>
+			<date type="published" when="2026">2026</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<title level="m" type="main">Voyager: An open-ended embodied agent with large language models</title>
+		<author>
+			<persName><forename type="first">Guanzhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqi</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yunfan</forename><surname>Jiang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Mandlekar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaowei</forename><surname>Xiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuke</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Linxi</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anima</forename><surname>Anandkumar</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.16291" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title level="m" type="main">Dice: Dynamic in-context example selection in llm agents via efficient knowledge transfer</title>
+		<author>
+			<persName><forename type="first">Ruoyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lina</forename><surname>Yao</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2507.23554</idno>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Selfupdatable large language models by integrating context into model parameters</title>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinshuang</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiusi</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sean</forename><surname>Obrien</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">2025</biblScope>
+			<biblScope unit="page" from="16961" to="16979" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title level="m" type="main">Chain-of-thought prompting elicits reasoning in large language models</title>
+		<author>
+			<persName><forename type="first">Jason</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuezhi</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dale</forename><surname>Schuurmans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maarten</forename><surname>Bosma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Brian</forename><surname>Ichter</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ed</forename><surname>Chi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quoc</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Denny</forename><surname>Zhou</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2201.11903" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<analytic>
+		<title level="a" type="main">In-context ranking preference optimization</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rohan</forename><surname>Surana</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhouhang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prithviraj</forename><surname>Ammanabrolu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Second Conference on Language Modeling</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<analytic>
+		<title level="a" type="main">Ctrls: Chain-of-thought reasoning via latent state-transition</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sheldon</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengmian</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The 29th International Conference on Artificial Intelligence and Statistics</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Clustering of conversational bandits for user preference learning and elicitation</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Canzhe</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingyang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 30th ACM International Conference on Information &amp; Knowledge Management</title>
+		<meeting>the 30th ACM International Conference on Information &amp; Knowledge Management</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="2129" to="2139" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Dynamics-aware adaptation for reinforcement learning based cross-domain interactive recommendation</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhihui</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Handong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 45th international ACM SIGIR conference on research and development in information retrieval</title>
+		<meeting>the 45th international ACM SIGIR conference on research and development in information retrieval</meeting>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="290" to="300" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<analytic>
+		<title level="a" type="main">Infoprompt: Information-theoretic soft prompt tuning for natural language understanding</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhao</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Handong</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chaochao</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricardo</forename><surname>Henao</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=mSNfjOcDUv" />
+	</analytic>
+	<monogr>
+		<title level="m">Thirty-seventh Conference on Neural Information Processing Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hanjia</forename><surname>Lyu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhehao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Barrow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ishita</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehrnoosh</forename><surname>Mirtaheri</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongjie</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Franck</forename><surname>Dernoncourt</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2412.02142</idno>
+		<title level="m">Personalized multimodal large language models: A survey</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<analytic>
+		<title level="a" type="main">Decot: Debiasing chain-of-thought for knowledge-intensive tasks in large language models via causal intervention</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoliang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungchul</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anup</forename><surname>Rao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 62nd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Long Papers</publisher>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="page" from="14073" to="14087" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<monogr>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhehao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhaoyang</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungchul</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyi</forename><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2409.15310</idno>
+		<title level="m">Visual prompting in multimodal large language models: A survey</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<analytic>
+		<title level="a" type="main">Ocean: Offline chain-of-thought evaluation and alignment in large language models</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruoyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianing</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Branislav</forename><surname>Kveton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lina</forename><surname>Yao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Learning Representations</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">2025</biblScope>
+			<biblScope unit="page" from="100570" to="100589" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<analytic>
+		<title level="a" type="main">Doc-react: Multi-page heterogeneous document question-answering</title>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sai</forename><surname>Sree Harsha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">V</forename><surname>Akash</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruiyi</forename><surname>Maharaj</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Victor</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungchul</forename><surname>Bursztyn</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rossi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics</title>
+		<meeting>the 63rd Annual Meeting of the Association for Computational Linguistics</meeting>
+		<imprint>
+			<publisher>Short Papers</publisher>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="volume">2</biblScope>
+			<biblScope unit="page" from="67" to="78" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">User-regulation deconfounded conversational recommender system with bandit feedback</title>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungchul</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuai</forename><surname>Li</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 29th ACM SIGKDD conference on knowledge discovery and data mining</title>
+		<meeting>the 29th ACM SIGKDD conference on knowledge discovery and data mining</meeting>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="2694" to="2704" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<analytic>
+		<title level="a" type="main">Sand: Boosting llm agents with self-taught action deliberation</title>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jenny</forename><surname>Yiran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungchul</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Kim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lina</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Mcauley</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing</title>
+		<meeting>the 2025 Conference on Empirical Methods in Natural Language Processing</meeting>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+			<biblScope unit="page" from="3062" to="3077" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<analytic>
+		<title level="a" type="main">A survey on personalized and pluralistic preference alignment in large language models</title>
+		<author>
+			<persName><forename type="first">Zhouhang</forename><surname>Xie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiran</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Raghav</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Xia</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sachin</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bodhisattwa</forename><surname>Prasad Majumder</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prithviraj</forename><surname>Ammanabrolu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+		<ptr target="https://openreview.net/forum?id=lSWOMjonL7" />
+	</analytic>
+	<monogr>
+		<title level="m">Second Conference on Language Modeling</title>
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<monogr>
+		<title level="m" type="main">On the tool manipulation capability of open-source large language models</title>
+		<author>
+			<persName><forename type="first">Qiantong</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fenglu</forename><surname>Hong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Changran</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhengyu</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Zhang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.16504" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">An</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anfeng</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Baosong</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Beichen</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Binyuan</forename><surname>Hui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bo</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bowen</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chang</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengen</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenxu</forename><surname>Lv</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chujie</forename><surname>Zheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dayiheng</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fan</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fei</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Feng</forename><surname>Hu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hao</forename><surname>Ge</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haoran</forename><surname>Wei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jialong</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianhong</forename><surname>Tu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianwei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianxin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jiaxi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingren</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junyang</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Dang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Keqin</forename><surname>Bao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kexin</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianghao</forename><surname>Deng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mei</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingfeng</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mingze</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peng</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qin</forename><surname>Zhu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rui</forename><surname>Men</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ruize</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shixuan</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shuang</forename><surname>Luo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianhao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyi</forename><surname>Tang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wenbiao</forename><surname>Yin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xingzhang</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xinyu</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xuancheng</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Su</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yichang</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yinger</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Wan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuqiong</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zekun</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyu</forename><surname>Cui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenru</forename><surname>Zhang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2505.09388" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+	<note>Zhipeng Zhou, and Zihan Qiu. Qwen3 technical report</note>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Tree of thoughts: Deliberate problem solving with large language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><forename type="middle">L</forename><surname>Griffiths</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.10601" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title level="m" type="main">React: Synergizing reasoning and acting in language models</title>
+		<author>
+			<persName><forename type="first">Shunyu</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jeffrey</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Dian</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nan</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Izhak</forename><surname>Shafran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Karthik</forename><surname>Narasimhan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Cao</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2210.03629" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<monogr>
+		<title level="m" type="main">Retroformer: Retrospective large language agents with policy gradient optimization</title>
+		<author>
+			<persName><forename type="first">Weiran</forename><surname>Yao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shelby</forename><surname>Heinecke</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Juan</forename><forename type="middle">Carlos</forename><surname>Niebles</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhiwei</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yihao</forename><surname>Feng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Le</forename><surname>Xue</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rithesh</forename><surname>Murthy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zeyuan</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jianguo</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devansh</forename><surname>Arpit</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ran</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Phil</forename><surname>Mui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Huan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Caiming</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Silvio</forename><surname>Savarese</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2308.02151" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<analytic>
+		<title level="a" type="main">Explainable chain-of-thought reasoning: An empirical analysis on state-aware reasoning dynamics</title>
+		<author>
+			<persName><forename type="first">Sheldon</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuxin</forename><surname>Xiong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junda</forename><surname>Wu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xintong</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiang</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ritwik</forename><surname>Sinha</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jingbo</forename><surname>Shang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Mcauley</surname></persName>
+		</author>
+		<idno type="DOI">10.18653/v1/2025.findings-emnlp.904</idno>
+		<ptr target="https://aclanthology.org/2025.findings-emnlp.904/" />
+	</analytic>
+	<monogr>
+		<title level="m">Findings of the Association for Computational Linguistics: EMNLP 2025</title>
+		<editor>
+			<persName><forename type="first">Christos</forename><surname>Christodoulopoulos</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Tanmoy</forename><surname>Chakraborty</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Carolyn</forename><surname>Rose</surname></persName>
+		</editor>
+		<editor>
+			<persName><forename type="first">Violet</forename><surname>Peng</surname></persName>
+		</editor>
+		<meeting><address><addrLine>Suzhou, China</addrLine></address></meeting>
+		<imprint>
+			<publisher>Association for Computational Linguistics</publisher>
+			<date type="published" when="2025-11">November 2025</date>
+			<biblScope unit="page" from="16660" to="16667" />
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<monogr>
+		<title level="m" type="main">Contextual thompson sampling via generation of missing data</title>
+		<author>
+			<persName><forename type="first">Kelly</forename><forename type="middle">W</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tiffany</forename><forename type="middle">Tianhui</forename><surname>Cai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hongseok</forename><surname>Namkoong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Russo</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2502.07064" />
+		<imprint>
+			<date type="published" when="2025">2025</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<author>
+			<persName><forename type="first">Zhehao</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ryan</forename><forename type="middle">A</forename><surname>Rossi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Branislav</forename><surname>Kveton</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yijia</forename><surname>Shao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Diyi</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamed</forename><surname>Zamani</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Franck</forename><surname>Dernoncourt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Joe</forename><surname>Barrow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tong</forename><surname>Yu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sungchul</forename><surname>Kim</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2411.00027</idno>
+		<title level="m">Personalization of large language models: A survey</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<monogr>
+		<title level="m" type="main">Expel: Llm agents are experiential learners</title>
+		<author>
+			<persName><forename type="first">Andrew</forename><surname>Zhao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daniel</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Quentin</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthieu</forename><surname>Lin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yong-Jin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gao</forename><surname>Huang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2308.10144" />
+		<imprint>
+			<date type="published" when="2024">2024</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title level="m" type="main">Memorybank: Enhancing large language models with long-term memory</title>
+		<author>
+			<persName><forename type="first">Wanjun</forename><surname>Zhong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lianghong</forename><surname>Guo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qiqi</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">He</forename><surname>Ye</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanlin</forename><surname>Wang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2305.10250" />
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Can you help me create a short URL for the event details? Also, suggest some domain options for the team building link. Furthermore, provide me with a list of available domains for branding the short link</title>
+		<author>
+			<persName><forename type="first">Andy</forename><surname>Zhou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Kai</forename><surname>Yan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Michal</forename><surname>Shlapentokh-Rothman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Haohan</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu-Xiong</forename><surname>Wang</surname></persName>
+		</author>
+		<ptr target="https://arxiv.org/abs/2310.04406" />
+	</analytic>
+	<monogr>
+		<title level="m">Ground truth (3): bitly.shorten, URL Link Shortener.Create a new link</title>
+		<imprint>
+			<date type="published" when="2024">2024</date>
+			<biblScope unit="volume">1</biblScope>
+		</imprint>
+	</monogr>
+	<note>Episode 3 -Early Stream (F1 Task: I&apos;m organizing a team building activity for my company. Thought: The user needs a short URL for the event details. Action: OTT details.New Arrivals ✗</note>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<analytic>
+		<title level="a" type="main">The user also wants domain options for the short link</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Streaming Availability.Get Basic ✗</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<monogr>
+		<title level="m" type="main">Thought: Additionally, the user needs a list of available domains for branding. Action: Similar Movies</title>
+		<imprint/>
+	</monogr>
+	<note>find similar ✗</note>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<analytic>
+		<title level="a" type="main">Thought: Now, I need to check if all the actions have been completed</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Watchmode.Streaming Release Dates ✗</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<analytic>
+		<title level="a" type="main">All required actions have been completed</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Vimeo.GetRelatedChannels ✗</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<analytic>
+		<title level="a" type="main">Get Monthly Top 100 Music Torrents ✗ Result: P=0.00, R=0.00, F1=0.00 Episode 935 -Late Stream (F1 Task: I&apos;m organizing a team building activity for my company. Can you help me create a short URL for the event details? Also, suggest some domain options for the team building link. Furthermore, provide me with a list of available domains for branding the short link</title>
+	</analytic>
+	<monogr>
+		<title level="m">Ground truth (3): bitly.shorten, URL Link Shortener.Create a new link, URL Link Shortener</title>
+		<imprint/>
+	</monogr>
+	<note>The user&apos;s task is complete. Get a list of domains</note>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<analytic>
+		<title level="a" type="main">Thought: The user needs a short URL for the event details</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Watchmode.Title Seasons ✗</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<analytic>
+		<title level="a" type="main">Thought: The user also wants domain options for the short link</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Watchmode.New Titles ✗</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Thought: Additionally, the user is looking for a list of available domains for branding</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Streaming Availability.Search Pro ✗</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<monogr>
+		<title level="m" type="main">Thought: Now, I need to check if all the actions have been completed. Action: URL Link Shortener</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<analytic>
+		<title/>
+	</analytic>
+	<monogr>
+		<title level="j">Thought: All tasks are completed. Action: bitly.shorten ✓</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<analytic>
+		<title level="a" type="main">Action: URL Link Shortener.Get a list of domains ✓ Result: P=0</title>
+		<idno>R=1.00</idno>
+	</analytic>
+	<monogr>
+		<title level="m">The final answer is ready</title>
+		<imprint>
+			<biblScope unit="volume">50</biblScope>
+			<biblScope unit="page">67</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<analytic>
+		<title level="a" type="main">By episode 1130, the controller has accumulated enough feedback to select all three ground-truth tools within the first four steps, even on a previously unseen task phrasing. Episode 1130 -Complex Task, 7/9 GT Tools (F1 Task: I&apos;m organizing a movie marathon for my company&apos;s team-building event. Could you suggest some action movies from the 90s that are available for streaming on Netflix, Prime Video, and Hulu? Please include the IMDb ratings and streaming links for each movie</title>
+	</analytic>
+	<monogr>
+		<title level="j">Watchmode.New People, Watchmode.Title Seasons, OTT details.Basic Info, OTT details.Advanced Search, OTT details.Title Details, Streaming Availability.Search By Title, Streaming Availability.Search Ultra, Streaming Availability.Search Pro</title>
+		<imprint>
+			<biblScope unit="volume">1</biblScope>
+			<biblScope unit="issue">9</biblScope>
+			<publisher>Watchmode.List Titles</publisher>
+		</imprint>
+	</monogr>
+	<note>Ground truth. Thought: The user is looking for action movies from the 90s. Action: Vimeo.SearchVideos ✗</note>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<analytic>
+		<title level="a" type="main">The user wants to know where these movies are available for streaming</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Watchmode.List Titles ✓</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<analytic>
+	</analytic>
+	<monogr>
+		<title level="m">The user is interested in IMDb ratings for these movies</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<monogr>
+		<title level="m" type="main">Thought: The user wants the actual streaming links for each movie. Action: OTT details</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<analytic>
+		<title level="a" type="main">Thought: The information should be accurate and up-to-date for a company event</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Streaming Availability.Search Pro ✓</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<analytic>
+		<title level="a" type="main">The information needs to be concise and easy to share with the team</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Watchmode.Title Seasons ✓</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b67">
+	<monogr>
+		<title level="m" type="main">The user is likely looking for a variety of options to cater to different tastes. Action: OTT details</title>
+		<imprint/>
+	</monogr>
+	<note>Title Details ✓</note>
+</biblStruct>
+
+<biblStruct xml:id="b68">
+	<monogr>
+		<title level="m" type="main">The user might also want to know the release years to ensure they are from the 90s. Action: OTT details</title>
+		<imprint/>
+	</monogr>
+	<note>Search ✗</note>
+</biblStruct>
+
+<biblStruct xml:id="b69">
+	<monogr>
+		<title level="m" type="main">Thought: The information should be organized in a way that is easy to use during the marathon. Action: OTT details</title>
+		<imprint/>
+	</monogr>
+	<note>Additional Title Details</note>
+</biblStruct>
+
+<biblStruct xml:id="b70">
+	<analytic>
+		<title level="a" type="main">Thought: The user is looking for movies that can be watched in a short time frame</title>
+	</analytic>
+	<monogr>
+		<title level="j">Action: Streaming Availability.Search By Title ✓</title>
+		<imprint>
+			<biblScope unit="volume">11</biblScope>
+		</imprint>
+	</monogr>
+	<note>Action: Similar Movies.find similar</note>
+</biblStruct>
+
+<biblStruct xml:id="b71">
+	<analytic>
+		<title level="a" type="main">Thought: The user is looking for movies that are well-received with good action elements</title>
+	</analytic>
+	<monogr>
+		<title level="m">Action: Vimeo.GetChannelVideos ✗ Result: P=0.58, R=0.78, F1=0</title>
+		<imprint>
+			<biblScope unit="page">67</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b72">
+	<analytic>
+		<title level="a" type="main">3 Per-Benchmark Learning Curves We report per-benchmark learning curves for both backbone models</title>
+		<author>
+			<persName><forename type="first">A</forename></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Non-learning baselines (CoT</title>
+		<meeting><address><addrLine>Bandit, CLIN, OLIVIA</addrLine></address></meeting>
+		<imprint>
+			<biblScope unit="volume">25</biblScope>
+		</imprint>
+	</monogr>
+	<note>Each plot shows running-average F1 over the episode stream. ReAct) appear as flat reference lines; online methods. evolve as they accumulate feedback</note>
+</biblStruct>
+
+<biblStruct xml:id="b73">
+	<monogr>
+		<title level="m" type="main">Qwen3-4B</title>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b74">
+	<monogr>
+		<title/>
+		<author>
+			<orgName type="collaboration">Mistral-7B</orgName>
+		</author>
+		<imprint/>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b75">
+	<monogr>
+		<title level="m" type="main">Reward Studies Each panel shows the three reward metrics (Avg Recall, Avg F1, Avg Precision) with the same smoothing, bands, and styling as before. The shared legend sits at the top center, and only the bottom row has x-axis labels</title>
+		<imprint/>
+	</monogr>
+	<note>left column has y-axis labels to keep it clean</note>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>
