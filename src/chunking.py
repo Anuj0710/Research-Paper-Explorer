@@ -206,3 +206,12 @@ def fallback_chunks(meta: dict) -> List[dict]:
         return []
     chunk = _make_chunks(base, "abstract", "abstract", "Abstract", meta["abstract"])
     return _finalize([chunk], meta["arxiv_id"])
+
+def load_chunks(path=None) -> List[dict]:
+
+    import json
+    path = path or config.CHUNKS_PATH
+    if not path.exists():
+        raise SystemExit(f"{path} not found.")
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
